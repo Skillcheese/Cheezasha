@@ -17,7 +17,7 @@ import {
     MARKET_TAX,
     MIN_ACTION_TIME_SECONDS,
 } from './profit-constants.js';
-import { getItemPrice } from './market-data.js';
+import { getItemPrice, getPricingMode } from './market-data.js';
 import { getCustomPrice } from '../features/settings/custom-price-overrides.js';
 import { getShopCoinCost } from './game-lookups.js';
 import { getProductionCost } from '../features/enhancement/tooltip-enhancement.js';
@@ -441,7 +441,7 @@ export function resolveItemPrice(itemHrid, options = {}) {
     }
 
     // 4. Production cost fallback
-    const prodCost = getProductionCost(itemHrid, mode || 'ask');
+    const prodCost = getProductionCost(itemHrid, mode || getPricingMode(context, side));
     if (prodCost > 0) {
         return { price: prodCost, custom: false, missing: false };
     }

@@ -135,13 +135,13 @@ class HouseCostCalculator {
     }
 
     /**
-     * Get market price for an item (uses 'ask' price for buying materials)
+     * Get market price for an item (buy-side price for purchasing materials)
      * @param {string} itemHrid - Item HRID
      * @returns {Promise<number>} Market price
      */
     async getItemMarketPrice(itemHrid) {
-        // Use 'ask' mode since house upgrades involve buying materials
-        const price = getItemPrice(itemHrid, { mode: 'ask' });
+        // House upgrades involve buying materials, so respect the user's pricing mode setting
+        const price = getItemPrice(itemHrid, { context: 'profit', side: 'buy' });
 
         if (price === null || price === 0) {
             // Fallback to vendor price from game data

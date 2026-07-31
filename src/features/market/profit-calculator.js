@@ -10,7 +10,7 @@ import { calculateHouseEfficiency } from '../../utils/house-efficiency.js';
 import { getActionEfficiencyContext } from '../../utils/efficiency.js';
 import { calculateBonusRevenue } from '../../utils/bonus-revenue-calculator.js';
 import { getProductionCost, getProductionChainTime } from '../enhancement/tooltip-enhancement.js';
-import { getItemPrice } from '../../utils/market-data.js';
+import { getItemPrice, getPricingMode } from '../../utils/market-data.js';
 import { MARKET_TAX } from '../../utils/profit-constants.js';
 import {
     calculateActionsPerHour,
@@ -152,7 +152,7 @@ class ProfitCalculator {
             const upgradeChainTime = getProductionChainTime(actionDetails.upgradeItemHrid);
             if (upgradeChainTime > 0) {
                 const resolved = resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' });
-                const craftCost = getProductionCost(actionDetails.upgradeItemHrid, 'ask');
+                const craftCost = getProductionCost(actionDetails.upgradeItemHrid, getPricingMode('profit', 'buy'));
                 if (craftCost > 0 && (resolved.price === 0 || craftCost < resolved.price)) {
                     const chainTimeWithSpeed = upgradeChainTime / (1 + equipmentSpeedBonus + personalSpeedBonus);
                     effectiveActionTime += chainTimeWithSpeed;
@@ -379,7 +379,9 @@ class ProfitCalculator {
                     resolved = resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' });
 
                     const craftEnabled = config.getSetting('profitCalc_craftUpgradeItems');
-                    const craftCost = craftEnabled ? getProductionCost(actionDetails.upgradeItemHrid, 'ask') : 0;
+                    const craftCost = craftEnabled
+                        ? getProductionCost(actionDetails.upgradeItemHrid, getPricingMode('profit', 'buy'))
+                        : 0;
                     isCrafted = craftCost > 0 && (resolved.price === 0 || craftCost < resolved.price);
                     if (isCrafted) {
                         resolved = { price: craftCost, custom: false, missing: false };

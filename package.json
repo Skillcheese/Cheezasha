@@ -4,8 +4,8 @@
     "description": "Toolasha - Enhanced tools for Milky Way Idle",
     "type": "module",
     "scripts": {
-        "build": "BUILD_MODE=production rollup -c",
-        "build:dev": "BUILD_TARGET=dev-standalone rollup -c",
+        "build": "cross-env BUILD_MODE=production rollup -c",
+        "build:dev": "cross-env BUILD_TARGET=dev-standalone rollup -c",
         "build:enhancement": "rollup -c rollup.config.enhancement.js",
         "build:all": "npm run build && npm run build:enhancement",
         "watch": "rollup -c -w",
@@ -37,6 +37,7 @@
         "@rollup/plugin-terser": "^0.4.4",
         "chart.js": "3.7.0",
         "chartjs-plugin-datalabels": "2.0.0",
+        "cross-env": "^10.1.0",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
         "globals": "^17.1.0",

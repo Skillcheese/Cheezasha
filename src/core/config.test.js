@@ -5,6 +5,7 @@
 import { describe, test, expect, vi } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, resolve } from 'path';
+import { fileURLToPath } from 'url';
 
 vi.mock('./settings-storage.js', () => ({
     default: { getSetting: vi.fn(() => null), onSettingChange: vi.fn() },
@@ -74,7 +75,7 @@ describe('Config — color constants', () => {
 });
 
 describe('Config — forbidden source references (TLA-009 regression)', () => {
-    const srcDir = resolve(new URL('.', import.meta.url).pathname, '..');
+    const srcDir = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
     const forbidden = ['config.SCRIPT_COLOR_PRIMARY', 'config.SCRIPT_COLOR_SECONDARY'];
 
     test('no source file references config.SCRIPT_COLOR_PRIMARY or config.SCRIPT_COLOR_SECONDARY', () => {
