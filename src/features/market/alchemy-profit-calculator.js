@@ -137,7 +137,7 @@ function calculateAlchemyBonusDrops(itemLevel, actionsPerHour, equipment, itemDe
         essencePrice = expectedValueCalculator.getCachedValue('/items/alchemy_essence') || 0;
     } else {
         const price = marketAPI.getPrice('/items/alchemy_essence', 0);
-        essencePrice = price?.bid ?? 0;
+        essencePrice = calculatePriceAfterTax(price?.bid ?? 0);
     }
 
     const essenceRevenuePerHour = essenceDropsPerHour * essencePrice;
@@ -182,7 +182,7 @@ function calculateAlchemyBonusDrops(itemLevel, actionsPerHour, equipment, itemDe
             0;
     } else {
         const price = marketAPI.getPrice(crateHrid, 0);
-        cratePrice = price?.bid ?? 0;
+        cratePrice = calculatePriceAfterTax(price?.bid ?? 0);
     }
 
     const rareRevenuePerHour = rareDropsPerHour * cratePrice;
