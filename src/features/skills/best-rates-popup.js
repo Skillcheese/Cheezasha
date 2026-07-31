@@ -1,7 +1,7 @@
 /**
  * Best Rates Popup
- * Floating button that opens a modal listing the top profit/hr and XP/hr methods per skill,
- * computed from the player's current equipment with no tea buffs applied.
+ * Floating button that opens a modal listing the top profit/hr and Eff. XP/hr methods per
+ * skill, computed from the player's current equipment and the optimal tea combo per goal.
  */
 
 import config from '../../core/config.js';
@@ -25,6 +25,45 @@ const TOP_N = 3;
 
 function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Compute gold-neutral "Eff. XP/hr" for a set of action rates, matching the formula used
+ * elsewhere in the tool (see gathering-stats.js / max-produceable.js): actions that already
+ * profit keep their raw XP/hr; actions that lose gold have their XP discounted by how much
+ * time-equivalent it would take on the best-profit action here to recover that loss. Actions
+ * with no profitable action to recover against are excluded entirely.
+ * @param {Array<{xpPerHour: number, profitPerHour: number}>} rates
+ * @returns {Array} rates with an added effectiveXpPerHour field, unprofitable-with-no-recovery entries dropped
+ */
+function computeEffectiveXpRates(rates) {
+    const validRates = rates.filter((r) => r.xpPerHour > 0);
+    if (validRates.length === 0) return [];
+
+    let bestProfit = -Infinity;
+    let bestProfitExp = 0;
+    for (const r of validRates) {
+        if (r.profitPerHour > bestProfit) {
+            bestProfit = r.profitPerHour;
+            bestProfitExp = r.xpPerHour;
+        }
+    }
+
+    const results = [];
+    for (const r of validRates) {
+        let effectiveXpPerHour;
+        if (r.profitPerHour >= 0) {
+            effectiveXpPerHour = r.xpPerHour;
+        } else if (bestProfit > 0) {
+            const loss = Math.abs(r.profitPerHour);
+            const recoveryRatio = loss / bestProfit;
+            effectiveXpPerHour = (r.xpPerHour + recoveryRatio * bestProfitExp) / (1 + recoveryRatio);
+        } else {
+            continue;
+        }
+        results.push({ ...r, effectiveXpPerHour });
+    }
+    return results;
 }
 
 function getPlayerLevel(skillName) {
@@ -223,16 +262,15 @@ class BestRatesPopup {
         for (const skill of SKILLS) {
             const playerLevel = getPlayerLevel(skill);
             const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp');
-            const top = rates
-                .filter((r) => r.xpPerHour > 0)
-                .map((r) => ({ ...r, costPerHour: Math.max(0, -r.profitPerHour) }))
-                .sort((a, b) => b.xpPerHour / Math.max(1, b.costPerHour) - a.xpPerHour / Math.max(1, a.costPerHour))
+            const top = computeEffectiveXpRates(rates)
+                .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
                 .slice(0, TOP_N);
 
             body.appendChild(
                 this.renderSkillSection(skill, top, (r) => {
-                    const costText = r.costPerHour > 0 ? ` (-${formatKMB(r.costPerHour, 1)}/hr cost)` : '';
-                    return `${formatKMB(r.xpPerHour, 1)} XP/hr${costText}`;
+                    const costText =
+                        r.profitPerHour < 0 ? ` (-${formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
+                    return `${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
                 })
             );
         }
