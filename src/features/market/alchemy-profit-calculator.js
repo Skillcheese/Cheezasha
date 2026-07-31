@@ -799,7 +799,7 @@ class AlchemyProfitCalculator {
                     dropDetails.push({
                         itemHrid: output.itemHrid,
                         count: output.count,
-                        price: outputPrice,
+                        price: afterTax,
                         afterTax,
                         isEssence: false,
                         expectedValue: dropValue,
@@ -822,7 +822,7 @@ class AlchemyProfitCalculator {
                     dropDetails.push({
                         itemHrid: '/items/enhancing_essence',
                         count: essenceAmount,
-                        price: essencePrice,
+                        price: afterTax,
                         afterTax,
                         isEssence: true,
                         expectedValue: dropValue,
@@ -1133,7 +1133,7 @@ class AlchemyProfitCalculator {
                         minCount: drop.minCount,
                         maxCount: drop.maxCount,
                         averageCount,
-                        price: outputPrice,
+                        price: afterTax,
                         expectedValue: isSelfReturn ? 0 : dropValue, // Self-return has 0 effective value
                         isSelfReturn,
                     });
