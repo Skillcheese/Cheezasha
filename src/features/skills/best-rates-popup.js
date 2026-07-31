@@ -21,7 +21,7 @@ const SKILLS = [
     'alchemy',
 ];
 
-const TOP_N = 3;
+const TOP_N = 5;
 
 function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
@@ -64,6 +64,44 @@ function computeEffectiveXpRates(rates) {
         results.push({ ...r, effectiveXpPerHour });
     }
     return results;
+}
+
+/**
+ * Score actions on both profit/hr and XP/hr at once, anchored to the best-profit action's own
+ * numbers: an action's score is (its profit / best profit) + (its XP / best profit's XP). A
+ * 5% profit loss paired with a 10% XP gain over the best-profit action nets a higher score and
+ * wins. Evaluates each action under both the profit-optimal and XP-optimal tea combos and keeps
+ * whichever combo scores higher per action, since a player could equip either.
+ * @param {Array} goldRates - getSkillActionRates(..., 'gold') result
+ * @param {Array} xpRates - getSkillActionRates(..., 'xp') result
+ * @returns {Array} one best-scoring entry per action, with an added balancedScore field
+ */
+function computeBalancedRates(goldRates, xpRates) {
+    const profitable = goldRates.filter((r) => r.profitPerHour > 0);
+    if (profitable.length === 0) return [];
+
+    let bestProfitEntry = profitable[0];
+    for (const r of profitable) {
+        if (r.profitPerHour > bestProfitEntry.profitPerHour) bestProfitEntry = r;
+    }
+    const bestProfit = bestProfitEntry.profitPerHour;
+    const bestProfitExp = bestProfitEntry.xpPerHour;
+
+    const variants = [...goldRates, ...xpRates].filter((r) => r.xpPerHour > 0);
+    const scored = variants.map((r) => ({
+        ...r,
+        balancedScore: r.profitPerHour / bestProfit + (bestProfitExp > 0 ? r.xpPerHour / bestProfitExp : 0),
+    }));
+
+    const bestByHrid = new Map();
+    for (const entry of scored) {
+        const existing = bestByHrid.get(entry.hrid);
+        if (!existing || entry.balancedScore > existing.balancedScore) {
+            bestByHrid.set(entry.hrid, entry);
+        }
+    }
+
+    return Array.from(bestByHrid.values());
 }
 
 function getPlayerLevel(skillName) {
@@ -193,8 +231,10 @@ class BestRatesPopup {
 
         const profitTab = this.createTabButton('Best Profit/hr', 'profit');
         const xpTab = this.createTabButton('Best XP/hr', 'xp');
+        const balancedTab = this.createTabButton('Balanced', 'balanced');
         tabs.appendChild(profitTab);
         tabs.appendChild(xpTab);
+        tabs.appendChild(balancedTab);
 
         const body = document.createElement('div');
         body.className = 'mwi-best-rates-body';
@@ -240,8 +280,10 @@ class BestRatesPopup {
 
         if (this.activeTab === 'profit') {
             this.renderProfitTab(body);
-        } else {
+        } else if (this.activeTab === 'xp') {
             this.renderXpTab(body);
+        } else {
+            this.renderBalancedTab(body);
         }
     }
 
@@ -276,7 +318,28 @@ class BestRatesPopup {
         }
     }
 
-    renderSkillSection(skill, entries, formatValue) {
+    renderBalancedTab(body) {
+        for (const skill of SKILLS) {
+            const playerLevel = getPlayerLevel(skill);
+            const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
+            const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp');
+            const top = computeBalancedRates(goldRates, xpRates)
+                .sort((a, b) => b.balancedScore - a.balancedScore)
+                .slice(0, TOP_N);
+
+            body.appendChild(
+                this.renderSkillSection(
+                    skill,
+                    top,
+                    (r) => `${formatKMB(r.profitPerHour, 1)}/hr, ${formatKMB(r.xpPerHour, 1)} XP/hr`,
+                    { perEntryTeas: true }
+                )
+            );
+        }
+    }
+
+    renderSkillSection(skill, entries, formatValue, options = {}) {
+        const { perEntryTeas = false } = options;
         const section = document.createElement('div');
         section.style.cssText = 'margin-bottom: 16px;';
 
@@ -293,13 +356,15 @@ class BestRatesPopup {
             return section;
         }
 
-        const teaHrids = entries[0]?.teaHrids || [];
-        if (teaHrids.length > 0) {
-            const teaNames = teaHrids.map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
-            const teaLine = document.createElement('div');
-            teaLine.textContent = `Teas: ${teaNames.join(', ')}`;
-            teaLine.style.cssText = 'color: #888; font-size: 11px; margin-bottom: 6px;';
-            section.appendChild(teaLine);
+        if (!perEntryTeas) {
+            const teaHrids = entries[0]?.teaHrids || [];
+            if (teaHrids.length > 0) {
+                const teaNames = teaHrids.map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
+                const teaLine = document.createElement('div');
+                teaLine.textContent = `Teas: ${teaNames.join(', ')}`;
+                teaLine.style.cssText = 'color: #888; font-size: 11px; margin-bottom: 6px;';
+                section.appendChild(teaLine);
+            }
         }
 
         const list = document.createElement('div');
@@ -310,18 +375,34 @@ class BestRatesPopup {
             row.style.cssText = `
                 display: flex;
                 justify-content: space-between;
+                align-items: ${perEntryTeas ? 'flex-start' : 'center'};
                 padding: 4px 8px;
                 background: #1f1f1f;
                 border-radius: 4px;
                 color: #ddd;
                 font-size: 13px;
             `;
+
+            const left = document.createElement('div');
             const name = document.createElement('span');
             name.textContent = entry.name;
+            left.appendChild(name);
+
+            if (perEntryTeas) {
+                const teaNames = (entry.teaHrids || []).map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
+                if (teaNames.length > 0) {
+                    const teaSub = document.createElement('div');
+                    teaSub.textContent = `Teas: ${teaNames.join(', ')}`;
+                    teaSub.style.cssText = 'color: #888; font-size: 10px; margin-top: 2px;';
+                    left.appendChild(teaSub);
+                }
+            }
+
             const value = document.createElement('span');
             value.style.color = config.COLOR_ACCENT;
+            value.style.whiteSpace = 'nowrap';
             value.textContent = formatValue(entry);
-            row.appendChild(name);
+            row.appendChild(left);
             row.appendChild(value);
             list.appendChild(row);
         });
