@@ -728,10 +728,14 @@ class AlchemyBestItems {
                     line.style.textDecoration = 'line-through';
                     line.style.opacity = '0.6';
                 }
+                const isUngatedBonusDrop = drop.isEssence || drop.isRare;
+                const rateLabel = isUngatedBonusDrop
+                    ? `${dropRatePct}, not affected by success rate`
+                    : `${dropRatePct} \u00d7 ${formatPercentage(profitData.successRate, 1)} success`;
                 line.append(
                     `\u2022 `,
                     this._makeItemLink(itemName, drop.itemHrid),
-                    `: ${dropsDisplay}/hr (${dropRatePct} \u00d7 ${formatPercentage(profitData.successRate, 1)} success) @ ${formatWithSeparator(Math.round(drop.price))} \u2192 ${formatKMB(Math.round(drop.revenuePerHour))}/hr`
+                    `: ${dropsDisplay}/hr (${rateLabel}) @ ${formatWithSeparator(Math.round(drop.price))} \u2192 ${formatKMB(Math.round(drop.revenuePerHour))}/hr`
                 );
                 container.appendChild(line);
             }
