@@ -41,6 +41,7 @@ import taskAutoReroll from '../features/tasks/task-auto-reroll.js';
 // Skills
 import remainingXP from '../features/skills/remaining-xp.js';
 import xpTracker from '../features/skills/xp-tracker.js';
+import bestRatesPopup from '../features/skills/best-rates-popup.js';
 
 // Action features
 import lootLogStats from '../features/actions/loot-log-stats.js';
@@ -122,6 +123,7 @@ toolashaRoot.UI = {
     taskAutoReroll,
     remainingXP,
     xpTracker,
+    bestRatesPopup,
     lootLogStats,
     housePanelObserver,
     settingsUI,

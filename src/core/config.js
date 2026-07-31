@@ -350,6 +350,13 @@ class Config {
                 description: 'Optimizer tab in the character panel',
                 settingKey: 'skillingOptimizer',
             },
+            bestRatesPopup: {
+                enabled: true,
+                name: 'Best Rates Popup',
+                category: 'Skills',
+                description: 'Floating button showing top profit/hr and XP/hr methods per skill',
+                settingKey: 'bestRatesPopup',
+            },
 
             // House Features
             houseCostDisplay: {

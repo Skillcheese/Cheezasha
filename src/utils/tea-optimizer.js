@@ -1203,6 +1203,89 @@ export function scoreEquipmentSetup(skillName, goal, equipment, playerLevel, sel
 }
 
 /**
+ * Get per-action XP/hr or profit/hr (net of tea cost) for every available action in a skill,
+ * using the player's current equipment and the optimal tea combination for the given goal.
+ * Used to rank actions for "best rates" displays.
+ * @param {string} skillName - Skill name (e.g., 'milking')
+ * @param {number} playerLevel - Player's skill level
+ * @param {string} goal - 'xp' or 'gold' — determines which optimal tea combo is used
+ * @returns {Array<{name: string, hrid: string, requiredLevel: number, xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
+ */
+export function getSkillActionRates(skillName, playerLevel, goal) {
+    const normalizedSkill = skillName.toLowerCase();
+    const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
+    const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
+    if (!isGathering && !isProduction) return [];
+
+    const gameData = dataManager.getInitClientData();
+    if (!gameData?.itemDetailMap || !gameData?.actionDetailMap) return [];
+
+    const actionType = SKILL_TO_ACTION_TYPE[normalizedSkill];
+    if (!actionType) return [];
+
+    const equipment = dataManager.getEquipment();
+    const drinkConcentration = getDrinkConcentration(equipment, gameData.itemDetailMap);
+    const otherEfficiency = getOtherEfficiencySources(actionType);
+    if (isGathering) {
+        const equipGathering = parseGatheringQuantityBonus(equipment, gameData.itemDetailMap);
+        if (equipGathering > 0) otherEfficiency.gathering = (otherEfficiency.gathering || 0) + equipGathering;
+    }
+
+    const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
+
+    if (normalizedSkill === 'alchemy') {
+        const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
+        if (!repItemHrid) return [];
+        const itemDetails = gameData.itemDetailMap[repItemHrid];
+        const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
+
+        const optimalResult = findOptimalTeas('alchemy', goal, null, null, null, alchemyContext);
+        const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+        const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
+        const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+        const xpPerHour = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
+        const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+
+        return [
+            {
+                name: `Decompose ${itemDetails?.name || repItemHrid}`,
+                hrid: '/actions/alchemy/decompose',
+                requiredLevel: itemDetails?.itemLevel || 1,
+                xpPerHour,
+                profitPerHour,
+                teaHrids,
+            },
+        ];
+    }
+
+    const optimalResult = findOptimalTeas(skillName, goal);
+    const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+    const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
+    const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+    const results = [];
+    for (const [hrid, action] of Object.entries(gameData.actionDetailMap)) {
+        if (action.type !== actionType) continue;
+
+        const requiredLevel = action.levelRequirement?.level || 1;
+        if (playerLevel < requiredLevel) continue;
+
+        const xpPerHour = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
+        const rawProfitPerHour = isGathering
+            ? calculateGatheringGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext)
+            : calculateProductionGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext);
+        const profitPerHour = rawProfitPerHour - teaCostPerHour;
+
+        results.push({ name: action.name, hrid, requiredLevel, xpPerHour, profitPerHour, teaHrids });
+    }
+
+    return results;
+}
+
+/**
  * Get buff description for a tea
  * @param {string} teaHrid - Tea item HRID
  * @returns {string} Human-readable buff description
@@ -1363,4 +1446,5 @@ export default {
     scoreEquipmentSetup,
     getSkillActionsForDisplay,
     calculateSkillPerformance,
+    getSkillActionRates,
 };

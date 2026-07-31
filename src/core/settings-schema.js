@@ -1453,6 +1453,13 @@ export const settingsGroups = {
                 default: true,
                 help: 'Displays how much XP needed to reach the next level under skill progress bars',
             },
+            bestRatesPopup: {
+                id: 'bestRatesPopup',
+                label: 'Show Best Rates button (top profit/hr & XP/hr per skill)',
+                type: 'checkbox',
+                default: true,
+                help: 'Adds a floating button that opens a popup listing the highest profit/hr and fastest cheap XP/hr methods for each skill',
+            },
             skillRemainingXP_blackBorder: {
                 id: 'skillRemainingXP_blackBorder',
                 label: 'Remaining XP: Add black text border for better visibility',
