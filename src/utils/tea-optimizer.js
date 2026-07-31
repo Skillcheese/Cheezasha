@@ -12,8 +12,12 @@ import {
     parseEquipmentEfficiencyBonuses,
     parseGatheringQuantityBonus,
 } from './equipment-parser.js';
-import { calculateActionsPerHour, calculateEffectiveActionsPerHour, calculateDrinksPerHour } from './profit-helpers.js';
-import { getItemPrice } from './market-data.js';
+import {
+    calculateActionsPerHour,
+    calculateEffectiveActionsPerHour,
+    calculateDrinksPerHour,
+    resolveItemPrice,
+} from './profit-helpers.js';
 import { calculateBonusRevenue } from './bonus-revenue-calculator.js';
 import alchemyProfitCalculator from '../features/market/alchemy-profit-calculator.js';
 
@@ -342,14 +346,14 @@ function calculateGatheringGoldPerHour(actionDetails, buffs, playerLevel, otherE
         const avgAmountPerAction = avgCount * gatheringBonus;
 
         // Get item price (use 'sell' side for output items to match tile calculation)
-        const rawPrice = getItemPrice(drop.itemHrid, { context: 'profit', side: 'sell' }) || 0;
+        const rawPrice = resolveItemPrice(drop.itemHrid, { context: 'profit', side: 'sell' }).price || 0;
 
         // Check for processing conversion
         if (buffs.processing > 0) {
             const processedData = findProcessingConversion(drop.itemHrid, gameData);
             if (processedData) {
                 const processedPrice =
-                    getItemPrice(processedData.outputItemHrid, { context: 'profit', side: 'sell' }) || 0;
+                    resolveItemPrice(processedData.outputItemHrid, { context: 'profit', side: 'sell' }).price || 0;
                 const conversionRatio = processedData.conversionRatio;
 
                 // Processing Tea check happens per action:
@@ -442,7 +446,8 @@ function calculateProductionGoldPerHour(actionDetails, buffs, playerLevel, other
 
     // Add upgrade item cost (NOT affected by Artisan Tea)
     if (actionDetails.upgradeItemHrid) {
-        let upgradePrice = getItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' }) || 0;
+        let upgradePrice =
+            resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' }).price || 0;
         // Special case: Coins have no market price but have face value of 1
         if (actionDetails.upgradeItemHrid === '/items/coin' && upgradePrice === 0) {
             upgradePrice = 1;
@@ -452,7 +457,7 @@ function calculateProductionGoldPerHour(actionDetails, buffs, playerLevel, other
 
     // Add regular input item costs (affected by Artisan Tea)
     for (const input of actionDetails.inputItems || []) {
-        let price = getItemPrice(input.itemHrid, { context: 'profit', side: 'buy' }) || 0;
+        let price = resolveItemPrice(input.itemHrid, { context: 'profit', side: 'buy' }).price || 0;
         // Special case: Coins have no market price but have face value of 1
         if (input.itemHrid === '/items/coin' && price === 0) {
             price = 1;
@@ -468,7 +473,7 @@ function calculateProductionGoldPerHour(actionDetails, buffs, playerLevel, other
         actionDetails.type === '/action_types/cooking' || actionDetails.type === '/action_types/brewing';
     const gourmetBonus = isCookingOrBrewing ? 1 + buffs.gourmet : 1;
     for (const output of actionDetails.outputItems || []) {
-        const price = getItemPrice(output.itemHrid, { context: 'profit', side: 'sell' }) || 0;
+        const price = resolveItemPrice(output.itemHrid, { context: 'profit', side: 'sell' }).price || 0;
         const effectiveCount = output.count * gourmetBonus;
         outputRevenue += price * effectiveCount;
     }
@@ -717,7 +722,7 @@ function calculateTeaCostPerHour(teaHrids, drinkConcentration) {
 
     for (const teaHrid of teaHrids) {
         // Use getItemPrice with 'profit' context and 'buy' side to match tile calculation
-        const unitPrice = getItemPrice(teaHrid, { context: 'profit', side: 'buy' }) || 0;
+        const unitPrice = resolveItemPrice(teaHrid, { context: 'profit', side: 'buy' }).price || 0;
         const costPerHour = unitPrice * drinksPerHour;
         const name = gameData?.itemDetailMap?.[teaHrid]?.name || teaHrid;
         breakdown.push({ hrid: teaHrid, name, unitsPerHour: drinksPerHour, unitPrice, costPerHour });

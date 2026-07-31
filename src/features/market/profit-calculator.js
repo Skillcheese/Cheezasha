@@ -191,11 +191,13 @@ class ProfitCalculator {
 
         // Get output price based on pricing mode setting
         // Uses 'profit' context with 'sell' side to get correct sell price
-        const rawOutputPrice = getCachedPrice(itemHrid, { context: 'profit', side: 'sell' });
-        const outputPriceMissing = rawOutputPrice === null;
+        // Resolved through the same custom-override → shop-floor → market → production-cost
+        // chain as material costs below, so output and input pricing stay consistent.
+        const resolvedOutputPrice = resolveItemPrice(itemHrid, { context: 'profit', side: 'sell' });
+        const outputPriceMissing = resolvedOutputPrice.missing;
         const craftingFallback = outputPriceMissing ? this.calculateCraftingCostFallback(itemHrid, getCachedPrice) : 0;
         const outputPriceEstimated = outputPriceMissing && craftingFallback > 0;
-        const outputPrice = outputPriceMissing ? craftingFallback : rawOutputPrice;
+        const outputPrice = outputPriceMissing ? craftingFallback : resolvedOutputPrice.price;
 
         // Apply market tax (2% tax on sales)
         const priceAfterTax = calculatePriceAfterTax(outputPrice);
