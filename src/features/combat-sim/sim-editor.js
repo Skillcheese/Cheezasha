@@ -189,9 +189,9 @@ export class SimEditor {
             editorArea.innerHTML = `
                 <div style="text-align:center; padding:20px 0;">
                     <div style="color:#888; font-size:12px; margin-bottom:10px;">No players loaded.</div>
-                    <button id="mwi-csim-import-btn" style="
-                        background:${ACCENT_BTN_BG}; border:1px solid ${ACCENT_BTN_BORDER}; color:${ACCENT};
-                        padding:5px 14px; border-radius:5px; font-size:12px; cursor:pointer;
+                    <button id="mwi-csim-import-btn" disabled title="Temporarily disabled: the sim always uses your current character" style="
+                        background:rgba(255,255,255,0.03); border:1px solid #333; color:#555;
+                        padding:5px 14px; border-radius:5px; font-size:12px; cursor:not-allowed;
                         font-family:inherit; font-weight:600;">+ Import Player</button>
                     <div id="mwi-csim-import-area" style="display:none; margin-top:10px; text-align:left;">
                         <textarea id="mwi-csim-import-text" placeholder="Paste Combat Sim Export JSON here..." style="
@@ -275,10 +275,10 @@ export class SimEditor {
                 font-family:inherit; transition:all 0.1s; position:relative;
             ">${name}<span data-remove-player="${hrid}" style="margin-left:4px; color:#f44; cursor:pointer; font-size:14px;" title="Remove player">\u00d7</span></button>`;
         }
-        html += `<button id="mwi-csim-import-btn" style="
-            background:rgba(255,255,255,0.04); border:1px solid #333; color:#888;
-            padding:3px 8px; border-radius:5px; font-size:11px; cursor:pointer;
-            font-family:inherit;" title="Import players from Shykai export string">+ Import</button>`;
+        html += `<button id="mwi-csim-import-btn" disabled style="
+            background:rgba(255,255,255,0.02); border:1px solid #2a2a2a; color:#555;
+            padding:3px 8px; border-radius:5px; font-size:11px; cursor:not-allowed;
+            font-family:inherit;" title="Temporarily disabled: the sim always uses your current character">+ Import</button>`;
         html += '</div>';
 
         // Import paste area (hidden by default)

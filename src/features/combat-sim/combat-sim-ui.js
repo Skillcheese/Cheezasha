@@ -2943,9 +2943,9 @@ class CombatSimUI {
         if (!visible) {
             bringPanelToFront(this.panel);
             this.populateZones();
-            if (!this._editor.isInitialized()) {
-                this._editor.initEditor();
-            }
+            // Always reload live character data on open so the sim reflects
+            // current gear/skills rather than a stale cached/imported state.
+            this._editor.initEditor();
         }
     }
 
