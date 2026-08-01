@@ -1293,7 +1293,19 @@ export class SimEditor {
 
         const resetBtn = editorArea.querySelector('#mwi-csim-reset');
         if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
+            resetBtn.addEventListener('click', async () => {
+                const selfHrid = this._selfHrid;
+                if (selfHrid && this._editedDTOs?.[selfHrid]) {
+                    try {
+                        const { players } = await buildAllPlayerDTOs();
+                        const freshSelf = players.find((p) => p.hrid === selfHrid);
+                        if (freshSelf) {
+                            this._originalDTOs[selfHrid] = structuredClone(freshSelf);
+                        }
+                    } catch (error) {
+                        console.error('[SimEditor] Failed to refresh current character:', error);
+                    }
+                }
                 this._editedDTOs = structuredClone(this._originalDTOs);
                 this._selectedLoadoutName = '';
                 this.renderEditor();
