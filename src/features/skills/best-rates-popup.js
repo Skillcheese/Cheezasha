@@ -23,6 +23,10 @@ const SKILLS = [
 
 const TOP_N = 5;
 
+// Rank used for the local profit anchor: the Nth-highest profit/hr within a skill rather than the
+// single highest, so one outlier-priced item doesn't dictate the "gold-neutral" bar on its own.
+const PROFIT_ANCHOR_RANK = 10;
+
 function capitalize(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
@@ -32,32 +36,41 @@ function capitalize(str) {
  * elsewhere in the tool (see gathering-stats.js / max-produceable.js): actions that already
  * profit keep their raw XP/hr; actions that lose gold have their XP discounted by how much
  * time-equivalent it would take on the best-profit action here to recover that loss. Actions
- * with no profitable action to recover against are excluded entirely.
+ * with no profitable action to recover against are excluded entirely. The recovery-ratio
+ * denominator uses the best profit/hr across ALL skills (globalBestProfit), since the true
+ * opportunity cost of an unprofitable action is the best use of your time anywhere, not just
+ * the best profit within this one skill.
  * @param {Array<{xpPerHour: number, profitPerHour: number}>} rates
+ * @param {number} globalBestProfit - Best profit/hr across all skills, from getGlobalBestProfitPerHour()
  * @returns {Array} rates with an added effectiveXpPerHour field, unprofitable-with-no-recovery entries dropped
  */
-function computeEffectiveXpRates(rates) {
+function computeEffectiveXpRates(rates, globalBestProfit) {
     const validRates = rates.filter((r) => r.xpPerHour > 0);
     if (validRates.length === 0) return [];
 
-    let bestProfit = -Infinity;
-    let bestProfitExp = 0;
-    for (const r of validRates) {
-        if (r.profitPerHour > bestProfit) {
-            bestProfit = r.profitPerHour;
-            bestProfitExp = r.xpPerHour;
-        }
-    }
+    const profitableRates = validRates
+        .filter((r) => r.profitPerHour > 0)
+        .sort((a, b) => b.profitPerHour - a.profitPerHour);
+    const localRankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitableRates.length - 1);
+    const localAnchor = profitableRates[localRankIndex];
+    const localBestProfit = localAnchor?.profitPerHour ?? -Infinity;
+    const bestProfitExp = localAnchor?.xpPerHour ?? 0;
+    const profitAnchor = Math.max(globalBestProfit, localBestProfit);
 
     const results = [];
     for (const r of validRates) {
         let effectiveXpPerHour;
         if (r.profitPerHour >= 0) {
             effectiveXpPerHour = r.xpPerHour;
-        } else if (bestProfit > 0) {
+        } else if (profitAnchor > 0) {
             const loss = Math.abs(r.profitPerHour);
-            const recoveryRatio = loss / bestProfit;
-            effectiveXpPerHour = (r.xpPerHour + recoveryRatio * bestProfitExp) / (1 + recoveryRatio);
+            const recoveryRatio = loss / profitAnchor;
+            // Blending toward the recovery action's XP is a discount, never a bonus — cap at this
+            // action's own raw XP so a lucrative bestProfitExp can't inflate it.
+            effectiveXpPerHour = Math.min(
+                r.xpPerHour,
+                (r.xpPerHour + recoveryRatio * bestProfitExp) / (1 + recoveryRatio)
+            );
         } else {
             continue;
         }
@@ -301,10 +314,11 @@ class BestRatesPopup {
     }
 
     renderXpTab(body) {
+        const globalBestProfit = teaOptimizer.getGlobalBestProfitPerHour();
         for (const skill of SKILLS) {
             const playerLevel = getPlayerLevel(skill);
-            const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp');
-            const top = computeEffectiveXpRates(rates)
+            const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
+            const top = computeEffectiveXpRates(rates, globalBestProfit)
                 .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
                 .slice(0, TOP_N);
 
@@ -319,10 +333,11 @@ class BestRatesPopup {
     }
 
     renderBalancedTab(body) {
+        const globalBestProfit = teaOptimizer.getGlobalBestProfitPerHour();
         for (const skill of SKILLS) {
             const playerLevel = getPlayerLevel(skill);
             const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
-            const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp');
+            const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
             const top = computeBalancedRates(goldRates, xpRates)
                 .sort((a, b) => b.balancedScore - a.balancedScore)
                 .slice(0, TOP_N);

@@ -37,6 +37,25 @@ const SKILL_TO_ACTION_TYPE = {
 const GATHERING_SKILLS = ['milking', 'foraging', 'woodcutting'];
 const PRODUCTION_SKILLS = ['cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing', 'alchemy'];
 
+// Rank used for profit-opportunity anchors: the Nth-highest profit/hr rather than the single
+// highest, so one item with a wildly inflated market price (a common occurrence) doesn't
+// single-handedly set the "gold-neutral" bar for every XP action's effective XP/hr.
+const PROFIT_ANCHOR_RANK = 10;
+
+/**
+ * Pick a robust profit/xp anchor from a list of {profit, xp} entries: the Nth-highest by profit
+ * (see PROFIT_ANCHOR_RANK) instead of the single highest, to avoid one outlier-priced item
+ * dictating the opportunity-cost bar.
+ * @param {Array<{profit: number, xp: number}>} entries
+ * @returns {{profit: number, xp: number}|null} null if no entry has positive profit
+ */
+function pickRankedProfitAnchor(entries) {
+    const profitable = entries.filter((e) => e.profit > 0).sort((a, b) => b.profit - a.profit);
+    if (profitable.length === 0) return null;
+    const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitable.length - 1);
+    return profitable[rankIndex];
+}
+
 /**
  * Get all relevant teas for a skill and optimization goal
  * Returns teas grouped by exclusivity (skill teas are mutually exclusive)
@@ -816,6 +835,9 @@ function getOtherEfficiencySources(actionType) {
  * @param {string} goal - 'xp' or 'gold'
  * @param {string|null} locationName - Optional location name to filter actions (e.g., "Silly Cow Valley")
  * @param {string|null} actionNameFilter - Optional action name to restrict optimization to a single action
+ * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr achievable across ALL
+ *  skills (not just this one), used as the recovery-ratio denominator for gold-neutral effective XP.
+ *  Falls back to this skill's own best-profit action if omitted.
  * @returns {Object} Optimization result
  */
 export function findOptimalTeas(
@@ -826,7 +848,8 @@ export function findOptimalTeas(
     constraints = null,
     alchemyContext = null,
     equipmentOverride = null,
-    selectedActionHrids = null
+    selectedActionHrids = null,
+    globalBestProfit = null
 ) {
     const normalizedSkill = skillName.toLowerCase();
     const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
@@ -948,13 +971,52 @@ export function findOptimalTeas(
                 }
             }
             actionScores.push({ action: actionName, score });
+        } else if (goal === 'xp') {
+            // Score combos by gold-neutral effective XP/hr, not raw XP/hr, so a combo that
+            // trades away a huge amount of profit for a tiny XP bump doesn't win by default.
+            const perActionData = actions.map((action) => {
+                const xp = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
+                const rawProfit = isGathering
+                    ? calculateGatheringGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext)
+                    : calculateProductionGoldPerHour(
+                          action,
+                          buffs,
+                          playerLevel,
+                          otherEfficiency,
+                          gameData,
+                          calcContext
+                      );
+                const profit = rawProfit - teaCostPerHour.total;
+                return { action, xp, profit };
+            });
+
+            const localAnchor = pickRankedProfitAnchor(perActionData);
+            const localBestProfit = localAnchor?.profit ?? -Infinity;
+            const bestProfitExp = localAnchor?.xp ?? 0;
+            // The recovery-ratio denominator represents the true opportunity cost of your time,
+            // which is the best profit/hr available anywhere, not just within this skill.
+            const profitAnchor =
+                globalBestProfit != null ? Math.max(globalBestProfit, localBestProfit) : localBestProfit;
+
+            for (const { action, xp, profit } of perActionData) {
+                let effectiveXp;
+                if (profit >= 0) {
+                    effectiveXp = xp;
+                } else if (profitAnchor > 0) {
+                    const recoveryRatio = Math.abs(profit) / profitAnchor;
+                    // Blending toward the recovery action's XP is a discount, never a bonus —
+                    // cap at this action's own raw XP so a lucrative bestProfitExp can't inflate it.
+                    effectiveXp = Math.min(xp, (xp + recoveryRatio * bestProfitExp) / (1 + recoveryRatio));
+                } else {
+                    effectiveXp = 0;
+                }
+                totalScore += effectiveXp;
+                actionScores.push({ action: action.name, score: xp });
+            }
         } else {
             for (const action of actions) {
                 let score;
-                if (goal === 'xp') {
-                    score = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
-                    totalScore += score;
-                } else if (isGathering) {
+                if (isGathering) {
                     score = calculateGatheringGoldPerHour(
                         action,
                         buffs,
@@ -1214,9 +1276,11 @@ export function scoreEquipmentSetup(skillName, goal, equipment, playerLevel, sel
  * @param {string} skillName - Skill name (e.g., 'milking')
  * @param {number} playerLevel - Player's skill level
  * @param {string} goal - 'xp' or 'gold' — determines which optimal tea combo is used
+ * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr across ALL skills,
+ *  used as the opportunity-cost anchor for gold-neutral effective XP. See {@link getGlobalBestProfitPerHour}.
  * @returns {Array<{name: string, hrid: string, requiredLevel: number, xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
  */
-export function getSkillActionRates(skillName, playerLevel, goal) {
+export function getSkillActionRates(skillName, playerLevel, goal, globalBestProfit = null) {
     const normalizedSkill = skillName.toLowerCase();
     const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
     const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
@@ -1244,7 +1308,17 @@ export function getSkillActionRates(skillName, playerLevel, goal) {
         const itemDetails = gameData.itemDetailMap[repItemHrid];
         const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
 
-        const optimalResult = findOptimalTeas('alchemy', goal, null, null, null, alchemyContext);
+        const optimalResult = findOptimalTeas(
+            'alchemy',
+            goal,
+            null,
+            null,
+            null,
+            alchemyContext,
+            null,
+            null,
+            globalBestProfit
+        );
         const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
 
         const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
@@ -1265,7 +1339,7 @@ export function getSkillActionRates(skillName, playerLevel, goal) {
         ];
     }
 
-    const optimalResult = findOptimalTeas(skillName, goal);
+    const optimalResult = findOptimalTeas(skillName, goal, null, null, null, null, null, null, globalBestProfit);
     const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
 
     const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
@@ -1288,6 +1362,37 @@ export function getSkillActionRates(skillName, playerLevel, goal) {
     }
 
     return results;
+}
+
+/**
+ * Get the Nth-best profit/hr achievable across ALL skills (gold-optimal teas per skill), for use
+ * as the opportunity-cost anchor when computing gold-neutral effective XP/hr. Using the Nth-best
+ * (see PROFIT_ANCHOR_RANK) instead of the single best avoids letting one outlier-priced item —
+ * which can trade far above its "real" value — dictate the bar for every XP action.
+ * @returns {number} Nth-best profit/hr across all skills (0 if fewer than 1 profitable action)
+ */
+export function getGlobalBestProfitPerHour() {
+    const skills = dataManager.getSkills();
+    const allProfits = [];
+    for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
+        const skillHrid = `/skills/${skillName}`;
+        let playerLevel = 1;
+        for (const skill of skills || []) {
+            if (skill.skillHrid === skillHrid) {
+                playerLevel = skill.level;
+                break;
+            }
+        }
+        const rates = getSkillActionRates(skillName, playerLevel, 'gold');
+        for (const r of rates) {
+            if (r.profitPerHour > 0) allProfits.push(r.profitPerHour);
+        }
+    }
+
+    if (allProfits.length === 0) return 0;
+    allProfits.sort((a, b) => b - a);
+    const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, allProfits.length - 1);
+    return allProfits[rankIndex];
 }
 
 /**
@@ -1452,4 +1557,5 @@ export default {
     getSkillActionsForDisplay,
     calculateSkillPerformance,
     getSkillActionRates,
+    getGlobalBestProfitPerHour,
 };
