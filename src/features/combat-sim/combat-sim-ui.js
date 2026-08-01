@@ -810,6 +810,7 @@ class CombatSimUI {
             { key: 'tier', label: 'T' },
             { key: 'encounters', label: 'Enc/hr' },
             { key: 'deaths', label: 'Deaths/hr' },
+            { key: 'oom', label: 'Mana OOM' },
             ...skillCols,
             { key: 'revenue', label: 'Rev/hr' },
             { key: 'expenses', label: 'Cost/hr' },
@@ -828,12 +829,14 @@ class CombatSimUI {
                 const totalXP = Object.values(xp).reduce((s, v) => s + v, 0) / simHours;
                 const playerDeaths = (sim.deaths?.[playerHrid] || 0) / simHours;
                 const encounters = (sim.encounters || 0) / simHours;
+                const oom = sim.playerRanOutOfMana?.[playerHrid] ?? false;
 
                 return {
                     zone: r.zone.name,
                     tier: r.zone.difficultyTier,
                     encounters,
                     deaths: playerDeaths,
+                    oom,
                     totalXP,
                     stamina: (xp.stamina || 0) / simHours,
                     intelligence: (xp.intelligence || 0) / simHours,
@@ -865,7 +868,7 @@ class CombatSimUI {
         const maxVals = {};
         const minVals = {};
         for (const col of cols) {
-            if (col.key === 'zone' || col.key === 'tier') continue;
+            if (col.key === 'zone' || col.key === 'tier' || col.key === 'oom') continue;
             const values = rows.map((r) => r[col.key] || 0);
             maxVals[col.key] = Math.max(...values);
             minVals[col.key] = Math.min(...values);
@@ -906,6 +909,10 @@ class CombatSimUI {
                             } else {
                                 style += ' color:#e0e0e0;';
                             }
+                        } else if (col.key === 'oom') {
+                            display = val ? 'Yes' : 'No';
+                            style += ' text-align:center;';
+                            style += val ? ' color:#f44336; font-weight:600;' : ' color:#4caf50;';
                         } else {
                             display = formatKMB(Math.round(val));
                             style += ' text-align:right; font-variant-numeric:tabular-nums;';
