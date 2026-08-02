@@ -9,7 +9,7 @@ Thank you for your interest in contributing to Toolasha! This guide will help yo
 1. **Fork and clone the repository**
 
     ```bash
-    git clone https://github.com/yourusername/Toolasha.git
+    git clone https://github.com/yourusername/Toolasha.git # replace with your fork of https://github.com/Skillcheese/Toolasha
     cd Toolasha
     ```
 
@@ -519,16 +519,6 @@ git push
 2. Fix the issue in a new commit
 3. Push to main - release-please will update the release PR
 
-#### Greasy Fork Not Updated
-
-**Cause**: Webhook not triggered or `releases` branch not updated
-
-**Solution**:
-
-1. Check that `releases` branch has the latest built artifacts
-2. Manually trigger Greasy Fork sync from their dashboard (entrypoint)
-3. Verify webhook URL is correct in Greasy Fork settings
-
 ### Best Practices
 
 ✅ **Use conventional commits** - Ensures proper version bumping  
@@ -557,7 +547,6 @@ After merging:
 - [ ] GitHub release published successfully
 - [ ] `Toolasha.user.js` + libraries attached to release
 - [ ] `releases` branch updated with pinned entrypoint
-- [ ] Greasy Fork synced (check within 5-10 minutes)
 
 ### Questions?
 

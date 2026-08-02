@@ -12,6 +12,8 @@ A modular userscript that enhances [Milky Way Idle](https://www.milkywayidle.com
 
 Toolasha is a complete rewrite of the popular MWITools userscript, rebuilt from the ground up with modern JavaScript architecture. All features are modular and can be individually enabled or disabled through an in-game settings panel.
 
+This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/Toolasha).
+
 ## Features
 
 ### 🏪 Market & Economy
@@ -107,16 +109,9 @@ Toolasha is a complete rewrite of the popular MWITools userscript, rebuilt from 
 ### Prerequisites
 
 - **Browser**: Chrome, Firefox, or Edge with [Tampermonkey](https://www.tampermonkey.net/)
-- **Steam**: No additional extensions required — use the game's built-in extension manager to install from [Greasy Fork](https://update.greasyfork.org/scripts/562662/Toolasha.user.js)
+- **Steam**: Use Tampermonkey through the game's built-in extension manager
 
-### Install from Greasy Fork (Recommended)
-
-1. Visit [Toolasha on Greasy Fork](https://greasyfork.org/en/scripts/562662-toolasha)
-2. Click **Install this script**
-3. Tampermonkey will prompt you to confirm installation
-4. Visit [Milky Way Idle](https://www.milkywayidle.com/game) — Toolasha loads automatically
-
-### Install from GitHub Release
+### Install from GitHub Release (Recommended)
 
 1. **Download the latest release**
     - Visit the [Releases page](../../releases)
@@ -135,7 +130,7 @@ Toolasha is a complete rewrite of the popular MWITools userscript, rebuilt from 
 ### Install from Source
 
 ```bash
-git clone https://github.com/Celasha/Toolasha.git
+git clone https://github.com/Skillcheese/Toolasha.git
 cd Toolasha
 npm install
 npm run build:dev
@@ -236,3 +231,4 @@ npm test -- --coverage      # Coverage report
 
 **Original Author**: bot7420 (MWITools)
 **Rewrite & Maintenance**: Celasha and Claude
+**Fork Maintenance**: Skillcheese and Claude
