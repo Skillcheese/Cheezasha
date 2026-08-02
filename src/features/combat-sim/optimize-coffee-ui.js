@@ -5,7 +5,6 @@
  */
 
 import config from '../../core/config.js';
-import dataManager from '../../core/data-manager.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatKMB } from '../../utils/formatters.js';
 import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
@@ -15,11 +14,9 @@ import {
     getCombatZones,
     getCurrentCombatZone,
     getCommunityBuffs,
-    calculateSimRevenue,
 } from './combat-sim-adapter.js';
-import { runSimulation, cancelSimulation } from './combat-sim-runner.js';
-import { getGlobalBestProfitPerHour } from '../../utils/tea-optimizer.js';
-import { generateCombos } from './combo-utils.js';
+import { cancelSimulation, buildExtraBuffs } from './combat-sim-runner.js';
+import { runCoffeeOptimization } from './optimize-coffee-core.js';
 
 const PANEL_ID = 'mwi-optimize-coffee-panel';
 const ACCENT = '#c58b3f';
@@ -27,48 +24,6 @@ const ACCENT_BORDER = 'rgba(197, 139, 63, 0.5)';
 const ACCENT_BG = 'rgba(197, 139, 63, 0.12)';
 const ACCENT_BTN_BG = 'rgba(197, 139, 63, 0.2)';
 const ACCENT_BTN_BORDER = 'rgba(197, 139, 63, 0.4)';
-const MAX_DRINK_SLOTS = 3;
-
-/**
- * Get the buff-conflict grouping key for a consumable, mirroring sim-editor's conflict logic.
- * @param {Object} detail - item.consumableDetail
- * @returns {string|null}
- */
-function getConsumableTypeKey(detail) {
-    if (!detail) return null;
-    const buffs = detail.buffs || [];
-    if (buffs.length > 0) return 'buff:' + (buffs[0].uniqueHrid || 'unknown');
-    return null;
-}
-
-/**
- * Build the candidate drink groups: one best item per conflicting buff type.
- * @returns {Array<{key: string, hrid: string, name: string}>}
- */
-function getCandidateDrinkGroups() {
-    const clientData = dataManager.getInitClientData();
-    const itemDetailMap = clientData?.itemDetailMap || {};
-
-    const bestByType = new Map();
-    for (const [hrid, item] of Object.entries(itemDetailMap)) {
-        if (!item.consumableDetail) continue;
-        const cat = item.categoryHrid || '';
-        const isDrinkItem =
-            (cat.includes('drink') || hrid.includes('coffee')) && item.consumableDetail.cooldownDuration > 0;
-        if (!isDrinkItem) continue;
-
-        const key = getConsumableTypeKey(item.consumableDetail);
-        if (!key) continue;
-
-        const itemLevel = item.itemLevel || 0;
-        const existing = bestByType.get(key);
-        if (!existing || itemLevel > existing.itemLevel) {
-            bestByType.set(key, { key, hrid, name: item.name || hrid.split('/').pop(), itemLevel });
-        }
-    }
-
-    return Array.from(bestByType.values());
-}
 
 class OptimizeCoffeeUI {
     constructor() {
@@ -329,14 +284,9 @@ class OptimizeCoffeeUI {
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
         applyLiveSelfOverrides(playerDTOs[baseIndex]);
 
-        const groups = getCandidateDrinkGroups();
-        console.log(
-            `[OptimizeCoffeeUI] Candidate coffee pool (1 per buff family, ${groups.length} families):`,
-            groups.map((g) => ({ buffFamily: g.key, chosenItem: g.name }))
-        );
-        const combos = generateCombos(groups, MAX_DRINK_SLOTS);
-
         const communityBuffs = getCommunityBuffs();
+        const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
+        const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
 
         this.isRunning = true;
         this._aborted = false;
@@ -354,65 +304,28 @@ class OptimizeCoffeeUI {
         progressContainer.style.display = 'block';
         resultsEl.innerHTML = '';
 
-        const results = [];
-
         try {
-            for (let i = 0; i < combos.length; i++) {
-                if (this._aborted) break;
-
-                const combo = combos[i];
-                const drinks = [];
-                for (let s = 0; s < MAX_DRINK_SLOTS; s++) {
-                    drinks.push(combo[s] ? { hrid: combo[s].hrid, triggers: [] } : null);
-                }
-
-                const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, drinks } : p));
-
-                progressFill.style.width = `${Math.round((i / combos.length) * 100)}%`;
-                progressText.textContent = `${i} / ${combos.length}`;
-                this._setStatus(`Testing: ${combo.map((c) => c.name).join(' + ') || 'No coffee'}...`);
-
-                let simResult;
-                try {
-                    simResult = await runSimulation({
-                        gameData,
-                        playerDTOs: modifiedDTOs,
-                        zoneHrid,
-                        difficultyTier,
-                        hours,
-                        communityBuffs,
-                    });
-                } catch (err) {
-                    if (err.message === 'Cancelled') break;
-                    console.error('[OptimizeCoffeeUI] Simulation failed for combo', combo, err);
-                    continue;
-                }
-
-                const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
-                const xpMap = simResult.experienceGained?.[selfHrid] || {};
-                const xpPerHour = Object.values(xpMap).reduce((s, v) => s + v, 0) / simHours;
-
-                let profitPerHour = 0;
-                try {
-                    const revenue = calculateSimRevenue(simResult, gameData, selfHrid, simHours);
-                    profitPerHour = revenue.netPerHour;
-                } catch {
-                    // Revenue may not be available for this zone
-                }
-
-                results.push({
-                    combo,
-                    label: combo.map((c) => c.name).join(' + ') || 'No coffee',
-                    xpPerHour,
-                    profitPerHour,
-                });
-            }
+            const results = await runCoffeeOptimization({
+                gameData,
+                playerDTOs,
+                baseIndex,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                extraBuffs,
+                selfHrid,
+                isAborted: () => this._aborted,
+                onProgress: ({ completed, total }) => {
+                    progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                    progressText.textContent = `${completed} / ${total}`;
+                    this._setStatus(`Tested ${completed}/${total} coffee combos...`);
+                },
+            });
 
             progressFill.style.width = '100%';
-            progressText.textContent = `${results.length} / ${combos.length}`;
 
             if (this._aborted) {
-                this._setStatus(`Stopped after ${results.length}/${combos.length} combos.`);
+                this._setStatus(`Stopped after ${results.length} combos.`);
             } else {
                 this._setStatus(`Done: tested ${results.length} coffee combos.`);
             }
@@ -437,21 +350,7 @@ class OptimizeCoffeeUI {
             return;
         }
 
-        // "Eff. XP/hr": XP/hr discounted by the time it'd take to recover a profit deficit at the
-        // 10th-best skilling money-maker rate (same opportunity-cost anchor the Tea Optimizer uses).
-        // A combo that's merely less profitable than another isn't penalized unless it actually
-        // loses money relative to that anchor, and even then only in proportion to how much
-        // skilling time recovering the loss would actually take.
-        const profitAnchor = getGlobalBestProfitPerHour();
-        for (const r of results) {
-            if (r.profitPerHour >= 0 || profitAnchor <= 0) {
-                r.mixedScore = r.xpPerHour;
-            } else {
-                const recoveryRatio = Math.abs(r.profitPerHour) / profitAnchor;
-                r.mixedScore = r.xpPerHour / (1 + recoveryRatio);
-            }
-        }
-
+        // mixedScore ("Eff. XP/hr") is already computed by runCoffeeOptimization.
         const byXP = [...results].sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, 8);
         const byProfit = [...results].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, 8);
         const byMixed = [...results].sort((a, b) => b.mixedScore - a.mixedScore).slice(0, 8);

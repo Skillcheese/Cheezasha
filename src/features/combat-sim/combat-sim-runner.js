@@ -22,7 +22,7 @@ const MAX_WORKERS = 4;
 /**
  * @returns {number} Max worker count from setting, or hardware concurrency if 0/unset
  */
-function getMaxWorkers() {
+export function getMaxWorkers() {
     const setting = config.getSetting('combatSim_maxThreads') || 0;
     const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
     return setting > 0 ? Math.min(setting, cores) : Math.min(MAX_WORKERS, cores);

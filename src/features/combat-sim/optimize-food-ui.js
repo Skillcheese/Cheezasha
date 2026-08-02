@@ -5,8 +5,6 @@
  */
 
 import config from '../../core/config.js';
-import dataManager from '../../core/data-manager.js';
-import marketAPI from '../../api/marketplace.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatKMB } from '../../utils/formatters.js';
 import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
@@ -16,121 +14,18 @@ import {
     getCombatZones,
     getCurrentCombatZone,
     getCommunityBuffs,
-    getBuyPrice,
 } from './combat-sim-adapter.js';
-import { runSimulation, cancelSimulation } from './combat-sim-runner.js';
-import { generateCombos } from './combo-utils.js';
+import { cancelSimulation, buildExtraBuffs } from './combat-sim-runner.js';
+import { runFoodOptimization, rankFoodResults, describeFoodTriggers } from './optimize-food-core.js';
 
 const PANEL_ID = 'mwi-optimize-food-panel';
 const ACCENT = '#4ade80';
 const ACCENT_BORDER = 'rgba(74, 222, 128, 0.5)';
 const ACCENT_BG = 'rgba(74, 222, 128, 0.12)';
-const ACCENT_BTN_BG = 'rgba(74, 222, 128, 0.2)';
 const ACCENT_BTN_BORDER = 'rgba(74, 222, 128, 0.4)';
-const MAX_FOOD_SLOTS = 3;
-const TOP_CHEAP_PER_CATEGORY = 3;
-// Food only comes in 4 mutually-exclusive categories — you can't equip two of the same category
-// at once (e.g. two donuts), but different categories stack fine (donut + cake, gummy + yogurt).
-const FOOD_CATEGORIES = ['hp_instant', 'hp_over_time', 'mp_instant', 'mp_over_time'];
-// Combos are considered "tied" on deaths/hr or OOM% if within this margin, to absorb sim noise
-// (finite test hours) rather than treating a fractional difference as a real survivability gap.
-const TIE_EPSILON = 1e-6;
-
-/**
- * Categorize a food item the same way the sim editor's conflict picker does: instant vs
- * over-time HP/MP restore. Two items in the same category can't be equipped simultaneously.
- * @param {Object} detail - item.consumableDetail
- * @returns {string|null}
- */
-function getFoodCategory(detail) {
-    const hp = detail.hitpointRestore || 0;
-    const mp = detail.manapointRestore || 0;
-    const dur = detail.recoveryDuration || 0;
-    if (hp > 0) return dur > 0 ? 'hp_over_time' : 'hp_instant';
-    if (mp > 0) return dur > 0 ? 'mp_over_time' : 'mp_instant';
-    return null;
-}
-
-/**
- * Pick the cheapest N candidates of a category, plus the single strongest (highest restore)
- * in case cheap food alone can't prevent deaths/OOM.
- * @param {Array<Object>} list - candidates sorted ascending by price
- * @param {string} restoreKey - 'hp' or 'mp'
- * @returns {Array<Object>}
- */
-function selectCandidates(list, restoreKey) {
-    const picked = new Map();
-    for (const item of list.slice(0, TOP_CHEAP_PER_CATEGORY)) picked.set(item.hrid, item);
-    const strongest = [...list].sort((a, b) => b[restoreKey] - a[restoreKey])[0];
-    if (strongest) picked.set(strongest.hrid, strongest);
-    return Array.from(picked.values());
-}
-
-/**
- * Build candidate food items grouped by category, priced via the market.
- * @returns {Object<string, Array<{hrid: string, name: string, hp: number, mp: number, price: number}>>}
- */
-function getCandidateFoodGroups() {
-    const clientData = dataManager.getInitClientData();
-    const itemDetailMap = clientData?.itemDetailMap || {};
-
-    const byCategory = { hp_instant: [], hp_over_time: [], mp_instant: [], mp_over_time: [] };
-    for (const [hrid, item] of Object.entries(itemDetailMap)) {
-        const detail = item.consumableDetail;
-        if (!detail) continue;
-        const cat = item.categoryHrid || '';
-        if (!cat.includes('food')) continue;
-
-        const category = getFoodCategory(detail);
-        if (!category) continue;
-
-        const price = getBuyPrice(marketAPI.getPrice(hrid));
-        byCategory[category].push({
-            hrid,
-            name: item.name || hrid.split('/').pop(),
-            hp: detail.hitpointRestore || 0,
-            mp: detail.manapointRestore || 0,
-            price,
-        });
-    }
-
-    const groups = {};
-    for (const category of FOOD_CATEGORIES) {
-        const list = byCategory[category].sort((a, b) => a.price - b.price);
-        const restoreKey = category.startsWith('hp') ? 'hp' : 'mp';
-        groups[category] = selectCandidates(list, restoreKey);
-    }
-    return groups;
-}
-
-/**
- * Generate all food combos of up to maxSlots items that respect the one-item-per-category rule:
- * pick a subset of categories (up to maxSlots of them), then the cartesian product of each
- * chosen category's candidates.
- * @param {Object<string, Array<Object>>} groups - category → candidate items
- * @param {number} maxSlots
- * @returns {Array<Array<Object>>}
- */
-function generateFoodCombos(groups, maxSlots) {
-    const categories = FOOD_CATEGORIES.filter((c) => groups[c].length > 0);
-    const categorySubsets = generateCombos(categories, maxSlots);
-
-    const combos = [];
-    for (const subset of categorySubsets) {
-        let partials = [[]];
-        for (const category of subset) {
-            const next = [];
-            for (const partial of partials) {
-                for (const item of groups[category]) {
-                    next.push([...partial, item]);
-                }
-            }
-            partials = next;
-        }
-        combos.push(...partials);
-    }
-    return combos;
-}
+const ACCENT_BTN_BG = 'rgba(74, 222, 128, 0.2)';
+// Combos are considered "tied" on deaths/hr or OOM% if within this margin (matches optimize-food-core).
+const COMBOS_TO_REFINE = 10;
 
 class OptimizeFoodUI {
     constructor() {
@@ -391,26 +286,9 @@ class OptimizeFoodUI {
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
         applyLiveSelfOverrides(playerDTOs[baseIndex]);
 
-        const groups = getCandidateFoodGroups();
-        console.log(
-            '[OptimizeFoodUI] Candidate food pool by category (at most 1 per category per combo):',
-            Object.fromEntries(
-                Object.entries(groups).map(([category, items]) => [
-                    category,
-                    items.map((item) => `${item.name} (${item.price}c)`),
-                ])
-            )
-        );
-        // Cheapest-first order. Combined with the floor early-exit below: once a combo hits the
-        // absolute floor (0 deaths, 0% OOM) nothing can beat it — everything already tested was
-        // cheaper, and everything still untested is guaranteed pricier by this ordering. Short of
-        // that floor we can't prove a cheaper-but-untested combo won't do better without running
-        // it, so no combo is ever skipped unless that guarantee actually holds.
-        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS).sort(
-            (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
-        );
-
         const communityBuffs = getCommunityBuffs();
+        const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
+        const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
 
         this.isRunning = true;
         this._aborted = false;
@@ -428,91 +306,38 @@ class OptimizeFoodUI {
         progressContainer.style.display = 'block';
         resultsEl.innerHTML = '';
 
-        const results = [];
-        let reachedFloor = false;
-
         try {
-            for (let i = 0; i < combos.length; i++) {
-                if (this._aborted) break;
-
-                const combo = combos[i];
-                const food = [];
-                for (let s = 0; s < MAX_FOOD_SLOTS; s++) {
-                    food.push(combo[s] ? { hrid: combo[s].hrid, triggers: [] } : null);
-                }
-
-                const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, food } : p));
-
-                progressFill.style.width = `${Math.round((i / combos.length) * 100)}%`;
-                progressText.textContent = `${i} / ${combos.length}`;
-                this._setStatus(`Testing: ${combo.map((c) => c.name).join(' + ') || 'No food'}...`);
-
-                let simResult;
-                try {
-                    simResult = await runSimulation({
-                        gameData,
-                        playerDTOs: modifiedDTOs,
-                        zoneHrid,
-                        difficultyTier,
-                        hours,
-                        communityBuffs,
-                    });
-                } catch (err) {
-                    if (err.message === 'Cancelled') break;
-                    console.error('[OptimizeFoodUI] Simulation failed for combo', combo, err);
-                    continue;
-                }
-
-                const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
-                const deathsPerHour = (simResult.deaths?.[selfHrid] || 0) / simHours;
-
-                const oomStat = simResult.playerRanOutOfManaTime?.[selfHrid];
-                const oomPercent = oomStat
-                    ? Math.min(100, (oomStat.totalTimeForOutOfMana / simResult.simulatedTime) * 100)
-                    : 0;
-
-                // Only cost the food in this combo — consumablesUsed also includes whatever
-                // coffee/drinks the player already has equipped (unchanged across every combo
-                // tested here), which calculateSimRevenue's costPerHour would otherwise lump in.
-                const comboHrids = new Set(combo.map((c) => c.hrid));
-                const consumablesUsed = simResult.consumablesUsed?.[selfHrid] || {};
-                let costPerHour = 0;
-                for (const [itemHrid, count] of Object.entries(consumablesUsed)) {
-                    if (!comboHrids.has(itemHrid)) continue;
-                    const price = getBuyPrice(marketAPI.getPrice(itemHrid));
-                    costPerHour += (count / simHours) * price;
-                }
-
-                results.push({
-                    combo,
-                    label: combo.map((c) => c.name).join(' + ') || 'No food',
-                    deathsPerHour,
-                    oomPercent,
-                    costPerHour,
-                });
-
-                // Hit the absolute floor — this combo can't be beaten, and being tested in
-                // cheapest-first order, nothing untested can be cheaper either. Stop here.
-                if (deathsPerHour <= TIE_EPSILON && oomPercent <= TIE_EPSILON) {
-                    reachedFloor = true;
-                    break;
-                }
-            }
-
-            progressFill.style.width = '100%';
-            progressText.textContent = `${results.length} / ${combos.length}`;
+            const { results, refined } = await runFoodOptimization({
+                gameData,
+                playerDTOs,
+                baseIndex,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                extraBuffs,
+                selfHrid,
+                isAborted: () => this._aborted,
+                onProgress: ({ completed, total, phase }) => {
+                    progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                    progressText.textContent = `${completed} / ${total}`;
+                    if (phase === 'search') this._setStatus(`Tested ${completed} food combos (binary search)...`);
+                    else if (phase === 'gathering')
+                        this._setStatus(`Found a 0-death, 0% OOM combo. Gathering more candidates...`);
+                    else if (phase === 'exhaustive')
+                        this._setStatus(`No combo reaches 0 deaths/0% OOM — testing all combos...`);
+                    else if (phase === 'refining')
+                        this._setStatus(`Tested ${completed}/${total} food combos. Refining trigger thresholds...`);
+                },
+            });
 
             if (this._aborted) {
-                this._setStatus(`Stopped after ${results.length}/${combos.length} combos.`);
-            } else if (reachedFloor) {
-                this._setStatus(
-                    `Done: found a 0-death, 0% OOM combo after ${results.length}/${combos.length} combos — no cheaper combo could beat it, so the rest were skipped.`
-                );
-            } else {
-                this._setStatus(`Done: tested ${results.length} food combos.`);
+                this._setStatus(`Stopped after ${results.length} combos.`);
+                this._displayResults(results);
+                return;
             }
 
-            this._displayResults(results);
+            this._setStatus(`Done: tested ${results.length} food combos, refined triggers for top ${refined.length}.`);
+            this._displayResults(refined, { refined: true });
         } finally {
             this.isRunning = false;
             runBtn.disabled = false;
@@ -523,25 +348,7 @@ class OptimizeFoodUI {
         }
     }
 
-    /**
-     * Rank combos lexicographically: fewest deaths/hr, then least OOM time, then cheapest —
-     * and return the top 5 combos that hit (or tie for) the best deaths/hr and OOM% found.
-     * @param {Array<Object>} results
-     * @returns {Array<Object>}
-     */
-    _rankResults(results) {
-        if (!results.length) return [];
-
-        const minDeaths = Math.min(...results.map((r) => r.deathsPerHour));
-        const survivalTier = results.filter((r) => r.deathsPerHour <= minDeaths + TIE_EPSILON);
-
-        const minOOM = Math.min(...survivalTier.map((r) => r.oomPercent));
-        const manaTier = survivalTier.filter((r) => r.oomPercent <= minOOM + TIE_EPSILON);
-
-        return [...manaTier].sort((a, b) => a.costPerHour - b.costPerHour).slice(0, 5);
-    }
-
-    _displayResults(results) {
+    _displayResults(results, options = {}) {
         const container = this.panel?.querySelector('#mwi-ofood-results');
         if (!container) return;
 
@@ -550,7 +357,10 @@ class OptimizeFoodUI {
             return;
         }
 
-        const ranked = this._rankResults(results);
+        // Results passed in are already the refined top-N candidates (or, on abort, the raw
+        // per-combo results before refinement). Re-rank rather than plain-sort so a cheaper
+        // combo with worse deaths/OOM can never displace a pricier one that survives better.
+        const ranked = rankFoodResults(results, 5);
 
         const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
             .map(
@@ -564,9 +374,13 @@ class OptimizeFoodUI {
                 const rowColor = i === 0 ? '#4caf50' : '#ccc';
                 const rowWeight = i === 0 ? '700' : '400';
                 const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                const triggerDesc = describeFoodTriggers(r);
                 return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
-                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${r.label}
+                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
+                        </td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.costPerHour))}</td>
@@ -575,9 +389,13 @@ class OptimizeFoodUI {
             })
             .join('');
 
+        const note = options.refined
+            ? `${ranked.length} combo${ranked.length === 1 ? '' : 's'} tied for the lowest deaths/hr and lowest mana-OOM% (of the best ${COMBOS_TO_REFINE} tested), after refining each food's trigger threshold, sorted by cost/hr.`
+            : `${ranked.length} cheapest combo${ranked.length === 1 ? '' : 's'} that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.`;
+
         container.innerHTML = `
             <div style="color:#888; font-size:11px; margin-bottom:8px;">
-                Top 5 cheapest combos that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.
+                ${note}
             </div>
             <table style="width:100%; border-collapse:collapse;">
                 <thead><tr>${headerCells}</tr></thead>

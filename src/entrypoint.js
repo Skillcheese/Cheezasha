@@ -467,6 +467,14 @@ function registerFeatures() {
             customCheck: () => config.getSetting('combatSim'),
         },
         {
+            key: 'ultimateSim',
+            name: 'Ultimate Sim',
+            category: 'Combat',
+            module: Combat.ultimateSim,
+            async: false,
+            customCheck: () => config.getSetting('combatSim'),
+        },
+        {
             key: 'labSim',
             name: 'Lab Simulator',
             category: 'Combat',
