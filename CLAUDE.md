@@ -19,6 +19,22 @@ This file contains general workflow and behavioral guidelines for AI assistants 
 
 ## Project-Specific Context
 
+### Versioning (release-please)
+
+- The version in `package.json` and `src/main.js` (`cheezashaRoot.version`) is bumped by
+  **release-please**, not by hand. A `fix:`/`feat:`/etc. commit pushed to `main` makes
+  release-please open (or update) a `chore(main): release X.Y.Z` PR; merging that PR is what
+  actually bumps the version files on `main` (via the `Format Release Please` workflow's
+  `npm run version:sync` step) and cuts the tag/release.
+- **Before trusting the local version number or building a release artifact**, run
+  `git pull --rebase origin main` — if a release PR merged upstream since your last fetch (e.g.
+  from a previous session or CI), your local `package.json`/`src/main.js` will still show the old
+  version until you pull, even though your commit itself is already in place.
+- After `git push origin main`, expect release-please to open a new release PR shortly after
+  (poll with `gh pr list` / `gh pr checks <n>`). Merging it (squash, matching prior release PRs)
+  triggers `release.yml`, which builds the production bundles and publishes the (non-draft)
+  GitHub release with the userscript asset attached.
+
 ### Recent Breaking Changes
 
 **February 21, 2026 Game Update:**
