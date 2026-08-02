@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 2.87.0
+ * Version: 3.0.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -3182,6 +3182,30 @@
             },
         },
     };
+
+    /**
+     * Get a setting definition by ID
+     * @param {string} settingId - Setting ID
+     * @returns {Object|null} Setting definition or null
+     */
+    function getSettingDefinition(settingId) {
+        for (const group of Object.values(settingsGroups)) {
+            if (group.settings[settingId]) {
+                return group.settings[settingId];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if a setting has dependencies
+     * @param {string} settingId - Setting ID
+     * @returns {string[]} Array of dependency setting IDs
+     */
+    function getSettingDependencies(settingId) {
+        const def = getSettingDefinition(settingId);
+        return def?.dependencies || [];
+    }
 
     /**
      * Settings Storage Module
@@ -7762,6 +7786,8 @@
         featureRegistry: featureRegistry$1,
         settingsStorage,
         settingsGroups,
+        getSettingDefinition,
+        getSettingDependencies,
         tooltipObserver,
         profileManager: {
             setCurrentProfile,
