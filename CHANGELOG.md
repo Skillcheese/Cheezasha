@@ -1,5 +1,53 @@
 # Changelog
 
+## [2.87.0](https://github.com/Skillcheese/Toolasha/compare/v2.86.0...v2.87.0) (2026-08-02)
+
+
+### Features
+
+* add Best Rates popup showing top profit/hr and XP/hr per skill ([1a449a2](https://github.com/Skillcheese/Toolasha/commit/1a449a222e3ea32a5eaed6f7bdf5872704b565c9))
+* add budget-based Ability Levels/Swaps sizing and fix cost calc ([70b3b0d](https://github.com/Skillcheese/Toolasha/commit/70b3b0daf9eb8ad0d2ed9631ea44af7533efc8cf))
+* add mana OOM column to combat sim all-zones table ([c60a53d](https://github.com/Skillcheese/Toolasha/commit/c60a53d31a9c7c67bf91a07c68e7eef42c404162))
+* add Optimize Coffee button to combat sim panel ([89925f1](https://github.com/Skillcheese/Toolasha/commit/89925f10f8ecb4e23aa01a3f5472b8e04d9b1db5))
+* add Optimize Food button to combat sim panel ([3daae51](https://github.com/Skillcheese/Toolasha/commit/3daae512e90b52c867a685d734730794acb12867))
+* add Skill Optimizer and Enhancement Optimizer popups ([e7f33fa](https://github.com/Skillcheese/Toolasha/commit/e7f33fa24b2833e9a7a0ede74df609063db8e649))
+* expand Ability Swaps to empty slots with level-gated, budget-scaled candidates ([aa3def0](https://github.com/Skillcheese/Toolasha/commit/aa3def0d7ef598312709b5bc96d4a139de6f7c00))
+* rework Equipment upgrade advisor to budget-gated, flat sortable results ([00d60df](https://github.com/Skillcheese/Toolasha/commit/00d60df2434f08649320399a521fbc9f55af4da0))
+* show top 5 per skill and add a Balanced tab to Best Rates ([aed9ab2](https://github.com/Skillcheese/Toolasha/commit/aed9ab2d3d053f445431b626ff74c4d4366e0c1e))
+
+
+### Bug Fixes
+
+* align Best Rates and tooltip profit calc to same price resolution ([1deb937](https://github.com/Skillcheese/Toolasha/commit/1deb93795f2ad61f1734f8e7de7e26f7cd8d3a85))
+* apply market tax to alchemy bonus drop revenue ([9e300a5](https://github.com/Skillcheese/Toolasha/commit/9e300a590692c71a15746bbbb0b89e99d982ed8c))
+* combat sim always uses current character, disable stale import ([6cd9463](https://github.com/Skillcheese/Toolasha/commit/6cd94637bd6208f828243e329dfc4811df4f41df))
+* don't claim success rate applies to alchemy bonus drop labels ([bfd5a59](https://github.com/Skillcheese/Toolasha/commit/bfd5a5910e27bcc4d9dc40536a7821a85759da48))
+* enforce food category exclusivity in Optimize Food ([52595ad](https://github.com/Skillcheese/Toolasha/commit/52595ad7229ff674aadb2bdc81546f35c0dd0e98))
+* exclude drink cost from Optimize Food cost/hr ([46aa3cb](https://github.com/Skillcheese/Toolasha/commit/46aa3cb1b2d021a27f19c882b8aec6361bed61b5))
+* filter Equipment upgrade candidates by combat style and chain tier ([dbc32ea](https://github.com/Skillcheese/Toolasha/commit/dbc32ea29c1628121d71e7dd06fe8f4582f97485))
+* make gold-neutral effective xp/hr robust and never inflate raw xp ([b0b62c3](https://github.com/Skillcheese/Toolasha/commit/b0b62c3c03fa9b9c5b5ff09d7acad06d8f3ecdf1))
+* rank best XP/hr tab by gold-neutral effective XP/hr ([fa83f3e](https://github.com/Skillcheese/Toolasha/commit/fa83f3e7b51538078269c91a143e199837663fd1))
+* reset to current re-fetches live character instead of stale snapshot ([66e56ff](https://github.com/Skillcheese/Toolasha/commit/66e56ff5267d8fc5fedc6d599b29b060812d85d9))
+* respect pricing mode setting in production-cost fallbacks ([30afa38](https://github.com/Skillcheese/Toolasha/commit/30afa381bd6f6e1f8ae54e0d286616de457f2859))
+* show after-tax price in alchemy drop breakdowns ([11c553b](https://github.com/Skillcheese/Toolasha/commit/11c553b1e4bd56b5ef3ae00befb3dd9bfed28a6d))
+* use 10th-best profit/hr as gold-neutral recovery anchor ([5c45918](https://github.com/Skillcheese/Toolasha/commit/5c45918ad5984d3317db04983e67daa73f4cdbdd))
+* use shared global profit anchor and drop unrelated-skill XP from gold-neutral blend ([70ebfe2](https://github.com/Skillcheese/Toolasha/commit/70ebfe25d262009c051fc26d4f06b877f9682547))
+
+
+### Performance Improvements
+
+* early-exit Optimize Food search once the survival floor is hit ([0dfadcb](https://github.com/Skillcheese/Toolasha/commit/0dfadcb041a17845cc1bfa31fc1f72ea66fc778d))
+
+
+### Miscellaneous Chores
+
+* log candidate pools for Optimize Coffee/Food ([c77440b](https://github.com/Skillcheese/Toolasha/commit/c77440b566cf61d4754f75fb603e9665c2fc9563))
+
+
+### Reverts
+
+* restore one-time editor init on combat sim panel open ([7e62bde](https://github.com/Skillcheese/Toolasha/commit/7e62bdeba9bb8a8fe60b188fce859fe34064cc79))
+
 ## [2.86.0](https://github.com/Skillcheese/Toolasha/compare/v2.85.1...v2.86.0) (2026-07-31)
 
 
