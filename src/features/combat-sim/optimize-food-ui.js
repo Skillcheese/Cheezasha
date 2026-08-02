@@ -399,7 +399,14 @@ class OptimizeFoodUI {
                 ])
             )
         );
-        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS);
+        // Cheapest-first order. Combined with the floor early-exit below: once a combo hits the
+        // absolute floor (0 deaths, 0% OOM) nothing can beat it — everything already tested was
+        // cheaper, and everything still untested is guaranteed pricier by this ordering. Short of
+        // that floor we can't prove a cheaper-but-untested combo won't do better without running
+        // it, so no combo is ever skipped unless that guarantee actually holds.
+        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS).sort(
+            (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
+        );
 
         const communityBuffs = getCommunityBuffs();
 
@@ -420,6 +427,7 @@ class OptimizeFoodUI {
         resultsEl.innerHTML = '';
 
         const results = [];
+        let reachedFloor = false;
 
         try {
             for (let i = 0; i < combos.length; i++) {
@@ -480,6 +488,13 @@ class OptimizeFoodUI {
                     oomPercent,
                     costPerHour,
                 });
+
+                // Hit the absolute floor — this combo can't be beaten, and being tested in
+                // cheapest-first order, nothing untested can be cheaper either. Stop here.
+                if (deathsPerHour <= TIE_EPSILON && oomPercent <= TIE_EPSILON) {
+                    reachedFloor = true;
+                    break;
+                }
             }
 
             progressFill.style.width = '100%';
@@ -487,6 +502,10 @@ class OptimizeFoodUI {
 
             if (this._aborted) {
                 this._setStatus(`Stopped after ${results.length}/${combos.length} combos.`);
+            } else if (reachedFloor) {
+                this._setStatus(
+                    `Done: found a 0-death, 0% OOM combo after ${results.length}/${combos.length} combos — no cheaper combo could beat it, so the rest were skipped.`
+                );
             } else {
                 this._setStatus(`Done: tested ${results.length} food combos.`);
             }
