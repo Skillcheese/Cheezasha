@@ -459,6 +459,14 @@ function registerFeatures() {
             customCheck: () => config.getSetting('combatSim'),
         },
         {
+            key: 'optimizeFood',
+            name: 'Optimize Food',
+            category: 'Combat',
+            module: Combat.optimizeFood,
+            async: false,
+            customCheck: () => config.getSetting('combatSim'),
+        },
+        {
             key: 'labSim',
             name: 'Lab Simulator',
             category: 'Combat',

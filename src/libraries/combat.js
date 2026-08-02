@@ -25,6 +25,7 @@ import { constructExportObject } from '../features/combat/combat-sim-export.js';
 import { constructMilkonomyExport } from '../features/combat/milkonomy-export.js';
 import combatSim from '../features/combat-sim/combat-sim.js';
 import optimizeCoffee from '../features/combat-sim/optimize-coffee.js';
+import optimizeFood from '../features/combat-sim/optimize-food.js';
 import labSim from '../features/combat-sim/lab-sim.js';
 
 // Combat stats
@@ -71,6 +72,7 @@ toolashaRoot.Combat = {
     characterCardButton,
     combatSim,
     optimizeCoffee,
+    optimizeFood,
     labSim,
 };
 

@@ -1683,6 +1683,16 @@ export const settingsGroups = {
                 step: 1,
                 help: 'Simulated hours run per coffee combination when ranking XP/hr and coins/hr (lower = faster search)',
             },
+            combatSim_optimizeFoodHours: {
+                id: 'combatSim_optimizeFoodHours',
+                label: 'Combat Simulator: Optimize Food test hours per combo',
+                type: 'number',
+                default: 2,
+                min: 1,
+                max: 1000,
+                step: 1,
+                help: 'Simulated hours run per food combination when ranking deaths/hr, mana OOM%, and cost/hr (lower = faster search)',
+            },
             combatSim_maxThreads: {
                 id: 'combatSim_maxThreads',
                 label: 'Combat Simulator: Max threads',

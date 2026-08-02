@@ -1060,7 +1060,7 @@ function getSellPrice(priceData) {
  * @param {Object|null} priceData - { bid, ask } from marketAPI.getPrice()
  * @returns {number}
  */
-function getBuyPrice(priceData) {
+export function getBuyPrice(priceData) {
     if (!priceData) return 0;
     const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
     if (mode === 'optimistic' || mode === 'patientBuy') {

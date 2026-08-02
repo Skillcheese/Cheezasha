@@ -1,11 +1,12 @@
 /**
- * Optimize Coffee UI
- * Floating panel that searches combat drink (coffee) combinations for the
- * currently equipped gear and ranks them by XP/hr, coins/hr, and a mixed metric.
+ * Optimize Food UI
+ * Floating panel that searches food/mana-food combinations for the currently equipped gear,
+ * minimizing deaths/hr first, then time spent out of mana, then cost/hr.
  */
 
 import config from '../../core/config.js';
 import dataManager from '../../core/data-manager.js';
+import marketAPI from '../../api/marketplace.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatKMB } from '../../utils/formatters.js';
 import {
@@ -15,61 +16,75 @@ import {
     getCurrentCombatZone,
     getCommunityBuffs,
     calculateSimRevenue,
+    getBuyPrice,
 } from './combat-sim-adapter.js';
 import { runSimulation, cancelSimulation } from './combat-sim-runner.js';
-import { getGlobalBestProfitPerHour } from '../../utils/tea-optimizer.js';
 import { generateCombos } from './combo-utils.js';
 
-const PANEL_ID = 'mwi-optimize-coffee-panel';
-const ACCENT = '#c58b3f';
-const ACCENT_BORDER = 'rgba(197, 139, 63, 0.5)';
-const ACCENT_BG = 'rgba(197, 139, 63, 0.12)';
-const ACCENT_BTN_BG = 'rgba(197, 139, 63, 0.2)';
-const ACCENT_BTN_BORDER = 'rgba(197, 139, 63, 0.4)';
-const MAX_DRINK_SLOTS = 3;
+const PANEL_ID = 'mwi-optimize-food-panel';
+const ACCENT = '#4ade80';
+const ACCENT_BORDER = 'rgba(74, 222, 128, 0.5)';
+const ACCENT_BG = 'rgba(74, 222, 128, 0.12)';
+const ACCENT_BTN_BG = 'rgba(74, 222, 128, 0.2)';
+const ACCENT_BTN_BORDER = 'rgba(74, 222, 128, 0.4)';
+const MAX_FOOD_SLOTS = 3;
+const TOP_CHEAP_PER_TYPE = 5;
+// Combos are considered "tied" on deaths/hr or OOM% if within this margin, to absorb sim noise
+// (finite test hours) rather than treating a fractional difference as a real survivability gap.
+const TIE_EPSILON = 1e-6;
 
 /**
- * Get the buff-conflict grouping key for a consumable, mirroring sim-editor's conflict logic.
- * @param {Object} detail - item.consumableDetail
- * @returns {string|null}
+ * Pick the cheapest N candidates of a restore type, plus the single strongest (highest restore)
+ * in case cheap food alone can't prevent deaths/OOM.
+ * @param {Array<Object>} list - candidates sorted ascending by price
+ * @param {string} restoreKey - 'hp' or 'mp'
+ * @returns {Array<Object>}
  */
-function getConsumableTypeKey(detail) {
-    if (!detail) return null;
-    const buffs = detail.buffs || [];
-    if (buffs.length > 0) return 'buff:' + (buffs[0].uniqueHrid || 'unknown');
-    return null;
+function selectCandidates(list, restoreKey) {
+    const picked = new Map();
+    for (const item of list.slice(0, TOP_CHEAP_PER_TYPE)) picked.set(item.hrid, item);
+    const strongest = [...list].sort((a, b) => b[restoreKey] - a[restoreKey])[0];
+    if (strongest) picked.set(strongest.hrid, strongest);
+    return Array.from(picked.values());
 }
 
 /**
- * Build the candidate drink groups: one best item per conflicting buff type.
- * @returns {Array<{key: string, hrid: string, name: string}>}
+ * Build candidate HP/MP food items from item data, priced via the market.
+ * @returns {Array<{hrid: string, name: string, hp: number, mp: number, price: number}>}
  */
-function getCandidateDrinkGroups() {
+function getCandidateFoodItems() {
     const clientData = dataManager.getInitClientData();
     const itemDetailMap = clientData?.itemDetailMap || {};
 
-    const bestByType = new Map();
+    const hpList = [];
+    const mpList = [];
     for (const [hrid, item] of Object.entries(itemDetailMap)) {
-        if (!item.consumableDetail) continue;
+        const detail = item.consumableDetail;
+        if (!detail) continue;
         const cat = item.categoryHrid || '';
-        const isDrinkItem =
-            (cat.includes('drink') || hrid.includes('coffee')) && item.consumableDetail.cooldownDuration > 0;
-        if (!isDrinkItem) continue;
+        if (!cat.includes('food')) continue;
 
-        const key = getConsumableTypeKey(item.consumableDetail);
-        if (!key) continue;
+        const hp = detail.hitpointRestore || 0;
+        const mp = detail.manapointRestore || 0;
+        if (hp <= 0 && mp <= 0) continue;
 
-        const itemLevel = item.itemLevel || 0;
-        const existing = bestByType.get(key);
-        if (!existing || itemLevel > existing.itemLevel) {
-            bestByType.set(key, { key, hrid, name: item.name || hrid.split('/').pop(), itemLevel });
-        }
+        const price = getBuyPrice(marketAPI.getPrice(hrid));
+        const entry = { hrid, name: item.name || hrid.split('/').pop(), hp, mp, price };
+        if (hp > 0) hpList.push(entry);
+        if (mp > 0) mpList.push(entry);
     }
 
-    return Array.from(bestByType.values());
+    hpList.sort((a, b) => a.price - b.price);
+    mpList.sort((a, b) => a.price - b.price);
+
+    const pool = new Map();
+    for (const item of [...selectCandidates(hpList, 'hp'), ...selectCandidates(mpList, 'mp')]) {
+        pool.set(item.hrid, item);
+    }
+    return Array.from(pool.values());
 }
 
-class OptimizeCoffeeUI {
+class OptimizeFoodUI {
     constructor() {
         this.panel = null;
         this.isRunning = false;
@@ -91,9 +106,9 @@ class OptimizeCoffeeUI {
             background: rgba(10, 10, 20, 0.97);
             border: 2px solid ${ACCENT_BORDER};
             border-radius: 10px;
-            width: 720px;
-            height: 520px;
-            min-width: 480px;
+            width: 620px;
+            height: 480px;
+            min-width: 460px;
             min-height: 300px;
             max-width: 90vw;
             max-height: 90vh;
@@ -118,8 +133,8 @@ class OptimizeCoffeeUI {
             flex-shrink: 0;
         `;
         header.innerHTML = `
-            <span style="font-weight:700; font-size:14px; color:${ACCENT};">Optimize Coffee</span>
-            <button id="mwi-ocof-close" style="
+            <span style="font-weight:700; font-size:14px; color:${ACCENT};">Optimize Food</span>
+            <button id="mwi-ofood-close" style="
                 background:none; border:none; color:#aaa; font-size:22px;
                 cursor:pointer; padding:0; line-height:1;">×</button>
         `;
@@ -142,12 +157,12 @@ class OptimizeCoffeeUI {
         `;
         controls.innerHTML = `
             <label style="color:#888; font-size:12px;">Zone</label>
-            <select id="mwi-ocof-zone" style="${selectStyle}"></select>
+            <select id="mwi-ofood-zone" style="${selectStyle}"></select>
             <label style="color:#888; font-size:12px;">Tier</label>
-            <select id="mwi-ocof-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
+            <select id="mwi-ofood-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
             <label style="color:#888; font-size:12px;">Test Hours</label>
-            <input id="mwi-ocof-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeCoffeeHours', 2)}" style="${inputStyle}">
-            <button id="mwi-ocof-run" style="
+            <input id="mwi-ofood-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeFoodHours', 2)}" style="${inputStyle}">
+            <button id="mwi-ofood-run" style="
                 margin-left: auto;
                 background: ${ACCENT_BTN_BG};
                 color: ${ACCENT};
@@ -158,7 +173,7 @@ class OptimizeCoffeeUI {
                 font-weight: 600;
                 cursor: pointer;
                 font-family: inherit;">Optimize</button>
-            <button id="mwi-ocof-stop" style="
+            <button id="mwi-ofood-stop" style="
                 display:none;
                 background:rgba(244, 67, 54, 0.2);
                 border:1px solid rgba(244, 67, 54, 0.4);
@@ -172,7 +187,7 @@ class OptimizeCoffeeUI {
         `;
 
         const progressContainer = document.createElement('div');
-        progressContainer.id = 'mwi-ocof-progress-container';
+        progressContainer.id = 'mwi-ofood-progress-container';
         progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
         progressContainer.innerHTML = `
             <div style="
@@ -182,13 +197,13 @@ class OptimizeCoffeeUI {
                 overflow:hidden;
                 position:relative;
                 border:1px solid #333;">
-                <div id="mwi-ocof-progress-fill" style="
+                <div id="mwi-ofood-progress-fill" style="
                     height:100%;
                     width:0%;
                     background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT});
                     border-radius:3px;
                     transition:width 0.2s ease;"></div>
-                <span id="mwi-ocof-progress-text" style="
+                <span id="mwi-ofood-progress-text" style="
                     position:absolute;
                     top:0; left:0; right:0;
                     text-align:center;
@@ -200,12 +215,12 @@ class OptimizeCoffeeUI {
         `;
 
         const resultsContainer = document.createElement('div');
-        resultsContainer.id = 'mwi-ocof-results';
+        resultsContainer.id = 'mwi-ofood-results';
         resultsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
         resultsContainer.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
 
         const status = document.createElement('div');
-        status.id = 'mwi-ocof-status';
+        status.id = 'mwi-ofood-status';
         status.style.cssText =
             'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
         status.textContent = 'Ready.';
@@ -219,16 +234,16 @@ class OptimizeCoffeeUI {
         document.body.appendChild(this.panel);
         registerFloatingPanel(this.panel);
 
-        this.panel.querySelector('#mwi-ocof-close').addEventListener('click', () => {
+        this.panel.querySelector('#mwi-ofood-close').addEventListener('click', () => {
             this.panel.style.display = 'none';
         });
-        this.panel.querySelector('#mwi-ocof-run').addEventListener('click', () => this._onRun());
-        this.panel.querySelector('#mwi-ocof-stop').addEventListener('click', () => {
+        this.panel.querySelector('#mwi-ofood-run').addEventListener('click', () => this._onRun());
+        this.panel.querySelector('#mwi-ofood-stop').addEventListener('click', () => {
             this._aborted = true;
             cancelSimulation();
         });
         this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
-        this.panel.querySelector('#mwi-ocof-zone').addEventListener('change', () => this._updateTierDropdown());
+        this.panel.querySelector('#mwi-ofood-zone').addEventListener('change', () => this._updateTierDropdown());
 
         this._populateZones();
     }
@@ -253,7 +268,7 @@ class OptimizeCoffeeUI {
     }
 
     _populateZones() {
-        const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
+        const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
         if (!zoneSelect) return;
 
         const zones = getCombatZones();
@@ -271,14 +286,14 @@ class OptimizeCoffeeUI {
         this._updateTierDropdown();
 
         if (current) {
-            const tierSelect = this.panel.querySelector('#mwi-ocof-tier');
+            const tierSelect = this.panel.querySelector('#mwi-ofood-tier');
             if (tierSelect) tierSelect.value = String(current.difficultyTier);
         }
     }
 
     _updateTierDropdown() {
-        const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
-        const tierSelect = this.panel?.querySelector('#mwi-ocof-tier');
+        const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
+        const tierSelect = this.panel?.querySelector('#mwi-ofood-tier');
         if (!zoneSelect || !tierSelect) return;
 
         const zones = getCombatZones();
@@ -293,16 +308,16 @@ class OptimizeCoffeeUI {
     }
 
     _setStatus(text) {
-        const status = this.panel?.querySelector('#mwi-ocof-status');
+        const status = this.panel?.querySelector('#mwi-ofood-status');
         if (status) status.textContent = text;
     }
 
     async _onRun() {
         if (this.isRunning) return;
 
-        const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
-        const tierSelect = this.panel?.querySelector('#mwi-ocof-tier');
-        const hoursEl = this.panel?.querySelector('#mwi-ocof-hours');
+        const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
+        const tierSelect = this.panel?.querySelector('#mwi-ofood-tier');
+        const hoursEl = this.panel?.querySelector('#mwi-ofood-hours');
         const zoneHrid = zoneSelect?.value;
         const difficultyTier = parseInt(tierSelect?.value) || 0;
         const hours = Math.min(1000, Math.max(1, parseInt(hoursEl?.value) || 2));
@@ -327,19 +342,19 @@ class OptimizeCoffeeUI {
         const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
 
-        const groups = getCandidateDrinkGroups();
-        const combos = generateCombos(groups, MAX_DRINK_SLOTS);
+        const candidates = getCandidateFoodItems();
+        const combos = generateCombos(candidates, MAX_FOOD_SLOTS);
 
         const communityBuffs = getCommunityBuffs();
 
         this.isRunning = true;
         this._aborted = false;
-        const runBtn = this.panel.querySelector('#mwi-ocof-run');
-        const stopBtn = this.panel.querySelector('#mwi-ocof-stop');
-        const progressContainer = this.panel.querySelector('#mwi-ocof-progress-container');
-        const progressFill = this.panel.querySelector('#mwi-ocof-progress-fill');
-        const progressText = this.panel.querySelector('#mwi-ocof-progress-text');
-        const resultsEl = this.panel.querySelector('#mwi-ocof-results');
+        const runBtn = this.panel.querySelector('#mwi-ofood-run');
+        const stopBtn = this.panel.querySelector('#mwi-ofood-stop');
+        const progressContainer = this.panel.querySelector('#mwi-ofood-progress-container');
+        const progressFill = this.panel.querySelector('#mwi-ofood-progress-fill');
+        const progressText = this.panel.querySelector('#mwi-ofood-progress-text');
+        const resultsEl = this.panel.querySelector('#mwi-ofood-results');
 
         runBtn.disabled = true;
         runBtn.style.opacity = '0.5';
@@ -355,16 +370,16 @@ class OptimizeCoffeeUI {
                 if (this._aborted) break;
 
                 const combo = combos[i];
-                const drinks = [];
-                for (let s = 0; s < MAX_DRINK_SLOTS; s++) {
-                    drinks.push(combo[s] ? { hrid: combo[s].hrid, triggers: [] } : null);
+                const food = [];
+                for (let s = 0; s < MAX_FOOD_SLOTS; s++) {
+                    food.push(combo[s] ? { hrid: combo[s].hrid, triggers: [] } : null);
                 }
 
-                const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, drinks } : p));
+                const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, food } : p));
 
                 progressFill.style.width = `${Math.round((i / combos.length) * 100)}%`;
                 progressText.textContent = `${i} / ${combos.length}`;
-                this._setStatus(`Testing: ${combo.map((c) => c.name).join(' + ') || 'No coffee'}...`);
+                this._setStatus(`Testing: ${combo.map((c) => c.name).join(' + ') || 'No food'}...`);
 
                 let simResult;
                 try {
@@ -378,27 +393,32 @@ class OptimizeCoffeeUI {
                     });
                 } catch (err) {
                     if (err.message === 'Cancelled') break;
-                    console.error('[OptimizeCoffeeUI] Simulation failed for combo', combo, err);
+                    console.error('[OptimizeFoodUI] Simulation failed for combo', combo, err);
                     continue;
                 }
 
                 const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
-                const xpMap = simResult.experienceGained?.[selfHrid] || {};
-                const xpPerHour = Object.values(xpMap).reduce((s, v) => s + v, 0) / simHours;
+                const deathsPerHour = (simResult.deaths?.[selfHrid] || 0) / simHours;
 
-                let profitPerHour = 0;
+                const oomStat = simResult.playerRanOutOfManaTime?.[selfHrid];
+                const oomPercent = oomStat
+                    ? Math.min(100, (oomStat.totalTimeForOutOfMana / simResult.simulatedTime) * 100)
+                    : 0;
+
+                let costPerHour = 0;
                 try {
                     const revenue = calculateSimRevenue(simResult, gameData, selfHrid, simHours);
-                    profitPerHour = revenue.netPerHour;
+                    costPerHour = revenue.costPerHour;
                 } catch {
-                    // Revenue may not be available for this zone
+                    // Cost may not be available
                 }
 
                 results.push({
                     combo,
-                    label: combo.map((c) => c.name).join(' + ') || 'No coffee',
-                    xpPerHour,
-                    profitPerHour,
+                    label: combo.map((c) => c.name).join(' + ') || 'No food',
+                    deathsPerHour,
+                    oomPercent,
+                    costPerHour,
                 });
             }
 
@@ -408,7 +428,7 @@ class OptimizeCoffeeUI {
             if (this._aborted) {
                 this._setStatus(`Stopped after ${results.length}/${combos.length} combos.`);
             } else {
-                this._setStatus(`Done: tested ${results.length} coffee combos.`);
+                this._setStatus(`Done: tested ${results.length} food combos.`);
             }
 
             this._displayResults(results);
@@ -422,8 +442,26 @@ class OptimizeCoffeeUI {
         }
     }
 
+    /**
+     * Rank combos lexicographically: fewest deaths/hr, then least OOM time, then cheapest —
+     * and return the top 5 combos that hit (or tie for) the best deaths/hr and OOM% found.
+     * @param {Array<Object>} results
+     * @returns {Array<Object>}
+     */
+    _rankResults(results) {
+        if (!results.length) return [];
+
+        const minDeaths = Math.min(...results.map((r) => r.deathsPerHour));
+        const survivalTier = results.filter((r) => r.deathsPerHour <= minDeaths + TIE_EPSILON);
+
+        const minOOM = Math.min(...survivalTier.map((r) => r.oomPercent));
+        const manaTier = survivalTier.filter((r) => r.oomPercent <= minOOM + TIE_EPSILON);
+
+        return [...manaTier].sort((a, b) => a.costPerHour - b.costPerHour).slice(0, 5);
+    }
+
     _displayResults(results) {
-        const container = this.panel?.querySelector('#mwi-ocof-results');
+        const container = this.panel?.querySelector('#mwi-ofood-results');
         if (!container) return;
 
         if (!results.length) {
@@ -431,87 +469,39 @@ class OptimizeCoffeeUI {
             return;
         }
 
-        // "Eff. XP/hr": XP/hr discounted by the time it'd take to recover a profit deficit at the
-        // 10th-best skilling money-maker rate (same opportunity-cost anchor the Tea Optimizer uses).
-        // A combo that's merely less profitable than another isn't penalized unless it actually
-        // loses money relative to that anchor, and even then only in proportion to how much
-        // skilling time recovering the loss would actually take.
-        const profitAnchor = getGlobalBestProfitPerHour();
-        for (const r of results) {
-            if (r.profitPerHour >= 0 || profitAnchor <= 0) {
-                r.mixedScore = r.xpPerHour;
-            } else {
-                const recoveryRatio = Math.abs(r.profitPerHour) / profitAnchor;
-                r.mixedScore = r.xpPerHour / (1 + recoveryRatio);
-            }
-        }
+        const ranked = this._rankResults(results);
 
-        const byXP = [...results].sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, 8);
-        const byProfit = [...results].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, 8);
-        const byMixed = [...results].sort((a, b) => b.mixedScore - a.mixedScore).slice(0, 8);
+        const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
+            .map(
+                (label, i) =>
+                    `<th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${i === 0 ? 'left' : 'right'}; border-bottom:1px solid #333;">${label}</th>`
+            )
+            .join('');
 
-        const fmtXP = (v) => formatKMB(Math.round(v));
-        const fmtCoins = (v) => formatKMB(Math.round(v));
-
-        // valueKey/valueFmt describe the primary (sort) metric. Mixed columns show both XP/hr and
-        // Coins/hr; XP/hr and Coins/hr columns show their own metric plus the other one (2 cols total).
-        const renderColumn = (title, rows, valueKey, valueFmt) => {
-            const primaryLabel =
-                valueKey === 'xpPerHour' ? 'XP/hr' : valueKey === 'profitPerHour' ? 'Coins/hr' : 'Eff. XP/hr';
-            const showXP = valueKey !== 'xpPerHour';
-            const showCoins = valueKey !== 'profitPerHour';
-
-            const headerCells = [
-                `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Coffee</th>`,
-                `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">${primaryLabel}</th>`,
-            ];
-            if (showXP)
-                headerCells.push(
-                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">XP/hr</th>`
-                );
-            if (showCoins)
-                headerCells.push(
-                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">Coins/hr</th>`
-                );
-
-            const bodyRows = rows
-                .map((r, i) => {
-                    const rowColor = i === 0 ? '#4caf50' : '#ccc';
-                    const rowWeight = i === 0 ? '700' : '400';
-                    const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
-                    const cells = [
-                        `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
-                        `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
-                    ];
-                    if (showXP)
-                        cells.push(
-                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtXP(r.xpPerHour)}</td>`
-                        );
-                    if (showCoins)
-                        cells.push(
-                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtCoins(r.profitPerHour)}</td>`
-                        );
-                    return `<tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">${cells.join('')}</tr>`;
-                })
-                .join('');
-
-            return `
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin-bottom:6px; text-align:center;">${title}</div>
-                    <table style="width:100%; border-collapse:collapse;">
-                        <thead><tr>${headerCells.join('')}</tr></thead>
-                        <tbody>${bodyRows}</tbody>
-                    </table>
-                </div>
-            `;
-        };
+        const bodyRows = ranked
+            .map((r, i) => {
+                const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                const rowWeight = i === 0 ? '700' : '400';
+                const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.costPerHour))}</td>
+                    </tr>
+                `;
+            })
+            .join('');
 
         container.innerHTML = `
-            <div style="display:flex; gap:14px; align-items:flex-start;">
-                ${renderColumn('Best XP/hr', byXP, 'xpPerHour', fmtXP)}
-                ${renderColumn('Best Coins/hr', byProfit, 'profitPerHour', fmtCoins)}
-                ${renderColumn('Best Mixed (Eff. XP/hr)', byMixed, 'mixedScore', fmtXP)}
+            <div style="color:#888; font-size:11px; margin-bottom:8px;">
+                Top 5 cheapest combos that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.
             </div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
         `;
     }
 
@@ -534,5 +524,5 @@ class OptimizeCoffeeUI {
     }
 }
 
-const optimizeCoffeeUI = new OptimizeCoffeeUI();
-export default optimizeCoffeeUI;
+const optimizeFoodUI = new OptimizeFoodUI();
+export default optimizeFoodUI;
