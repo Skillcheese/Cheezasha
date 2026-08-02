@@ -2,10 +2,9 @@
 
 ## [3.2.1](https://github.com/Skillcheese/Cheezasha/compare/v3.2.0...v3.2.1) (2026-08-02)
 
-
 ### Bug Fixes
 
-* **combat-sim:** fix upgrade equipment +levels box, speed up food/coffee/ultimate sim ([416f9d8](https://github.com/Skillcheese/Cheezasha/commit/416f9d880b3968828523eb56db0656ea59fe6a72))
+- **combat-sim:** fix upgrade equipment +levels box, speed up food/coffee/ultimate sim ([416f9d8](https://github.com/Skillcheese/Cheezasha/commit/416f9d880b3968828523eb56db0656ea59fe6a72))
 
 ## [3.2.0](https://github.com/Skillcheese/Cheezasha/compare/v3.1.0...v3.2.0) (2026-08-02)
 
