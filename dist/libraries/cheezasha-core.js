@@ -1,5 +1,5 @@
 /**
- * Toolasha Core Library
+ * Cheezasha Core Library
  * Core infrastructure and API clients
  * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
@@ -18,7 +18,7 @@
         constructor() {
             this.db = null;
             this.available = false;
-            this.dbName = 'ToolashaDB';
+            this.dbName = 'CheezashaDB';
             this.dbVersion = 17; // Bumped for leaderboardHistory store
             this.saveDebounceTimers = new Map(); // Per-key debounce timers
             this.pendingWrites = new Map(); // Per-key pending write data: {value, storeName, resolvers, generation}
@@ -34,13 +34,113 @@
          */
         async initialize() {
             try {
+                const legacyData = await this._readLegacyDatabase();
                 await this.openDatabase();
+                if (legacyData) {
+                    await this._writeLegacyData(legacyData);
+                }
                 this.available = true;
                 return true;
             } catch (error) {
                 console.error('[Storage] Initialization failed:', error);
                 this.available = false;
                 return false;
+            }
+        }
+
+        /**
+         * One-time migration: read all data out of the pre-rename ToolashaDB, if present,
+         * so existing users don't lose their settings/history when the DB name changes.
+         * @private
+         * @returns {Promise<Object|null>} Map of storeName -> {key: value}, or null if nothing to migrate
+         */
+        async _readLegacyDatabase() {
+            const MIGRATION_FLAG = 'cheezashaDbMigratedFromToolasha';
+            const LEGACY_DB_NAME = 'ToolashaDB';
+
+            try {
+                if (localStorage.getItem(MIGRATION_FLAG)) return null;
+
+                if (typeof indexedDB.databases !== 'function') {
+                    // Can't enumerate databases in this browser; nothing safe to do.
+                    return null;
+                }
+
+                const dbs = await indexedDB.databases();
+                const hasLegacy = dbs.some((d) => d.name === LEGACY_DB_NAME);
+                if (!hasLegacy) {
+                    localStorage.setItem(MIGRATION_FLAG, '1');
+                    return null;
+                }
+
+                console.log('[Storage] Legacy database found, migrating to', this.dbName);
+
+                const legacyDb = await new Promise((resolve, reject) => {
+                    const request = indexedDB.open(LEGACY_DB_NAME);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => reject(request.error);
+                });
+
+                const storeNames = Array.from(legacyDb.objectStoreNames);
+                const data = {};
+
+                for (const storeName of storeNames) {
+                    data[storeName] = await new Promise((resolve, reject) => {
+                        const transaction = legacyDb.transaction([storeName], 'readonly');
+                        const store = transaction.objectStore(storeName);
+                        const result = {};
+                        const cursorRequest = store.openCursor();
+
+                        cursorRequest.onsuccess = (event) => {
+                            const cursor = event.target.result;
+                            if (cursor) {
+                                result[cursor.key] = cursor.value;
+                                cursor.continue();
+                            } else {
+                                resolve(result);
+                            }
+                        };
+                        cursorRequest.onerror = () => reject(cursorRequest.error);
+                    });
+                }
+
+                legacyDb.close();
+                return data;
+            } catch (error) {
+                console.error('[Storage] Failed to read legacy database (will retry next load):', error);
+                return null;
+            }
+        }
+
+        /**
+         * Write migrated legacy data into the (already open) new database and mark migration complete.
+         * @private
+         */
+        async _writeLegacyData(legacyData) {
+            const MIGRATION_FLAG = 'cheezashaDbMigratedFromToolasha';
+
+            try {
+                for (const [storeName, entries] of Object.entries(legacyData)) {
+                    if (!this.db.objectStoreNames.contains(storeName)) continue;
+
+                    const pairs = Object.entries(entries);
+                    if (pairs.length === 0) continue;
+
+                    await new Promise((resolve, reject) => {
+                        const transaction = this.db.transaction([storeName], 'readwrite');
+                        const store = transaction.objectStore(storeName);
+                        for (const [key, value] of pairs) {
+                            store.put(value, key);
+                        }
+                        transaction.oncomplete = () => resolve();
+                        transaction.onerror = () => reject(transaction.error);
+                    });
+                }
+
+                localStorage.setItem(MIGRATION_FLAG, '1');
+                console.log('[Storage] Legacy database migration complete');
+            } catch (error) {
+                console.error('[Storage] Failed to write migrated data (will retry next load):', error);
             }
         }
 
@@ -2034,7 +2134,7 @@
                     label: 'Custom Inventory Tabs: Enable',
                     type: 'checkbox',
                     default: true,
-                    help: 'Adds a Toolasha tab to the character panel where you can organize inventory items into personal tabs.',
+                    help: 'Adds a Cheezasha tab to the character panel where you can organize inventory items into personal tabs.',
                 },
                 inventoryTabs_showUnorganized: {
                     id: 'inventoryTabs_showUnorganized',
@@ -2053,10 +2153,10 @@
                 },
                 inventoryTabs_defaultTab: {
                     id: 'inventoryTabs_defaultTab',
-                    label: 'Custom Inventory Tabs: Show Toolasha tab by default',
+                    label: 'Custom Inventory Tabs: Show Cheezasha tab by default',
                     type: 'checkbox',
                     default: false,
-                    help: 'Hides the native Inventory tab and automatically activates the Toolasha tab whenever the character panel opens.',
+                    help: 'Hides the native Inventory tab and automatically activates the Cheezasha tab whenever the character panel opens.',
                 },
                 inventoryTabs_tileGap: {
                     id: 'inventoryTabs_tileGap',
@@ -2066,7 +2166,7 @@
                     min: 0,
                     max: 20,
                     step: 1,
-                    help: 'Pixel gap between item tiles on the Toolasha tab.',
+                    help: 'Pixel gap between item tiles on the Cheezasha tab.',
                 },
                 inventoryTabs_loadoutIncludeConsumables: {
                     id: 'inventoryTabs_loadoutIncludeConsumables',
@@ -2325,7 +2425,7 @@
                     type: 'select',
                     default: '',
                     options: () => {
-                        const snapshot = window.Toolasha?.Combat?.loadoutSnapshot;
+                        const snapshot = window.Cheezasha?.Combat?.loadoutSnapshot;
                         const loadouts = snapshot
                             ? snapshot
                                   .getAllSnapshots()
@@ -2651,7 +2751,7 @@
                     label: 'Character panel: Drag-and-drop tab reordering',
                     type: 'checkbox',
                     default: true,
-                    help: 'Drag tabs to rearrange the order of Inventory, Toolasha, Equipment, Houses, Abilities, and Loadout. Order persists through refresh.',
+                    help: 'Drag tabs to rearrange the order of Inventory, Cheezasha, Equipment, Houses, Abilities, and Loadout. Order persists through refresh.',
                 },
                 expPercentage: {
                     id: 'expPercentage',
@@ -2676,7 +2776,7 @@
                     label: 'Loadout panel: Use saved loadout snapshots in profit calculations',
                     type: 'checkbox',
                     default: true,
-                    help: "When you queue an action, Toolasha predicts its XP, time, and profit using the saved loadout for that skill (skill-default → all-skills-default → any saved loadout → currently-equipped). Save your loadouts in-game so they're captured. Disable to always predict using currently-equipped gear.",
+                    help: "When you queue an action, Cheezasha predicts its XP, time, and profit using the saved loadout for that skill (skill-default → all-skills-default → any saved loadout → currently-equipped). Save your loadouts in-game so they're captured. Disable to always predict using currently-equipped gear.",
                 },
                 showsKeyInfoInIcon: {
                     id: 'showsKeyInfoInIcon',
@@ -2766,14 +2866,14 @@
                     label: 'Guild Members: Show Last XP/h column',
                     type: 'checkbox',
                     default: true,
-                    help: 'Shows recent XP/hr tracked by Toolasha (Contributions tab).',
+                    help: 'Shows recent XP/hr tracked by Cheezasha (Contributions tab).',
                 },
                 guildMembersShowLastDayXPH: {
                     id: 'guildMembersShowLastDayXPH',
                     label: 'Guild Members: Show Last day XP/h column',
                     type: 'checkbox',
                     default: true,
-                    help: 'Shows 24-hour average XP/hr tracked by Toolasha (Contributions tab).',
+                    help: 'Shows 24-hour average XP/hr tracked by Cheezasha (Contributions tab).',
                 },
                 guildCreditValue: {
                     id: 'guildCreditValue',
@@ -3618,14 +3718,14 @@
             const hookInstance = this;
 
             const wrapConstructor = (OriginalWebSocket) => {
-                if (!OriginalWebSocket || OriginalWebSocket.__toolashaWrapped) {
+                if (!OriginalWebSocket || OriginalWebSocket.__cheezashaWrapped) {
                     hookInstance.currentWebSocket = OriginalWebSocket;
                     return;
                 }
 
                 // Only subclass native WebSocket constructors. Third-party wrappers
                 // (other userscripts replacing window.WebSocket) are passed through
-                // as-is — Toolasha still intercepts via MessageEvent.data hook and
+                // as-is — Cheezasha still intercepts via MessageEvent.data hook and
                 // WebSocket.prototype patches.
                 const isNative = /\[native code\]/.test(Function.prototype.toString.call(OriginalWebSocket));
                 if (!isNative) {
@@ -3633,18 +3733,18 @@
                     return;
                 }
 
-                class ToolashaWebSocket extends OriginalWebSocket {
+                class CheezashaWebSocket extends OriginalWebSocket {
                     constructor(...args) {
                         super(...args);
                         hookInstance.attachSocketListeners(this);
                     }
                 }
 
-                ToolashaWebSocket.__toolashaWrapped = true;
-                ToolashaWebSocket.__toolashaOriginal = OriginalWebSocket;
+                CheezashaWebSocket.__cheezashaWrapped = true;
+                CheezashaWebSocket.__cheezashaOriginal = OriginalWebSocket;
 
                 hookInstance.originalWebSocket = OriginalWebSocket;
-                hookInstance.currentWebSocket = ToolashaWebSocket;
+                hookInstance.currentWebSocket = CheezashaWebSocket;
             };
 
             wrapConstructor(targetWindow.WebSocket);
@@ -3843,7 +3943,7 @@
                 if (hasGM && messageType === 'init_character_data') {
                     setTimeout(() => {
                         try {
-                            GM_setValue('toolasha_init_character_data', message);
+                            GM_setValue('cheezasha_init_character_data', message);
                         } catch {
                             /* ignore */
                         }
@@ -3851,7 +3951,7 @@
                 } else if (hasGM && messageType === 'init_client_data') {
                     setTimeout(() => {
                         try {
-                            GM_setValue('toolasha_init_client_data', message);
+                            GM_setValue('cheezasha_init_client_data', message);
                         } catch {
                             /* ignore */
                         }
@@ -3859,7 +3959,7 @@
                 } else if (hasGM && messageType === 'new_battle') {
                     setTimeout(() => {
                         try {
-                            GM_setValue('toolasha_new_battle', message);
+                            GM_setValue('cheezasha_new_battle', message);
                         } catch {
                             /* ignore */
                         }
@@ -3880,7 +3980,7 @@
 
                     // Validate we got a character ID
                     if (!parsed.characterID) {
-                        console.error('[Toolasha] Failed to extract characterID from profile:', parsed);
+                        console.error('[Cheezasha] Failed to extract characterID from profile:', parsed);
                         return;
                     }
 
@@ -3905,7 +4005,7 @@
                     await storage.setJSON('profile_list', profileList, 'combatExport', true);
                     if (hasGM) {
                         try {
-                            GM_setValue('toolasha_profile_list', JSON.stringify(profileList));
+                            GM_setValue('cheezasha_profile_list', JSON.stringify(profileList));
                         } catch {
                             /* ignore */
                         }
@@ -4477,7 +4577,9 @@
                     // Prevent rapid-fire character switches (loop protection)
                     const now = Date.now();
                     if (this.lastCharacterSwitchTime && now - this.lastCharacterSwitchTime < 1000) {
-                        console.warn('[Toolasha] Ignoring rapid character switch (<1s since last), possible loop detected');
+                        console.warn(
+                            '[Cheezasha] Ignoring rapid character switch (<1s since last), possible loop detected'
+                        );
                         return;
                     }
                     this.lastCharacterSwitchTime = now;
@@ -4490,7 +4592,7 @@
                                 await storage.flushAll();
                             }
                         } catch (error) {
-                            console.error('[Toolasha] Failed to flush storage before character switch:', error);
+                            console.error('[Cheezasha] Failed to flush storage before character switch:', error);
                         }
                     }, 0);
 
@@ -6690,13 +6792,13 @@
                     feature: feature.name,
                     error: error.message,
                 });
-                console.error(`[Toolasha] Failed to initialize ${feature.name}:`, error);
+                console.error(`[Cheezasha] Failed to initialize ${feature.name}:`, error);
             }
         }
 
         // Log errors if any occurred
         if (errors.length > 0) {
-            console.error(`[Toolasha] ${errors.length} feature(s) failed to initialize`, errors);
+            console.error(`[Cheezasha] ${errors.length} feature(s) failed to initialize`, errors);
         }
     }
 
@@ -6897,11 +6999,11 @@
                 if (feature.healthCheck) {
                     const healthResult = feature.healthCheck();
                     if (healthResult === false) {
-                        console.warn(`[Toolasha] ${feature.name} retry completed but health check still fails`);
+                        console.warn(`[Cheezasha] ${feature.name} retry completed but health check still fails`);
                     }
                 }
             } catch (error) {
-                console.error(`[Toolasha] ${feature.name} retry failed:`, error);
+                console.error(`[Cheezasha] ${feature.name} retry failed:`, error);
             }
         }
     }
@@ -7182,10 +7284,10 @@
 
             // Cache settings
             this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
-            this.CACHE_KEY_DATA = 'Toolasha_marketAPI_json';
-            this.CACHE_KEY_TIMESTAMP = 'Toolasha_marketAPI_timestamp';
-            this.CACHE_KEY_PATCHES = 'Toolasha_marketAPI_patches';
-            this.CACHE_KEY_MIGRATION = 'Toolasha_marketAPI_migration_version';
+            this.CACHE_KEY_DATA = 'Cheezasha_marketAPI_json';
+            this.CACHE_KEY_TIMESTAMP = 'Cheezasha_marketAPI_timestamp';
+            this.CACHE_KEY_PATCHES = 'Cheezasha_marketAPI_patches';
+            this.CACHE_KEY_MIGRATION = 'Cheezasha_marketAPI_migration_version';
             this.CURRENT_MIGRATION_VERSION = 1; // Increment this when patches need to be cleared
 
             // Current market data
@@ -7639,19 +7741,19 @@
      * Foundation Core Library
      * Core infrastructure and API clients only (no utilities)
      *
-     * Exports to: window.Toolasha.Core
+     * Exports to: window.Cheezasha.Core
      */
 
 
     // Export to global namespace
-    const toolashaRoot = window.Toolasha || {};
-    window.Toolasha = toolashaRoot;
+    const cheezashaRoot = window.Cheezasha || {};
+    window.Cheezasha = cheezashaRoot;
 
     if (typeof unsafeWindow !== 'undefined') {
-        unsafeWindow.Toolasha = toolashaRoot;
+        unsafeWindow.Cheezasha = cheezashaRoot;
     }
 
-    toolashaRoot.Core = {
+    cheezashaRoot.Core = {
         storage,
         config,
         webSocketHook,
@@ -7670,6 +7772,6 @@
         performanceMonitor,
     };
 
-    console.log('[Toolasha] Core library loaded');
+    console.log('[Cheezasha] Core library loaded');
 
 })();

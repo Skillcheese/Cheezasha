@@ -1,5 +1,5 @@
 /**
- * Toolasha Market Library
+ * Cheezasha Market Library
  * Market, inventory, and economy features
  * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
@@ -38,7 +38,7 @@
      * - Item tooltips: Shows optimal path to reach current enhancement level
      */
 
-    const toolashaConfig = config;
+    const cheezashaConfig = config;
 
     const _costCache = new Map();
     const _chainTimeCache = new Map();
@@ -112,7 +112,7 @@
         const targetCosts = new Array(currentEnhancementLevel + 1);
         const targetTimes = new Array(currentEnhancementLevel + 1);
         const targetAttempts = new Array(currentEnhancementLevel + 1);
-        targetCosts[0] = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
+        targetCosts[0] = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
             ? Math.min(getProductionCost(itemHrid) || Infinity, marketData_js.getItemPrices(itemHrid, 0)?.ask || Infinity) ||
               getRealisticBaseItemPrice(itemHrid)
             : getRealisticBaseItemPrice(itemHrid); // Level 0: base item
@@ -487,7 +487,7 @@
         const baseItemPrices = marketData_js.getItemPrices(itemHrid, 0);
         const marketAsk = baseItemPrices?.ask > 0 ? baseItemPrices.ask : 0;
         const marketBid = baseItemPrices?.bid > 0 ? baseItemPrices.bid : 0;
-        const useCraftingCost = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
+        const useCraftingCost = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
         // Ask drives the decision: use crafted if ask is missing OR crafted ask is cheaper
         const askIsCrafted = useCraftingCost && craftingCostAsk > 0 && (marketAsk === 0 || craftingCostAsk < marketAsk);
         const baseAskPrice = askIsCrafted ? craftingCostAsk : marketAsk || getRealisticBaseItemPrice(itemHrid);
@@ -889,7 +889,7 @@
             // Base item row
             const baseItemLabel = optimalStrategy.baseAskIsCrafted ? 'Craft Item' : 'Buy Item';
             rows.push({
-                name: toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost') ? baseItemLabel : 'Base Item',
+                name: cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost') ? baseItemLabel : 'Base Item',
                 count: 1,
                 askPrice: optimalStrategy.baseAskPrice || optimalStrategy.baseCost,
                 bidPrice: optimalStrategy.baseBidPrice || optimalStrategy.baseCost,
@@ -6028,13 +6028,13 @@ self.onmessage = function (e) {
          */
         injectFilterUI(_oriFilterContainer) {
             // Check if already injected
-            if (document.querySelector('#toolasha-market-filters')) {
+            if (document.querySelector('#cheezasha-market-filters')) {
                 return;
             }
 
             // Create filter container
             const filterDiv = document.createElement('div');
-            filterDiv.id = 'toolasha-market-filters';
+            filterDiv.id = 'cheezasha-market-filters';
             filterDiv.style.cssText = 'display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;';
 
             // Add level range filters
@@ -6070,7 +6070,7 @@ self.onmessage = function (e) {
             label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
             const select = document.createElement('select');
-            select.id = `toolasha-level-${type}`;
+            select.id = `cheezasha-level-${type}`;
             select.style.cssText =
                 'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 
@@ -6118,7 +6118,7 @@ self.onmessage = function (e) {
             label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
             const select = document.createElement('select');
-            select.id = 'toolasha-class-filter';
+            select.id = 'cheezasha-class-filter';
             select.style.cssText =
                 'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 
@@ -6162,7 +6162,7 @@ self.onmessage = function (e) {
             label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
             const select = document.createElement('select');
-            select.id = 'toolasha-slot-filter';
+            select.id = 'cheezasha-slot-filter';
             select.style.cssText =
                 'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 
@@ -6424,7 +6424,7 @@ self.onmessage = function (e) {
                     this.sortButton.textContent = 'Sort by Profit';
                 }
                 // Remove profit indicators from any stale elements
-                document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+                document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
             });
 
             this.unregisterHandlers.push(unregisterItems);
@@ -6442,18 +6442,18 @@ self.onmessage = function (e) {
          */
         injectSortUI(filterContainer) {
             // Check if already injected
-            if (document.querySelector('#toolasha-market-sort')) {
+            if (document.querySelector('#cheezasha-market-sort')) {
                 return;
             }
 
             // Create sort container
             const sortDiv = document.createElement('div');
-            sortDiv.id = 'toolasha-market-sort';
+            sortDiv.id = 'cheezasha-market-sort';
             sortDiv.style.cssText = 'display: flex; gap: 8px; margin-top: 8px; align-items: center;';
 
             // Create sort button
             const sortButton = document.createElement('button');
-            sortButton.id = 'toolasha-sort-profit-btn';
+            sortButton.id = 'cheezasha-sort-profit-btn';
             sortButton.textContent = 'Sort by Profit';
             sortButton.style.cssText = `
             padding: 6px 12px;
@@ -6684,14 +6684,14 @@ self.onmessage = function (e) {
          */
         addProfitIndicator(itemDiv, profit) {
             // Remove existing indicator
-            const existing = itemDiv.querySelector('.toolasha-profit-indicator');
+            const existing = itemDiv.querySelector('.cheezasha-profit-indicator');
             if (existing) {
                 existing.remove();
             }
 
             // Create indicator
             const indicator = document.createElement('div');
-            indicator.className = 'toolasha-profit-indicator';
+            indicator.className = 'cheezasha-profit-indicator';
 
             let displayText;
             let color;
@@ -6742,7 +6742,7 @@ self.onmessage = function (e) {
             }
 
             // Remove all profit indicators
-            document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+            document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
 
             // Restore original order if we have it
             if (this.originalOrder.length > 0) {
@@ -6787,13 +6787,13 @@ self.onmessage = function (e) {
             this.unregisterHandlers = [];
 
             // Remove sort UI
-            const sortDiv = document.querySelector('#toolasha-market-sort');
+            const sortDiv = document.querySelector('#cheezasha-market-sort');
             if (sortDiv) {
                 sortDiv.remove();
             }
 
             // Remove profit indicators
-            document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+            document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
 
             // Clear cache
             this.profitCache.clear();
@@ -7470,7 +7470,7 @@ self.onmessage = function (e) {
                 if (data.newMarketListings) {
                     for (const listing of data.newMarketListings) {
                         // New listings should start as 'unknown' (will be marked 'active' by history viewer)
-                        listing._toolashaStatus = 'unknown';
+                        listing._cheezashaStatus = 'unknown';
                         this.recordListing(listing);
                     }
                 }
@@ -7491,27 +7491,27 @@ self.onmessage = function (e) {
                         // Use game's status HRID to determine what happened
                         if (listing.status === '/market_listing_status/active') {
                             // New listing being created - mark as unknown (history viewer will set to active)
-                            listing._toolashaStatus = 'unknown';
+                            listing._cheezashaStatus = 'unknown';
                         } else if (listing.status === '/market_listing_status/cancelled') {
                             if (listing.filledQuantity > 0) {
                                 // Partially filled before cancel (e.g. Missing Materials split) — record as filled for the amount received
-                                listing._toolashaStatus = 'filled';
+                                listing._cheezashaStatus = 'filled';
                                 listing.orderQuantity = listing.filledQuantity;
                             } else {
                                 // User canceled the listing with nothing filled
-                                listing._toolashaStatus = 'canceled';
+                                listing._cheezashaStatus = 'canceled';
                             }
                         } else if (listing.status === '/market_listing_status/filled') {
                             // Listing was filled
-                            listing._toolashaStatus = 'filled';
+                            listing._cheezashaStatus = 'filled';
                         } else if (listing.status === '/market_listing_status/expired') {
                             // Listing expired
-                            listing._toolashaStatus = 'expired';
+                            listing._cheezashaStatus = 'expired';
                         } else if (listing.filledQuantity >= listing.orderQuantity) {
                             // Unknown status - fallback to old logic
-                            listing._toolashaStatus = 'filled';
+                            listing._cheezashaStatus = 'filled';
                         } else {
-                            listing._toolashaStatus = 'canceled';
+                            listing._cheezashaStatus = 'canceled';
                         }
 
                         this.recordListing(listing);
@@ -7673,10 +7673,10 @@ self.onmessage = function (e) {
             // Determine status (NEVER use listing.status from game data - it's an HRID like "/market_listing_status/active")
             // Priority: new status update from WebSocket > existing status > default unknown
             let status;
-            if (listing._toolashaStatus) {
+            if (listing._cheezashaStatus) {
                 // Use explicitly set status from updateHandler (canceled/filled detection)
                 // This takes priority over existing status (allows status updates)
-                status = listing._toolashaStatus;
+                status = listing._cheezashaStatus;
             } else if (existingIndex !== -1 && this.knownListings[existingIndex].status) {
                 // Preserve existing tracked status if no new update
                 status = this.knownListings[existingIndex].status;
@@ -12053,7 +12053,7 @@ self.onmessage = function (e) {
                 progressMsg.textContent = `Importing ${marketList.length} listings...`;
                 document.body.appendChild(progressMsg);
 
-                // Convert imported format to Toolasha format
+                // Convert imported format to Cheezasha format
                 const existingListings = await storage.getJSON(this.storageKey, 'marketListings', []);
                 const existingIds = new Set(existingListings.map((l) => l.id));
 
@@ -12067,8 +12067,8 @@ self.onmessage = function (e) {
                         continue;
                     }
 
-                    // Convert to Toolasha format
-                    const toolashaListing = {
+                    // Convert to Cheezasha format
+                    const cheezashaListing = {
                         id: etListing.id,
                         timestamp: new Date(etListing.createdTimestamp).getTime(),
                         createdTimestamp: etListing.createdTimestamp,
@@ -12080,7 +12080,7 @@ self.onmessage = function (e) {
                         isSell: etListing.isSell,
                     };
 
-                    existingListings.push(toolashaListing);
+                    existingListings.push(cheezashaListing);
                     imported++;
                 }
 
@@ -13395,7 +13395,7 @@ self.onmessage = function (e) {
                 }
             };
 
-            const settingsUI = window.Toolasha?.UI?.settingsUI;
+            const settingsUI = window.Cheezasha?.UI?.settingsUI;
             if (settingsUI && typeof settingsUI.onSettingsPanelAppear === 'function') {
                 settingsUI.onSettingsPanelAppear(ensureButtonExists);
             }
@@ -17118,11 +17118,11 @@ self.onmessage = function (e) {
      * Returns the active WebSocket hook instance.
      * In the multi-bundle production build each library bundles its own copy of websocket.js,
      * but only the Core library's instance has install() called on it.
-     * Prefer window.Toolasha.Core.webSocketHook so listeners actually receive messages.
+     * Prefer window.Cheezasha.Core.webSocketHook so listeners actually receive messages.
      * Falls back to the bundled copy for the dev standalone build (single bundle, one instance).
      */
     function getWebSocketHook() {
-        return (typeof window !== 'undefined' && window.Toolasha?.Core?.webSocketHook) || webSocketHook;
+        return (typeof window !== 'undefined' && window.Cheezasha?.Core?.webSocketHook) || webSocketHook;
     }
 
     /**
@@ -23336,7 +23336,7 @@ self.onmessage = function (e) {
 
             // Skip order assignments when custom tabs has taken over the layout —
             // badges are still updated above, but tile order is managed by custom tabs.
-            if (inventoryElem.classList.contains('toolasha-ct-active')) {
+            if (inventoryElem.classList.contains('cheezasha-ct-active')) {
                 this.isCalculating = false;
                 return;
             }
@@ -25259,7 +25259,7 @@ self.onmessage = function (e) {
 
     /**
      * Custom Inventory Tabs — UI Module
-     * Injects a "Toolasha" tab into the character panel tab bar. When active,
+     * Injects a "Cheezasha" tab into the character panel tab bar. When active,
      * uses CSS `display: contents` + `order` to visually reorganize game tiles
      * into accordion sections without moving them out of their React-managed container.
      *
@@ -25270,7 +25270,7 @@ self.onmessage = function (e) {
      */
 
     function getLoadoutSnapshot() {
-        return window.Toolasha?.Combat?.loadoutSnapshot || loadoutSnapshot;
+        return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshot;
     }
 
     // ---------------------------------------------------------------------------
@@ -25278,11 +25278,11 @@ self.onmessage = function (e) {
     // ---------------------------------------------------------------------------
 
     const PANEL_CSS = `
-/* ---------- Toolasha-active mode on Inventory_items ---------- */
+/* ---------- Cheezasha-active mode on Inventory_items ---------- */
 /* When our tab is active, Inventory_items becomes a flex container.
    Category wrappers and grids get display:contents so tiles become
    direct flex children and can be reordered with CSS order. */
-.toolasha-ct-active {
+.cheezasha-ct-active {
     display: flex !important;
     flex-wrap: wrap;
     align-content: flex-start;
@@ -25290,32 +25290,32 @@ self.onmessage = function (e) {
     padding-top: 0 !important;
 }
 /* Flatten game category wrappers so tiles become direct flex children.
-   Exclude our own injected elements (they have class starting with toolasha-). */
-.toolasha-ct-active > *:not([class*="toolasha-"]) {
+   Exclude our own injected elements (they have class starting with cheezasha-). */
+.cheezasha-ct-active > *:not([class*="cheezasha-"]) {
     display: contents;
 }
-.toolasha-ct-active [class*="Inventory_itemGrid"] {
+.cheezasha-ct-active [class*="Inventory_itemGrid"] {
     display: contents;
 }
 
 /* Hide game category labels and buttons exposed by display:contents */
-.toolasha-ct-active [class*="Inventory_label"],
-.toolasha-ct-active [class*="Inventory_categoryButton"] {
+.cheezasha-ct-active [class*="Inventory_label"],
+.cheezasha-ct-active [class*="Inventory_categoryButton"] {
     display: none !important;
 }
 
 /* When active, hide ALL tiles by default — _applyLayout selectively shows them.
    This prevents flash of unstyled tiles when React re-renders new elements. */
-.toolasha-ct-active [class*="Item_itemContainer"] {
+.cheezasha-ct-active [class*="Item_itemContainer"] {
     display: none !important;
 }
 /* Tiles we explicitly want visible get this class */
-.toolasha-ct-active [class*="Item_itemContainer"].toolasha-ct-visible {
+.cheezasha-ct-active [class*="Item_itemContainer"].cheezasha-ct-visible {
     display: flex !important;
 }
 
-/* ---------- Top bar (injected into Inventory_items, Toolasha tab only) ---------- */
-.toolasha-ct-topbar {
+/* ---------- Top bar (injected into Inventory_items, Cheezasha tab only) ---------- */
+.cheezasha-ct-topbar {
     display: flex;
     align-items: center;
     padding: 2px 0 4px;
@@ -25324,7 +25324,7 @@ self.onmessage = function (e) {
     box-sizing: border-box;
     gap: 4px;
 }
-.toolasha-ct-add-btn {
+.cheezasha-ct-add-btn {
     background: #444;
     color: #aaa;
     border: none;
@@ -25333,10 +25333,10 @@ self.onmessage = function (e) {
     cursor: pointer;
     font-size: 12px;
 }
-.toolasha-ct-add-btn:hover { background: #555; }
+.cheezasha-ct-add-btn:hover { background: #555; }
 
 /* ---------- Accordion header (injected into Inventory_items) ---------- */
-.toolasha-ct-section-header {
+.cheezasha-ct-section-header {
     position: relative;
     display: flex;
     align-items: center;
@@ -25352,15 +25352,15 @@ self.onmessage = function (e) {
     font-family: inherit;
     font-size: 12px;
 }
-.toolasha-ct-section-header:hover { background: rgba(255,255,255,0.04); }
-.toolasha-ct-chevron {
+.cheezasha-ct-section-header:hover { background: rgba(255,255,255,0.04); }
+.cheezasha-ct-chevron {
     width: 14px;
     text-align: center;
     font-size: 10px;
     color: #888;
     flex-shrink: 0;
 }
-.toolasha-ct-section-name {
+.cheezasha-ct-section-name {
     position: absolute;
     left: 0;
     right: 0;
@@ -25373,7 +25373,7 @@ self.onmessage = function (e) {
     color: #e0e0e0;
     pointer-events: none;
 }
-.toolasha-ct-section-right {
+.cheezasha-ct-section-right {
     margin-left: auto;
     display: flex;
     align-items: center;
@@ -25381,21 +25381,21 @@ self.onmessage = function (e) {
     flex-shrink: 0;
     z-index: 1;
 }
-.toolasha-ct-section-count {
+.cheezasha-ct-section-count {
     font-size: 11px;
     color: #666;
 }
-.toolasha-ct-section-value {
+.cheezasha-ct-section-value {
     font-size: 11px;
     color: #aaa;
 }
-.toolasha-ct-section-actions {
+.cheezasha-ct-section-actions {
     display: none;
     gap: 2px;
     flex-shrink: 0;
 }
-.toolasha-ct-section-header:hover .toolasha-ct-section-actions { display: flex; }
-.toolasha-ct-node-btn {
+.cheezasha-ct-section-header:hover .cheezasha-ct-section-actions { display: flex; }
+.cheezasha-ct-node-btn {
     background: none;
     border: none;
     color: #888;
@@ -25404,10 +25404,10 @@ self.onmessage = function (e) {
     padding: 0 2px;
     line-height: 1;
 }
-.toolasha-ct-node-btn:hover { color: #ddd; }
+.cheezasha-ct-node-btn:hover { color: #ddd; }
 
 /* ---------- Unorganized bucket header ---------- */
-.toolasha-ct-unorg-header {
+.cheezasha-ct-unorg-header {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -25421,9 +25421,9 @@ self.onmessage = function (e) {
     flex-shrink: 0;
     box-sizing: border-box;
 }
-.toolasha-ct-unorg-header:hover { color: #aaa; }
+.cheezasha-ct-unorg-header:hover { color: #aaa; }
 
-.toolasha-ct-empty {
+.cheezasha-ct-empty {
     color: #666;
     font-style: italic;
     padding: 12px 10px;
@@ -25433,12 +25433,12 @@ self.onmessage = function (e) {
 }
 
 /* Drag indicator */
-.toolasha-ct-section-header.toolasha-ct-section--drag-over {
+.cheezasha-ct-section-header.cheezasha-ct-section--drag-over {
     border-top: 2px solid #4a9eff;
 }
 
 /* Line break injected between tiles to force a flex row wrap */
-.toolasha-ct-linebreak {
+.cheezasha-ct-linebreak {
     flex-basis: 100%;
     width: 100%;
     height: 0;
@@ -25446,7 +25446,7 @@ self.onmessage = function (e) {
 }
 
 /* ---------- Editor modal ---------- */
-.toolasha-ct-modal-overlay {
+.cheezasha-ct-modal-overlay {
     position: fixed;
     inset: 0;
     background: rgba(0,0,0,0.6);
@@ -25455,7 +25455,7 @@ self.onmessage = function (e) {
     align-items: center;
     justify-content: center;
 }
-.toolasha-ct-modal {
+.cheezasha-ct-modal {
     background: #1a1a2e;
     border: 1px solid #444;
     border-radius: 8px;
@@ -25467,25 +25467,25 @@ self.onmessage = function (e) {
     overflow: hidden;
     color: #d4d4d4;
 }
-.toolasha-ct-modal-body {
+.cheezasha-ct-modal-body {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
 }
-.toolasha-ct-modal * { box-sizing: border-box; }
-.toolasha-ct-modal h3 {
+.cheezasha-ct-modal * { box-sizing: border-box; }
+.cheezasha-ct-modal h3 {
     margin: 0 0 12px;
     font-size: 15px;
     color: #e0e0e0;
 }
-.toolasha-ct-modal label {
+.cheezasha-ct-modal label {
     display: block;
     font-size: 12px;
     color: #aaa;
     margin-bottom: 4px;
 }
-.toolasha-ct-modal input[type="text"],
-.toolasha-ct-modal input[type="search"] {
+.cheezasha-ct-modal input[type="text"],
+.cheezasha-ct-modal input[type="search"] {
     width: 100%;
     padding: 6px 8px;
     border: 1px solid #444;
@@ -25495,27 +25495,27 @@ self.onmessage = function (e) {
     font-size: 13px;
     margin-bottom: 8px;
 }
-.toolasha-ct-swatches {
+.cheezasha-ct-swatches {
     display: flex;
     gap: 6px;
     align-items: center;
     margin-bottom: 12px;
 }
-.toolasha-ct-swatch {
+.cheezasha-ct-swatch {
     width: 22px;
     height: 22px;
     border-radius: 50%;
     border: 2px solid transparent;
     cursor: pointer;
 }
-.toolasha-ct-swatch--active { border-color: #fff; }
-.toolasha-ct-swatch-divider {
+.cheezasha-ct-swatch--active { border-color: #fff; }
+.cheezasha-ct-swatch-divider {
     width: 1px;
     height: 18px;
     background: #555;
     margin: 0 2px;
 }
-.toolasha-ct-color-picker {
+.cheezasha-ct-color-picker {
     width: 22px;
     height: 22px;
     border-radius: 50%;
@@ -25527,11 +25527,11 @@ self.onmessage = function (e) {
     background: none;
     overflow: hidden;
 }
-.toolasha-ct-color-picker--active { border-color: #fff; }
-.toolasha-ct-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
-.toolasha-ct-color-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
-.toolasha-ct-color-picker::-moz-color-swatch { border: none; border-radius: 50%; }
-.toolasha-ct-modal input.toolasha-ct-hex-input {
+.cheezasha-ct-color-picker--active { border-color: #fff; }
+.cheezasha-ct-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.cheezasha-ct-color-picker::-webkit-color-swatch { border: none; border-radius: 50%; }
+.cheezasha-ct-color-picker::-moz-color-swatch { border: none; border-radius: 50%; }
+.cheezasha-ct-modal input.cheezasha-ct-hex-input {
     width: 72px;
     height: 22px;
     box-sizing: border-box;
@@ -25544,12 +25544,12 @@ self.onmessage = function (e) {
     font-family: monospace;
     margin: 0;
 }
-.toolasha-ct-search-results {
+.cheezasha-ct-search-results {
     max-height: 160px;
     overflow-y: auto;
     margin-bottom: 8px;
 }
-.toolasha-ct-search-result {
+.cheezasha-ct-search-result {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -25557,48 +25557,48 @@ self.onmessage = function (e) {
     cursor: pointer;
     border-radius: 3px;
 }
-.toolasha-ct-search-result:hover { background: rgba(255,255,255,0.08); }
-.toolasha-ct-search-result svg {
+.cheezasha-ct-search-result:hover { background: rgba(255,255,255,0.08); }
+.cheezasha-ct-search-result svg {
     width: 24px;
     height: 24px;
     flex-shrink: 0;
 }
-.toolasha-ct-search-group-header { font-weight: 500; }
-.toolasha-ct-search-level-row { padding-left: 32px; }
-.toolasha-ct-level-badges {
+.cheezasha-ct-search-group-header { font-weight: 500; }
+.cheezasha-ct-search-level-row { padding-left: 32px; }
+.cheezasha-ct-level-badges {
     color: #888;
     font-size: 11px;
     margin-left: 4px;
     flex-shrink: 0;
 }
-.toolasha-ct-expand-btn {
+.cheezasha-ct-expand-btn {
     margin-left: auto;
     color: #666;
     font-size: 11px;
     flex-shrink: 0;
     padding: 0 2px;
 }
-.toolasha-ct-assigned-list {
+.cheezasha-ct-assigned-list {
     margin-top: 8px;
 }
-.toolasha-ct-assigned-item {
+.cheezasha-ct-assigned-item {
     display: flex;
     align-items: center;
     gap: 6px;
     padding: 3px 4px;
     border-radius: 3px;
 }
-.toolasha-ct-assigned-item:hover { background: rgba(255,255,255,0.05); }
-.toolasha-ct-assigned-item.toolasha-ct-drag-over { background: rgba(255,255,255,0.12); outline: 1px dashed #888; }
-.toolasha-ct-assigned-item svg {
+.cheezasha-ct-assigned-item:hover { background: rgba(255,255,255,0.05); }
+.cheezasha-ct-assigned-item.cheezasha-ct-drag-over { background: rgba(255,255,255,0.12); outline: 1px dashed #888; }
+.cheezasha-ct-assigned-item svg {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
 }
-.toolasha-ct-assigned-item .toolasha-ct-node-btn {
+.cheezasha-ct-assigned-item .cheezasha-ct-node-btn {
     margin-left: auto;
 }
-.toolasha-ct-drag-handle {
+.cheezasha-ct-drag-handle {
     cursor: grab;
     color: #555;
     font-size: 14px;
@@ -25606,15 +25606,15 @@ self.onmessage = function (e) {
     user-select: none;
     padding: 0 2px;
 }
-.toolasha-ct-drag-handle:active { cursor: grabbing; }
-.toolasha-ct-modal-footer {
+.cheezasha-ct-drag-handle:active { cursor: grabbing; }
+.cheezasha-ct-modal-footer {
     display: flex;
     justify-content: space-between;
     margin-top: 12px;
     padding-top: 8px;
     border-top: 1px solid #333;
 }
-.toolasha-ct-delete-btn {
+.cheezasha-ct-delete-btn {
     background: #5a1a1a;
     color: #faa;
     border: 1px solid #8a2a2a;
@@ -25623,8 +25623,8 @@ self.onmessage = function (e) {
     cursor: pointer;
     font-size: 12px;
 }
-.toolasha-ct-delete-btn:hover { background: #7a2a2a; }
-.toolasha-ct-close-btn {
+.cheezasha-ct-delete-btn:hover { background: #7a2a2a; }
+.cheezasha-ct-close-btn {
     background: #333;
     color: #ccc;
     border: 1px solid #555;
@@ -25633,8 +25633,8 @@ self.onmessage = function (e) {
     cursor: pointer;
     font-size: 12px;
 }
-.toolasha-ct-close-btn:hover { background: #444; }
-.toolasha-ct-clear-btn {
+.cheezasha-ct-close-btn:hover { background: #444; }
+.cheezasha-ct-clear-btn {
     background: #3a2a0a;
     color: #f0b040;
     border: 1px solid #6a4a10;
@@ -25643,21 +25643,21 @@ self.onmessage = function (e) {
     cursor: pointer;
     font-size: 12px;
 }
-.toolasha-ct-clear-btn:hover { background: #5a3a10; }
+.cheezasha-ct-clear-btn:hover { background: #5a3a10; }
 
 /* ---------- Category buttons ---------- */
-.toolasha-ct-addall-label {
+.cheezasha-ct-addall-label {
     margin-left: 6px;
     color: #aaa;
     cursor: pointer;
 }
-.toolasha-ct-categories {
+.cheezasha-ct-categories {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     margin-bottom: 10px;
 }
-.toolasha-ct-cat-btn {
+.cheezasha-ct-cat-btn {
     background: #1e2a3a;
     color: #8ab4f0;
     border: 1px solid #2a4060;
@@ -25667,26 +25667,26 @@ self.onmessage = function (e) {
     font-size: 11px;
     white-space: nowrap;
 }
-.toolasha-ct-cat-btn:hover { background: #2a4060; }
-.toolasha-ct-cat-btn--added {
+.cheezasha-ct-cat-btn:hover { background: #2a4060; }
+.cheezasha-ct-cat-btn--added {
     background: #1a3a2a;
     color: #6c6;
     border-color: #2a5a3a;
     cursor: pointer;
 }
-.toolasha-ct-cat-btn--added:hover { background: #2a5a3a; }
+.cheezasha-ct-cat-btn--added:hover { background: #2a5a3a; }
 
 /* ---------- Category filter ---------- */
-.toolasha-ct-search-row {
+.cheezasha-ct-search-row {
     display: flex;
     gap: 4px;
     margin-bottom: 8px;
 }
-.toolasha-ct-search-row input[type="search"] {
+.cheezasha-ct-search-row input[type="search"] {
     flex: 1;
     margin-bottom: 0;
 }
-.toolasha-ct-cat-filter {
+.cheezasha-ct-cat-filter {
     padding: 4px 6px;
     border: 1px solid #444;
     border-radius: 4px;
@@ -25697,16 +25697,16 @@ self.onmessage = function (e) {
 }
 
 /* ---------- Tile drag & drop ---------- */
-.toolasha-ct-tile-dragging { opacity: 0.4; }
-.toolasha-ct-section-header.toolasha-ct-tile-drop-target,
-.toolasha-ct-unorg-header.toolasha-ct-tile-drop-target {
+.cheezasha-ct-tile-dragging { opacity: 0.4; }
+.cheezasha-ct-section-header.cheezasha-ct-tile-drop-target,
+.cheezasha-ct-unorg-header.cheezasha-ct-tile-drop-target {
     background: rgba(74, 158, 255, 0.15) !important;
     box-shadow: inset 0 0 0 1px rgba(74, 158, 255, 0.4);
 }
-.toolasha-ct-active [class*="Item_itemContainer"].toolasha-ct-drop-before {
+.cheezasha-ct-active [class*="Item_itemContainer"].cheezasha-ct-drop-before {
     box-shadow: -2px 0 0 0 #4a9eff;
 }
-.toolasha-ct-active [class*="Item_itemContainer"].toolasha-ct-drop-after {
+.cheezasha-ct-active [class*="Item_itemContainer"].cheezasha-ct-drop-after {
     box-shadow: 2px 0 0 0 #4a9eff;
 }
 `;
@@ -25756,7 +25756,7 @@ self.onmessage = function (e) {
             this._isApplying = false; // Guard against concurrent _applyLayout calls
             this._needsAnotherPass = false; // Deferred layout re-run flag
             this._lastRebuildTileCount = 0; // Tile count at last full rebuild (detects inventory changes)
-            this._actionBtnsEl = null; // +Tab/Export/Import appended to sort controls row on Toolasha tab
+            this._actionBtnsEl = null; // +Tab/Export/Import appended to sort controls row on Cheezasha tab
             this._tileObserver = null; // MutationObserver for instant tile visibility on React swaps
             this._observedContainer = null; // Container currently being observed by _tileObserver
             this._dragBoundTiles = new WeakSet();
@@ -25811,7 +25811,7 @@ self.onmessage = function (e) {
             // Uses requestAnimationFrame instead of a long debounce — rAF fires at the next frame
             // boundary (~16ms), by which point React has finished swapping tile elements for
             // enhancement level changes. A 200ms debounce caused the enhanced item to disappear
-            // from the custom tab for ~200ms while the new tile had no toolasha-ct-visible class.
+            // from the custom tab for ~200ms while the new tile had no cheezasha-ct-visible class.
             let rafId = null;
             this._onItemsUpdated = (data) => {
                 if (rafId) cancelAnimationFrame(rafId);
@@ -25865,7 +25865,7 @@ self.onmessage = function (e) {
             this._actionBtnsEl?.remove();
             this._actionBtnsEl = null;
             this._styleEl?.remove();
-            document.querySelectorAll('.toolasha-ct-add-to-tab').forEach((el) => el.remove());
+            document.querySelectorAll('.cheezasha-ct-add-to-tab').forEach((el) => el.remove());
             this._isActive = false;
         }
 
@@ -25887,15 +25887,15 @@ self.onmessage = function (e) {
             try {
                 const tabList = this._findCharacterTabList();
                 if (!tabList) return;
-                if (tabList.querySelector('.toolasha-inv-tab')) return;
+                if (tabList.querySelector('.cheezasha-inv-tab')) return;
 
                 const existingTab = tabList.querySelector('[role="tab"]');
                 const btn = document.createElement('button');
                 btn.className =
-                    'toolasha-inv-tab ' + (existingTab ? existingTab.className.replace(/Mui-selected/g, '') : '');
+                    'cheezasha-inv-tab ' + (existingTab ? existingTab.className.replace(/Mui-selected/g, '') : '');
                 btn.setAttribute('role', 'tab');
                 btn.setAttribute('type', 'button');
-                btn.textContent = 'Toolasha';
+                btn.textContent = 'Cheezasha';
                 btn.style.minWidth = 'auto';
                 btn.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -25918,7 +25918,7 @@ self.onmessage = function (e) {
                     scroller.style.overflow = 'auto';
                 }
 
-                for (const tab of tabList.querySelectorAll('[role="tab"]:not(.toolasha-inv-tab)')) {
+                for (const tab of tabList.querySelectorAll('[role="tab"]:not(.cheezasha-inv-tab)')) {
                     tab.addEventListener('click', () => this._deactivatePanel(tab));
                 }
 
@@ -25933,7 +25933,7 @@ self.onmessage = function (e) {
         // -----------------------------------------------------------------------
 
         /**
-         * Apply (or remove) the "show Toolasha tab by default" behaviour.
+         * Apply (or remove) the "show Cheezasha tab by default" behaviour.
          * Called when the tab button is first injected and on live setting changes.
          */
         _applyDefaultTabSetting() {
@@ -25968,7 +25968,7 @@ self.onmessage = function (e) {
             if (this._tabBtn) this._tabBtn.classList.add('Mui-selected');
             const tabList = this._tabBtn?.parentElement;
             if (tabList) {
-                for (const tab of tabList.querySelectorAll('[role="tab"]:not(.toolasha-inv-tab)')) {
+                for (const tab of tabList.querySelectorAll('[role="tab"]:not(.cheezasha-inv-tab)')) {
                     tab.classList.remove('Mui-selected');
                     tab.setAttribute('aria-selected', 'false');
                 }
@@ -25987,7 +25987,7 @@ self.onmessage = function (e) {
             this._clearLayout();
             this._showGameContent();
             // Restore the selected state on the clicked native tab. React won't re-render because
-            // MUI still thinks this tab was selected (we bypassed its state when activating Toolasha).
+            // MUI still thinks this tab was selected (we bypassed its state when activating Cheezasha).
             if (clickedTab) {
                 clickedTab.classList.add('Mui-selected');
                 clickedTab.setAttribute('aria-selected', 'true');
@@ -26066,7 +26066,7 @@ self.onmessage = function (e) {
             // Add the active class — this makes Inventory_items a flex container,
             // applies display:contents to category wrappers, hides category labels,
             // and hides ALL tiles by default (via CSS).
-            invContainer.classList.add('toolasha-ct-active');
+            invContainer.classList.add('cheezasha-ct-active');
             this._applyTileGap(invContainer);
 
             // Ensure the Inventory panel is visible
@@ -26082,10 +26082,10 @@ self.onmessage = function (e) {
             // Reset all tiles: remove visible class, clear inline order, and drag state
             const allTiles = invContainer.querySelectorAll('[class*="Item_itemContainer"]');
             for (const tile of allTiles) {
-                tile.classList.remove('toolasha-ct-visible', 'toolasha-ct-drop-before', 'toolasha-ct-drop-after');
+                tile.classList.remove('cheezasha-ct-visible', 'cheezasha-ct-drop-before', 'cheezasha-ct-drop-after');
                 tile.style.order = '';
                 tile.draggable = false;
-                delete tile.dataset.toolashaTabId;
+                delete tile.dataset.cheezashaTabId;
             }
 
             // Force full rebuild when tile count OR config item count changed — the lightweight path
@@ -26113,7 +26113,7 @@ self.onmessage = function (e) {
 
                 if (this._config.tabs.length === 0) {
                     const empty = document.createElement('div');
-                    empty.className = 'toolasha-ct-empty';
+                    empty.className = 'cheezasha-ct-empty';
                     empty.textContent = 'No custom tabs yet. Click "+ Tab" to create one.';
                     empty.style.order = orderCounter++;
                     invContainer.appendChild(empty);
@@ -26136,7 +26136,7 @@ self.onmessage = function (e) {
 
             // Attach tile observer if not already watching this container.
             // The observer fires synchronously (as a microtask) after React swaps a tile
-            // element, BEFORE the browser paints — so we can restore toolasha-ct-visible
+            // element, BEFORE the browser paints — so we can restore cheezasha-ct-visible
             // with zero visible frames of invisibility.
             if (this._tileObserver === null || this._observedContainer !== invContainer) {
                 this._tileObserver?.disconnect();
@@ -26162,8 +26162,8 @@ self.onmessage = function (e) {
          * We add `display: contents` to flatten wrapper divs, inject accordion
          * headers, and set CSS `order` on each tile to group them visually.
          *
-         * Tiles are hidden by default via the CSS rule on .toolasha-ct-active,
-         * then selectively shown by adding .toolasha-ct-visible.
+         * Tiles are hidden by default via the CSS rule on .cheezasha-ct-active,
+         * then selectively shown by adding .cheezasha-ct-visible.
          */
         async _applyLayout() {
             // Guard against concurrent calls — defer and re-run after current pass
@@ -26203,13 +26203,13 @@ self.onmessage = function (e) {
 
         /**
          * Lightweight tile update — headers are already injected with correct order values.
-         * Re-apply toolasha-ct-visible and style.order to tiles based on current config.
+         * Re-apply cheezasha-ct-visible and style.order to tiles based on current config.
          * @param {HTMLElement} invContainer
          * @param {Map} tileMap
          */
         _updateTileVisibility(invContainer, tileMap) {
             // Walk through injected headers to read their order values and match tiles
-            const headers = invContainer.querySelectorAll('.toolasha-ct-section-header');
+            const headers = invContainer.querySelectorAll('.cheezasha-ct-section-header');
             const headerOrderMap = new Map();
             for (const header of headers) {
                 headerOrderMap.set(header.dataset.tabId, parseInt(header.style.order, 10));
@@ -26219,7 +26219,7 @@ self.onmessage = function (e) {
             this._applyTileOrderForTabs(this._config.tabs, tileMap, headerOrderMap);
 
             // Handle unorganized bucket
-            const unorgHeader = invContainer.querySelector('.toolasha-ct-unorg-header');
+            const unorgHeader = invContainer.querySelector('.cheezasha-ct-unorg-header');
             if (unorgHeader && this._unorgOpen) {
                 const unorgOrder = parseInt(unorgHeader.style.order, 10);
                 const assignedSet = getAssignedItemSet(this._config);
@@ -26267,16 +26267,16 @@ self.onmessage = function (e) {
                         for (const hrid of tab.items) {
                             if (hrid === LINEBREAK_HRID) {
                                 const lb = this._invContainer?.querySelector(
-                                    `.toolasha-ct-linebreak[data-tab-id="${tab.id}"][data-lb-index="${lbIndex}"]`
+                                    `.cheezasha-ct-linebreak[data-tab-id="${tab.id}"][data-lb-index="${lbIndex}"]`
                                 );
                                 if (lb) lb.style.order = String(currentOrder);
                                 currentOrder++;
                                 lbIndex++;
                             } else {
                                 for (const tile of this._claimTilesForHrid(hrid, tileMap)) {
-                                    tile.classList.add('toolasha-ct-visible');
+                                    tile.classList.add('cheezasha-ct-visible');
                                     tile.style.order = String(currentOrder++);
-                                    tile.dataset.toolashaTabId = tab.id;
+                                    tile.dataset.cheezashaTabId = tab.id;
                                     this._setupTileDrag(tile);
                                 }
                             }
@@ -26337,12 +26337,12 @@ self.onmessage = function (e) {
             this._removeInjectedEls();
 
             if (this._invContainer) {
-                this._invContainer.classList.remove('toolasha-ct-active');
+                this._invContainer.classList.remove('cheezasha-ct-active');
 
                 // Remove visible class and inline order from all tiles
                 const tiles = this._invContainer.querySelectorAll('[class*="Item_itemContainer"]');
                 for (const tile of tiles) {
-                    tile.classList.remove('toolasha-ct-visible');
+                    tile.classList.remove('cheezasha-ct-visible');
                     tile.style.order = '';
                 }
             }
@@ -26369,7 +26369,7 @@ self.onmessage = function (e) {
         }
         /**
          * Create the top bar with sort proxy buttons and tab action buttons.
-         * Shown only on the Toolasha tab; hides the external sort controls row.
+         * Shown only on the Cheezasha tab; hides the external sort controls row.
          * @returns {HTMLElement}
          */
         /**
@@ -26382,21 +26382,21 @@ self.onmessage = function (e) {
             this._actionBtnsEl?.remove();
 
             const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'toolasha-ct-action-btns';
+            actionsDiv.className = 'cheezasha-ct-action-btns';
             actionsDiv.style.cssText = 'display:flex;gap:4px;flex-shrink:0;';
 
             const addBtn = document.createElement('button');
-            addBtn.className = 'toolasha-ct-add-btn';
+            addBtn.className = 'cheezasha-ct-add-btn';
             addBtn.textContent = '+ Tab';
             addBtn.addEventListener('click', () => this._onAddTab(null));
 
             const exportBtn = document.createElement('button');
-            exportBtn.className = 'toolasha-ct-add-btn';
+            exportBtn.className = 'cheezasha-ct-add-btn';
             exportBtn.textContent = 'Export';
             exportBtn.addEventListener('click', () => this._exportLayout());
 
             const importBtn = document.createElement('div');
-            importBtn.className = 'toolasha-ct-add-btn';
+            importBtn.className = 'cheezasha-ct-add-btn';
             importBtn.style.position = 'relative';
             importBtn.style.overflow = 'hidden';
             importBtn.textContent = 'Import';
@@ -26416,13 +26416,13 @@ self.onmessage = function (e) {
             actionsDiv.appendChild(importBtn);
 
             const expandBtn = document.createElement('button');
-            expandBtn.className = 'toolasha-ct-add-btn';
+            expandBtn.className = 'cheezasha-ct-add-btn';
             expandBtn.textContent = 'Expand All';
             expandBtn.addEventListener('click', () => this._onSetAllTabsOpen(true));
             actionsDiv.appendChild(expandBtn);
 
             const collapseBtn = document.createElement('button');
-            collapseBtn.className = 'toolasha-ct-add-btn';
+            collapseBtn.className = 'cheezasha-ct-add-btn';
             collapseBtn.textContent = 'Collapse All';
             collapseBtn.addEventListener('click', () => this._onSetAllTabsOpen(false));
             actionsDiv.appendChild(collapseBtn);
@@ -26438,7 +26438,7 @@ self.onmessage = function (e) {
 
             // Fallback: no sort controls — use a topbar inside the container
             const topbar = document.createElement('div');
-            topbar.className = 'toolasha-ct-topbar';
+            topbar.className = 'cheezasha-ct-topbar';
             topbar.appendChild(actionsDiv);
             return topbar;
         }
@@ -26447,13 +26447,13 @@ self.onmessage = function (e) {
          * Serialize the current layout to a JSON file and trigger a download.
          */
         _exportLayout() {
-            const payload = { _toolasha: 'tabs-v1', ...this._config };
+            const payload = { _cheezasha: 'tabs-v1', ...this._config };
             const json = JSON.stringify(payload, null, 2);
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'toolasha-tabs.json';
+            a.download = 'cheezasha-tabs.json';
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -26466,12 +26466,12 @@ self.onmessage = function (e) {
             try {
                 const text = await file.text();
                 const parsed = JSON.parse(text);
-                if (parsed._toolasha !== 'tabs-v1' || !Array.isArray(parsed.tabs)) {
-                    alert('[Toolasha] Invalid layout file.');
-                    console.error('[CustomTabs] Import failed: missing _toolasha marker or tabs array', parsed);
+                if (parsed._cheezasha !== 'tabs-v1' || !Array.isArray(parsed.tabs)) {
+                    alert('[Cheezasha] Invalid layout file.');
+                    console.error('[CustomTabs] Import failed: missing _cheezasha marker or tabs array', parsed);
                     return;
                 }
-                const { _toolasha: _, ...config } = parsed;
+                const { _cheezasha: _, ...config } = parsed;
                 this._config = config;
                 // Apply layout immediately — save to IndexedDB in the background
                 this._removeInjectedEls();
@@ -26480,7 +26480,7 @@ self.onmessage = function (e) {
                 await this._applyLayout();
                 this._save();
             } catch (err) {
-                alert('[Toolasha] Failed to read layout file.');
+                alert('[Cheezasha] Failed to read layout file.');
                 console.error('[CustomTabs] Import error:', err);
             }
         }
@@ -26639,7 +26639,7 @@ self.onmessage = function (e) {
         _injectSectionHeader(invContainer, tab, depth, tileMap, orderCounter) {
             // Create and inject the header element
             const header = document.createElement('div');
-            header.className = 'toolasha-ct-section-header';
+            header.className = 'cheezasha-ct-section-header';
             header.dataset.tabId = tab.id;
             header.style.setProperty('--depth', depth);
             header.style.order = orderCounter++;
@@ -26666,19 +26666,19 @@ self.onmessage = function (e) {
                 e.dataTransfer.dropEffect = 'move';
                 // Show different visual for tile drop vs tab reorder
                 if (this._tileDragData) {
-                    header.classList.add('toolasha-ct-tile-drop-target');
+                    header.classList.add('cheezasha-ct-tile-drop-target');
                 } else {
-                    header.classList.add('toolasha-ct-section--drag-over');
+                    header.classList.add('cheezasha-ct-section--drag-over');
                 }
             });
             header.addEventListener('dragleave', () => {
-                header.classList.remove('toolasha-ct-section--drag-over', 'toolasha-ct-tile-drop-target');
+                header.classList.remove('cheezasha-ct-section--drag-over', 'cheezasha-ct-tile-drop-target');
             });
             header.addEventListener('drop', (e) => {
                 e.preventDefault();
-                header.classList.remove('toolasha-ct-section--drag-over', 'toolasha-ct-tile-drop-target');
+                header.classList.remove('cheezasha-ct-section--drag-over', 'cheezasha-ct-tile-drop-target');
                 // Check for tile drop first
-                const tileData = e.dataTransfer.getData('application/x-toolasha-tile');
+                const tileData = e.dataTransfer.getData('application/x-cheezasha-tile');
                 if (tileData) {
                     const { hrid, sourceTabId } = JSON.parse(tileData);
                     this._onTileDropOnTab(hrid, sourceTabId, tab.id);
@@ -26690,21 +26690,21 @@ self.onmessage = function (e) {
             });
 
             const chevron = document.createElement('span');
-            chevron.className = 'toolasha-ct-chevron';
+            chevron.className = 'cheezasha-ct-chevron';
             chevron.textContent = tab.open ? '▼' : '▶';
             header.appendChild(chevron);
 
             const name = document.createElement('span');
-            name.className = 'toolasha-ct-section-name';
+            name.className = 'cheezasha-ct-section-name';
             name.textContent = tab.name;
             header.appendChild(name);
 
             const rightGroup = document.createElement('span');
-            rightGroup.className = 'toolasha-ct-section-right';
+            rightGroup.className = 'cheezasha-ct-section-right';
 
             if (tab.items.filter((h) => h !== LINEBREAK_HRID).length > 0) {
                 const countBadge = document.createElement('span');
-                countBadge.className = 'toolasha-ct-section-count';
+                countBadge.className = 'cheezasha-ct-section-count';
                 countBadge.textContent = `(${tab.items.filter((h) => h !== LINEBREAK_HRID).length})`;
                 rightGroup.appendChild(countBadge);
             }
@@ -26712,10 +26712,10 @@ self.onmessage = function (e) {
             header.appendChild(rightGroup);
 
             const actions = document.createElement('span');
-            actions.className = 'toolasha-ct-section-actions';
+            actions.className = 'cheezasha-ct-section-actions';
 
             const editBtn = document.createElement('button');
-            editBtn.className = 'toolasha-ct-node-btn';
+            editBtn.className = 'cheezasha-ct-node-btn';
             editBtn.textContent = '✏';
             editBtn.title = 'Edit tab';
             editBtn.addEventListener('click', (e) => {
@@ -26725,7 +26725,7 @@ self.onmessage = function (e) {
             actions.appendChild(editBtn);
 
             const addSubBtn = document.createElement('button');
-            addSubBtn.className = 'toolasha-ct-node-btn';
+            addSubBtn.className = 'cheezasha-ct-node-btn';
             addSubBtn.textContent = '+';
             addSubBtn.title = 'Add subtab';
             addSubBtn.addEventListener('click', (e) => {
@@ -26735,7 +26735,7 @@ self.onmessage = function (e) {
             actions.appendChild(addSubBtn);
 
             const delBtn = document.createElement('button');
-            delBtn.className = 'toolasha-ct-node-btn';
+            delBtn.className = 'cheezasha-ct-node-btn';
             delBtn.textContent = '×';
             delBtn.title = 'Delete tab';
             delBtn.addEventListener('click', (e) => {
@@ -26765,7 +26765,7 @@ self.onmessage = function (e) {
                     for (const hrid of tab.items) {
                         if (hrid === LINEBREAK_HRID) {
                             const lb = document.createElement('div');
-                            lb.className = 'toolasha-ct-linebreak';
+                            lb.className = 'cheezasha-ct-linebreak';
                             lb.dataset.tabId = tab.id;
                             lb.dataset.lbIndex = String(lbIndex++);
                             lb.style.order = String(orderCounter++);
@@ -26774,9 +26774,9 @@ self.onmessage = function (e) {
                         } else {
                             this._allClaimedHrids?.add(hrid);
                             for (const tile of this._claimTilesForHrid(hrid, tileMap)) {
-                                tile.classList.add('toolasha-ct-visible');
+                                tile.classList.add('cheezasha-ct-visible');
                                 tile.style.order = String(orderCounter++);
-                                tile.dataset.toolashaTabId = tab.id;
+                                tile.dataset.cheezashaTabId = tab.id;
                                 this._setupTileDrag(tile);
                                 sectionTiles.push(tile);
                             }
@@ -26821,7 +26821,7 @@ self.onmessage = function (e) {
                         warn.title =
                             'Items are hidden — expand the relevant categories in the Inventory tab to show them here.';
                         warn.style.cssText = 'color:#ff3333;margin-left:4px;cursor:default;font-size:13px;flex-shrink:0;';
-                        const actionsEl = header.querySelector('.toolasha-ct-section-actions');
+                        const actionsEl = header.querySelector('.cheezasha-ct-section-actions');
                         if (actionsEl) header.insertBefore(warn, actionsEl);
                         else header.appendChild(warn);
                     }
@@ -26843,9 +26843,9 @@ self.onmessage = function (e) {
                     const total = sectionTiles.reduce((sum, t) => sum + (parseFloat(t.dataset[valueKey]) || 0), 0);
                     if (total > 0) {
                         const valueBadge = document.createElement('span');
-                        valueBadge.className = 'toolasha-ct-section-value';
+                        valueBadge.className = 'cheezasha-ct-section-value';
                         valueBadge.textContent = formatters_js.formatKMB(total, 2);
-                        const rightEl = header.querySelector('.toolasha-ct-section-right');
+                        const rightEl = header.querySelector('.cheezasha-ct-section-right');
                         if (rightEl) rightEl.appendChild(valueBadge);
                         else header.appendChild(valueBadge);
                     }
@@ -26890,9 +26890,9 @@ self.onmessage = function (e) {
                     const total = this._peekTileValue(tab, tileMap, valueKey);
                     if (total > 0) {
                         const valueBadge = document.createElement('span');
-                        valueBadge.className = 'toolasha-ct-section-value';
+                        valueBadge.className = 'cheezasha-ct-section-value';
                         valueBadge.textContent = formatters_js.formatKMB(total, 2);
-                        const rightEl = header.querySelector('.toolasha-ct-section-right');
+                        const rightEl = header.querySelector('.cheezasha-ct-section-right');
                         if (rightEl) rightEl.appendChild(valueBadge);
                         else header.appendChild(valueBadge);
                     }
@@ -26967,9 +26967,9 @@ self.onmessage = function (e) {
             }
 
             for (const tile of tiles) {
-                tile.classList.add('toolasha-ct-visible');
+                tile.classList.add('cheezasha-ct-visible');
                 tile.style.order = startOrder++;
-                if (tabId !== undefined) tile.dataset.toolashaTabId = tabId;
+                if (tabId !== undefined) tile.dataset.cheezashaTabId = tabId;
                 this._setupTileDrag(tile);
             }
             return startOrder;
@@ -26988,26 +26988,26 @@ self.onmessage = function (e) {
             tile.addEventListener('dragstart', (e) => {
                 const hrid = this._getHridFromTile(tile);
                 if (!hrid) return;
-                const sourceTabId = tile.dataset.toolashaTabId || '';
+                const sourceTabId = tile.dataset.cheezashaTabId || '';
                 const payload = JSON.stringify({ hrid, sourceTabId });
-                e.dataTransfer.setData('application/x-toolasha-tile', payload);
+                e.dataTransfer.setData('application/x-cheezasha-tile', payload);
                 e.dataTransfer.effectAllowed = 'move';
-                tile.classList.add('toolasha-ct-tile-dragging');
+                tile.classList.add('cheezasha-ct-tile-dragging');
                 this._tileDragData = { hrid, sourceTabId };
             });
 
             tile.addEventListener('dragend', () => {
-                tile.classList.remove('toolasha-ct-tile-dragging');
+                tile.classList.remove('cheezasha-ct-tile-dragging');
                 this._tileDragData = null;
                 // Clean up all drop indicators
                 if (this._invContainer) {
                     for (const el of this._invContainer.querySelectorAll(
-                        '.toolasha-ct-drop-before, .toolasha-ct-drop-after, .toolasha-ct-tile-drop-target'
+                        '.cheezasha-ct-drop-before, .cheezasha-ct-drop-after, .cheezasha-ct-tile-drop-target'
                     )) {
                         el.classList.remove(
-                            'toolasha-ct-drop-before',
-                            'toolasha-ct-drop-after',
-                            'toolasha-ct-tile-drop-target'
+                            'cheezasha-ct-drop-before',
+                            'cheezasha-ct-drop-after',
+                            'cheezasha-ct-tile-drop-target'
                         );
                     }
                 }
@@ -27016,7 +27016,7 @@ self.onmessage = function (e) {
             // Within-tab reorder: dragover on tiles
             tile.addEventListener('dragover', (e) => {
                 if (!this._tileDragData) return;
-                const targetTabId = tile.dataset.toolashaTabId || '';
+                const targetTabId = tile.dataset.cheezashaTabId || '';
                 // Only allow reorder within the same tab (and not unorganized)
                 if (!targetTabId || targetTabId !== this._tileDragData.sourceTabId) return;
                 e.preventDefault();
@@ -27025,25 +27025,25 @@ self.onmessage = function (e) {
                 const rect = tile.getBoundingClientRect();
                 const midX = rect.left + rect.width / 2;
                 if (e.clientX < midX) {
-                    tile.classList.add('toolasha-ct-drop-before');
-                    tile.classList.remove('toolasha-ct-drop-after');
+                    tile.classList.add('cheezasha-ct-drop-before');
+                    tile.classList.remove('cheezasha-ct-drop-after');
                 } else {
-                    tile.classList.add('toolasha-ct-drop-after');
-                    tile.classList.remove('toolasha-ct-drop-before');
+                    tile.classList.add('cheezasha-ct-drop-after');
+                    tile.classList.remove('cheezasha-ct-drop-before');
                 }
             });
 
             tile.addEventListener('dragleave', () => {
-                tile.classList.remove('toolasha-ct-drop-before', 'toolasha-ct-drop-after');
+                tile.classList.remove('cheezasha-ct-drop-before', 'cheezasha-ct-drop-after');
             });
 
             tile.addEventListener('drop', (e) => {
                 e.preventDefault();
-                tile.classList.remove('toolasha-ct-drop-before', 'toolasha-ct-drop-after');
-                const raw = e.dataTransfer.getData('application/x-toolasha-tile');
+                tile.classList.remove('cheezasha-ct-drop-before', 'cheezasha-ct-drop-after');
+                const raw = e.dataTransfer.getData('application/x-cheezasha-tile');
                 if (!raw) return;
                 const { hrid: draggedHrid, sourceTabId } = JSON.parse(raw);
-                const targetTabId = tile.dataset.toolashaTabId || '';
+                const targetTabId = tile.dataset.cheezashaTabId || '';
                 if (!targetTabId || targetTabId !== sourceTabId) return;
                 // Compute target index in items array from tile order position
                 const targetHrid = this._getHridFromTile(tile);
@@ -27096,7 +27096,7 @@ self.onmessage = function (e) {
             const totalTiles = remainingEntries.reduce((sum, e) => sum + e.tiles.length, 0);
 
             const headerEl = document.createElement('div');
-            headerEl.className = 'toolasha-ct-unorg-header';
+            headerEl.className = 'cheezasha-ct-unorg-header';
             headerEl.innerHTML = `<span>${this._unorgOpen ? '▼' : '▶'}</span> <span>Unorganized (${totalTiles})</span>`;
             headerEl.style.order = orderCounter++;
             headerEl.addEventListener('click', () => {
@@ -27109,15 +27109,15 @@ self.onmessage = function (e) {
                 if (!this._tileDragData || !this._tileDragData.sourceTabId) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                headerEl.classList.add('toolasha-ct-tile-drop-target');
+                headerEl.classList.add('cheezasha-ct-tile-drop-target');
             });
             headerEl.addEventListener('dragleave', () => {
-                headerEl.classList.remove('toolasha-ct-tile-drop-target');
+                headerEl.classList.remove('cheezasha-ct-tile-drop-target');
             });
             headerEl.addEventListener('drop', (e) => {
                 e.preventDefault();
-                headerEl.classList.remove('toolasha-ct-tile-drop-target');
-                const raw = e.dataTransfer.getData('application/x-toolasha-tile');
+                headerEl.classList.remove('cheezasha-ct-tile-drop-target');
+                const raw = e.dataTransfer.getData('application/x-cheezasha-tile');
                 if (!raw) return;
                 const { hrid, sourceTabId } = JSON.parse(raw);
                 this._onTileDropOnUnorganized(hrid, sourceTabId);
@@ -27236,7 +27236,7 @@ self.onmessage = function (e) {
             const tab = result.tab;
 
             const overlay = document.createElement('div');
-            overlay.className = 'toolasha-ct-modal-overlay';
+            overlay.className = 'cheezasha-ct-modal-overlay';
             let mousedownOnOverlay = false;
             overlay.addEventListener('mousedown', (e) => {
                 mousedownOnOverlay = e.target === overlay;
@@ -27250,55 +27250,55 @@ self.onmessage = function (e) {
             });
 
             const modal = document.createElement('div');
-            modal.className = 'toolasha-ct-modal';
+            modal.className = 'cheezasha-ct-modal';
 
             modal.innerHTML = `
-            <div class="toolasha-ct-modal-body">
+            <div class="cheezasha-ct-modal-body">
                 <h3>Edit Tab</h3>
                 <label>Name</label>
-                <input type="text" class="toolasha-ct-editor-name" value="${this._escHtml(tab.name)}">
+                <input type="text" class="cheezasha-ct-editor-name" value="${this._escHtml(tab.name)}">
 
                 <label>Color</label>
-                <div class="toolasha-ct-swatches"></div>
+                <div class="cheezasha-ct-swatches"></div>
 
-                <label>Add Category <span class="toolasha-ct-addall-label"><input type="checkbox" class="toolasha-ct-addall-cb"${config.getSetting('inventoryTabs_categoryAddAll') ? ' checked' : ''}> All items</span></label>
-                <div class="toolasha-ct-categories"></div>
+                <label>Add Category <span class="cheezasha-ct-addall-label"><input type="checkbox" class="cheezasha-ct-addall-cb"${config.getSetting('inventoryTabs_categoryAddAll') ? ' checked' : ''}> All items</span></label>
+                <div class="cheezasha-ct-categories"></div>
 
                 <label>From Loadout</label>
-                <div class="toolasha-ct-loadouts"></div>
+                <div class="cheezasha-ct-loadouts"></div>
 
                 <label>Items</label>
-                <div class="toolasha-ct-search-row">
-                    <input type="search" class="toolasha-ct-editor-search" placeholder="Search items to add...">
-                    <select class="toolasha-ct-cat-filter">
+                <div class="cheezasha-ct-search-row">
+                    <input type="search" class="cheezasha-ct-editor-search" placeholder="Search items to add...">
+                    <select class="cheezasha-ct-cat-filter">
                         <option value="">All</option>
                     </select>
                 </div>
-                <div class="toolasha-ct-search-results"></div>
-                <div class="toolasha-ct-assigned-list"></div>
+                <div class="cheezasha-ct-search-results"></div>
+                <div class="cheezasha-ct-assigned-list"></div>
                 <div style="margin-top:6px;">
-                    <button class="toolasha-ct-add-linebreak-btn" style="background:#2a2a3a;color:#888;border:1px solid #444;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px;">+ Line Break</button>
+                    <button class="cheezasha-ct-add-linebreak-btn" style="background:#2a2a3a;color:#888;border:1px solid #444;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px;">+ Line Break</button>
                 </div>
             </div>
 
-            <div class="toolasha-ct-modal-footer">
-                <button class="toolasha-ct-delete-btn">Delete Tab</button>
-                <button class="toolasha-ct-clear-btn">Clear All</button>
-                <button class="toolasha-ct-close-btn">Close</button>
+            <div class="cheezasha-ct-modal-footer">
+                <button class="cheezasha-ct-delete-btn">Delete Tab</button>
+                <button class="cheezasha-ct-clear-btn">Clear All</button>
+                <button class="cheezasha-ct-close-btn">Close</button>
             </div>
         `;
 
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
 
-            const nameInput = modal.querySelector('.toolasha-ct-editor-name');
+            const nameInput = modal.querySelector('.cheezasha-ct-editor-name');
             nameInput.focus();
             nameInput.addEventListener('change', () => {
                 this._config = renameTab(this._config, tabId, nameInput.value.trim() || 'Untitled');
                 this._save();
             });
 
-            const swatchContainer = modal.querySelector('.toolasha-ct-swatches');
+            const swatchContainer = modal.querySelector('.cheezasha-ct-swatches');
             const isPreset = (color) => color === null || COLOR_PRESETS.includes(color);
 
             const applyColor = (color) => {
@@ -27308,16 +27308,16 @@ self.onmessage = function (e) {
             };
 
             const updateActiveStates = (activeColor) => {
-                swatchContainer.querySelectorAll('.toolasha-ct-swatch').forEach((s) => {
-                    s.classList.toggle('toolasha-ct-swatch--active', s.dataset.color === (activeColor ?? '__null__'));
+                swatchContainer.querySelectorAll('.cheezasha-ct-swatch').forEach((s) => {
+                    s.classList.toggle('cheezasha-ct-swatch--active', s.dataset.color === (activeColor ?? '__null__'));
                 });
-                colorPicker.classList.toggle('toolasha-ct-color-picker--active', !!activeColor && !isPreset(activeColor));
+                colorPicker.classList.toggle('cheezasha-ct-color-picker--active', !!activeColor && !isPreset(activeColor));
             };
 
             // Preset swatches (null = clear)
             for (const color of [null, ...COLOR_PRESETS]) {
                 const sw = document.createElement('span');
-                sw.className = 'toolasha-ct-swatch';
+                sw.className = 'cheezasha-ct-swatch';
                 sw.dataset.color = color ?? '__null__';
                 sw.style.background = color || '#555';
                 if (!color) {
@@ -27337,13 +27337,13 @@ self.onmessage = function (e) {
 
             // Divider
             const divider = document.createElement('span');
-            divider.className = 'toolasha-ct-swatch-divider';
+            divider.className = 'cheezasha-ct-swatch-divider';
             swatchContainer.appendChild(divider);
 
             // Native color picker
             const colorPicker = document.createElement('input');
             colorPicker.type = 'color';
-            colorPicker.className = 'toolasha-ct-color-picker';
+            colorPicker.className = 'cheezasha-ct-color-picker';
             colorPicker.title = 'Custom color';
             colorPicker.value = tab.color && tab.color.startsWith('#') ? tab.color : '#888888';
             colorPicker.addEventListener('input', () => {
@@ -27357,7 +27357,7 @@ self.onmessage = function (e) {
             // Hex text input
             const hexInput = document.createElement('input');
             hexInput.type = 'text';
-            hexInput.className = 'toolasha-ct-hex-input';
+            hexInput.className = 'cheezasha-ct-hex-input';
             hexInput.placeholder = '#rrggbb';
             hexInput.maxLength = 7;
             hexInput.value = tab.color || '';
@@ -27374,20 +27374,20 @@ self.onmessage = function (e) {
             // Set initial active state
             updateActiveStates(tab.color);
 
-            this._renderCategoryButtons(modal.querySelector('.toolasha-ct-categories'), tabId);
+            this._renderCategoryButtons(modal.querySelector('.cheezasha-ct-categories'), tabId);
 
-            const addAllCb = modal.querySelector('.toolasha-ct-addall-cb');
+            const addAllCb = modal.querySelector('.cheezasha-ct-addall-cb');
             addAllCb.addEventListener('change', () => {
                 config.setSetting('inventoryTabs_categoryAddAll', addAllCb.checked);
-                this._renderCategoryButtons(modal.querySelector('.toolasha-ct-categories'), tabId);
+                this._renderCategoryButtons(modal.querySelector('.cheezasha-ct-categories'), tabId);
             });
 
-            this._renderLoadoutButtons(modal.querySelector('.toolasha-ct-loadouts'), tabId);
-            this._populateCategoryFilter(modal.querySelector('.toolasha-ct-cat-filter'));
+            this._renderLoadoutButtons(modal.querySelector('.cheezasha-ct-loadouts'), tabId);
+            this._populateCategoryFilter(modal.querySelector('.cheezasha-ct-cat-filter'));
 
-            const searchInput = modal.querySelector('.toolasha-ct-editor-search');
-            const catFilter = modal.querySelector('.toolasha-ct-cat-filter');
-            const resultsDiv = modal.querySelector('.toolasha-ct-search-results');
+            const searchInput = modal.querySelector('.cheezasha-ct-editor-search');
+            const catFilter = modal.querySelector('.cheezasha-ct-cat-filter');
+            const resultsDiv = modal.querySelector('.cheezasha-ct-search-results');
             let searchTimeout = null;
             const doSearch = () => {
                 clearTimeout(searchTimeout);
@@ -27398,16 +27398,16 @@ self.onmessage = function (e) {
             searchInput.addEventListener('input', doSearch);
             catFilter.addEventListener('change', doSearch);
 
-            this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+            this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
 
-            modal.querySelector('.toolasha-ct-add-linebreak-btn').addEventListener('click', () => {
+            modal.querySelector('.cheezasha-ct-add-linebreak-btn').addEventListener('click', () => {
                 this._config = addLineBreak(this._config, tabId);
                 this._save();
-                this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+                this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
                 if (this._isActive) this._applyLayout();
             });
 
-            const deleteBtn = modal.querySelector('.toolasha-ct-delete-btn');
+            const deleteBtn = modal.querySelector('.cheezasha-ct-delete-btn');
             deleteBtn.addEventListener('click', () => {
                 if (this._deleteConfirmId === tabId) {
                     this._config = removeTab(this._config, tabId);
@@ -27423,7 +27423,7 @@ self.onmessage = function (e) {
             });
 
             let clearConfirm = false;
-            const clearBtn = modal.querySelector('.toolasha-ct-clear-btn');
+            const clearBtn = modal.querySelector('.cheezasha-ct-clear-btn');
             clearBtn.addEventListener('click', () => {
                 if (clearConfirm) {
                     const currentTab = findTab(this._config, tabId)?.tab;
@@ -27432,8 +27432,8 @@ self.onmessage = function (e) {
                             this._config = removeItem(this._config, tabId, hrid);
                         }
                         this._save();
-                        this._renderCategoryButtons(modal.querySelector('.toolasha-ct-categories'), tabId);
-                        this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+                        this._renderCategoryButtons(modal.querySelector('.cheezasha-ct-categories'), tabId);
+                        this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
                         if (this._isActive) this._applyLayout();
                     }
                     clearBtn.textContent = 'Clear All';
@@ -27446,7 +27446,7 @@ self.onmessage = function (e) {
                 }
             });
 
-            modal.querySelector('.toolasha-ct-close-btn').addEventListener('click', () => {
+            modal.querySelector('.cheezasha-ct-close-btn').addEventListener('click', () => {
                 overlay.remove();
                 this._removeInjectedEls();
                 this._applyLayout();
@@ -27494,8 +27494,8 @@ self.onmessage = function (e) {
                     if (isExpanded) {
                         // Collapse header row
                         const headerRow = document.createElement('div');
-                        headerRow.className = 'toolasha-ct-search-result toolasha-ct-search-group-header';
-                        headerRow.innerHTML = `<svg viewBox="0 0 32 32"><use href="${iconHref}"></use></svg><span>${this._escHtml(details.name)}</span><span class="toolasha-ct-expand-btn">▲</span>`;
+                        headerRow.className = 'cheezasha-ct-search-result cheezasha-ct-search-group-header';
+                        headerRow.innerHTML = `<svg viewBox="0 0 32 32"><use href="${iconHref}"></use></svg><span>${this._escHtml(details.name)}</span><span class="cheezasha-ct-expand-btn">▲</span>`;
                         headerRow.addEventListener('click', () => {
                             this._expandedSearchHrids.delete(hrid);
                             this._renderSearchResults(container, query, tabId, categoryFilter);
@@ -27504,7 +27504,7 @@ self.onmessage = function (e) {
 
                         // "Add all levels" shortcut row
                         const addAllRow = document.createElement('div');
-                        addAllRow.className = 'toolasha-ct-search-result toolasha-ct-search-level-row';
+                        addAllRow.className = 'cheezasha-ct-search-result cheezasha-ct-search-level-row';
                         addAllRow.innerHTML = `<span style="color:#7dcea0;font-size:12px;padding-left:4px;">+ Add all levels (+0–+${maxLevel})</span>`;
                         addAllRow.addEventListener('click', () => {
                             for (let level = 0; level <= maxLevel; level++) {
@@ -27516,7 +27516,7 @@ self.onmessage = function (e) {
                             this._save();
                             this._renderSearchResults(container, query, tabId, categoryFilter);
                             this._renderAssignedItems(
-                                container.parentElement.querySelector('.toolasha-ct-assigned-list'),
+                                container.parentElement.querySelector('.cheezasha-ct-assigned-list'),
                                 tabId
                             );
                             if (this._isActive) this._applyLayout();
@@ -27530,7 +27530,7 @@ self.onmessage = function (e) {
 
                             const owned = ownedLevels?.has(level);
                             const levelRow = document.createElement('div');
-                            levelRow.className = 'toolasha-ct-search-result toolasha-ct-search-level-row';
+                            levelRow.className = 'cheezasha-ct-search-result cheezasha-ct-search-level-row';
                             const displayName = level === 0 ? details.name : `${details.name} +${level}`;
                             const ownedDot = owned
                                 ? `<span style="color:#7dcea0;margin-left:4px;" title="In inventory">●</span>`
@@ -27541,7 +27541,7 @@ self.onmessage = function (e) {
                                 this._save();
                                 this._renderSearchResults(container, query, tabId, categoryFilter);
                                 this._renderAssignedItems(
-                                    container.parentElement.querySelector('.toolasha-ct-assigned-list'),
+                                    container.parentElement.querySelector('.cheezasha-ct-assigned-list'),
                                     tabId
                                 );
                                 if (this._isActive) this._applyLayout();
@@ -27558,10 +27558,10 @@ self.onmessage = function (e) {
                             : '';
 
                         const row = document.createElement('div');
-                        row.className = 'toolasha-ct-search-result toolasha-ct-search-group-header';
-                        row.innerHTML = `<svg viewBox="0 0 32 32"><use href="${iconHref}"></use></svg><span>${this._escHtml(details.name)}</span>${ownedBadges ? `<span class="toolasha-ct-level-badges">${this._escHtml(ownedBadges)}</span>` : ''}<span class="toolasha-ct-expand-btn">▶</span>`;
+                        row.className = 'cheezasha-ct-search-result cheezasha-ct-search-group-header';
+                        row.innerHTML = `<svg viewBox="0 0 32 32"><use href="${iconHref}"></use></svg><span>${this._escHtml(details.name)}</span>${ownedBadges ? `<span class="cheezasha-ct-level-badges">${this._escHtml(ownedBadges)}</span>` : ''}<span class="cheezasha-ct-expand-btn">▶</span>`;
                         // Clicking the expand button expands the group
-                        row.querySelector('.toolasha-ct-expand-btn').addEventListener('click', (e) => {
+                        row.querySelector('.cheezasha-ct-expand-btn').addEventListener('click', (e) => {
                             e.stopPropagation();
                             if (!this._expandedSearchHrids) this._expandedSearchHrids = new Set();
                             this._expandedSearchHrids.add(hrid);
@@ -27573,7 +27573,7 @@ self.onmessage = function (e) {
                             this._save();
                             this._renderSearchResults(container, query, tabId, categoryFilter);
                             this._renderAssignedItems(
-                                container.parentElement.querySelector('.toolasha-ct-assigned-list'),
+                                container.parentElement.querySelector('.cheezasha-ct-assigned-list'),
                                 tabId
                             );
                             if (this._isActive) this._applyLayout();
@@ -27583,14 +27583,14 @@ self.onmessage = function (e) {
                 } else {
                     // Flat row — no enhanced variants in inventory
                     const row = document.createElement('div');
-                    row.className = 'toolasha-ct-search-result';
+                    row.className = 'cheezasha-ct-search-result';
                     row.innerHTML = `<svg viewBox="0 0 32 32"><use href="${iconHref}"></use></svg><span>${this._escHtml(details.name)}</span>`;
                     row.addEventListener('click', () => {
                         this._config = addItem(this._config, tabId, hrid);
                         this._save();
                         row.remove();
                         this._renderAssignedItems(
-                            container.parentElement.querySelector('.toolasha-ct-assigned-list'),
+                            container.parentElement.querySelector('.cheezasha-ct-assigned-list'),
                             tabId
                         );
                         if (this._isActive) this._applyLayout();
@@ -27607,7 +27607,7 @@ self.onmessage = function (e) {
         }
 
         _renderAssignedItems(container, tabId) {
-            const scrollParent = container.closest('.toolasha-ct-modal-body');
+            const scrollParent = container.closest('.cheezasha-ct-modal-body');
             const scrollPos = scrollParent?.scrollTop ?? 0;
 
             container.innerHTML = '';
@@ -27622,11 +27622,11 @@ self.onmessage = function (e) {
 
             tab.items.forEach((hrid, index) => {
                 const row = document.createElement('div');
-                row.className = 'toolasha-ct-assigned-item';
+                row.className = 'cheezasha-ct-assigned-item';
                 row.draggable = true;
 
                 const handle = document.createElement('span');
-                handle.className = 'toolasha-ct-drag-handle';
+                handle.className = 'cheezasha-ct-drag-handle';
                 handle.textContent = '⠿';
                 row.appendChild(handle);
 
@@ -27664,23 +27664,23 @@ self.onmessage = function (e) {
                 row.addEventListener('dragend', () => {
                     row.style.opacity = '';
                     container
-                        .querySelectorAll('.toolasha-ct-drag-over')
-                        .forEach((el) => el.classList.remove('toolasha-ct-drag-over'));
+                        .querySelectorAll('.cheezasha-ct-drag-over')
+                        .forEach((el) => el.classList.remove('cheezasha-ct-drag-over'));
                 });
                 row.addEventListener('dragover', (e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
                     container
-                        .querySelectorAll('.toolasha-ct-drag-over')
-                        .forEach((el) => el.classList.remove('toolasha-ct-drag-over'));
-                    row.classList.add('toolasha-ct-drag-over');
+                        .querySelectorAll('.cheezasha-ct-drag-over')
+                        .forEach((el) => el.classList.remove('cheezasha-ct-drag-over'));
+                    row.classList.add('cheezasha-ct-drag-over');
                 });
                 row.addEventListener('dragleave', () => {
-                    row.classList.remove('toolasha-ct-drag-over');
+                    row.classList.remove('cheezasha-ct-drag-over');
                 });
                 row.addEventListener('drop', (e) => {
                     e.preventDefault();
-                    row.classList.remove('toolasha-ct-drag-over');
+                    row.classList.remove('cheezasha-ct-drag-over');
                     if (dragFromIndex !== null && dragFromIndex !== index) {
                         this._config = reorderItem(this._config, tabId, dragFromIndex, index);
                         this._save();
@@ -27691,7 +27691,7 @@ self.onmessage = function (e) {
                 });
 
                 const toTopBtn = document.createElement('button');
-                toTopBtn.className = 'toolasha-ct-node-btn';
+                toTopBtn.className = 'cheezasha-ct-node-btn';
                 toTopBtn.textContent = '⇈';
                 toTopBtn.title = 'Move to top';
                 toTopBtn.style.marginLeft = '0';
@@ -27708,7 +27708,7 @@ self.onmessage = function (e) {
                 row.appendChild(toTopBtn);
 
                 const toBottomBtn = document.createElement('button');
-                toBottomBtn.className = 'toolasha-ct-node-btn';
+                toBottomBtn.className = 'cheezasha-ct-node-btn';
                 toBottomBtn.textContent = '⇊';
                 toBottomBtn.title = 'Move to bottom';
                 toBottomBtn.style.marginLeft = '0';
@@ -27725,7 +27725,7 @@ self.onmessage = function (e) {
                 row.appendChild(toBottomBtn);
 
                 const removeBtn = document.createElement('button');
-                removeBtn.className = 'toolasha-ct-node-btn';
+                removeBtn.className = 'cheezasha-ct-node-btn';
                 removeBtn.textContent = '×';
                 removeBtn.title = 'Remove';
                 removeBtn.addEventListener('click', () => {
@@ -27800,7 +27800,7 @@ self.onmessage = function (e) {
 
                 const allAlreadyAdded = catItems.every((hrid) => currentItems.has(hrid));
                 const btn = document.createElement('button');
-                btn.className = 'toolasha-ct-cat-btn' + (allAlreadyAdded ? ' toolasha-ct-cat-btn--added' : '');
+                btn.className = 'cheezasha-ct-cat-btn' + (allAlreadyAdded ? ' cheezasha-ct-cat-btn--added' : '');
                 btn.textContent = cat.name;
                 btn.title = allAlreadyAdded
                     ? `Click to remove ${catItems.length} items from ${cat.name}`
@@ -27816,8 +27816,8 @@ self.onmessage = function (e) {
                         }
                         this._save();
                         this._renderCategoryButtons(container, tabId);
-                        const modal = container.closest('.toolasha-ct-modal');
-                        if (modal) this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+                        const modal = container.closest('.cheezasha-ct-modal');
+                        if (modal) this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
                         if (this._isActive) this._applyLayout();
                     });
                 } else {
@@ -27830,8 +27830,8 @@ self.onmessage = function (e) {
                         }
                         this._save();
                         this._renderCategoryButtons(container, tabId);
-                        const modal = container.closest('.toolasha-ct-modal');
-                        if (modal) this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+                        const modal = container.closest('.cheezasha-ct-modal');
+                        if (modal) this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
                         if (this._isActive) this._applyLayout();
                     });
                 }
@@ -28107,7 +28107,7 @@ self.onmessage = function (e) {
                 const allAdded = newItems.length === 0 && loadoutItems.length > 0;
 
                 const btn = document.createElement('button');
-                btn.className = 'toolasha-ct-cat-btn' + (allAdded ? ' toolasha-ct-cat-btn--added' : '');
+                btn.className = 'cheezasha-ct-cat-btn' + (allAdded ? ' cheezasha-ct-cat-btn--added' : '');
                 btn.textContent = `${snapshot.name} (${skillLabel})`;
                 btn.title = allAdded
                     ? `All items from "${snapshot.name}" already added`
@@ -28125,8 +28125,8 @@ self.onmessage = function (e) {
                     }
                     this._save();
                     this._renderLoadoutButtons(container, tabId);
-                    const modal = container.closest('.toolasha-ct-modal');
-                    if (modal) this._renderAssignedItems(modal.querySelector('.toolasha-ct-assigned-list'), tabId);
+                    const modal = container.closest('.cheezasha-ct-modal');
+                    if (modal) this._renderAssignedItems(modal.querySelector('.cheezasha-ct-assigned-list'), tabId);
                     if (this._isActive) this._applyLayout();
                 });
 
@@ -28219,7 +28219,7 @@ self.onmessage = function (e) {
          * @param {HTMLElement} actionMenu
          */
         _injectAddToTabButton(actionMenu) {
-            if (actionMenu.querySelector('.toolasha-ct-add-to-tab')) return;
+            if (actionMenu.querySelector('.cheezasha-ct-add-to-tab')) return;
             if (!this._config?.tabs?.length) return;
 
             // Resolve item HRID and enhancement level from the action menu DOM
@@ -28235,7 +28235,7 @@ self.onmessage = function (e) {
 
             // Build wrapper in the same style as marketplace shortcuts
             const wrapper = document.createElement('div');
-            wrapper.className = 'toolasha-ct-add-to-tab';
+            wrapper.className = 'cheezasha-ct-add-to-tab';
             wrapper.style.cssText = 'position: relative; width: 100%;';
 
             const toggle = document.createElement('button');
@@ -28399,7 +28399,7 @@ self.onmessage = function (e) {
 
     /**
      * Custom Inventory Tabs — Feature Entry Point
-     * Adds a "Toolasha" tab to the character panel for user-defined inventory organization.
+     * Adds a "Cheezasha" tab to the character panel for user-defined inventory organization.
      */
 
 
@@ -28432,19 +28432,19 @@ self.onmessage = function (e) {
      * Market Library
      * Market, inventory, and economy features
      *
-     * Exports to: window.Toolasha.Market
+     * Exports to: window.Cheezasha.Market
      */
 
 
     // Export to global namespace
-    const toolashaRoot = window.Toolasha || {};
-    window.Toolasha = toolashaRoot;
+    const cheezashaRoot = window.Cheezasha || {};
+    window.Cheezasha = cheezashaRoot;
 
     if (typeof unsafeWindow !== 'undefined') {
-        unsafeWindow.Toolasha = toolashaRoot;
+        unsafeWindow.Cheezasha = cheezashaRoot;
     }
 
-    toolashaRoot.Market = {
+    cheezashaRoot.Market = {
         tooltipPrices,
         expectedValueCalculator,
         tooltipConsumables,
@@ -28478,6 +28478,6 @@ self.onmessage = function (e) {
         milkywayMarketLink,
     };
 
-    console.log('[Toolasha] Market library loaded');
+    console.log('[Cheezasha] Market library loaded');
 
-})(Toolasha.Core.config, Toolasha.Core.dataManager, Toolasha.Core.domObserver, Toolasha.Core.marketAPI, Toolasha.Utils.houseEfficiency, Toolasha.Utils.efficiency, Toolasha.Utils.bonusRevenueCalculator, Toolasha.Utils.enhancementCalculator, Toolasha.Utils.formatters, Toolasha.Utils.marketData, Toolasha.Utils.teaParser, Toolasha.Utils.profitConstants, Toolasha.Utils.profitHelpers, Toolasha.Utils.buffParser, Toolasha.Utils.equipmentParser, Toolasha.Utils.actionCalculator, Toolasha.Utils.tokenValuation, Toolasha.Utils.enhancementConfig, Toolasha.Utils.dom, Toolasha.Utils.materialCalculator, Toolasha.Utils.timerRegistry, Toolasha.Core.storage, Toolasha.Utils.cleanupRegistry, Toolasha.Utils.domObserverHelpers, Toolasha.Utils.enhancementMultipliers, Toolasha.Utils.reactInput, Toolasha.Core.webSocketHook, Toolasha.Utils.abilityCalc, Toolasha.Utils.houseCostCalculator);
+})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.domObserver, Cheezasha.Core.marketAPI, Cheezasha.Utils.houseEfficiency, Cheezasha.Utils.efficiency, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.formatters, Cheezasha.Utils.marketData, Cheezasha.Utils.teaParser, Cheezasha.Utils.profitConstants, Cheezasha.Utils.profitHelpers, Cheezasha.Utils.buffParser, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.actionCalculator, Cheezasha.Utils.tokenValuation, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.dom, Cheezasha.Utils.materialCalculator, Cheezasha.Utils.timerRegistry, Cheezasha.Core.storage, Cheezasha.Utils.cleanupRegistry, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.enhancementMultipliers, Cheezasha.Utils.reactInput, Cheezasha.Core.webSocketHook, Cheezasha.Utils.abilityCalc, Cheezasha.Utils.houseCostCalculator);

@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         Toolasha
+// @name         Cheezasha
 // @namespace    http://tampermonkey.net/
 // @version      2.87.0
-// @downloadURL  https://raw.githubusercontent.com/Skillcheese/Toolasha/releases/dist/Toolasha.user.js
-// @updateURL    https://raw.githubusercontent.com/Skillcheese/Toolasha/releases/dist/Toolasha.user.js
-// @description  Toolasha - Enhanced tools for Milky Way Idle.
+// @downloadURL  https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
+// @updateURL    https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
+// @description  Cheezasha - Enhanced tools for Milky Way Idle.
 // @author       Skillcheese and Claude, forked from Celasha and Claude's Toolasha, thank you to bot7420, DrDucky, Frotty, Truth_Light, AlphB, qu, and sentientmilk, for providing the basis for a lot of this. Thank you to Miku, Orvel, Jigglymoose, Incinarator, Knerd, and others for their time and help. Thank you to Steez for testing and helping me figure out where I'm wrong! Thank you to Tib for his generous contribution of the Character Cards. Thank you to Sapnas for -deeply- testing and singlehandedly help me improve performance. Special thanks to Zaeter for the name.
 // @license      CC-BY-NC-SA-4.0
 // @run-at       document-start
@@ -21,12 +21,12 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.js
 // @require      https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-core.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-utils.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-market.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-actions.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-combat.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@18c321f8311b12592bb791ed0d867621d6854edd/dist/libraries/toolasha-ui.js
+// @require      https://UPDATE-THIS-URL/cheezasha-core.js
+// @require      https://UPDATE-THIS-URL/cheezasha-utils.js
+// @require      https://UPDATE-THIS-URL/cheezasha-market.js
+// @require      https://UPDATE-THIS-URL/cheezasha-actions.js
+// @require      https://UPDATE-THIS-URL/cheezasha-combat.js
+// @require      https://UPDATE-THIS-URL/cheezasha-ui.js
 // ==/UserScript==
 // Note: Combat Sim auto-import requires Tampermonkey for cross-domain storage. Not available on Steam (use manual clipboard copy/paste instead).
 
@@ -34,7 +34,7 @@
     'use strict';
 
     /**
-     * Toolasha Entrypoint
+     * Cheezasha Entrypoint
      * Minimal bootstrap script that loads libraries and initializes features
      *
      * Libraries are loaded via @require in userscript header:
@@ -47,12 +47,12 @@
      */
 
     // Access libraries from global namespace
-    const Core = window.Toolasha.Core;
-    const Utils = window.Toolasha.Utils;
-    const Market = window.Toolasha.Market;
-    const Actions = window.Toolasha.Actions;
-    const Combat = window.Toolasha.Combat;
-    const UI = window.Toolasha.UI;
+    const Core = window.Cheezasha.Core;
+    const Utils = window.Cheezasha.Utils;
+    const Market = window.Cheezasha.Market;
+    const Actions = window.Cheezasha.Actions;
+    const Combat = window.Cheezasha.Combat;
+    const UI = window.Cheezasha.UI;
 
     // Destructure core modules
     const { storage, config, webSocketHook, domObserver, dataManager, featureRegistry } = Core;
@@ -869,7 +869,7 @@
                 // Don't wait for localStorageUtil - it handles missing data gracefully
                 dataManager.initialize();
             } catch (error) {
-                console.error('[Toolasha] Storage/config initialization failed:', error);
+                console.error('[Cheezasha] Storage/config initialization failed:', error);
                 // Initialize anyway
                 dataManager.initialize();
             }
@@ -909,12 +909,12 @@
 
                     // Initialize scroll simulator storage (character-specific)
                     await Combat.scrollSimulator.initialize().catch((error) => {
-                        console.error('[Toolasha] Scroll simulator initialization failed:', error);
+                        console.error('[Cheezasha] Scroll simulator initialization failed:', error);
                     });
 
                     // Initialize Settings UI after character data is loaded
                     await UI.settingsUI.initialize().catch((error) => {
-                        console.error('[Toolasha] Settings UI initialization failed:', error);
+                        console.error('[Cheezasha] Settings UI initialization failed:', error);
                     });
 
                     await featureRegistry.initializeFeatures();
@@ -927,7 +927,7 @@
 
                         if (failedFeatures.length > 0) {
                             console.warn(
-                                '[Toolasha] Health check found failed features:',
+                                '[Cheezasha] Health check found failed features:',
                                 failedFeatures.map((f) => f.name)
                             );
 
@@ -938,18 +938,18 @@
                                 const stillFailed = featureRegistry.checkFeatureHealth();
                                 if (stillFailed.length > 0) {
                                     console.warn(
-                                        '[Toolasha] These features could not initialize:',
+                                        '[Cheezasha] These features could not initialize:',
                                         stillFailed.map((f) => f.name)
                                     );
                                     console.warn(
-                                        '[Toolasha] Try refreshing the page or reopening the relevant game panels'
+                                        '[Cheezasha] Try refreshing the page or reopening the relevant game panels'
                                     );
                                 }
                             }, 1000);
                         }
                     }, 500); // Wait 500ms after initialization to check health
                 } catch (error) {
-                    console.error('[Toolasha] Feature initialization failed:', error);
+                    console.error('[Cheezasha] Feature initialization failed:', error);
                 }
             }, 100);
         });
@@ -957,10 +957,10 @@
         // Expose minimal user-facing API
         const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-        targetWindow.Toolasha.version = '2.87.0';
+        targetWindow.Cheezasha.version = '2.87.0';
 
         // Feature toggle API (for users to manage settings via console)
-        targetWindow.Toolasha.features = {
+        targetWindow.Cheezasha.features = {
             list: () => config.getFeaturesByCategory(),
             enable: (key) => config.setFeatureEnabled(key, true),
             disable: (key) => config.setFeatureEnabled(key, false),
@@ -970,12 +970,12 @@
         };
 
         // Guild XP data management
-        targetWindow.Toolasha.guild = {
+        targetWindow.Cheezasha.guild = {
             resetMemberXP: () => UI.guildXPTracker.resetMemberData(),
         };
 
         // Debug utilities (for diagnosing issues via console)
-        targetWindow.Toolasha.debug = {
+        targetWindow.Cheezasha.debug = {
             storage: () => {
                 const diag = storage.diagnostics();
                 console.log('=== Storage Diagnostics ===');

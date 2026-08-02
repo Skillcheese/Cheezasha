@@ -1,5 +1,5 @@
 /**
- * Toolasha Utils Library
+ * Cheezasha Utils Library
  * All utility modules
  * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
@@ -573,11 +573,11 @@
      * Returns the active WebSocket hook instance.
      * In the multi-bundle production build each library bundles its own copy of websocket.js,
      * but only the Core library's instance has install() called on it.
-     * Prefer window.Toolasha.Core.webSocketHook so listeners actually receive messages.
+     * Prefer window.Cheezasha.Core.webSocketHook so listeners actually receive messages.
      * Falls back to the bundled copy for the dev standalone build (single bundle, one instance).
      */
     function getWebSocketHook() {
-        return (typeof window !== 'undefined' && window.Toolasha?.Core?.webSocketHook) || webSocketHook;
+        return (typeof window !== 'undefined' && window.Cheezasha?.Core?.webSocketHook) || webSocketHook;
     }
 
     /**
@@ -2470,7 +2470,7 @@
      */
 
 
-    const STORAGE_KEY = 'Toolasha_customPriceOverrides';
+    const STORAGE_KEY = 'Cheezasha_customPriceOverrides';
 
     /** @type {Object|null} In-memory cache of overrides */
     let overridesCache = null;
@@ -6248,18 +6248,18 @@ self.onmessage = function (e) {
     };
 
     /**
-     * Toolasha-specific selectors (our injected elements)
+     * Cheezasha-specific selectors (our injected elements)
      */
-    const TOOLASHA = {
+    const CHEEZASHA = {
         // Settings
-        SETTINGS_TAB: '#toolasha-settings-tab',
-        SETTING_WITH_DEPS: '.toolasha-setting[data-dependencies]',
+        SETTINGS_TAB: '#cheezasha-settings-tab',
+        SETTING_WITH_DEPS: '.cheezasha-setting[data-dependencies]',
 
         // Task features
         TASK_PROFIT: '.mwi-task-profit',
         REROLL_COST_DISPLAY: '.mwi-reroll-cost-display',
-        TASK_STATS_BTN: '.toolasha-task-stats-btn',
-        TASK_STATS_OVERLAY: '.toolasha-task-stats-overlay',
+        TASK_STATS_BTN: '.cheezasha-task-stats-btn',
+        TASK_STATS_OVERLAY: '.cheezasha-task-stats-overlay',
 
         // Action features
         QUEUE_TOTAL_TIME: '#mwi-queue-total-time',
@@ -6328,10 +6328,10 @@ self.onmessage = function (e) {
 
     var selectors = /*#__PURE__*/Object.freeze({
         __proto__: null,
+        CHEEZASHA: CHEEZASHA,
         COMBAT_SIM: COMBAT_SIM,
         ENHANCEMENT: ENHANCEMENT,
-        GAME: GAME,
-        TOOLASHA: TOOLASHA
+        GAME: GAME
     });
 
     /**
@@ -8521,19 +8521,19 @@ self.onmessage = function (e) {
      * Foundation Utils Library
      * All utility modules
      *
-     * Exports to: window.Toolasha.Utils
+     * Exports to: window.Cheezasha.Utils
      */
 
 
     // Export to global namespace
-    const toolashaRoot = window.Toolasha || {};
-    window.Toolasha = toolashaRoot;
+    const cheezashaRoot = window.Cheezasha || {};
+    window.Cheezasha = cheezashaRoot;
 
     if (typeof unsafeWindow !== 'undefined') {
-        unsafeWindow.Toolasha = toolashaRoot;
+        unsafeWindow.Cheezasha = cheezashaRoot;
     }
 
-    toolashaRoot.Utils = {
+    cheezashaRoot.Utils = {
         formatters,
         efficiency: efficiency$1,
         profitHelpers: profitHelpers$1,
@@ -8567,6 +8567,6 @@ self.onmessage = function (e) {
         enhancementCalculator,
     };
 
-    console.log('[Toolasha] Utils library loaded');
+    console.log('[Cheezasha] Utils library loaded');
 
-})(Toolasha.Core.config, Toolasha.Core.dataManager, Toolasha.Core.webSocketHook, Toolasha.Core.storage, Toolasha.Core.marketAPI, Toolasha.Core.domObserver);
+})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Core.marketAPI, Cheezasha.Core.domObserver);

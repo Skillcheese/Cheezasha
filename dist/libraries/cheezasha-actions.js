@@ -1,5 +1,5 @@
 /**
- * Toolasha Actions Library
+ * Cheezasha Actions Library
  * Production, gathering, and alchemy features
  * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
@@ -67,7 +67,7 @@
 
             return null;
         } catch (error) {
-            console.error('[Toolasha] Error detecting protection item:', error);
+            console.error('[Cheezasha] Error detecting protection item:', error);
             return null;
         }
     }
@@ -160,8 +160,8 @@
                 });
             }
         } catch (error) {
-            console.error('[Toolasha] ❌ Error displaying enhancement stats:', error);
-            console.error('[Toolasha] Error stack:', error.stack);
+            console.error('[Cheezasha] ❌ Error displaying enhancement stats:', error);
+            console.error('[Cheezasha] Error stack:', error.stack);
         }
     }
 
@@ -1604,11 +1604,11 @@
      * Returns the active WebSocket hook instance.
      * In the multi-bundle production build each library bundles its own copy of websocket.js,
      * but only the Core library's instance has install() called on it.
-     * Prefer window.Toolasha.Core.webSocketHook so listeners actually receive messages.
+     * Prefer window.Cheezasha.Core.webSocketHook so listeners actually receive messages.
      * Falls back to the bundled copy for the dev standalone build (single bundle, one instance).
      */
     function getWebSocketHook() {
-        return (typeof window !== 'undefined' && window.Toolasha?.Core?.webSocketHook) || webSocketHook;
+        return (typeof window !== 'undefined' && window.Cheezasha?.Core?.webSocketHook) || webSocketHook;
     }
 
     /**
@@ -5542,7 +5542,7 @@
      * - Item tooltips: Shows optimal path to reach current enhancement level
      */
 
-    const toolashaConfig = config;
+    const cheezashaConfig = config;
 
     const _costCache = new Map();
     const _chainTimeCache = new Map();
@@ -5616,7 +5616,7 @@
         const targetCosts = new Array(currentEnhancementLevel + 1);
         const targetTimes = new Array(currentEnhancementLevel + 1);
         const targetAttempts = new Array(currentEnhancementLevel + 1);
-        targetCosts[0] = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
+        targetCosts[0] = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
             ? Math.min(getProductionCost(itemHrid) || Infinity, marketData_js.getItemPrices(itemHrid, 0)?.ask || Infinity) ||
               getRealisticBaseItemPrice(itemHrid)
             : getRealisticBaseItemPrice(itemHrid); // Level 0: base item
@@ -5991,7 +5991,7 @@
         const baseItemPrices = marketData_js.getItemPrices(itemHrid, 0);
         const marketAsk = baseItemPrices?.ask > 0 ? baseItemPrices.ask : 0;
         const marketBid = baseItemPrices?.bid > 0 ? baseItemPrices.bid : 0;
-        const useCraftingCost = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
+        const useCraftingCost = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
         // Ask drives the decision: use crafted if ask is missing OR crafted ask is cheaper
         const askIsCrafted = useCraftingCost && craftingCostAsk > 0 && (marketAsk === 0 || craftingCostAsk < marketAsk);
         const baseAskPrice = askIsCrafted ? craftingCostAsk : marketAsk || getRealisticBaseItemPrice(itemHrid);
@@ -9592,7 +9592,7 @@
                     this.calculateAndDisplayTotalProfit(totalDiv, actionsToCalculate, totalText, queueMenu);
                 }
             } catch (error) {
-                console.error('[Toolasha] Error injecting queue times:', error);
+                console.error('[Cheezasha] Error injecting queue times:', error);
             } finally {
                 // Reconnect observer only if async didn't take over
                 if (shouldReconnectObserver) {
@@ -10866,7 +10866,7 @@
                     regularComponent.style.overflowY = 'auto';
                 }
             } catch (error) {
-                console.error('[Toolasha] Error injecting quick input buttons:', error);
+                console.error('[Cheezasha] Error injecting quick input buttons:', error);
             } finally {
                 // Clear scroll simulation regardless of success/failure
                 if (actionDetails?.type) dataManager.clearScrollSimulation(actionDetails.type);
@@ -11216,7 +11216,7 @@
 
                 return maxActions;
             } catch (error) {
-                console.error('[Toolasha] Error calculating max value:', error);
+                console.error('[Cheezasha] Error calculating max value:', error);
                 return 10000; // Safe fallback on error
             }
         }
@@ -11500,7 +11500,7 @@
                     false // Collapsed by default
                 );
             } catch (error) {
-                console.error('[Toolasha] Error creating level progress section:', error);
+                console.error('[Cheezasha] Error creating level progress section:', error);
                 return null;
             }
         }
@@ -25498,12 +25498,12 @@
 
 
     function getLoadoutSnapshot() {
-        return window.Toolasha?.Combat?.loadoutSnapshot || loadoutSnapshot;
+        return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshot;
     }
 
-    const TAB_CLASS = 'toolasha-skilling-opt-tab';
-    const PANEL_CLASS = 'toolasha-skilling-opt-panel';
-    const HIDE_CLASS = 'toolasha-opt-hide-content';
+    const TAB_CLASS = 'cheezasha-skilling-opt-tab';
+    const PANEL_CLASS = 'cheezasha-skilling-opt-panel';
+    const HIDE_CLASS = 'cheezasha-opt-hide-content';
 
     const STYLE_EL = document.createElement('style');
     STYLE_EL.textContent = `.${HIDE_CLASS} [class*="TabsComponent_tabPanelsContainer"] { display: none !important; }`;
@@ -26816,7 +26816,7 @@
         }
 
         _getItemName(hrid) {
-            const gameData = window.Toolasha?.Core?.dataManager?.getInitClientData?.();
+            const gameData = window.Cheezasha?.Core?.dataManager?.getInitClientData?.();
             return gameData?.itemDetailMap?.[hrid]?.name || null;
         }
 
@@ -26853,19 +26853,19 @@
      * Actions Library
      * Production, gathering, and alchemy features
      *
-     * Exports to: window.Toolasha.Actions
+     * Exports to: window.Cheezasha.Actions
      */
 
 
     // Export to global namespace
-    const toolashaRoot = window.Toolasha || {};
-    window.Toolasha = toolashaRoot;
+    const cheezashaRoot = window.Cheezasha || {};
+    window.Cheezasha = cheezashaRoot;
 
     if (typeof unsafeWindow !== 'undefined') {
-        unsafeWindow.Toolasha = toolashaRoot;
+        unsafeWindow.Cheezasha = cheezashaRoot;
     }
 
-    toolashaRoot.Actions = {
+    cheezashaRoot.Actions = {
         initActionPanelObserver,
         actionTimeDisplay,
         actionCountdown,
@@ -26887,6 +26887,6 @@
         skillingOptimizer,
     };
 
-    console.log('[Toolasha] Actions library loaded');
+    console.log('[Cheezasha] Actions library loaded');
 
-})(Toolasha.Core.dataManager, Toolasha.Core.config, Toolasha.Core.domObserver, Toolasha.Utils.enhancementConfig, Toolasha.Utils.enhancementCalculator, Toolasha.Utils.profitConstants, Toolasha.Utils.formatters, Toolasha.Core.marketAPI, Toolasha.Utils.domObserverHelpers, Toolasha.Utils.bonusRevenueCalculator, Toolasha.Utils.marketData, Toolasha.Utils.efficiency, Toolasha.Utils.profitHelpers, Toolasha.Market.profitCalculator, Toolasha.Utils.uiComponents, Toolasha.Utils.actionPanelHelper, Toolasha.Core.webSocketHook, Toolasha.Core.storage, Toolasha.Utils.dom, Toolasha.Utils.timerRegistry, Toolasha.Utils.teaParser, Toolasha.Market.alchemyProfitCalculator, Toolasha.Utils.actionCalculator, Toolasha.Utils.cleanupRegistry, Toolasha.Utils.buffParser, Toolasha.Utils.equipmentParser, Toolasha.Utils.experienceParser, Toolasha.Utils.reactInput, Toolasha.Utils.experienceCalculator, Toolasha.Utils.materialCalculator, Toolasha.Market.expectedValueCalculator);
+})(Cheezasha.Core.dataManager, Cheezasha.Core.config, Cheezasha.Core.domObserver, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.profitConstants, Cheezasha.Utils.formatters, Cheezasha.Core.marketAPI, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Utils.marketData, Cheezasha.Utils.efficiency, Cheezasha.Utils.profitHelpers, Cheezasha.Market.profitCalculator, Cheezasha.Utils.uiComponents, Cheezasha.Utils.actionPanelHelper, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Utils.dom, Cheezasha.Utils.timerRegistry, Cheezasha.Utils.teaParser, Cheezasha.Market.alchemyProfitCalculator, Cheezasha.Utils.actionCalculator, Cheezasha.Utils.cleanupRegistry, Cheezasha.Utils.buffParser, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.experienceParser, Cheezasha.Utils.reactInput, Cheezasha.Utils.experienceCalculator, Cheezasha.Utils.materialCalculator, Cheezasha.Market.expectedValueCalculator);
