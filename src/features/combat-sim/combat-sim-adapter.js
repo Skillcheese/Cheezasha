@@ -37,6 +37,7 @@ export function buildGameDataPayload() {
         combatTriggerComparatorDetailMap: clientData.combatTriggerComparatorDetailMap,
         enhancementLevelTotalBonusMultiplierTable: clientData.enhancementLevelTotalBonusMultiplierTable,
         abilitySlotsLevelRequirementList: clientData.abilitySlotsLevelRequirementList,
+        levelExperienceTable: clientData.levelExperienceTable,
         openableLootDropMap: clientData.openableLootDropMap,
         labyrinthCrateDetailMap: clientData.labyrinthCrateDetailMap,
     };

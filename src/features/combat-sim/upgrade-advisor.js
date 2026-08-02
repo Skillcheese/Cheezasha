@@ -70,7 +70,8 @@ function getNextBreakpoint(currentLevel, slot, itemHrid) {
  * @returns {string} e.g., 'slash', 'stab', 'smash', 'ranged', 'magic'
  */
 function getPlayerCombatStyle(playerDTO, gameData) {
-    const weapon = playerDTO.equipment['/equipment_types/main_hand'];
+    const weapon =
+        playerDTO.equipment['/equipment_types/main_hand'] || playerDTO.equipment['/equipment_types/two_hand'];
     if (!weapon) return 'unknown';
     const weaponDetails = gameData.itemDetailMap[weapon.hrid];
     const stats = weaponDetails?.equipmentDetail?.combatStats;
@@ -153,22 +154,35 @@ function isAbilitySlotUnlocked(slotIdx, playerDTO) {
 }
 
 /**
+ * Build a map of the player's live skill levels keyed by raw skillHrid (not the
+ * DTO's derived field names), so it can be compared directly against requirement
+ * lists that also key by skillHrid without guessing a naming convention.
+ * @returns {Map<string, number>} skillHrid -> level
+ */
+function getCharacterSkillLevelMap() {
+    const map = new Map();
+    for (const skill of dataManager.characterData?.characterSkills || []) {
+        if (skill?.skillHrid) map.set(skill.skillHrid, skill.level || 0);
+    }
+    return map;
+}
+
+/**
  * Check whether the player's skills meet an ability book's level requirements
  * (e.g. a book requiring 50 Melee can't be learned/equipped below that level).
  * @param {string} abilityHrid
- * @param {Object} playerDTO
+ * @param {Map<string, number>} skillLevelMap - From getCharacterSkillLevelMap()
  * @param {Object} gameData
  * @returns {boolean}
  */
-function meetsAbilityBookRequirements(abilityHrid, playerDTO, gameData) {
+function meetsAbilityBookRequirements(abilityHrid, skillLevelMap, gameData) {
     const bookHrid = abilityHrid.replace('/abilities/', '/items/');
     const reqs = gameData.itemDetailMap[bookHrid]?.abilityBookDetail?.levelRequirements;
     if (!reqs || reqs.length === 0) return true;
 
     for (const req of reqs) {
-        const skillName = req.skillHrid?.split('/').pop();
-        if (!skillName) continue;
-        const playerLevel = playerDTO[skillName + 'Level'] ?? 0;
+        if (!req.skillHrid) continue;
+        const playerLevel = skillLevelMap.get(req.skillHrid) ?? 0;
         if (playerLevel < (req.level || 0)) return false;
     }
     return true;
@@ -216,6 +230,31 @@ function getBudgetMatchedAbilityLevel(abilityHrid, budget) {
     let bestLevel = 1;
     for (let level = 1; level <= 200; level++) {
         const cost = calculateAbilityLevelUpCost(abilityHrid, 0, 0, level);
+        if (cost <= budget) {
+            bestLevel = level;
+        } else {
+            break;
+        }
+    }
+    return bestLevel;
+}
+
+/**
+ * Find the highest level reachable from an ability's current level/xp by spending
+ * no more than budget on the incremental training cost. Used to build an
+ * apples-to-apples "what if I spent that same money leveling this ability
+ * further instead of swapping" comparison.
+ * @param {string} abilityHrid
+ * @param {number} currentLevel
+ * @param {number} currentXp
+ * @param {number} budget - Coin budget
+ * @returns {number} Level (at least currentLevel)
+ */
+function getBudgetMatchedLevelFromCurrent(abilityHrid, currentLevel, currentXp, budget) {
+    if (budget <= 0) return currentLevel;
+    let bestLevel = currentLevel;
+    for (let level = currentLevel + 1; level <= 200; level++) {
+        const cost = calculateAbilityLevelUpCost(abilityHrid, currentLevel, currentXp, level);
         if (cost <= budget) {
             bestLevel = level;
         } else {
@@ -686,7 +725,9 @@ export function generateCandidates(
     mode = 'equipment',
     abilityTargetLevel = 0,
     abilityLevelType = 'increment',
-    skipBackSlot = false
+    skipBackSlot = false,
+    abilitySwapBudget = null,
+    abilityLevelBudget = null
 ) {
     const candidates = [];
 
@@ -939,11 +980,18 @@ export function generateCandidates(
         const playerStyle = getPlayerCombatStyle(playerDTO, gameData);
         const equippedAbilityHrids = new Set(playerDTO.abilities.filter((a) => a).map((a) => a.hrid));
 
-        // Swap-mode-only setup: a fair coin budget derived from the abilities already
-        // equipped, and a cache of computed swap-candidate levels (same budget/list is
-        // reused across every slot, so compute each candidate's level only once).
-        const swapBudget = mode === 'ability_swap' ? getAverageEquippedAbilityCost(playerDTO) : 0;
+        // Swap-mode-only setup: a coin budget used to size swap/reinvest candidates
+        // (explicit override if provided, otherwise the average cost already invested
+        // in the abilities equipped), and a cache of computed swap-candidate levels
+        // (same budget/list is reused across every slot, so compute each level once).
+        const swapBudget =
+            mode === 'ability_swap'
+                ? abilitySwapBudget != null
+                    ? abilitySwapBudget
+                    : getAverageEquippedAbilityCost(playerDTO)
+                : 0;
         const learnedAbilityLevels = mode === 'ability_swap' ? getLearnedAbilityLevels() : null;
+        const skillLevelMap = mode === 'ability_swap' ? getCharacterSkillLevelMap() : null;
         const swapLevelCache = new Map();
         const getSwapTargetLevel = (abHrid) => {
             if (swapLevelCache.has(abHrid)) return swapLevelCache.get(abHrid);
@@ -963,6 +1011,34 @@ export function generateCandidates(
                 const abilityDetail = gameData.abilityDetailMap[ability.hrid];
                 if (!abilityDetail) continue;
                 const abilityName = abilityDetail.name || ability.hrid.split('/').pop();
+
+                if (abilityLevelType === 'budget') {
+                    // Budget mode: always show a row, even with zero level gain (e.g. the
+                    // budget can't afford another level) so it stays a visible anchor
+                    // instead of silently vanishing. Cost is the incremental spend only —
+                    // never the sunk cost of levels already owned.
+                    const levelXpTable = gameData.levelExperienceTable || [];
+                    const currentXp = levelXpTable[ability.level] || 0;
+                    const targetLevel = getBudgetMatchedLevelFromCurrent(
+                        ability.hrid,
+                        ability.level,
+                        currentXp,
+                        abilityLevelBudget || 0
+                    );
+                    candidates.push({
+                        slot: `ability_${slotIdx}`,
+                        currentHrid: ability.hrid,
+                        currentLevel: ability.level,
+                        upgradeHrid: ability.hrid,
+                        upgradeLevel: targetLevel,
+                        description:
+                            targetLevel > ability.level
+                                ? `${abilityName} Lv${ability.level} → Lv${targetLevel}`
+                                : `${abilityName} Lv${ability.level} (kept)`,
+                        type: 'ability_reinvest',
+                    });
+                    continue;
+                }
 
                 let targetLevel;
                 if (abilityLevelType === 'target') {
@@ -996,6 +1072,34 @@ export function generateCandidates(
                     ? gameData.abilityDetailMap[ability.hrid]?.name || ability.hrid.split('/').pop()
                     : '(empty slot)';
 
+                // Baseline for comparison: what if the same budget spent evaluating swaps
+                // was instead reinvested into leveling the ability already in this slot?
+                // Always shown (even with zero level gain) so it stays a visible anchor.
+                // Cost is the incremental spend only — never the sunk cost of levels
+                // already owned.
+                if (ability) {
+                    const levelXpTable = gameData.levelExperienceTable || [];
+                    const currentXp = levelXpTable[ability.level] || 0;
+                    const reinvestLevel = getBudgetMatchedLevelFromCurrent(
+                        ability.hrid,
+                        ability.level,
+                        currentXp,
+                        swapBudget
+                    );
+                    candidates.push({
+                        slot: `ability_${slotIdx}`,
+                        currentHrid: ability.hrid,
+                        currentLevel: ability.level,
+                        upgradeHrid: ability.hrid,
+                        upgradeLevel: reinvestLevel,
+                        description:
+                            reinvestLevel > ability.level
+                                ? `${abilityName} Lv${ability.level} → Lv${reinvestLevel} (reinvest swap budget)`
+                                : `${abilityName} Lv${ability.level} (kept)`,
+                        type: 'ability_reinvest',
+                    });
+                }
+
                 for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
                     if (equippedAbilityHrids.has(abHrid)) continue;
                     if (abDetail.isSpecialAbility && slotIdx !== 0) continue;
@@ -1004,7 +1108,7 @@ export function generateCandidates(
 
                     const abStyle = getAbilityCombatStyle(abDetail);
                     if (!isAbilityCompatible(abStyle, playerStyle)) continue;
-                    if (!meetsAbilityBookRequirements(abHrid, playerDTO, gameData)) continue;
+                    if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) continue;
 
                     const swapName = abDetail.name || abHrid.split('/').pop();
                     const { level: targetLevel, learnedLevel } = getSwapTargetLevel(abHrid);
@@ -1036,7 +1140,9 @@ export function generateCandidates(
  * @returns {number} Total gold cost
  */
 export function calculateUpgradeCost(candidate, gameData) {
-    if (candidate.type === 'ability_level') {
+    if (candidate.type === 'ability_level' || candidate.type === 'ability_reinvest') {
+        // Incremental cost only (current level/xp → target) — never the sunk cost of
+        // levels already owned, since that money is already spent regardless.
         const levelXpTable = gameData.levelExperienceTable || [];
         const currentXp = levelXpTable[candidate.currentLevel] || 0;
         return calculateAbilityLevelUpCost(
@@ -1121,6 +1227,8 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         upgradeMode,
         abilityLevelType,
         abilityTargetLevel,
+        abilityLevelBudget,
+        abilitySwapBudget,
         skipBackSlot,
     } = params;
     const { abortSignal } = options;
@@ -1137,7 +1245,9 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         upgradeMode,
         abilityTargetLevel,
         abilityLevelType,
-        skipBackSlot
+        skipBackSlot,
+        abilitySwapBudget,
+        abilityLevelBudget
     );
     const candidatesWithCost = candidates.map((c) => ({
         ...c,

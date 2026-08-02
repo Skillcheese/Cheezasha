@@ -427,11 +427,19 @@ class CombatSimUI {
                     border-radius:3px; padding:3px 5px; font-size:12px;">
                     <option value="increment">+Levels</option>
                     <option value="target">Target Lv</option>
+                    <option value="budget">Budget (M)</option>
                 </select>
-                <input id="mwi-csim-upgrade-target-level" type="number" min="1" max="200" value="5" placeholder="+5" style="
+                <input id="mwi-csim-upgrade-target-level" type="number" min="1" max="200" step="1" value="5" placeholder="+5" style="
                     width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
                     border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
                     title="Number of levels to add to each ability">
+            </span>
+            <span id="mwi-csim-upgrade-budget-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;">Budget (M coins)</label>
+                <input id="mwi-csim-upgrade-swap-budget" type="number" min="0" step="0.01" placeholder="e.g. 1.5" style="
+                    width:70px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                    title="Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.">
             </span>
             <label style="display:flex; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;">
                 <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
@@ -534,8 +542,11 @@ class CombatSimUI {
         });
         this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
             const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
+            const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
             const isLevelMode = e.target.value === 'ability_level';
+            const isSwapMode = e.target.value === 'ability_swap';
             levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
+            budgetGroup.style.display = isSwapMode ? 'inline-flex' : 'none';
             if (isLevelMode) {
                 this._setDefaultAbilityTargetLevel();
             }
@@ -546,16 +557,29 @@ class CombatSimUI {
                 input.value = '5';
                 input.placeholder = '+5';
                 input.title = 'Number of levels to add to each ability';
-            } else {
+                input.step = '1';
+            } else if (e.target.value === 'target') {
                 input.value = '';
                 input.placeholder = 'e.g. 80';
                 input.title = 'Absolute target level for all abilities';
+                input.step = '1';
+            } else {
+                // budget
+                input.value = '';
+                input.placeholder = 'e.g. 1.5';
+                input.title =
+                    'Coin budget (in millions, decimals allowed) to level each equipped ability up to. ' +
+                    'Cost shown is the total value of the ability including XP already invested.';
+                input.step = '0.01';
             }
         });
         this.panel.querySelector('#mwi-csim-upgrade-target-level').addEventListener('change', (e) => {
-            const val = parseInt(e.target.value);
-            if (val > 200) e.target.value = 200;
-            if (val < 1 && e.target.value !== '') e.target.value = 1;
+            const levelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value;
+            if (levelType === 'budget') return;
+            // Increment/target modes are integer levels — floor any decimal input.
+            const val = Math.floor(parseFloat(e.target.value));
+            if (Number.isNaN(val)) return;
+            e.target.value = Math.min(200, Math.max(1, val));
         });
 
         // Zone change → update tier dropdown
@@ -3074,10 +3098,18 @@ class CombatSimUI {
         const playerIndex = parseInt(this.panel.querySelector('#mwi-csim-upgrade-player')?.value) || 0;
         const upgradeMode = this.panel.querySelector('#mwi-csim-upgrade-mode')?.value || 'equipment';
         const abilityLevelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value || 'increment';
-        const abilityTargetLevel = Math.min(
-            200,
-            parseInt(this.panel.querySelector('#mwi-csim-upgrade-target-level')?.value) || 0
-        );
+        const targetLevelInput = this.panel.querySelector('#mwi-csim-upgrade-target-level')?.value;
+        // Budget mode takes millions with decimals; increment/target are integer levels
+        // (floor any decimal the user typed, e.g. via scroll-wheel on the number input).
+        const abilityTargetLevel =
+            abilityLevelType === 'budget' ? 0 : Math.min(200, Math.floor(parseFloat(targetLevelInput)) || 0);
+        const abilityLevelBudget =
+            abilityLevelType === 'budget' && targetLevelInput && parseFloat(targetLevelInput) > 0
+                ? parseFloat(targetLevelInput) * 1_000_000
+                : null;
+        const swapBudgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget')?.value;
+        const abilitySwapBudget =
+            swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : null;
 
         if (!zoneHrid) {
             this._setStatus('Select a zone in Configure tab first.');
@@ -3131,6 +3163,8 @@ class CombatSimUI {
                     upgradeMode,
                     abilityLevelType,
                     abilityTargetLevel,
+                    abilityLevelBudget,
+                    abilitySwapBudget,
                     skipBackSlot,
                 },
                 ({ current, total, description }) => {
