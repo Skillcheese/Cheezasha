@@ -2,7 +2,7 @@
  * Foundation Utils Library
  * All utility modules
  *
- * Exports to: window.Toolasha.Utils
+ * Exports to: window.Cheezasha.Utils
  */
 
 // All utils
@@ -39,14 +39,14 @@ import * as houseCostCalculator from '../utils/house-cost-calculator.js';
 import * as enhancementCalculator from '../utils/enhancement-calculator.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.Utils = {
+cheezashaRoot.Utils = {
     formatters,
     efficiency,
     profitHelpers,
@@ -80,4 +80,4 @@ toolashaRoot.Utils = {
     enhancementCalculator,
 };
 
-console.log('[Toolasha] Utils library loaded');
+console.log('[Cheezasha] Utils library loaded');

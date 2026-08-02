@@ -1,140 +1,140 @@
-/* Toolasha Settings UI Styles
+/* Cheezasha Settings UI Styles
  * Modern, compact design
  */
 
 /* CSS Variables */
 :root {
-    --toolasha-accent: #5b8def;
-    --toolasha-accent-hover: #7aa3f3;
-    --toolasha-accent-dim: rgba(91, 141, 239, 0.15);
-    --toolasha-secondary: #8A2BE2;
-    --toolasha-text: rgba(255, 255, 255, 0.9);
-    --toolasha-text-dim: rgba(255, 255, 255, 0.5);
-    --toolasha-bg: rgba(20, 25, 35, 0.6);
-    --toolasha-border: rgba(91, 141, 239, 0.2);
-    --toolasha-toggle-off: rgba(100, 100, 120, 0.4);
-    --toolasha-toggle-on: var(--toolasha-accent);
+    --cheezasha-accent: #5b8def;
+    --cheezasha-accent-hover: #7aa3f3;
+    --cheezasha-accent-dim: rgba(91, 141, 239, 0.15);
+    --cheezasha-secondary: #8A2BE2;
+    --cheezasha-text: rgba(255, 255, 255, 0.9);
+    --cheezasha-text-dim: rgba(255, 255, 255, 0.5);
+    --cheezasha-bg: rgba(20, 25, 35, 0.6);
+    --cheezasha-border: rgba(91, 141, 239, 0.2);
+    --cheezasha-toggle-off: rgba(100, 100, 120, 0.4);
+    --cheezasha-toggle-on: var(--cheezasha-accent);
 }
 
 /* Settings Card Container */
-.toolasha-settings-card {
+.cheezasha-settings-card {
     display: flex;
     flex-direction: column;
     padding: 12px 16px;
     font-size: 12px;
     line-height: 1.3;
-    color: var(--toolasha-text);
+    color: var(--cheezasha-text);
     position: relative;
     gap: 6px;
 }
 
 /* Top gradient line */
-.toolasha-settings-card::before {
+.cheezasha-settings-card::before {
     display: none;
 }
 
 /* Collapsible Settings Groups */
-.toolasha-settings-group {
+.cheezasha-settings-group {
     margin-bottom: 8px;
 }
 
-.toolasha-settings-group-header {
+.cheezasha-settings-group-header {
     cursor: pointer;
     user-select: none;
     margin: 10px 0 4px 0;
-    color: var(--toolasha-accent);
+    color: var(--cheezasha-accent);
     font-weight: 600;
     font-size: 13px;
     display: flex;
     align-items: center;
     gap: 6px;
-    border-bottom: 1px solid var(--toolasha-border);
+    border-bottom: 1px solid var(--cheezasha-border);
     padding-bottom: 3px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     transition: color 0.2s ease;
 }
 
-.toolasha-settings-group-header:hover {
-    color: var(--toolasha-accent-hover);
+.cheezasha-settings-group-header:hover {
+    color: var(--cheezasha-accent-hover);
 }
 
-.toolasha-settings-group-header .collapse-icon {
+.cheezasha-settings-group-header .collapse-icon {
     font-size: 10px;
     transition: transform 0.2s ease;
 }
 
-.toolasha-settings-group.collapsed .collapse-icon {
+.cheezasha-settings-group.collapsed .collapse-icon {
     transform: rotate(-90deg);
 }
 
-.toolasha-settings-group-content {
+.cheezasha-settings-group-content {
     max-height: 5000px;
     overflow: hidden;
     transition: max-height 0.3s ease-out;
 }
 
-.toolasha-settings-group.collapsed .toolasha-settings-group-content {
+.cheezasha-settings-group.collapsed .cheezasha-settings-group-content {
     max-height: 0;
 }
 
 /* Section Headers */
-.toolasha-settings-card h3 {
+.cheezasha-settings-card h3 {
     margin: 10px 0 4px 0;
-    color: var(--toolasha-accent);
+    color: var(--cheezasha-accent);
     font-weight: 600;
     font-size: 13px;
     display: flex;
     align-items: center;
     gap: 6px;
-    border-bottom: 1px solid var(--toolasha-border);
+    border-bottom: 1px solid var(--cheezasha-border);
     padding-bottom: 3px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
-.toolasha-settings-card h3:first-child {
+.cheezasha-settings-card h3:first-child {
     margin-top: 0;
 }
 
-.toolasha-settings-card h3 .icon {
+.cheezasha-settings-card h3 .icon {
     font-size: 14px;
 }
 
 /* Individual Setting Row */
-.toolasha-setting {
+.cheezasha-setting {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     margin: 0;
     padding: 6px 8px;
-    background: var(--toolasha-bg);
-    border: 1px solid var(--toolasha-border);
+    background: var(--cheezasha-bg);
+    border: 1px solid var(--cheezasha-border);
     border-radius: 4px;
     min-height: unset;
     transition: all 0.2s ease;
 }
 
-.toolasha-setting:hover {
+.cheezasha-setting:hover {
     background: rgba(30, 35, 45, 0.7);
-    border-color: var(--toolasha-accent);
+    border-color: var(--cheezasha-accent);
 }
 
-.toolasha-setting.disabled {
+.cheezasha-setting.disabled {
     /* Visual darkening removed - dependencies still functional but not visually indicated */
     pointer-events: none;
 }
 
-.toolasha-setting.not-implemented .toolasha-setting-label {
+.cheezasha-setting.not-implemented .cheezasha-setting-label {
     color: #ff6b6b;
 }
 
-.toolasha-setting.not-implemented .toolasha-setting-help {
+.cheezasha-setting.not-implemented .cheezasha-setting-help {
     color: rgba(255, 107, 107, 0.7);
 }
 
-.toolasha-setting-label {
+.cheezasha-setting-label {
     text-align: left;
     flex: 1;
     margin-right: 10px;
@@ -142,20 +142,20 @@
     font-size: 12px;
 }
 
-.toolasha-setting-help {
+.cheezasha-setting-help {
     display: block;
     font-size: 10px;
-    color: var(--toolasha-text-dim);
+    color: var(--cheezasha-text-dim);
     margin-top: 2px;
     font-style: italic;
 }
 
-.toolasha-setting-input {
+.cheezasha-setting-input {
     flex-shrink: 0;
 }
 
 /* Modern Toggle Switch */
-.toolasha-switch {
+.cheezasha-switch {
     position: relative;
     width: 38px;
     height: 20px;
@@ -163,27 +163,27 @@
     display: inline-block;
 }
 
-.toolasha-switch input {
+.cheezasha-switch input {
     opacity: 0;
     width: 0;
     height: 0;
     position: absolute;
 }
 
-.toolasha-slider {
+.cheezasha-slider {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: var(--toolasha-toggle-off);
+    background: var(--cheezasha-toggle-off);
     border-radius: 20px;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     border: 2px solid transparent;
 }
 
-.toolasha-slider:before {
+.cheezasha-slider:before {
     content: "";
     position: absolute;
     height: 12px;
@@ -196,63 +196,63 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.toolasha-switch input:checked + .toolasha-slider {
-    background: var(--toolasha-toggle-on);
-    border-color: var(--toolasha-accent-hover);
-    box-shadow: 0 0 6px var(--toolasha-accent-dim);
+.cheezasha-switch input:checked + .cheezasha-slider {
+    background: var(--cheezasha-toggle-on);
+    border-color: var(--cheezasha-accent-hover);
+    box-shadow: 0 0 6px var(--cheezasha-accent-dim);
 }
 
-.toolasha-switch input:checked + .toolasha-slider:before {
+.cheezasha-switch input:checked + .cheezasha-slider:before {
     transform: translateX(18px);
 }
 
-.toolasha-switch:hover .toolasha-slider {
-    border-color: var(--toolasha-accent);
+.cheezasha-switch:hover .cheezasha-slider {
+    border-color: var(--cheezasha-accent);
 }
 
 /* Text Input */
-.toolasha-text-input {
+.cheezasha-text-input {
     padding: 5px 8px;
-    border: 1px solid var(--toolasha-border);
+    border: 1px solid var(--cheezasha-border);
     border-radius: 3px;
     background: rgba(0, 0, 0, 0.3);
-    color: var(--toolasha-text);
+    color: var(--cheezasha-text);
     min-width: 100px;
     font-size: 12px;
     transition: all 0.2s ease;
 }
 
-.toolasha-text-input:focus {
+.cheezasha-text-input:focus {
     outline: none;
-    border-color: var(--toolasha-accent);
-    box-shadow: 0 0 0 2px var(--toolasha-accent-dim);
+    border-color: var(--cheezasha-accent);
+    box-shadow: 0 0 0 2px var(--cheezasha-accent-dim);
 }
 
 /* Number Input */
-.toolasha-number-input {
+.cheezasha-number-input {
     padding: 5px 8px;
-    border: 1px solid var(--toolasha-border);
+    border: 1px solid var(--cheezasha-border);
     border-radius: 3px;
     background: rgba(0, 0, 0, 0.3);
-    color: var(--toolasha-text);
+    color: var(--cheezasha-text);
     min-width: 80px;
     font-size: 12px;
     transition: all 0.2s ease;
 }
 
-.toolasha-number-input:focus {
+.cheezasha-number-input:focus {
     outline: none;
-    border-color: var(--toolasha-accent);
-    box-shadow: 0 0 0 2px var(--toolasha-accent-dim);
+    border-color: var(--cheezasha-accent);
+    box-shadow: 0 0 0 2px var(--cheezasha-accent-dim);
 }
 
 /* Select Dropdown */
-.toolasha-select-input {
+.cheezasha-select-input {
     padding: 5px 8px;
-    border: 1px solid var(--toolasha-border);
+    border: 1px solid var(--cheezasha-border);
     border-radius: 3px;
     background: rgba(0, 0, 0, 0.3);
-    color: var(--toolasha-accent);
+    color: var(--cheezasha-accent);
     font-weight: 600;
     min-width: 150px;
     cursor: pointer;
@@ -268,30 +268,30 @@
     transition: all 0.2s ease;
 }
 
-.toolasha-select-input:focus {
+.cheezasha-select-input:focus {
     outline: none;
-    border-color: var(--toolasha-accent);
-    box-shadow: 0 0 0 2px var(--toolasha-accent-dim);
+    border-color: var(--cheezasha-accent);
+    box-shadow: 0 0 0 2px var(--cheezasha-accent-dim);
 }
 
-.toolasha-select-input option {
+.cheezasha-select-input option {
     background: #1a1a2e;
-    color: var(--toolasha-text);
+    color: var(--cheezasha-text);
     padding: 8px;
 }
 
 /* Utility Buttons Container */
-.toolasha-utility-buttons {
+.cheezasha-utility-buttons {
     display: flex;
     gap: 8px;
     margin-top: 12px;
     padding-top: 10px;
-    border-top: 1px solid var(--toolasha-border);
+    border-top: 1px solid var(--cheezasha-border);
     flex-wrap: wrap;
 }
 
-.toolasha-utility-button {
-    background: linear-gradient(135deg, var(--toolasha-secondary), #6A1B9A);
+.cheezasha-utility-button {
+    background: linear-gradient(135deg, var(--cheezasha-secondary), #6A1B9A);
     border: 1px solid rgba(138, 43, 226, 0.4);
     color: #ffffff;
     padding: 6px 12px;
@@ -303,31 +303,31 @@
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-.toolasha-utility-button:hover {
-    background: linear-gradient(135deg, #9A4BCF, var(--toolasha-secondary));
+.cheezasha-utility-button:hover {
+    background: linear-gradient(135deg, #9A4BCF, var(--cheezasha-secondary));
     box-shadow: 0 0 10px rgba(138, 43, 226, 0.3);
     transform: translateY(-1px);
 }
 
-.toolasha-utility-button:active {
+.cheezasha-utility-button:active {
     transform: translateY(0);
 }
 
 /* Sync button - special styling for prominence */
-.toolasha-sync-button {
+.cheezasha-sync-button {
     background: linear-gradient(135deg, #047857, #059669) !important;
     border: 1px solid rgba(4, 120, 87, 0.4) !important;
     flex: 1 1 auto; /* Allow it to grow and take more space */
     min-width: 200px; /* Ensure it's wide enough for the text */
 }
 
-.toolasha-sync-button:hover {
+.cheezasha-sync-button:hover {
     background: linear-gradient(135deg, #059669, #10b981) !important;
     box-shadow: 0 0 10px rgba(16, 185, 129, 0.3) !important;
 }
 
 /* Refresh Notice */
-.toolasha-refresh-notice {
+.cheezasha-refresh-notice {
     background: rgba(255, 152, 0, 0.1);
     border: 1px solid rgba(255, 152, 0, 0.3);
     border-radius: 4px;
@@ -340,22 +340,22 @@
     gap: 8px;
 }
 
-.toolasha-refresh-notice::before {
+.cheezasha-refresh-notice::before {
     content: "⚠️";
     font-size: 14px;
 }
 
 /* Dependency Indicator */
-.toolasha-setting.has-dependency::before {
+.cheezasha-setting.has-dependency::before {
     content: "↳";
     position: absolute;
     left: -4px;
-    color: var(--toolasha-accent);
+    color: var(--cheezasha-accent);
     font-size: 14px;
     opacity: 0.5;
 }
 
-.toolasha-setting.has-dependency {
+.cheezasha-setting.has-dependency {
     margin-left: 16px;
     position: relative;
 }
@@ -363,23 +363,23 @@
 /* Nested setting collapse icons */
 .setting-collapse-icon {
     flex-shrink: 0;
-    color: var(--toolasha-accent);
+    color: var(--cheezasha-accent);
     opacity: 0.7;
 }
 
-.toolasha-setting.dependents-collapsed .setting-collapse-icon {
+.cheezasha-setting.dependents-collapsed .setting-collapse-icon {
     opacity: 1;
 }
 
-.toolasha-setting-label-container:hover .setting-collapse-icon {
+.cheezasha-setting-label-container:hover .setting-collapse-icon {
     opacity: 1;
 }
 
 /* Tab Panel Override (for game's settings panel) */
-.TabPanel_tabPanel__tXMJF#toolasha-settings {
+.TabPanel_tabPanel__tXMJF#cheezasha-settings {
     display: block !important;
 }
 
-.TabPanel_tabPanel__tXMJF#toolasha-settings.TabPanel_hidden__26UM3 {
+.TabPanel_tabPanel__tXMJF#cheezasha-settings.TabPanel_hidden__26UM3 {
     display: none !important;
 }

@@ -54,7 +54,7 @@ jobs:
                   git config user.email "github-actions[bot]@users.noreply.github.com"
 
                   # Save the built files
-                  cp dist/Toolasha.user.js /tmp/Toolasha.user.js
+                  cp dist/Cheezasha.user.js /tmp/Cheezasha.user.js
                   cp -R dist/libraries /tmp/libraries
 
                   # Fetch and checkout releases branch (create if doesn't exist)
@@ -65,18 +65,18 @@ jobs:
                   git rm -rf . 2>/dev/null || true
                   mkdir -p dist
                   mkdir -p dist/libraries
-                  cp /tmp/Toolasha.user.js dist/Toolasha.user.js
+                  cp /tmp/Cheezasha.user.js dist/Cheezasha.user.js
                   cp -R /tmp/libraries/* dist/libraries/
-                  git add dist/Toolasha.user.js dist/libraries/*.js
+                  git add dist/Cheezasha.user.js dist/libraries/*.js
 
                   # Commit libraries
                   git commit -m "chore(main): release ${{ steps.release.outputs.version }}"
 
                   # Pin entrypoint @require URLs to the library commit SHA
                   lib_sha=$(git rev-parse HEAD)
-                  LIB_SHA="$lib_sha" node -e "const fs=require('fs');const path='dist/Toolasha.user.js';const base='https://cdn.jsdelivr.net/gh/${{ github.repository }}@'+process.env.LIB_SHA+'/dist/libraries/';const content=fs.readFileSync(path,'utf8');const updated=content.split('https://UPDATE-THIS-URL/').join(base);fs.writeFileSync(path,updated);"
+                  LIB_SHA="$lib_sha" node -e "const fs=require('fs');const path='dist/Cheezasha.user.js';const base='https://cdn.jsdelivr.net/gh/${{ github.repository }}@'+process.env.LIB_SHA+'/dist/libraries/';const content=fs.readFileSync(path,'utf8');const updated=content.split('https://UPDATE-THIS-URL/').join(base);fs.writeFileSync(path,updated);"
 
-                  git add dist/Toolasha.user.js
+                  git add dist/Cheezasha.user.js
                   git commit -m "chore(main): pin library requires ${{ steps.release.outputs.version }}"
 
                   # Push releases branch
@@ -88,7 +88,7 @@ jobs:
               with:
                   tag_name: ${{ steps.release.outputs.tag_name }}
                   files: |
-                      dist/Toolasha.user.js
+                      dist/Cheezasha.user.js
                       dist/libraries/*.js
                   draft: false
               env:

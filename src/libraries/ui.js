@@ -2,7 +2,7 @@
  * UI Library
  * UI enhancements, tasks, skills, house, settings, and misc features
  *
- * Exports to: window.Toolasha.UI
+ * Exports to: window.Cheezasha.UI
  */
 
 // UI features
@@ -90,14 +90,14 @@ import queueMonitor from '../features/queue-monitor/queue-monitor.js';
 import pformancePanel from '../features/dev/pformance-panel.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.UI = {
+cheezashaRoot.UI = {
     equipmentLevelDisplay,
     alchemyItemDimming,
     skillExperiencePercentage,
@@ -152,4 +152,4 @@ toolashaRoot.UI = {
     pformancePanel,
 };
 
-console.log('[Toolasha] UI library loaded');
+console.log('[Cheezasha] UI library loaded');

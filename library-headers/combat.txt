@@ -1,5 +1,5 @@
 /**
- * Toolasha Combat Library
+ * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
  * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0

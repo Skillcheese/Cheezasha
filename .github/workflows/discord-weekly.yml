@@ -59,7 +59,7 @@ jobs:
           PAYLOAD=$(cat <<EOF
           {
             "embeds": [{
-              "title": "Toolasha — Weekly Summary (${WEEK_START}–${TODAY})",
+              "title": "Cheezasha — Weekly Summary (${WEEK_START}–${TODAY})",
               "color": 7291618,
               "description": ${BODY}
             }]

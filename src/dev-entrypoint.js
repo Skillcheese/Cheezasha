@@ -1,5 +1,5 @@
 /**
- * Toolasha Dev Entrypoint
+ * Cheezasha Dev Entrypoint
  * Bundles libraries and entrypoint into a single file for local testing.
  */
 

@@ -11,7 +11,7 @@
 
 import { calculateEnhancement } from '../../utils/enhancement-calculator.js';
 import config from '../../core/config.js';
-const toolashaConfig = config;
+const cheezashaConfig = config;
 import dataManager from '../../core/data-manager.js';
 import { formatLargeNumber, numberFormatter, formatKMB, isAbbreviationEnabled } from '../../utils/formatters.js';
 import { getItemPrice, getItemPrices } from '../../utils/market-data.js';
@@ -90,7 +90,7 @@ export function calculateEnhancementPath(itemHrid, currentEnhancementLevel, conf
     const targetCosts = new Array(currentEnhancementLevel + 1);
     const targetTimes = new Array(currentEnhancementLevel + 1);
     const targetAttempts = new Array(currentEnhancementLevel + 1);
-    targetCosts[0] = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
+    targetCosts[0] = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost')
         ? Math.min(getProductionCost(itemHrid) || Infinity, getItemPrices(itemHrid, 0)?.ask || Infinity) ||
           getRealisticBaseItemPrice(itemHrid)
         : getRealisticBaseItemPrice(itemHrid); // Level 0: base item
@@ -467,7 +467,7 @@ function calculateTotalCost(itemHrid, targetLevel, protectFrom, config) {
     const baseItemPrices = getItemPrices(itemHrid, 0);
     const marketAsk = baseItemPrices?.ask > 0 ? baseItemPrices.ask : 0;
     const marketBid = baseItemPrices?.bid > 0 ? baseItemPrices.bid : 0;
-    const useCraftingCost = toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
+    const useCraftingCost = cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost');
     // Ask drives the decision: use crafted if ask is missing OR crafted ask is cheaper
     const askIsCrafted = useCraftingCost && craftingCostAsk > 0 && (marketAsk === 0 || craftingCostAsk < marketAsk);
     const baseAskPrice = askIsCrafted ? craftingCostAsk : marketAsk || getRealisticBaseItemPrice(itemHrid);
@@ -869,7 +869,7 @@ export function buildEnhancementTooltipHTML(enhancementData) {
         // Base item row
         const baseItemLabel = optimalStrategy.baseAskIsCrafted ? 'Craft Item' : 'Buy Item';
         rows.push({
-            name: toolashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost') ? baseItemLabel : 'Base Item',
+            name: cheezashaConfig.isFeatureEnabled('enhanceSim_baseItemCraftingCost') ? baseItemLabel : 'Base Item',
             count: 1,
             askPrice: optimalStrategy.baseAskPrice || optimalStrategy.baseCost,
             bidPrice: optimalStrategy.baseBidPrice || optimalStrategy.baseCost,

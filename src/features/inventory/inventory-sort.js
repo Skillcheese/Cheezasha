@@ -346,7 +346,7 @@ class InventorySort {
 
         // Skip order assignments when custom tabs has taken over the layout —
         // badges are still updated above, but tile order is managed by custom tabs.
-        if (inventoryElem.classList.contains('toolasha-ct-active')) {
+        if (inventoryElem.classList.contains('cheezasha-ct-active')) {
             this.isCalculating = false;
             return;
         }

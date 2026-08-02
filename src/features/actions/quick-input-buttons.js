@@ -820,7 +820,7 @@ class QuickInputButtons {
                 regularComponent.style.overflowY = 'auto';
             }
         } catch (error) {
-            console.error('[Toolasha] Error injecting quick input buttons:', error);
+            console.error('[Cheezasha] Error injecting quick input buttons:', error);
         } finally {
             // Clear scroll simulation regardless of success/failure
             if (actionDetails?.type) dataManager.clearScrollSimulation(actionDetails.type);
@@ -1170,7 +1170,7 @@ class QuickInputButtons {
 
             return maxActions;
         } catch (error) {
-            console.error('[Toolasha] Error calculating max value:', error);
+            console.error('[Cheezasha] Error calculating max value:', error);
             return 10000; // Safe fallback on error
         }
     }
@@ -1454,7 +1454,7 @@ class QuickInputButtons {
                 false // Collapsed by default
             );
         } catch (error) {
-            console.error('[Toolasha] Error creating level progress section:', error);
+            console.error('[Cheezasha] Error creating level progress section:', error);
             return null;
         }
     }

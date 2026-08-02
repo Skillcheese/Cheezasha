@@ -26,12 +26,12 @@ import { buildEnhancementLevelMap } from '../../utils/loadout-scraper.js';
 import loadoutSnapshotLocal from '../combat/loadout-snapshot.js';
 
 function getLoadoutSnapshot() {
-    return window.Toolasha?.Combat?.loadoutSnapshot || loadoutSnapshotLocal;
+    return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshotLocal;
 }
 
-const TAB_CLASS = 'toolasha-skilling-opt-tab';
-const PANEL_CLASS = 'toolasha-skilling-opt-panel';
-const HIDE_CLASS = 'toolasha-opt-hide-content';
+const TAB_CLASS = 'cheezasha-skilling-opt-tab';
+const PANEL_CLASS = 'cheezasha-skilling-opt-panel';
+const HIDE_CLASS = 'cheezasha-opt-hide-content';
 
 const STYLE_EL = document.createElement('style');
 STYLE_EL.textContent = `.${HIDE_CLASS} [class*="TabsComponent_tabPanelsContainer"] { display: none !important; }`;
@@ -1344,7 +1344,7 @@ class SkillingSimulatorUI {
     }
 
     _getItemName(hrid) {
-        const gameData = window.Toolasha?.Core?.dataManager?.getInitClientData?.();
+        const gameData = window.Cheezasha?.Core?.dataManager?.getInitClientData?.();
         return gameData?.itemDetailMap?.[hrid]?.name || null;
     }
 

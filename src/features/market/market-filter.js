@@ -83,13 +83,13 @@ class MarketFilter {
      */
     injectFilterUI(_oriFilterContainer) {
         // Check if already injected
-        if (document.querySelector('#toolasha-market-filters')) {
+        if (document.querySelector('#cheezasha-market-filters')) {
             return;
         }
 
         // Create filter container
         const filterDiv = document.createElement('div');
-        filterDiv.id = 'toolasha-market-filters';
+        filterDiv.id = 'cheezasha-market-filters';
         filterDiv.style.cssText = 'display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;';
 
         // Add level range filters
@@ -125,7 +125,7 @@ class MarketFilter {
         label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
         const select = document.createElement('select');
-        select.id = `toolasha-level-${type}`;
+        select.id = `cheezasha-level-${type}`;
         select.style.cssText =
             'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 
@@ -173,7 +173,7 @@ class MarketFilter {
         label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
         const select = document.createElement('select');
-        select.id = 'toolasha-class-filter';
+        select.id = 'cheezasha-class-filter';
         select.style.cssText =
             'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 
@@ -217,7 +217,7 @@ class MarketFilter {
         label.style.cssText = 'font-size: 12px; color: rgba(255, 255, 255, 0.7);';
 
         const select = document.createElement('select');
-        select.id = 'toolasha-slot-filter';
+        select.id = 'cheezasha-slot-filter';
         select.style.cssText =
             'padding: 4px 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.3); color: #fff; border: 1px solid rgba(91, 141, 239, 0.3);';
 

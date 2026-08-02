@@ -13,7 +13,7 @@ import { findActionInput } from '../../utils/action-panel-helper.js';
 import { calculateTaskProfit, calculateTaskRewardValue } from './task-profit-calculator.js';
 import expectedValueCalculator from '../market/expected-value-calculator.js';
 import { timeReadable, formatPercentage, formatKMB } from '../../utils/formatters.js';
-import { GAME, TOOLASHA } from '../../utils/selectors.js';
+import { GAME, CHEEZASHA } from '../../utils/selectors.js';
 import {
     calculateSecondsForActions,
     calculateEffectiveActionsPerHour,
@@ -32,11 +32,11 @@ import {
     calculateSimRevenue,
 } from '../combat-sim/combat-sim-adapter.js';
 // Lazy accessor: in production multi-bundle builds, the UI bundle loads after Combat.
-// Resolve at runtime via window.Toolasha.Combat to share the initialized instance,
+// Resolve at runtime via window.Cheezasha.Combat to share the initialized instance,
 // with a fallback to the static import for dev single-bundle builds.
 import loadoutSnapshotLocal from '../combat/loadout-snapshot.js';
 function getLoadoutSnapshot() {
-    return window.Toolasha?.Combat?.loadoutSnapshot || loadoutSnapshotLocal;
+    return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshotLocal;
 }
 
 // Compiled regex pattern (created once, reused for performance)
@@ -690,7 +690,7 @@ class TaskProfitDisplay {
             const currentTaskKey = `${taskData.description}|${taskData.quantity}`;
 
             // Check if already processed
-            const existingProfit = taskNode.querySelector(TOOLASHA.TASK_PROFIT);
+            const existingProfit = taskNode.querySelector(CHEEZASHA.TASK_PROFIT);
             if (existingProfit) {
                 // Check if task has changed (rerolled)
                 const savedTaskKey = existingProfit.dataset.taskKey;
@@ -708,7 +708,7 @@ class TaskProfitDisplay {
                 }
 
                 // Remove ALL old profit displays (visible + hidden markers)
-                taskNode.querySelectorAll(TOOLASHA.TASK_PROFIT).forEach((el) => el.remove());
+                taskNode.querySelectorAll(CHEEZASHA.TASK_PROFIT).forEach((el) => el.remove());
             }
 
             this.addProfitToTask(taskNode);
@@ -783,7 +783,7 @@ class TaskProfitDisplay {
 
             // Double-check we haven't already processed this task
             // (check again in case another async call beat us to it)
-            if (taskNode.querySelector(TOOLASHA.TASK_PROFIT)) {
+            if (taskNode.querySelector(CHEEZASHA.TASK_PROFIT)) {
                 return;
             }
 
@@ -853,7 +853,7 @@ class TaskProfitDisplay {
             }
 
             // Check one more time before adding (another async call might have added it)
-            if (taskNode.querySelector(TOOLASHA.TASK_PROFIT)) {
+            if (taskNode.querySelector(CHEEZASHA.TASK_PROFIT)) {
                 return;
             }
 
@@ -880,7 +880,7 @@ class TaskProfitDisplay {
         const nameNode = taskNode.querySelector(GAME.TASK_NAME_DIV);
         if (!nameNode) return null;
 
-        // Exclude zone-index spans injected by Toolasha (e.g. <span class="script_taskMapIndex">Z9</span>)
+        // Exclude zone-index spans injected by Cheezasha (e.g. <span class="script_taskMapIndex">Z9</span>)
         // so they don't pollute the description with "Arcane LumberZ9"
         const zoneSpan = nameNode.querySelector('span.script_taskMapIndex');
         const description = zoneSpan
@@ -2274,7 +2274,7 @@ class TaskProfitDisplay {
         // Insert after reroll cost display if present, otherwise as first child of content
         const taskContent = taskCard.querySelector(GAME.TASK_CONTENT);
         if (taskContent) {
-            const rerollDisplay = taskCard.querySelector(TOOLASHA.REROLL_COST_DISPLAY);
+            const rerollDisplay = taskCard.querySelector(CHEEZASHA.REROLL_COST_DISPLAY);
             if (rerollDisplay && rerollDisplay.nextSibling) {
                 taskContent.insertBefore(wrapper, rerollDisplay.nextSibling);
             } else if (rerollDisplay) {
@@ -2354,7 +2354,7 @@ class TaskProfitDisplay {
         this.pendingTaskNodes.clear();
 
         // Clean up event listeners before removing profit displays
-        document.querySelectorAll(TOOLASHA.TASK_PROFIT).forEach((el) => {
+        document.querySelectorAll(CHEEZASHA.TASK_PROFIT).forEach((el) => {
             const listeners = this.eventListeners.get(el);
             if (listeners) {
                 listeners.forEach((listener, element) => {

@@ -1415,7 +1415,7 @@ export const settingsGroups = {
                 label: 'Custom Inventory Tabs: Enable',
                 type: 'checkbox',
                 default: true,
-                help: 'Adds a Toolasha tab to the character panel where you can organize inventory items into personal tabs.',
+                help: 'Adds a Cheezasha tab to the character panel where you can organize inventory items into personal tabs.',
             },
             inventoryTabs_showUnorganized: {
                 id: 'inventoryTabs_showUnorganized',
@@ -1434,10 +1434,10 @@ export const settingsGroups = {
             },
             inventoryTabs_defaultTab: {
                 id: 'inventoryTabs_defaultTab',
-                label: 'Custom Inventory Tabs: Show Toolasha tab by default',
+                label: 'Custom Inventory Tabs: Show Cheezasha tab by default',
                 type: 'checkbox',
                 default: false,
-                help: 'Hides the native Inventory tab and automatically activates the Toolasha tab whenever the character panel opens.',
+                help: 'Hides the native Inventory tab and automatically activates the Cheezasha tab whenever the character panel opens.',
             },
             inventoryTabs_tileGap: {
                 id: 'inventoryTabs_tileGap',
@@ -1447,7 +1447,7 @@ export const settingsGroups = {
                 min: 0,
                 max: 20,
                 step: 1,
-                help: 'Pixel gap between item tiles on the Toolasha tab.',
+                help: 'Pixel gap between item tiles on the Cheezasha tab.',
             },
             inventoryTabs_loadoutIncludeConsumables: {
                 id: 'inventoryTabs_loadoutIncludeConsumables',
@@ -1706,7 +1706,7 @@ export const settingsGroups = {
                 type: 'select',
                 default: '',
                 options: () => {
-                    const snapshot = window.Toolasha?.Combat?.loadoutSnapshot;
+                    const snapshot = window.Cheezasha?.Combat?.loadoutSnapshot;
                     const loadouts = snapshot
                         ? snapshot
                               .getAllSnapshots()
@@ -2032,7 +2032,7 @@ export const settingsGroups = {
                 label: 'Character panel: Drag-and-drop tab reordering',
                 type: 'checkbox',
                 default: true,
-                help: 'Drag tabs to rearrange the order of Inventory, Toolasha, Equipment, Houses, Abilities, and Loadout. Order persists through refresh.',
+                help: 'Drag tabs to rearrange the order of Inventory, Cheezasha, Equipment, Houses, Abilities, and Loadout. Order persists through refresh.',
             },
             expPercentage: {
                 id: 'expPercentage',
@@ -2057,7 +2057,7 @@ export const settingsGroups = {
                 label: 'Loadout panel: Use saved loadout snapshots in profit calculations',
                 type: 'checkbox',
                 default: true,
-                help: "When you queue an action, Toolasha predicts its XP, time, and profit using the saved loadout for that skill (skill-default → all-skills-default → any saved loadout → currently-equipped). Save your loadouts in-game so they're captured. Disable to always predict using currently-equipped gear.",
+                help: "When you queue an action, Cheezasha predicts its XP, time, and profit using the saved loadout for that skill (skill-default → all-skills-default → any saved loadout → currently-equipped). Save your loadouts in-game so they're captured. Disable to always predict using currently-equipped gear.",
             },
             showsKeyInfoInIcon: {
                 id: 'showsKeyInfoInIcon',
@@ -2147,14 +2147,14 @@ export const settingsGroups = {
                 label: 'Guild Members: Show Last XP/h column',
                 type: 'checkbox',
                 default: true,
-                help: 'Shows recent XP/hr tracked by Toolasha (Contributions tab).',
+                help: 'Shows recent XP/hr tracked by Cheezasha (Contributions tab).',
             },
             guildMembersShowLastDayXPH: {
                 id: 'guildMembersShowLastDayXPH',
                 label: 'Guild Members: Show Last day XP/h column',
                 type: 'checkbox',
                 default: true,
-                help: 'Shows 24-hour average XP/hr tracked by Toolasha (Contributions tab).',
+                help: 'Shows 24-hour average XP/hr tracked by Cheezasha (Contributions tab).',
             },
             guildCreditValue: {
                 id: 'guildCreditValue',

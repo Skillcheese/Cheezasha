@@ -57,13 +57,13 @@ async function initializeFeatures() {
                 feature: feature.name,
                 error: error.message,
             });
-            console.error(`[Toolasha] Failed to initialize ${feature.name}:`, error);
+            console.error(`[Cheezasha] Failed to initialize ${feature.name}:`, error);
         }
     }
 
     // Log errors if any occurred
     if (errors.length > 0) {
-        console.error(`[Toolasha] ${errors.length} feature(s) failed to initialize`, errors);
+        console.error(`[Cheezasha] ${errors.length} feature(s) failed to initialize`, errors);
     }
 }
 
@@ -279,11 +279,11 @@ async function retryFailedFeatures(failedFeatures) {
             if (feature.healthCheck) {
                 const healthResult = feature.healthCheck();
                 if (healthResult === false) {
-                    console.warn(`[Toolasha] ${feature.name} retry completed but health check still fails`);
+                    console.warn(`[Cheezasha] ${feature.name} retry completed but health check still fails`);
                 }
             }
         } catch (error) {
-            console.error(`[Toolasha] ${feature.name} retry failed:`, error);
+            console.error(`[Cheezasha] ${feature.name} retry failed:`, error);
         }
     }
 }

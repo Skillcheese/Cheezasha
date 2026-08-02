@@ -13,8 +13,8 @@ import scrollSimulator from './scroll-simulator.js';
 import loadoutSnapshot from './loadout-snapshot.js';
 import { SCROLL_BUFF_ITEMS, SCROLL_BUFF_LABELS } from '../../utils/scroll-buff-values.js';
 
-const BUTTON_ID = 'toolasha-scroll-sim-btn';
-const POPUP_ID = 'toolasha-scroll-sim-popup';
+const BUTTON_ID = 'cheezasha-scroll-sim-btn';
+const POPUP_ID = 'cheezasha-scroll-sim-popup';
 
 // Ordered list of scroll buff types to display in the popup
 const SCROLL_BUFF_ORDER = [
@@ -170,7 +170,7 @@ class ScrollSimPopup {
 
         // Body
         const body = document.createElement('div');
-        body.id = 'toolasha-scroll-sim-body';
+        body.id = 'cheezasha-scroll-sim-body';
         body.style.cssText = `flex: 1; overflow-y: auto; padding: 12px 14px;`;
 
         this.container.appendChild(header);
@@ -184,7 +184,7 @@ class ScrollSimPopup {
     }
 
     _refreshBody() {
-        const body = this.container?.querySelector('#toolasha-scroll-sim-body');
+        const body = this.container?.querySelector('#cheezasha-scroll-sim-body');
         if (!body) return;
         body.innerHTML = '';
         this._renderBody(body);
@@ -241,7 +241,7 @@ class ScrollSimPopup {
     }
 
     async _onToggle() {
-        const body = this.container?.querySelector('#toolasha-scroll-sim-body');
+        const body = this.container?.querySelector('#cheezasha-scroll-sim-body');
         if (!body) return;
         const checkboxes = body.querySelectorAll('input[type="checkbox"]');
         const selected = [];

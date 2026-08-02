@@ -11,7 +11,7 @@ import marketAPI from '../../api/marketplace.js';
 import { calculateTaskProfit, calculateTaskTokenValue, calculateTaskRewardValue } from './task-profit-calculator.js';
 import { calculateTaskCompletionSeconds } from './task-profit-display.js';
 import { timeReadable, formatKMB, formatDateTime } from '../../utils/formatters.js';
-import { TOOLASHA } from '../../utils/selectors.js';
+import { CHEEZASHA } from '../../utils/selectors.js';
 
 class TaskStatistics {
     constructor() {
@@ -75,13 +75,14 @@ class TaskStatistics {
         }
 
         // Check if button already exists
-        if (tabsContainer.querySelector(TOOLASHA.TASK_STATS_BTN)) {
+        if (tabsContainer.querySelector(CHEEZASHA.TASK_STATS_BTN)) {
             return;
         }
 
         // Create button matching MUI tab styling
         const button = document.createElement('div');
-        button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 toolasha-task-stats-btn';
+        button.className =
+            'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 cheezasha-task-stats-btn';
         button.textContent = 'Statistics';
         button.style.cursor = 'pointer';
         button.onclick = () => this.showPopup();
@@ -95,7 +96,7 @@ class TaskStatistics {
      * Remove Statistics button
      */
     removeButton() {
-        const buttons = document.querySelectorAll(TOOLASHA.TASK_STATS_BTN);
+        const buttons = document.querySelectorAll(CHEEZASHA.TASK_STATS_BTN);
         for (const button of buttons) {
             button.remove();
         }
@@ -336,7 +337,7 @@ class TaskStatistics {
 
         // Create overlay
         const overlay = document.createElement('div');
-        overlay.className = 'toolasha-task-stats-overlay';
+        overlay.className = 'cheezasha-task-stats-overlay';
         overlay.style.cssText = `
             position: fixed;
             top: 0;

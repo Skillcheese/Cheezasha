@@ -65,7 +65,7 @@ export function getProtectionItemFromUI(panel) {
 
         return null;
     } catch (error) {
-        console.error('[Toolasha] Error detecting protection item:', error);
+        console.error('[Cheezasha] Error detecting protection item:', error);
         return null;
     }
 }
@@ -158,8 +158,8 @@ export async function displayEnhancementStats(panel, itemHrid) {
             });
         }
     } catch (error) {
-        console.error('[Toolasha] ❌ Error displaying enhancement stats:', error);
-        console.error('[Toolasha] Error stack:', error.stack);
+        console.error('[Cheezasha] ❌ Error displaying enhancement stats:', error);
+        console.error('[Cheezasha] Error stack:', error.stack);
     }
 }
 

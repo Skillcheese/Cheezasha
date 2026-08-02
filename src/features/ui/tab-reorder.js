@@ -1,7 +1,7 @@
 /**
  * Tab Reorder
  * Allows users to drag-and-drop reorder the character panel tabs
- * (Inventory, Toolasha, Equipment, Houses, Abilities, Loadout).
+ * (Inventory, Cheezasha, Equipment, Houses, Abilities, Loadout).
  *
  * Uses CSS `order` on flex items — does not move DOM nodes, so React
  * re-renders and click→panel mapping are unaffected.
@@ -59,7 +59,7 @@ class TabReorder {
 
         // Re-apply whenever React re-renders the tab container
         const unregister = domObserver.onClass('TabReorder', 'TabsComponent_tabsContainer', () => {
-            // Small delay to let Toolasha tab injection happen first
+            // Small delay to let Cheezasha tab injection happen first
             setTimeout(() => this._applyOrder(), 50);
         });
         this.unregisterHandlers.push(unregister);

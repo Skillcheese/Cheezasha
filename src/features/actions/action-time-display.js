@@ -2451,7 +2451,7 @@ class ActionTimeDisplay {
                 this.calculateAndDisplayTotalProfit(totalDiv, actionsToCalculate, totalText, queueMenu);
             }
         } catch (error) {
-            console.error('[Toolasha] Error injecting queue times:', error);
+            console.error('[Cheezasha] Error injecting queue times:', error);
         } finally {
             // Reconnect observer only if async didn't take over
             if (shouldReconnectObserver) {

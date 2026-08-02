@@ -11,7 +11,7 @@
     console.log('=== Trigger Data Extractor ===');
 
     // Try to get profile data from getCurrentProfile
-    const getCurrentProfile = window.Toolasha?.Core?.profileManager?.getCurrentProfile;
+    const getCurrentProfile = window.Cheezasha?.Core?.profileManager?.getCurrentProfile;
 
     if (getCurrentProfile) {
         const profile = getCurrentProfile();
@@ -41,15 +41,15 @@
             console.error('No profile data found. Make sure you have a profile open.');
         }
     } else {
-        console.error('Toolasha not loaded or profile manager not available.');
+        console.error('Cheezasha not loaded or profile manager not available.');
         console.log('Trying direct WebSocket hook approach...');
 
         // Fallback: hook into next profile_shared message
-        if (window.Toolasha?.Core?.webSocketHook) {
+        if (window.Cheezasha?.Core?.webSocketHook) {
             console.log('Listening for next profile_shared message...');
             console.log('(Open a profile now)');
 
-            window.Toolasha.Core.webSocketHook.on('profile_shared', (data) => {
+            window.Cheezasha.Core.webSocketHook.on('profile_shared', (data) => {
                 console.log('\n--- Profile Shared Data Received ---');
                 console.log('Player Name:', data.profile?.sharableCharacter?.name);
 
@@ -71,7 +71,7 @@
                 console.log(JSON.stringify(triggerData, null, 2));
             });
         } else {
-            console.error('WebSocket hook not available either. Is Toolasha loaded?');
+            console.error('WebSocket hook not available either. Is Cheezasha loaded?');
         }
     }
 })();

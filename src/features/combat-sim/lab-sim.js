@@ -8,7 +8,7 @@ import domObserver from '../../core/dom-observer.js';
 import labSimUI from './lab-sim-ui.js';
 import { cancelSimulation } from './combat-sim-runner.js';
 
-const BUTTON_CLASS = 'toolasha-lab-sim-btn';
+const BUTTON_CLASS = 'cheezasha-lab-sim-btn';
 
 class LabSim {
     constructor() {

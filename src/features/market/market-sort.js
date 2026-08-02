@@ -96,7 +96,7 @@ class MarketSort {
                 this.sortButton.textContent = 'Sort by Profit';
             }
             // Remove profit indicators from any stale elements
-            document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+            document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
         });
 
         this.unregisterHandlers.push(unregisterItems);
@@ -114,18 +114,18 @@ class MarketSort {
      */
     injectSortUI(filterContainer) {
         // Check if already injected
-        if (document.querySelector('#toolasha-market-sort')) {
+        if (document.querySelector('#cheezasha-market-sort')) {
             return;
         }
 
         // Create sort container
         const sortDiv = document.createElement('div');
-        sortDiv.id = 'toolasha-market-sort';
+        sortDiv.id = 'cheezasha-market-sort';
         sortDiv.style.cssText = 'display: flex; gap: 8px; margin-top: 8px; align-items: center;';
 
         // Create sort button
         const sortButton = document.createElement('button');
-        sortButton.id = 'toolasha-sort-profit-btn';
+        sortButton.id = 'cheezasha-sort-profit-btn';
         sortButton.textContent = 'Sort by Profit';
         sortButton.style.cssText = `
             padding: 6px 12px;
@@ -356,14 +356,14 @@ class MarketSort {
      */
     addProfitIndicator(itemDiv, profit) {
         // Remove existing indicator
-        const existing = itemDiv.querySelector('.toolasha-profit-indicator');
+        const existing = itemDiv.querySelector('.cheezasha-profit-indicator');
         if (existing) {
             existing.remove();
         }
 
         // Create indicator
         const indicator = document.createElement('div');
-        indicator.className = 'toolasha-profit-indicator';
+        indicator.className = 'cheezasha-profit-indicator';
 
         let displayText;
         let color;
@@ -414,7 +414,7 @@ class MarketSort {
         }
 
         // Remove all profit indicators
-        document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+        document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
 
         // Restore original order if we have it
         if (this.originalOrder.length > 0) {
@@ -459,13 +459,13 @@ class MarketSort {
         this.unregisterHandlers = [];
 
         // Remove sort UI
-        const sortDiv = document.querySelector('#toolasha-market-sort');
+        const sortDiv = document.querySelector('#cheezasha-market-sort');
         if (sortDiv) {
             sortDiv.remove();
         }
 
         // Remove profit indicators
-        document.querySelectorAll('.toolasha-profit-indicator').forEach((el) => el.remove());
+        document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
 
         // Clear cache
         this.profitCache.clear();

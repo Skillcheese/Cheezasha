@@ -8,7 +8,7 @@ class Storage {
     constructor() {
         this.db = null;
         this.available = false;
-        this.dbName = 'ToolashaDB';
+        this.dbName = 'CheezashaDB';
         this.dbVersion = 17; // Bumped for leaderboardHistory store
         this.saveDebounceTimers = new Map(); // Per-key debounce timers
         this.pendingWrites = new Map(); // Per-key pending write data: {value, storeName, resolvers, generation}
@@ -24,13 +24,113 @@ class Storage {
      */
     async initialize() {
         try {
+            const legacyData = await this._readLegacyDatabase();
             await this.openDatabase();
+            if (legacyData) {
+                await this._writeLegacyData(legacyData);
+            }
             this.available = true;
             return true;
         } catch (error) {
             console.error('[Storage] Initialization failed:', error);
             this.available = false;
             return false;
+        }
+    }
+
+    /**
+     * One-time migration: read all data out of the pre-rename ToolashaDB, if present,
+     * so existing users don't lose their settings/history when the DB name changes.
+     * @private
+     * @returns {Promise<Object|null>} Map of storeName -> {key: value}, or null if nothing to migrate
+     */
+    async _readLegacyDatabase() {
+        const MIGRATION_FLAG = 'cheezashaDbMigratedFromToolasha';
+        const LEGACY_DB_NAME = 'ToolashaDB';
+
+        try {
+            if (localStorage.getItem(MIGRATION_FLAG)) return null;
+
+            if (typeof indexedDB.databases !== 'function') {
+                // Can't enumerate databases in this browser; nothing safe to do.
+                return null;
+            }
+
+            const dbs = await indexedDB.databases();
+            const hasLegacy = dbs.some((d) => d.name === LEGACY_DB_NAME);
+            if (!hasLegacy) {
+                localStorage.setItem(MIGRATION_FLAG, '1');
+                return null;
+            }
+
+            console.log('[Storage] Legacy database found, migrating to', this.dbName);
+
+            const legacyDb = await new Promise((resolve, reject) => {
+                const request = indexedDB.open(LEGACY_DB_NAME);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+
+            const storeNames = Array.from(legacyDb.objectStoreNames);
+            const data = {};
+
+            for (const storeName of storeNames) {
+                data[storeName] = await new Promise((resolve, reject) => {
+                    const transaction = legacyDb.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const result = {};
+                    const cursorRequest = store.openCursor();
+
+                    cursorRequest.onsuccess = (event) => {
+                        const cursor = event.target.result;
+                        if (cursor) {
+                            result[cursor.key] = cursor.value;
+                            cursor.continue();
+                        } else {
+                            resolve(result);
+                        }
+                    };
+                    cursorRequest.onerror = () => reject(cursorRequest.error);
+                });
+            }
+
+            legacyDb.close();
+            return data;
+        } catch (error) {
+            console.error('[Storage] Failed to read legacy database (will retry next load):', error);
+            return null;
+        }
+    }
+
+    /**
+     * Write migrated legacy data into the (already open) new database and mark migration complete.
+     * @private
+     */
+    async _writeLegacyData(legacyData) {
+        const MIGRATION_FLAG = 'cheezashaDbMigratedFromToolasha';
+
+        try {
+            for (const [storeName, entries] of Object.entries(legacyData)) {
+                if (!this.db.objectStoreNames.contains(storeName)) continue;
+
+                const pairs = Object.entries(entries);
+                if (pairs.length === 0) continue;
+
+                await new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    for (const [key, value] of pairs) {
+                        store.put(value, key);
+                    }
+                    transaction.oncomplete = () => resolve();
+                    transaction.onerror = () => reject(transaction.error);
+                });
+            }
+
+            localStorage.setItem(MIGRATION_FLAG, '1');
+            console.log('[Storage] Legacy database migration complete');
+        } catch (error) {
+            console.error('[Storage] Failed to write migrated data (will retry next load):', error);
         }
     }
 

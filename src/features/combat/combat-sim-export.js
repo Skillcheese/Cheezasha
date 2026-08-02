@@ -19,7 +19,7 @@ function getCharacterData() {
     // Cross-domain fallback: read from GM storage (saved by game page)
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_init_character_data', null);
+            const raw = GM_getValue('cheezasha_init_character_data', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */
@@ -38,7 +38,7 @@ function getBattleData() {
     if (dataManager.battleData) return dataManager.battleData;
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_new_battle', null);
+            const raw = GM_getValue('cheezasha_new_battle', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */
@@ -57,7 +57,7 @@ function getClientData() {
     if (data) return data;
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_init_client_data', null);
+            const raw = GM_getValue('cheezasha_init_client_data', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */
@@ -82,7 +82,7 @@ async function getProfileList() {
     // Cross-domain fallback: read from GM storage (saved by game page)
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_profile_list', null);
+            const raw = GM_getValue('cheezasha_profile_list', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */

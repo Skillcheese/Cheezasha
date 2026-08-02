@@ -1,4 +1,4 @@
-# Claude Instructions for Toolasha
+# Claude Instructions for Cheezasha
 
 This file contains general workflow and behavioral guidelines for AI assistants working on this project.
 

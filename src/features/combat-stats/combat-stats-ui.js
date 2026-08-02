@@ -105,14 +105,14 @@ class CombatStatsUI {
         }
 
         // Check if button already exists
-        if (tabsContainer.querySelector('.toolasha-combat-stats-btn')) {
+        if (tabsContainer.querySelector('.cheezasha-combat-stats-btn')) {
             return;
         }
 
         // Create button
         const button = document.createElement('div');
         button.className =
-            'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 toolasha-combat-stats-btn';
+            'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 cheezasha-combat-stats-btn';
         button.textContent = 'Statistics';
         button.style.cursor = 'pointer';
 
@@ -127,7 +127,7 @@ class CombatStatsUI {
      * Remove Statistics button from Combat panel tabs
      */
     removeButton() {
-        const button = document.querySelector('.toolasha-combat-stats-btn');
+        const button = document.querySelector('.cheezasha-combat-stats-btn');
         if (button) {
             button.remove();
         }
@@ -296,7 +296,7 @@ class CombatStatsUI {
 
         // Create overlay
         const overlay = document.createElement('div');
-        overlay.className = 'toolasha-combat-stats-overlay';
+        overlay.className = 'cheezasha-combat-stats-overlay';
         overlay.style.cssText = `
             position: fixed;
             top: 0;
@@ -312,7 +312,7 @@ class CombatStatsUI {
 
         // Create popup container
         const popup = document.createElement('div');
-        popup.className = 'toolasha-combat-stats-popup';
+        popup.className = 'cheezasha-combat-stats-popup';
         popup.style.cssText = `
             background: #1a1a1a;
             border: 2px solid #3a3a3a;
@@ -1137,7 +1137,7 @@ class CombatStatsUI {
         if (!html) return;
 
         const tooltip = document.createElement('div');
-        tooltip.className = 'toolasha-chest-ev-tooltip';
+        tooltip.className = 'cheezasha-chest-ev-tooltip';
         tooltip.style.cssText = `
             position: fixed;
             background: #1a1a1a;
@@ -1221,7 +1221,7 @@ class CombatStatsUI {
         this.closePopup();
 
         // Remove injected buttons
-        const buttons = document.querySelectorAll('.toolasha-combat-stats-btn');
+        const buttons = document.querySelectorAll('.cheezasha-combat-stats-btn');
         for (const button of buttons) {
             button.remove();
         }

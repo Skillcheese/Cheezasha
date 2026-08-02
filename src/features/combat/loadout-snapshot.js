@@ -25,11 +25,11 @@ const STORAGE_KEY_PREFIX = 'loadout_snapshots';
  * Returns the active WebSocket hook instance.
  * In the multi-bundle production build each library bundles its own copy of websocket.js,
  * but only the Core library's instance has install() called on it.
- * Prefer window.Toolasha.Core.webSocketHook so listeners actually receive messages.
+ * Prefer window.Cheezasha.Core.webSocketHook so listeners actually receive messages.
  * Falls back to the bundled copy for the dev standalone build (single bundle, one instance).
  */
 function getWebSocketHook() {
-    return (typeof window !== 'undefined' && window.Toolasha?.Core?.webSocketHook) || webSocketHook;
+    return (typeof window !== 'undefined' && window.Cheezasha?.Core?.webSocketHook) || webSocketHook;
 }
 
 /**

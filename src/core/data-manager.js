@@ -184,7 +184,9 @@ class DataManager {
                 // Prevent rapid-fire character switches (loop protection)
                 const now = Date.now();
                 if (this.lastCharacterSwitchTime && now - this.lastCharacterSwitchTime < 1000) {
-                    console.warn('[Toolasha] Ignoring rapid character switch (<1s since last), possible loop detected');
+                    console.warn(
+                        '[Cheezasha] Ignoring rapid character switch (<1s since last), possible loop detected'
+                    );
                     return;
                 }
                 this.lastCharacterSwitchTime = now;
@@ -197,7 +199,7 @@ class DataManager {
                             await storage.flushAll();
                         }
                     } catch (error) {
-                        console.error('[Toolasha] Failed to flush storage before character switch:', error);
+                        console.error('[Cheezasha] Failed to flush storage before character switch:', error);
                     }
                 }, 0);
 

@@ -1,7 +1,7 @@
 /**
  * Loot Log Statistics Module
  * Adds total value, average time, and daily output statistics to loot logs
- * Port of Edible Tools loot tracker feature, integrated into Toolasha architecture
+ * Port of Edible Tools loot tracker feature, integrated into Cheezasha architecture
  */
 
 import config from '../../core/config.js';

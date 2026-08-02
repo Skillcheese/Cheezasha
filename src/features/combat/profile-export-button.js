@@ -28,7 +28,7 @@ function waitForProfilePage() {
             const profileTab = document.querySelector('div.SharableProfile_overviewTab__W4dCV');
 
             // Only inject if we're on the profile page AND button doesn't exist yet
-            if (profileTab && !document.getElementById('toolasha-profile-export-button')) {
+            if (profileTab && !document.getElementById('cheezasha-profile-export-button')) {
                 injectExportButton(profileTab);
             }
         },
@@ -59,12 +59,12 @@ function observeProfileClosure() {
  */
 function injectExportButton(container) {
     // Check if button already exists
-    if (document.getElementById('toolasha-profile-export-button')) {
+    if (document.getElementById('cheezasha-profile-export-button')) {
         return;
     }
 
     const button = document.createElement('button');
-    button.id = 'toolasha-profile-export-button';
+    button.id = 'cheezasha-profile-export-button';
     button.textContent = 'Export to Clipboard';
     button.style.cssText = `
         border-radius: 5px;

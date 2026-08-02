@@ -21,56 +21,56 @@ const entrypointHeader = readFileSync(join(__dirname, 'library-headers/entrypoin
 const normalizeModuleId = (id) => (id ? normalize(id.split('?')[0]) : id);
 
 const coreExternalGlobals = new Map([
-    [normalize(join(__dirname, 'src/core/storage.js')), 'Toolasha.Core.storage'],
-    [normalize(join(__dirname, 'src/core/config.js')), 'Toolasha.Core.config'],
-    [normalize(join(__dirname, 'src/core/websocket.js')), 'Toolasha.Core.webSocketHook'],
-    [normalize(join(__dirname, 'src/core/dom-observer.js')), 'Toolasha.Core.domObserver'],
-    [normalize(join(__dirname, 'src/core/data-manager.js')), 'Toolasha.Core.dataManager'],
-    [normalize(join(__dirname, 'src/core/feature-registry.js')), 'Toolasha.Core.featureRegistry'],
-    [normalize(join(__dirname, 'src/core/settings-storage.js')), 'Toolasha.Core.settingsStorage'],
-    [normalize(join(__dirname, 'src/core/settings-schema.js')), 'Toolasha.Core'],
-    [normalize(join(__dirname, 'src/core/profile-manager.js')), 'Toolasha.Core.profileManager'],
-    [normalize(join(__dirname, 'src/api/marketplace.js')), 'Toolasha.Core.marketAPI'],
+    [normalize(join(__dirname, 'src/core/storage.js')), 'Cheezasha.Core.storage'],
+    [normalize(join(__dirname, 'src/core/config.js')), 'Cheezasha.Core.config'],
+    [normalize(join(__dirname, 'src/core/websocket.js')), 'Cheezasha.Core.webSocketHook'],
+    [normalize(join(__dirname, 'src/core/dom-observer.js')), 'Cheezasha.Core.domObserver'],
+    [normalize(join(__dirname, 'src/core/data-manager.js')), 'Cheezasha.Core.dataManager'],
+    [normalize(join(__dirname, 'src/core/feature-registry.js')), 'Cheezasha.Core.featureRegistry'],
+    [normalize(join(__dirname, 'src/core/settings-storage.js')), 'Cheezasha.Core.settingsStorage'],
+    [normalize(join(__dirname, 'src/core/settings-schema.js')), 'Cheezasha.Core'],
+    [normalize(join(__dirname, 'src/core/profile-manager.js')), 'Cheezasha.Core.profileManager'],
+    [normalize(join(__dirname, 'src/api/marketplace.js')), 'Cheezasha.Core.marketAPI'],
 ]);
 
 const utilsExternalGlobals = new Map([
-    [normalize(join(__dirname, 'src/utils/formatters.js')), 'Toolasha.Utils.formatters'],
-    [normalize(join(__dirname, 'src/utils/efficiency.js')), 'Toolasha.Utils.efficiency'],
-    [normalize(join(__dirname, 'src/utils/profit-helpers.js')), 'Toolasha.Utils.profitHelpers'],
-    [normalize(join(__dirname, 'src/utils/profit-constants.js')), 'Toolasha.Utils.profitConstants'],
-    [normalize(join(__dirname, 'src/utils/dom.js')), 'Toolasha.Utils.dom'],
-    [normalize(join(__dirname, 'src/utils/dom-observer-helpers.js')), 'Toolasha.Utils.domObserverHelpers'],
-    [normalize(join(__dirname, 'src/utils/timer-registry.js')), 'Toolasha.Utils.timerRegistry'],
-    [normalize(join(__dirname, 'src/utils/bonus-revenue-calculator.js')), 'Toolasha.Utils.bonusRevenueCalculator'],
-    [normalize(join(__dirname, 'src/utils/enhancement-multipliers.js')), 'Toolasha.Utils.enhancementMultipliers'],
-    [normalize(join(__dirname, 'src/utils/experience-parser.js')), 'Toolasha.Utils.experienceParser'],
-    [normalize(join(__dirname, 'src/utils/market-listings.js')), 'Toolasha.Utils.marketListings'],
-    [normalize(join(__dirname, 'src/utils/action-calculator.js')), 'Toolasha.Utils.actionCalculator'],
-    [normalize(join(__dirname, 'src/utils/action-panel-helper.js')), 'Toolasha.Utils.actionPanelHelper'],
-    [normalize(join(__dirname, 'src/utils/tea-parser.js')), 'Toolasha.Utils.teaParser'],
-    [normalize(join(__dirname, 'src/utils/buff-parser.js')), 'Toolasha.Utils.buffParser'],
-    [normalize(join(__dirname, 'src/utils/selectors.js')), 'Toolasha.Utils.selectors'],
-    [normalize(join(__dirname, 'src/utils/house-efficiency.js')), 'Toolasha.Utils.houseEfficiency'],
-    [normalize(join(__dirname, 'src/utils/experience-calculator.js')), 'Toolasha.Utils.experienceCalculator'],
-    [normalize(join(__dirname, 'src/utils/market-data.js')), 'Toolasha.Utils.marketData'],
-    [normalize(join(__dirname, 'src/utils/ability-cost-calculator.js')), 'Toolasha.Utils.abilityCalc'],
-    [normalize(join(__dirname, 'src/utils/equipment-parser.js')), 'Toolasha.Utils.equipmentParser'],
-    [normalize(join(__dirname, 'src/utils/ui-components.js')), 'Toolasha.Utils.uiComponents'],
-    [normalize(join(__dirname, 'src/utils/enhancement-config.js')), 'Toolasha.Utils.enhancementConfig'],
-    [normalize(join(__dirname, 'src/utils/enhancement-gear-detector.js')), 'Toolasha.Utils.enhancementGearDetector'],
-    [normalize(join(__dirname, 'src/utils/react-input.js')), 'Toolasha.Utils.reactInput'],
-    [normalize(join(__dirname, 'src/utils/material-calculator.js')), 'Toolasha.Utils.materialCalculator'],
-    [normalize(join(__dirname, 'src/utils/token-valuation.js')), 'Toolasha.Utils.tokenValuation'],
-    [normalize(join(__dirname, 'src/utils/pricing-helper.js')), 'Toolasha.Utils.pricingHelper'],
-    [normalize(join(__dirname, 'src/utils/cleanup-registry.js')), 'Toolasha.Utils.cleanupRegistry'],
-    [normalize(join(__dirname, 'src/utils/house-cost-calculator.js')), 'Toolasha.Utils.houseCostCalculator'],
-    [normalize(join(__dirname, 'src/utils/enhancement-calculator.js')), 'Toolasha.Utils.enhancementCalculator'],
+    [normalize(join(__dirname, 'src/utils/formatters.js')), 'Cheezasha.Utils.formatters'],
+    [normalize(join(__dirname, 'src/utils/efficiency.js')), 'Cheezasha.Utils.efficiency'],
+    [normalize(join(__dirname, 'src/utils/profit-helpers.js')), 'Cheezasha.Utils.profitHelpers'],
+    [normalize(join(__dirname, 'src/utils/profit-constants.js')), 'Cheezasha.Utils.profitConstants'],
+    [normalize(join(__dirname, 'src/utils/dom.js')), 'Cheezasha.Utils.dom'],
+    [normalize(join(__dirname, 'src/utils/dom-observer-helpers.js')), 'Cheezasha.Utils.domObserverHelpers'],
+    [normalize(join(__dirname, 'src/utils/timer-registry.js')), 'Cheezasha.Utils.timerRegistry'],
+    [normalize(join(__dirname, 'src/utils/bonus-revenue-calculator.js')), 'Cheezasha.Utils.bonusRevenueCalculator'],
+    [normalize(join(__dirname, 'src/utils/enhancement-multipliers.js')), 'Cheezasha.Utils.enhancementMultipliers'],
+    [normalize(join(__dirname, 'src/utils/experience-parser.js')), 'Cheezasha.Utils.experienceParser'],
+    [normalize(join(__dirname, 'src/utils/market-listings.js')), 'Cheezasha.Utils.marketListings'],
+    [normalize(join(__dirname, 'src/utils/action-calculator.js')), 'Cheezasha.Utils.actionCalculator'],
+    [normalize(join(__dirname, 'src/utils/action-panel-helper.js')), 'Cheezasha.Utils.actionPanelHelper'],
+    [normalize(join(__dirname, 'src/utils/tea-parser.js')), 'Cheezasha.Utils.teaParser'],
+    [normalize(join(__dirname, 'src/utils/buff-parser.js')), 'Cheezasha.Utils.buffParser'],
+    [normalize(join(__dirname, 'src/utils/selectors.js')), 'Cheezasha.Utils.selectors'],
+    [normalize(join(__dirname, 'src/utils/house-efficiency.js')), 'Cheezasha.Utils.houseEfficiency'],
+    [normalize(join(__dirname, 'src/utils/experience-calculator.js')), 'Cheezasha.Utils.experienceCalculator'],
+    [normalize(join(__dirname, 'src/utils/market-data.js')), 'Cheezasha.Utils.marketData'],
+    [normalize(join(__dirname, 'src/utils/ability-cost-calculator.js')), 'Cheezasha.Utils.abilityCalc'],
+    [normalize(join(__dirname, 'src/utils/equipment-parser.js')), 'Cheezasha.Utils.equipmentParser'],
+    [normalize(join(__dirname, 'src/utils/ui-components.js')), 'Cheezasha.Utils.uiComponents'],
+    [normalize(join(__dirname, 'src/utils/enhancement-config.js')), 'Cheezasha.Utils.enhancementConfig'],
+    [normalize(join(__dirname, 'src/utils/enhancement-gear-detector.js')), 'Cheezasha.Utils.enhancementGearDetector'],
+    [normalize(join(__dirname, 'src/utils/react-input.js')), 'Cheezasha.Utils.reactInput'],
+    [normalize(join(__dirname, 'src/utils/material-calculator.js')), 'Cheezasha.Utils.materialCalculator'],
+    [normalize(join(__dirname, 'src/utils/token-valuation.js')), 'Cheezasha.Utils.tokenValuation'],
+    [normalize(join(__dirname, 'src/utils/pricing-helper.js')), 'Cheezasha.Utils.pricingHelper'],
+    [normalize(join(__dirname, 'src/utils/cleanup-registry.js')), 'Cheezasha.Utils.cleanupRegistry'],
+    [normalize(join(__dirname, 'src/utils/house-cost-calculator.js')), 'Cheezasha.Utils.houseCostCalculator'],
+    [normalize(join(__dirname, 'src/utils/enhancement-calculator.js')), 'Cheezasha.Utils.enhancementCalculator'],
 ]);
 
 // Combat feature modules imported cross-library (by ui)
 // Must be external so they reference the shared Combat.* globals instead of bundling duplicates
 const combatFeatureExternals = new Map([
-    // loadout-snapshot is accessed lazily at runtime via window.Toolasha.Combat.loadoutSnapshot
+    // loadout-snapshot is accessed lazily at runtime via window.Cheezasha.Combat.loadoutSnapshot
     // No entries needed here; kept as a hook for future cross-bundle combat singletons
 ]);
 
@@ -79,12 +79,12 @@ const combatFeatureExternals = new Map([
 const marketExternalGlobals = new Map([
     [
         normalize(join(__dirname, 'src/features/market/expected-value-calculator.js')),
-        'Toolasha.Market.expectedValueCalculator',
+        'Cheezasha.Market.expectedValueCalculator',
     ],
-    [normalize(join(__dirname, 'src/features/market/profit-calculator.js')), 'Toolasha.Market.profitCalculator'],
+    [normalize(join(__dirname, 'src/features/market/profit-calculator.js')), 'Cheezasha.Market.profitCalculator'],
     [
         normalize(join(__dirname, 'src/features/market/alchemy-profit-calculator.js')),
-        'Toolasha.Market.alchemyProfitCalculator',
+        'Cheezasha.Market.alchemyProfitCalculator',
     ],
 ]);
 
@@ -173,7 +173,7 @@ function workerBundlePlugin() {
 // Check if we should build for production (multi-bundle)
 const isProduction = process.env.BUILD_MODE === 'production';
 const buildTarget = process.env.BUILD_TARGET || 'dev';
-const devOutputFile = buildTarget === 'dev-standalone' ? 'dist/Toolasha-dev.user.js' : 'dist/Toolasha.user.js';
+const devOutputFile = buildTarget === 'dev-standalone' ? 'dist/Cheezasha-dev.user.js' : 'dist/Cheezasha.user.js';
 
 // Development build configuration (single bundle for local testing)
 const devConfig = {
@@ -181,7 +181,7 @@ const devConfig = {
     output: {
         file: devOutputFile,
         format: 'iife',
-        name: 'Toolasha',
+        name: 'Cheezasha',
         banner: userscriptHeader,
     },
     plugins: [
@@ -201,9 +201,9 @@ const prodLibraries = [
         key: 'core',
         input: 'src/libraries/core.js',
         output: {
-            file: 'dist/libraries/toolasha-core.js',
+            file: 'dist/libraries/cheezasha-core.js',
             format: 'iife',
-            name: 'ToolashaCore',
+            name: 'CheezashaCore',
             banner: libraryHeaderCore,
         },
     },
@@ -211,9 +211,9 @@ const prodLibraries = [
         key: 'utils',
         input: 'src/libraries/utils.js',
         output: {
-            file: 'dist/libraries/toolasha-utils.js',
+            file: 'dist/libraries/cheezasha-utils.js',
             format: 'iife',
-            name: 'ToolashaUtils',
+            name: 'CheezashaUtils',
             banner: libraryHeaderUtils,
         },
     },
@@ -221,9 +221,9 @@ const prodLibraries = [
         key: 'market',
         input: 'src/libraries/market.js',
         output: {
-            file: 'dist/libraries/toolasha-market.js',
+            file: 'dist/libraries/cheezasha-market.js',
             format: 'iife',
-            name: 'ToolashaMarket',
+            name: 'CheezashaMarket',
             banner: libraryHeaderMarket,
         },
     },
@@ -231,9 +231,9 @@ const prodLibraries = [
         key: 'actions',
         input: 'src/libraries/actions.js',
         output: {
-            file: 'dist/libraries/toolasha-actions.js',
+            file: 'dist/libraries/cheezasha-actions.js',
             format: 'iife',
-            name: 'ToolashaActions',
+            name: 'CheezashaActions',
             banner: libraryHeaderActions,
         },
     },
@@ -241,9 +241,9 @@ const prodLibraries = [
         key: 'combat',
         input: 'src/libraries/combat.js',
         output: {
-            file: 'dist/libraries/toolasha-combat.js',
+            file: 'dist/libraries/cheezasha-combat.js',
             format: 'iife',
-            name: 'ToolashaCombat',
+            name: 'CheezashaCombat',
             banner: libraryHeaderCombat,
         },
     },
@@ -251,9 +251,9 @@ const prodLibraries = [
         key: 'ui',
         input: 'src/libraries/ui.js',
         output: {
-            file: 'dist/libraries/toolasha-ui.js',
+            file: 'dist/libraries/cheezasha-ui.js',
             format: 'iife',
-            name: 'ToolashaUI',
+            name: 'CheezashaUI',
             banner: libraryHeaderUI,
         },
     },
@@ -262,12 +262,12 @@ const prodLibraries = [
 const prodEntrypoint = {
     input: 'src/entrypoint.js',
     output: {
-        file: 'dist/Toolasha.user.js',
+        file: 'dist/Cheezasha.user.js',
         format: 'iife',
-        name: 'ToolashaEntrypoint',
+        name: 'CheezashaEntrypoint',
         banner: entrypointHeader,
     },
-    // Entrypoint doesn't need any plugins - it just uses window.Toolasha
+    // Entrypoint doesn't need any plugins - it just uses window.Cheezasha
     plugins: [],
 };
 

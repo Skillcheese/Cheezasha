@@ -8,7 +8,7 @@ import config from '../../core/config.js';
 import domObserver from '../../core/dom-observer.js';
 import optimizeFoodUI from './optimize-food-ui.js';
 
-const BUTTON_CLASS = 'toolasha-optimize-food-btn';
+const BUTTON_CLASS = 'cheezasha-optimize-food-btn';
 
 class OptimizeFood {
     constructor() {
@@ -36,7 +36,7 @@ class OptimizeFood {
     }
 
     /**
-     * Inject the Optimize Food toggle button into a combat panel, next to the other Toolasha tabs.
+     * Inject the Optimize Food toggle button into a combat panel, next to the other Cheezasha tabs.
      * @param {HTMLElement} combatPanel - The combat panel element
      */
     _injectButton(combatPanel) {

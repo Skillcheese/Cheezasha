@@ -1,5 +1,5 @@
 /**
- * Toolasha Enhancement Calculator - Standalone Math Library
+ * Cheezasha Enhancement Calculator - Standalone Math Library
  *
  * Pure math library with NO game data dependencies.
  * Uses Markov Chain matrix math to calculate exact expected values.
@@ -8,7 +8,7 @@
  * All inputs are passed as parameters - no DOM or API calls.
  *
  * Usage:
- *   const result = window.ToolashaEnhancement.calculate({
+ *   const result = window.CheezashaEnhancement.calculate({
  *       baseItemPrice: 720000000,
  *       materialCostPerAttempt: 8979591,
  *       protectionPrice: 11500000,
@@ -199,7 +199,7 @@ function calculateStrategyResult(params, protectFrom) {
  * @returns {Object} Optimal strategy with cost breakdown
  *
  * @example
- * const result = ToolashaEnhancement.calculate({
+ * const result = CheezashaEnhancement.calculate({
  *     baseItemPrice: 720000000,
  *     materialCostPerAttempt: 8979591,
  *     protectionPrice: 11500000,
@@ -388,7 +388,7 @@ function calculate(params) {
  * @returns {number} Multiplier to apply to base success rates
  *
  * @example
- * const multiplier = ToolashaEnhancement.getSuccessMultiplier({
+ * const multiplier = CheezashaEnhancement.getSuccessMultiplier({
  *     enhancingLevel: 100,
  *     itemLevel: 80,
  *     toolBonus: 5
@@ -414,7 +414,7 @@ function getSuccessMultiplier(params) {
  * @returns {number[]} Array of actual success rates (decimals)
  *
  * @example
- * const rates = ToolashaEnhancement.applyMultiplierToBaseRates(1.10, 9);
+ * const rates = CheezashaEnhancement.applyMultiplierToBaseRates(1.10, 9);
  * // Returns: [0.55, 0.495, 0.495, 0.44, ...] for first 9 levels
  */
 function applyMultiplierToBaseRates(multiplier, maxLevel = 20) {
@@ -428,7 +428,7 @@ function applyMultiplierToBaseRates(multiplier, maxLevel = 20) {
 }
 
 // Export to global scope for @require usage
-window.ToolashaEnhancement = {
+window.CheezashaEnhancement = {
     // Main calculation function
     calculate,
 

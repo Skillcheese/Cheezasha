@@ -6,7 +6,7 @@
 
 import storage from '../../core/storage.js';
 
-const STORAGE_KEY = 'Toolasha_customPriceOverrides';
+const STORAGE_KEY = 'Cheezasha_customPriceOverrides';
 
 /** @type {Object|null} In-memory cache of overrides */
 let overridesCache = null;

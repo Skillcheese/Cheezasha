@@ -9,18 +9,18 @@ const __dirname = dirname(__filename);
 
 // Library header for standalone enhancement library (no userscript metadata)
 const standaloneHeader = `/**
- * Toolasha Enhancement Calculator - Standalone Math Library
+ * Cheezasha Enhancement Calculator - Standalone Math Library
  *
  * Pure math library for MWI enhancement calculations. No game data dependencies.
  * Uses Markov Chain matrix math to calculate exact expected values.
  *
  * @version 1.0.0
- * @author Celasha
+ * @author Celasha, forked by Skillcheese
  * @license MIT
- * @repository https://github.com/Celasha/Toolasha
+ * @repository https://github.com/Skillcheese/Cheezasha
  *
  * Usage:
- *   const result = window.ToolashaEnhancement.calculate({
+ *   const result = window.CheezashaEnhancement.calculate({
  *       baseItemPrice: 720000000,
  *       materialCostPerAttempt: 8979591,
  *       protectionPrice: 11500000,
@@ -54,7 +54,7 @@ function injectMathJS(headerContent) {
 // ===== MATHJS LIBRARY (vendored) =====
 ${mathjsUnwrapped}
 
-// ===== TOOLASHA ENHANCEMENT CALCULATOR =====
+// ===== CHEEZASHA ENHANCEMENT CALCULATOR =====
 ${code}
 `;
         },
@@ -64,9 +64,9 @@ ${code}
 export default {
     input: 'src/libraries/enhancement-standalone.js',
     output: {
-        file: 'dist/libraries/toolasha-enhancement-standalone.js',
+        file: 'dist/libraries/cheezasha-enhancement-standalone.js',
         format: 'iife',
-        name: 'ToolashaEnhancementBundle',
+        name: 'CheezashaEnhancementBundle',
     },
     plugins: [
         resolve({

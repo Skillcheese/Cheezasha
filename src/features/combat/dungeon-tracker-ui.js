@@ -40,7 +40,7 @@ class DungeonTrackerUI {
     async initialize() {
         // Prevent multiple initializations (memory leak protection)
         if (this.isInitialized) {
-            console.warn('[Toolasha Dungeon Tracker UI] Already initialized, skipping duplicate initialization');
+            console.warn('[Cheezasha Dungeon Tracker UI] Already initialized, skipping duplicate initialization');
             return;
         }
         this.isInitialized = true;
@@ -704,7 +704,7 @@ class DungeonTrackerUI {
         const allContainers = document.querySelectorAll('#mwi-dungeon-tracker');
         if (allContainers.length > 1) {
             console.warn(
-                `[Toolasha Dungeon Tracker UI] Found ${allContainers.length} UI containers, removing all (memory leak detected)`
+                `[Cheezasha Dungeon Tracker UI] Found ${allContainers.length} UI containers, removing all (memory leak detected)`
             );
         }
         allContainers.forEach((container) => container.remove());

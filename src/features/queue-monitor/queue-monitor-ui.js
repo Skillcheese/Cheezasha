@@ -12,7 +12,7 @@ import { createTimerRegistry } from '../../utils/timer-registry.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import queueSnapshot from './queue-snapshot.js';
 
-const PANEL_ID = 'toolasha-queue-monitor';
+const PANEL_ID = 'cheezasha-queue-monitor';
 const UPDATE_INTERVAL = 30_000; // 30 seconds
 const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -109,7 +109,7 @@ class QueueMonitorUI {
         `;
         header.innerHTML = `
             <span style="font-weight:600; font-size:12px; color:${ACCENT};">Queue Monitor</span>
-            <button id="toolasha-qm-toggle" style="
+            <button id="cheezasha-qm-toggle" style="
                 background:none; border:none; color:#aaa; font-size:16px;
                 cursor:pointer; padding:0; line-height:1;">${this.collapsed ? '+' : '−'}</button>
         `;
@@ -134,7 +134,7 @@ class QueueMonitorUI {
         this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
 
         // Toggle collapse
-        header.querySelector('#toolasha-qm-toggle').addEventListener('click', (e) => {
+        header.querySelector('#cheezasha-qm-toggle').addEventListener('click', (e) => {
             e.stopPropagation();
             this.collapsed = !this.collapsed;
             this.bodyEl.style.display = this.collapsed ? 'none' : 'block';

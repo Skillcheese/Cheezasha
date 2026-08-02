@@ -113,7 +113,7 @@ class PhiloCalculator {
             }
         };
 
-        const settingsUI = window.Toolasha?.UI?.settingsUI;
+        const settingsUI = window.Cheezasha?.UI?.settingsUI;
         if (settingsUI && typeof settingsUI.onSettingsPanelAppear === 'function') {
             settingsUI.onSettingsPanelAppear(ensureButtonExists);
         }

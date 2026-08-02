@@ -9,7 +9,7 @@ import domObserver from '../../core/dom-observer.js';
 import webSocketHook from '../../core/websocket.js';
 import dataManager from '../../core/data-manager.js';
 import storage from '../../core/storage.js';
-import { GAME, TOOLASHA } from '../../utils/selectors.js';
+import { GAME, CHEEZASHA } from '../../utils/selectors.js';
 import { createTimerRegistry } from '../../utils/timer-registry.js';
 import { addStyles } from '../../utils/dom.js';
 
@@ -369,7 +369,7 @@ class TaskRerollTracker {
     updateTaskDisplay(taskElement, claimedIds) {
         // Always ensure placeholder element exists to reserve layout space,
         // regardless of whether this task has been rerolled yet
-        let displayElement = taskElement.querySelector(TOOLASHA.REROLL_COST_DISPLAY);
+        let displayElement = taskElement.querySelector(CHEEZASHA.REROLL_COST_DISPLAY);
         if (!displayElement) {
             displayElement = document.createElement('div');
             displayElement.className = 'mwi-reroll-cost-display';

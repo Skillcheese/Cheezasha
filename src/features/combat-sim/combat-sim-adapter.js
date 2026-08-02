@@ -1,6 +1,6 @@
 /**
  * Combat Simulator Adapter
- * Bridges Toolasha's live data to the combat sim engine.
+ * Bridges Cheezasha's live data to the combat sim engine.
  *
  * Extracts game data maps, builds player DTOs, and provides
  * combat zone metadata for the simulation UI.

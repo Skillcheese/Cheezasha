@@ -1,5 +1,5 @@
 /**
- * Toolasha Entrypoint
+ * Cheezasha Entrypoint
  * Minimal bootstrap script that loads libraries and initializes features
  *
  * Libraries are loaded via @require in userscript header:
@@ -12,12 +12,12 @@
  */
 
 // Access libraries from global namespace
-const Core = window.Toolasha.Core;
-const Utils = window.Toolasha.Utils;
-const Market = window.Toolasha.Market;
-const Actions = window.Toolasha.Actions;
-const Combat = window.Toolasha.Combat;
-const UI = window.Toolasha.UI;
+const Core = window.Cheezasha.Core;
+const Utils = window.Cheezasha.Utils;
+const Market = window.Cheezasha.Market;
+const Actions = window.Cheezasha.Actions;
+const Combat = window.Cheezasha.Combat;
+const UI = window.Cheezasha.UI;
 
 // Destructure core modules
 const { storage, config, webSocketHook, domObserver, dataManager, featureRegistry } = Core;
@@ -834,7 +834,7 @@ if (isCombatSimulatorPage()) {
             // Don't wait for localStorageUtil - it handles missing data gracefully
             dataManager.initialize();
         } catch (error) {
-            console.error('[Toolasha] Storage/config initialization failed:', error);
+            console.error('[Cheezasha] Storage/config initialization failed:', error);
             // Initialize anyway
             dataManager.initialize();
         }
@@ -874,12 +874,12 @@ if (isCombatSimulatorPage()) {
 
                 // Initialize scroll simulator storage (character-specific)
                 await Combat.scrollSimulator.initialize().catch((error) => {
-                    console.error('[Toolasha] Scroll simulator initialization failed:', error);
+                    console.error('[Cheezasha] Scroll simulator initialization failed:', error);
                 });
 
                 // Initialize Settings UI after character data is loaded
                 await UI.settingsUI.initialize().catch((error) => {
-                    console.error('[Toolasha] Settings UI initialization failed:', error);
+                    console.error('[Cheezasha] Settings UI initialization failed:', error);
                 });
 
                 await featureRegistry.initializeFeatures();
@@ -892,7 +892,7 @@ if (isCombatSimulatorPage()) {
 
                     if (failedFeatures.length > 0) {
                         console.warn(
-                            '[Toolasha] Health check found failed features:',
+                            '[Cheezasha] Health check found failed features:',
                             failedFeatures.map((f) => f.name)
                         );
 
@@ -903,18 +903,18 @@ if (isCombatSimulatorPage()) {
                             const stillFailed = featureRegistry.checkFeatureHealth();
                             if (stillFailed.length > 0) {
                                 console.warn(
-                                    '[Toolasha] These features could not initialize:',
+                                    '[Cheezasha] These features could not initialize:',
                                     stillFailed.map((f) => f.name)
                                 );
                                 console.warn(
-                                    '[Toolasha] Try refreshing the page or reopening the relevant game panels'
+                                    '[Cheezasha] Try refreshing the page or reopening the relevant game panels'
                                 );
                             }
                         }, 1000);
                     }
                 }, 500); // Wait 500ms after initialization to check health
             } catch (error) {
-                console.error('[Toolasha] Feature initialization failed:', error);
+                console.error('[Cheezasha] Feature initialization failed:', error);
             }
         }, 100);
     });
@@ -922,10 +922,10 @@ if (isCombatSimulatorPage()) {
     // Expose minimal user-facing API
     const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-    targetWindow.Toolasha.version = '2.87.0';
+    targetWindow.Cheezasha.version = '2.87.0';
 
     // Feature toggle API (for users to manage settings via console)
-    targetWindow.Toolasha.features = {
+    targetWindow.Cheezasha.features = {
         list: () => config.getFeaturesByCategory(),
         enable: (key) => config.setFeatureEnabled(key, true),
         disable: (key) => config.setFeatureEnabled(key, false),
@@ -935,12 +935,12 @@ if (isCombatSimulatorPage()) {
     };
 
     // Guild XP data management
-    targetWindow.Toolasha.guild = {
+    targetWindow.Cheezasha.guild = {
         resetMemberXP: () => UI.guildXPTracker.resetMemberData(),
     };
 
     // Debug utilities (for diagnosing issues via console)
-    targetWindow.Toolasha.debug = {
+    targetWindow.Cheezasha.debug = {
         storage: () => {
             const diag = storage.diagnostics();
             console.log('=== Storage Diagnostics ===');

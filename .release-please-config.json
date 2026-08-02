@@ -2,8 +2,8 @@
     "packages": {
         ".": {
             "release-type": "node",
-            "package-name": "toolasha",
-            "component": "Toolasha",
+            "package-name": "cheezasha",
+            "component": "Cheezasha",
             "include-component-in-tag": false,
             "draft": true,
             "bootstrap-sha": "bfcf9634a2a8af61dd3f8e9467c41268dfa32b44",

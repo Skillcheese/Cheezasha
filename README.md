@@ -1,4 +1,4 @@
-# Toolasha
+# Cheezasha
 
 ![Version](https://img.shields.io/badge/version-2.87.0-orange?style=flat-square) ![Status](https://img.shields.io/badge/status-pre--release-yellow?style=flat-square) ![License](https://img.shields.io/badge/license-CC--BY--NC--SA--4.0-blue?style=flat-square)
 
@@ -10,9 +10,9 @@ A modular userscript that enhances [Milky Way Idle](https://www.milkywayidle.com
 
 ## About
 
-Toolasha is a complete rewrite of the popular MWITools userscript, rebuilt from the ground up with modern JavaScript architecture. All features are modular and can be individually enabled or disabled through an in-game settings panel.
+Cheezasha is a complete rewrite of the popular MWITools userscript, rebuilt from the ground up with modern JavaScript architecture. All features are modular and can be individually enabled or disabled through an in-game settings panel.
 
-This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/Toolasha).
+This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/Toolasha), renamed to Cheezasha.
 
 ## Features
 
@@ -115,7 +115,7 @@ This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/To
 
 1. **Download the latest release**
     - Visit the [Releases page](../../releases)
-    - Download `Toolasha.user.js` from the latest release
+    - Download `Cheezasha.user.js` from the latest release
 
 2. **Install in Tampermonkey**
     - Click the downloaded file, or
@@ -123,18 +123,18 @@ This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/To
 
 3. **Visit the game**
     - Go to [Milky Way Idle](https://www.milkywayidle.com/game)
-    - Toolasha loads automatically
+    - Cheezasha loads automatically
 
 > The entrypoint loads required libraries automatically from GitHub raw URLs.
 
 ### Install from Source
 
 ```bash
-git clone https://github.com/Skillcheese/Toolasha.git
-cd Toolasha
+git clone https://github.com/Skillcheese/Cheezasha.git
+cd Cheezasha
 npm install
 npm run build:dev
-# Install dist/Toolasha-dev.user.js in Tampermonkey
+# Install dist/Cheezasha-dev.user.js in Tampermonkey
 ```
 
 ## Usage
@@ -144,7 +144,7 @@ npm run build:dev
 1. Open the game at [milkywayidle.com/game](https://www.milkywayidle.com/game)
 2. Click your **character icon** (top-right of screen)
 3. Click **Settings**
-4. Click the **Toolasha** tab in the settings menu
+4. Click the **Cheezasha** tab in the settings menu
 5. Enable/disable features as desired — settings are saved automatically
 
 ### Troubleshooting
@@ -152,13 +152,13 @@ npm run build:dev
 If features aren't working:
 
 1. **Refresh the page** — Some features require a page reload after enabling
-2. **Check browser console** — Look for `[Toolasha]` error messages (F12 → Console)
+2. **Check browser console** — Look for `[Cheezasha]` error messages (F12 → Console)
 3. **Verify the extension is enabled** — Check your extension manager icon
 4. **Report issues** — [Open an issue](../../issues) with details
 
 ## For Developers
 
-Toolasha is built with modern JavaScript (ES6+) using a modular, feature-based architecture. Contributions are welcome!
+Cheezasha is built with modern JavaScript (ES6+) using a modular, feature-based architecture. Contributions are welcome!
 
 ### Quick Start
 
@@ -188,7 +188,7 @@ npm test              # Run test suite (202 tests)
 ## Project Structure
 
 ```
-Toolasha/
+Cheezasha/
 ├── src/
 │   ├── core/                      # Core systems (storage, config, websocket, data-manager)
 │   ├── features/                  # Feature modules

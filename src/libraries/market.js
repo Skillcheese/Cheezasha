@@ -2,7 +2,7 @@
  * Market Library
  * Market, inventory, and economy features
  *
- * Exports to: window.Toolasha.Market
+ * Exports to: window.Cheezasha.Market
  */
 
 // Market features
@@ -43,14 +43,14 @@ import inventoryCategoryTotals from '../features/inventory/inventory-category-to
 import customTabsFeature from '../features/inventory/custom-tabs/custom-tabs-feature.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.Market = {
+cheezashaRoot.Market = {
     tooltipPrices,
     expectedValueCalculator,
     tooltipConsumables,
@@ -84,4 +84,4 @@ toolashaRoot.Market = {
     milkywayMarketLink,
 };
 
-console.log('[Toolasha] Market library loaded');
+console.log('[Cheezasha] Market library loaded');

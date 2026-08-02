@@ -14,7 +14,7 @@ import dataManager from '../../core/data-manager.js';
 import { createCalculatorUI, extractExpRates } from '../combat-sim-integration/skill-calculator-ui.js';
 
 const timerRegistry = createTimerRegistry();
-const IMPORT_CONTAINER_ID = 'toolasha-import-container';
+const IMPORT_CONTAINER_ID = 'cheezasha-import-container';
 
 // Skill calculator state
 let calculatorObserver = null;
@@ -24,7 +24,7 @@ let calculatorUIElements = null;
  * Initialize combat sim integration (runs on sim page only)
  */
 export function initialize() {
-    console.log('[Toolasha Combat Sim] initialize() called, URL:', window.location.href);
+    console.log('[Cheezasha Combat Sim] initialize() called, URL:', window.location.href);
     disable();
 
     // Wait for simulator UI to load
@@ -78,12 +78,12 @@ function waitForSimulatorUI() {
 }
 
 /**
- * Inject "Import from Toolasha" button
+ * Inject "Import from Cheezasha" button
  * @param {Element} exportButton - Reference element to insert after
  */
 function injectImportButton(exportButton) {
     // Check if button already exists
-    if (document.getElementById('toolasha-import-button')) {
+    if (document.getElementById('cheezasha-import-button')) {
         return;
     }
 
@@ -94,9 +94,9 @@ function injectImportButton(exportButton) {
 
     // Create import button
     const button = document.createElement('button');
-    button.id = 'toolasha-import-button';
+    button.id = 'cheezasha-import-button';
     // Include hidden text for JIGS compatibility (JIGS searches for "Import solo/group")
-    button.innerHTML = 'Import from Toolasha<span style="display:none;">Import solo/group</span>';
+    button.innerHTML = 'Import from Cheezasha<span style="display:none;">Import solo/group</span>';
     button.style.backgroundColor = config.COLOR_ACCENT;
     button.style.color = 'white';
     button.style.padding = '10px 20px';
@@ -138,11 +138,11 @@ async function importDataToSimulator(button) {
             button.textContent = 'Error: No character data';
             button.style.backgroundColor = '#dc3545'; // Red
             const resetTimeout = setTimeout(() => {
-                button.innerHTML = 'Import from Toolasha<span style="display:none;">Import solo/group</span>';
+                button.innerHTML = 'Import from Cheezasha<span style="display:none;">Import solo/group</span>';
                 button.style.backgroundColor = config.COLOR_ACCENT;
             }, 3000);
             timerRegistry.registerTimeout(resetTimeout);
-            console.error('[Toolasha Combat Sim] No export data available');
+            console.error('[Cheezasha Combat Sim] No export data available');
             alert(
                 'No character data found. Please:\n1. Refresh the game page\n2. Wait for it to fully load\n3. Try again'
             );
@@ -157,7 +157,7 @@ async function importDataToSimulator(button) {
         if (groupTab) {
             groupTab.click();
         } else {
-            console.warn('[Toolasha Combat Sim] Group combat tab not found');
+            console.warn('[Cheezasha Combat Sim] Group combat tab not found');
         }
 
         // Small delay to let tab switch complete
@@ -168,7 +168,7 @@ async function importDataToSimulator(button) {
                 // exportObj already has JSON strings for each slot, just stringify once
                 setReactInputValue(importInput, JSON.stringify(exportObj), { focus: false });
             } else {
-                console.error('[Toolasha Combat Sim] Import input field not found');
+                console.error('[Cheezasha Combat Sim] Import input field not found');
             }
 
             // Step 3: Click import button
@@ -176,7 +176,7 @@ async function importDataToSimulator(button) {
             if (importButton) {
                 importButton.click();
             } else {
-                console.error('[Toolasha Combat Sim] Import button not found');
+                console.error('[Cheezasha Combat Sim] Import button not found');
             }
 
             // Step 4: Toggle dungeon mode BEFORE setting player names.
@@ -240,7 +240,7 @@ async function importDataToSimulator(button) {
                     difficultyElement.dispatchEvent(new Event('change'));
                     difficultyElement.dispatchEvent(new Event('input'));
                 } else {
-                    console.warn('[Toolasha Combat Sim] Difficulty element not found');
+                    console.warn('[Cheezasha Combat Sim] Difficulty element not found');
                 }
             }, 250); // Increased delay to ensure zone loads first
             timerRegistry.registerTimeout(difficultyTimeout);
@@ -270,18 +270,18 @@ async function importDataToSimulator(button) {
             button.textContent = '✓ Imported';
             button.style.backgroundColor = '#28a745'; // Green
             const successResetTimeout = setTimeout(() => {
-                button.innerHTML = 'Import from Toolasha<span style="display:none;">Import solo/group</span>';
+                button.innerHTML = 'Import from Cheezasha<span style="display:none;">Import solo/group</span>';
                 button.style.backgroundColor = config.COLOR_ACCENT;
             }, 3000);
             timerRegistry.registerTimeout(successResetTimeout);
         }, 100);
         timerRegistry.registerTimeout(importTimeout);
     } catch (error) {
-        console.error('[Toolasha Combat Sim] Import failed:', error);
+        console.error('[Cheezasha Combat Sim] Import failed:', error);
         button.textContent = 'Import Failed';
         button.style.backgroundColor = '#dc3545'; // Red
         const failResetTimeout = setTimeout(() => {
-            button.innerHTML = 'Import from Toolasha<span style="display:none;">Import solo/group</span>';
+            button.innerHTML = 'Import from Cheezasha<span style="display:none;">Import solo/group</span>';
             button.style.backgroundColor = config.COLOR_ACCENT;
         }, 3000);
         timerRegistry.registerTimeout(failResetTimeout);
@@ -331,31 +331,31 @@ function selectZone(zoneHrid, isDungeon) {
  */
 async function initializeSkillCalculator() {
     try {
-        console.log('[Toolasha Combat Sim Calculator] Starting initialization...');
+        console.log('[Cheezasha Combat Sim Calculator] Starting initialization...');
         // Wait for sim results panel to exist
         const resultsPanel = await waitForSimResults();
         if (!resultsPanel) {
-            console.warn('[Toolasha Combat Sim Calculator] Results panel not found');
+            console.warn('[Cheezasha Combat Sim Calculator] Results panel not found');
             return;
         }
-        console.log('[Toolasha Combat Sim Calculator] Results panel found:', resultsPanel);
+        console.log('[Cheezasha Combat Sim Calculator] Results panel found:', resultsPanel);
 
         // Wait for experience gain div to exist
         const expDiv = await waitForExpDiv();
         if (!expDiv) {
-            console.warn('[Toolasha Combat Sim Calculator] Experience div not found');
+            console.warn('[Cheezasha Combat Sim Calculator] Experience div not found');
             return;
         }
-        console.log('[Toolasha Combat Sim Calculator] Exp div found, setting up observer');
+        console.log('[Cheezasha Combat Sim Calculator] Exp div found, setting up observer');
 
         // Apply result section highlights
         applyResultHighlights();
 
         // Setup mutation observer to watch for sim results
         setupSkillCalculatorObserver(expDiv, resultsPanel);
-        console.log('[Toolasha Combat Sim Calculator] Observer setup complete');
+        console.log('[Cheezasha Combat Sim Calculator] Observer setup complete');
     } catch (error) {
-        console.error('[Toolasha Combat Sim Calculator] Failed to initialize:', error);
+        console.error('[Cheezasha Combat Sim Calculator] Failed to initialize:', error);
     }
 }
 
@@ -452,7 +452,7 @@ function setupSkillCalculatorObserver(expDiv, resultsPanel) {
         if (hasSignificantChange) {
             // Check if exp div has actual skill data
             const rows = expDiv.querySelectorAll('.row');
-            console.log('[Toolasha Combat Sim Calculator] Mutation detected, .row count:', rows.length);
+            console.log('[Cheezasha Combat Sim Calculator] Mutation detected, .row count:', rows.length);
 
             if (rows.length > 0) {
                 // Debounce to avoid multiple rapid calls
@@ -526,24 +526,24 @@ async function handleSimResults(resultsPanel) {
     try {
         // Extract exp rates from sim results
         const expRates = extractExpRates();
-        console.log('[Toolasha Combat Sim Calculator] expRates:', expRates);
+        console.log('[Cheezasha Combat Sim Calculator] expRates:', expRates);
 
         if (!expRates || Object.keys(expRates).length === 0) {
-            console.warn('[Toolasha Combat Sim Calculator] No exp rates found');
+            console.warn('[Cheezasha Combat Sim Calculator] No exp rates found');
             return;
         }
 
         // Extract skill levels from simulator's active player tab
         let characterSkills = extractSimulatorSkillLevels();
-        console.log('[Toolasha Combat Sim Calculator] characterSkills:', characterSkills);
+        console.log('[Cheezasha Combat Sim Calculator] characterSkills:', characterSkills);
 
         // Fallback to real character data if simulator extraction fails
         if (!characterSkills) {
             const characterData = getCharacterDataFromStorage();
-            console.log('[Toolasha Combat Sim Calculator] Fallback characterData:', !!characterData);
+            console.log('[Cheezasha Combat Sim Calculator] Fallback characterData:', !!characterData);
 
             if (!characterData) {
-                console.warn('[Toolasha Combat Sim Calculator] No character data available');
+                console.warn('[Cheezasha Combat Sim Calculator] No character data available');
                 return;
             }
 
@@ -551,7 +551,7 @@ async function handleSimResults(resultsPanel) {
         }
 
         if (!characterSkills) {
-            console.warn('[Toolasha Combat Sim Calculator] No character skills data');
+            console.warn('[Cheezasha Combat Sim Calculator] No character skills data');
             return;
         }
 
@@ -559,14 +559,14 @@ async function handleSimResults(resultsPanel) {
         const clientData = getClientDataFromStorage();
 
         if (!clientData) {
-            console.warn('[Toolasha Combat Sim Calculator] No client data available');
+            console.warn('[Cheezasha Combat Sim Calculator] No client data available');
             return;
         }
 
         const levelExpTable = clientData.levelExperienceTable;
 
         if (!levelExpTable) {
-            console.warn('[Toolasha Combat Sim Calculator] No level exp table');
+            console.warn('[Cheezasha Combat Sim Calculator] No level exp table');
             return;
         }
 
@@ -591,7 +591,7 @@ async function handleSimResults(resultsPanel) {
         // Create new calculator UI
         calculatorUIElements = createCalculatorUI(resultsPanel, characterSkills, expRates, levelExpTable);
     } catch (error) {
-        console.error('[Toolasha Combat Sim Calculator] Failed to handle sim results:', error);
+        console.error('[Cheezasha Combat Sim Calculator] Failed to handle sim results:', error);
     }
 }
 
@@ -605,13 +605,13 @@ function getCharacterDataFromStorage() {
     if (data) return data;
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_init_character_data', null);
+            const raw = GM_getValue('cheezasha_init_character_data', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */
         }
     }
-    console.error('[Toolasha Combat Sim Calculator] No character data. Please refresh game page.');
+    console.error('[Cheezasha Combat Sim Calculator] No character data. Please refresh game page.');
     return null;
 }
 
@@ -625,7 +625,7 @@ function getClientDataFromStorage() {
     if (data) return data;
     if (typeof GM_getValue !== 'undefined') {
         try {
-            const raw = GM_getValue('toolasha_init_client_data', null);
+            const raw = GM_getValue('cheezasha_init_client_data', null);
             if (raw) return JSON.parse(raw);
         } catch {
             /* ignore */

@@ -119,14 +119,14 @@ class WebSocketHook {
         const hookInstance = this;
 
         const wrapConstructor = (OriginalWebSocket) => {
-            if (!OriginalWebSocket || OriginalWebSocket.__toolashaWrapped) {
+            if (!OriginalWebSocket || OriginalWebSocket.__cheezashaWrapped) {
                 hookInstance.currentWebSocket = OriginalWebSocket;
                 return;
             }
 
             // Only subclass native WebSocket constructors. Third-party wrappers
             // (other userscripts replacing window.WebSocket) are passed through
-            // as-is — Toolasha still intercepts via MessageEvent.data hook and
+            // as-is — Cheezasha still intercepts via MessageEvent.data hook and
             // WebSocket.prototype patches.
             const isNative = /\[native code\]/.test(Function.prototype.toString.call(OriginalWebSocket));
             if (!isNative) {
@@ -134,18 +134,18 @@ class WebSocketHook {
                 return;
             }
 
-            class ToolashaWebSocket extends OriginalWebSocket {
+            class CheezashaWebSocket extends OriginalWebSocket {
                 constructor(...args) {
                     super(...args);
                     hookInstance.attachSocketListeners(this);
                 }
             }
 
-            ToolashaWebSocket.__toolashaWrapped = true;
-            ToolashaWebSocket.__toolashaOriginal = OriginalWebSocket;
+            CheezashaWebSocket.__cheezashaWrapped = true;
+            CheezashaWebSocket.__cheezashaOriginal = OriginalWebSocket;
 
             hookInstance.originalWebSocket = OriginalWebSocket;
-            hookInstance.currentWebSocket = ToolashaWebSocket;
+            hookInstance.currentWebSocket = CheezashaWebSocket;
         };
 
         wrapConstructor(targetWindow.WebSocket);
@@ -344,7 +344,7 @@ class WebSocketHook {
             if (hasGM && messageType === 'init_character_data') {
                 setTimeout(() => {
                     try {
-                        GM_setValue('toolasha_init_character_data', message);
+                        GM_setValue('cheezasha_init_character_data', message);
                     } catch {
                         /* ignore */
                     }
@@ -352,7 +352,7 @@ class WebSocketHook {
             } else if (hasGM && messageType === 'init_client_data') {
                 setTimeout(() => {
                     try {
-                        GM_setValue('toolasha_init_client_data', message);
+                        GM_setValue('cheezasha_init_client_data', message);
                     } catch {
                         /* ignore */
                     }
@@ -360,7 +360,7 @@ class WebSocketHook {
             } else if (hasGM && messageType === 'new_battle') {
                 setTimeout(() => {
                     try {
-                        GM_setValue('toolasha_new_battle', message);
+                        GM_setValue('cheezasha_new_battle', message);
                     } catch {
                         /* ignore */
                     }
@@ -381,7 +381,7 @@ class WebSocketHook {
 
                 // Validate we got a character ID
                 if (!parsed.characterID) {
-                    console.error('[Toolasha] Failed to extract characterID from profile:', parsed);
+                    console.error('[Cheezasha] Failed to extract characterID from profile:', parsed);
                     return;
                 }
 
@@ -406,7 +406,7 @@ class WebSocketHook {
                 await storage.setJSON('profile_list', profileList, 'combatExport', true);
                 if (hasGM) {
                     try {
-                        GM_setValue('toolasha_profile_list', JSON.stringify(profileList));
+                        GM_setValue('cheezasha_profile_list', JSON.stringify(profileList));
                     } catch {
                         /* ignore */
                     }

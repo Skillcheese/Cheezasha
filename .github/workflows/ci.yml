@@ -46,12 +46,12 @@ jobs:
             - name: Verify bundle sizes
               run: |
                   limit=2097152
-                  entrypoint_size=$(wc -c < "dist/Toolasha.user.js")
+                  entrypoint_size=$(wc -c < "dist/Cheezasha.user.js")
                   if [ "$entrypoint_size" -gt "$limit" ]; then
-                    echo "❌ dist/Toolasha.user.js is over 2MB limit ($entrypoint_size bytes)"
+                    echo "❌ dist/Cheezasha.user.js is over 2MB limit ($entrypoint_size bytes)"
                     exit 1
                   fi
-                  echo "✅ dist/Toolasha.user.js is under 2MB ($entrypoint_size bytes)"
+                  echo "✅ dist/Cheezasha.user.js is under 2MB ($entrypoint_size bytes)"
                   for file in dist/libraries/*.js; do
                     size=$(wc -c < "$file")
                     if [ "$size" -gt "$limit" ]; then

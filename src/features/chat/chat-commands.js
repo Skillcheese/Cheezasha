@@ -1,7 +1,7 @@
 /**
  * Chat Commands Module
  * Adds /item, /wiki, and /market commands to in-game chat
- * Port of MWI Game Commands by Mists, integrated into Toolasha architecture
+ * Port of MWI Game Commands by Mists, integrated into Cheezasha architecture
  */
 
 import config from '../../core/config.js';

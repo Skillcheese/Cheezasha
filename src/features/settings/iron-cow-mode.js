@@ -111,7 +111,7 @@ class IronCowMode {
      */
     _snapshotKey() {
         const cid = dataManager.getCurrentCharacterId?.();
-        return cid ? `toolasha_ironCowSnapshot_${cid}` : 'toolasha_ironCowSnapshot';
+        return cid ? `cheezasha_ironCowSnapshot_${cid}` : 'cheezasha_ironCowSnapshot';
     }
 
     /**

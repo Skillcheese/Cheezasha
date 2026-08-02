@@ -1,6 +1,6 @@
 /**
  * PFormance Panel
- * Floating panel displaying CPU performance metrics for Toolasha features
+ * Floating panel displaying CPU performance metrics for Cheezasha features
  * and DOM observer handlers.
  */
 
@@ -9,7 +9,7 @@ import { createTimerRegistry } from '../../utils/timer-registry.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 
 function getPerformanceMonitor() {
-    return window.Toolasha?.Core?.performanceMonitor;
+    return window.Cheezasha?.Core?.performanceMonitor;
 }
 
 const COLORS = {
@@ -56,7 +56,7 @@ class PFormancePanel {
 
     _createPanel() {
         this.panel = document.createElement('div');
-        this.panel.id = 'toolasha-pformance-panel';
+        this.panel.id = 'cheezasha-pformance-panel';
         Object.assign(this.panel.style, {
             position: 'fixed',
             top: '80px',

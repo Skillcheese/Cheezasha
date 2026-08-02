@@ -73,18 +73,18 @@ export const GAME = {
 };
 
 /**
- * Toolasha-specific selectors (our injected elements)
+ * Cheezasha-specific selectors (our injected elements)
  */
-export const TOOLASHA = {
+export const CHEEZASHA = {
     // Settings
-    SETTINGS_TAB: '#toolasha-settings-tab',
-    SETTING_WITH_DEPS: '.toolasha-setting[data-dependencies]',
+    SETTINGS_TAB: '#cheezasha-settings-tab',
+    SETTING_WITH_DEPS: '.cheezasha-setting[data-dependencies]',
 
     // Task features
     TASK_PROFIT: '.mwi-task-profit',
     REROLL_COST_DISPLAY: '.mwi-reroll-cost-display',
-    TASK_STATS_BTN: '.toolasha-task-stats-btn',
-    TASK_STATS_OVERLAY: '.toolasha-task-stats-overlay',
+    TASK_STATS_BTN: '.cheezasha-task-stats-btn',
+    TASK_STATS_OVERLAY: '.cheezasha-task-stats-overlay',
 
     // Action features
     QUEUE_TOTAL_TIME: '#mwi-queue-total-time',

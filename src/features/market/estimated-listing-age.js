@@ -184,7 +184,7 @@ class EstimatedListingAge {
             if (data.newMarketListings) {
                 for (const listing of data.newMarketListings) {
                     // New listings should start as 'unknown' (will be marked 'active' by history viewer)
-                    listing._toolashaStatus = 'unknown';
+                    listing._cheezashaStatus = 'unknown';
                     this.recordListing(listing);
                 }
             }
@@ -205,27 +205,27 @@ class EstimatedListingAge {
                     // Use game's status HRID to determine what happened
                     if (listing.status === '/market_listing_status/active') {
                         // New listing being created - mark as unknown (history viewer will set to active)
-                        listing._toolashaStatus = 'unknown';
+                        listing._cheezashaStatus = 'unknown';
                     } else if (listing.status === '/market_listing_status/cancelled') {
                         if (listing.filledQuantity > 0) {
                             // Partially filled before cancel (e.g. Missing Materials split) — record as filled for the amount received
-                            listing._toolashaStatus = 'filled';
+                            listing._cheezashaStatus = 'filled';
                             listing.orderQuantity = listing.filledQuantity;
                         } else {
                             // User canceled the listing with nothing filled
-                            listing._toolashaStatus = 'canceled';
+                            listing._cheezashaStatus = 'canceled';
                         }
                     } else if (listing.status === '/market_listing_status/filled') {
                         // Listing was filled
-                        listing._toolashaStatus = 'filled';
+                        listing._cheezashaStatus = 'filled';
                     } else if (listing.status === '/market_listing_status/expired') {
                         // Listing expired
-                        listing._toolashaStatus = 'expired';
+                        listing._cheezashaStatus = 'expired';
                     } else if (listing.filledQuantity >= listing.orderQuantity) {
                         // Unknown status - fallback to old logic
-                        listing._toolashaStatus = 'filled';
+                        listing._cheezashaStatus = 'filled';
                     } else {
-                        listing._toolashaStatus = 'canceled';
+                        listing._cheezashaStatus = 'canceled';
                     }
 
                     this.recordListing(listing);
@@ -387,10 +387,10 @@ class EstimatedListingAge {
         // Determine status (NEVER use listing.status from game data - it's an HRID like "/market_listing_status/active")
         // Priority: new status update from WebSocket > existing status > default unknown
         let status;
-        if (listing._toolashaStatus) {
+        if (listing._cheezashaStatus) {
             // Use explicitly set status from updateHandler (canceled/filled detection)
             // This takes priority over existing status (allows status updates)
-            status = listing._toolashaStatus;
+            status = listing._cheezashaStatus;
         } else if (existingIndex !== -1 && this.knownListings[existingIndex].status) {
             // Preserve existing tracked status if no new update
             status = this.knownListings[existingIndex].status;

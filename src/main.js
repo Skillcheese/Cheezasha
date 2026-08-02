@@ -26,7 +26,7 @@ function isCombatSimulatorPage() {
 }
 
 if (isCombatSimulatorPage()) {
-    console.log('[Toolasha] Detected combat sim page, initializing integration');
+    console.log('[Cheezasha] Detected combat sim page, initializing integration');
     // Initialize combat sim integration only
     combatSimIntegration.initialize();
 
@@ -65,7 +65,7 @@ if (isCombatSimulatorPage()) {
             // Don't wait for localStorageUtil - it handles missing data gracefully
             dataManager.initialize();
         } catch (error) {
-            console.error('[Toolasha] Storage/config initialization failed:', error);
+            console.error('[Cheezasha] Storage/config initialization failed:', error);
             // Initialize anyway
             dataManager.initialize();
         }
@@ -90,7 +90,7 @@ if (isCombatSimulatorPage()) {
 
                 // Initialize Settings UI after character data is loaded
                 await settingsUI.initialize().catch((error) => {
-                    console.error('[Toolasha] Settings UI initialization failed:', error);
+                    console.error('[Cheezasha] Settings UI initialization failed:', error);
                 });
 
                 await featureRegistry.initializeFeatures();
@@ -103,7 +103,7 @@ if (isCombatSimulatorPage()) {
 
                     if (failedFeatures.length > 0) {
                         console.warn(
-                            '[Toolasha] Health check found failed features:',
+                            '[Cheezasha] Health check found failed features:',
                             failedFeatures.map((f) => f.name)
                         );
 
@@ -114,18 +114,18 @@ if (isCombatSimulatorPage()) {
                             const stillFailed = featureRegistry.checkFeatureHealth();
                             if (stillFailed.length > 0) {
                                 console.warn(
-                                    '[Toolasha] These features could not initialize:',
+                                    '[Cheezasha] These features could not initialize:',
                                     stillFailed.map((f) => f.name)
                                 );
                                 console.warn(
-                                    '[Toolasha] Try refreshing the page or reopening the relevant game panels'
+                                    '[Cheezasha] Try refreshing the page or reopening the relevant game panels'
                                 );
                             }
                         }, 1000);
                     }
                 }, 500); // Wait 500ms after initialization to check health
             } catch (error) {
-                console.error('[Toolasha] Feature initialization failed:', error);
+                console.error('[Cheezasha] Feature initialization failed:', error);
             }
         }, 100);
     });
@@ -133,12 +133,12 @@ if (isCombatSimulatorPage()) {
     // Expose minimal user-facing API
     const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-    const toolashaRoot = targetWindow.Toolasha || {};
-    targetWindow.Toolasha = toolashaRoot;
+    const cheezashaRoot = targetWindow.Cheezasha || {};
+    targetWindow.Cheezasha = cheezashaRoot;
 
-    toolashaRoot.version = '2.87.0';
+    cheezashaRoot.version = '2.87.0';
 
-    toolashaRoot.features = {
+    cheezashaRoot.features = {
         list: () => config.getFeaturesByCategory(),
         enable: (key) => config.setFeatureEnabled(key, true),
         disable: (key) => config.setFeatureEnabled(key, false),
@@ -147,7 +147,7 @@ if (isCombatSimulatorPage()) {
         info: (key) => config.getFeatureInfo(key),
     };
 
-    toolashaRoot.guild = {
+    cheezashaRoot.guild = {
         resetMemberXP: () => guildXPTrackerFeature.resetMemberData(),
     };
 }

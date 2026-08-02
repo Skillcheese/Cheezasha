@@ -1,9 +1,9 @@
-# Toolasha Documentation Guide
+# Cheezasha Documentation Guide
 
 ## Quick Links
 
 - [README](README.md) - Project overview and quick start
-- [CONTRIBUTING](CONTRIBUTING.md) - How to contribute to Toolasha
+- [CONTRIBUTING](CONTRIBUTING.md) - How to contribute to Cheezasha
 - [AGENTS](AGENTS.md) - Developer guide for AI coding agents
 - [FEATURES](FEATURES.md) - Complete feature list
 - [CHANGELOG](MWI-TOOLS-CHANGELOG.md) - Version history

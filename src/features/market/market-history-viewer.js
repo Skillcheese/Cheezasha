@@ -1951,7 +1951,7 @@ class MarketHistoryViewer {
             progressMsg.textContent = `Importing ${marketList.length} listings...`;
             document.body.appendChild(progressMsg);
 
-            // Convert imported format to Toolasha format
+            // Convert imported format to Cheezasha format
             const existingListings = await storage.getJSON(this.storageKey, 'marketListings', []);
             const existingIds = new Set(existingListings.map((l) => l.id));
 
@@ -1965,8 +1965,8 @@ class MarketHistoryViewer {
                     continue;
                 }
 
-                // Convert to Toolasha format
-                const toolashaListing = {
+                // Convert to Cheezasha format
+                const cheezashaListing = {
                     id: etListing.id,
                     timestamp: new Date(etListing.createdTimestamp).getTime(),
                     createdTimestamp: etListing.createdTimestamp,
@@ -1978,7 +1978,7 @@ class MarketHistoryViewer {
                     isSell: etListing.isSell,
                 };
 
-                existingListings.push(toolashaListing);
+                existingListings.push(cheezashaListing);
                 imported++;
             }
 

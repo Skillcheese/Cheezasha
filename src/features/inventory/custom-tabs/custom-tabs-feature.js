@@ -1,6 +1,6 @@
 /**
  * Custom Inventory Tabs — Feature Entry Point
- * Adds a "Toolasha" tab to the character panel for user-defined inventory organization.
+ * Adds a "Cheezasha" tab to the character panel for user-defined inventory organization.
  */
 
 import config from '../../../core/config.js';

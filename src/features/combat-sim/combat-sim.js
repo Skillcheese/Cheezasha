@@ -1,6 +1,6 @@
 /**
  * Combat Simulator Feature Module
- * Integrates the combat simulator engine into the Toolasha UI
+ * Integrates the combat simulator engine into the Cheezasha UI
  */
 
 import config from '../../core/config.js';
@@ -9,7 +9,7 @@ import combatSimUI from './combat-sim-ui.js';
 import { cancelSimulation } from './combat-sim-runner.js';
 import { cancelAllZonesSimulation } from './all-zones-runner.js';
 
-const BUTTON_CLASS = 'toolasha-combat-sim-btn';
+const BUTTON_CLASS = 'cheezasha-combat-sim-btn';
 
 class CombatSim {
     constructor() {

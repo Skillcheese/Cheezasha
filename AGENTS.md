@@ -1,4 +1,4 @@
-# AGENTS.md - Toolasha Developer Guide
+# AGENTS.md - Cheezasha Developer Guide
 
 Guide for AI coding agents working on this Tampermonkey userscript for Milky Way Idle.
 
@@ -6,8 +6,8 @@ Guide for AI coding agents working on this Tampermonkey userscript for Milky Way
 
 ```bash
 npm install            # Install dependencies
-npm run build:dev       # Build dev standalone → dist/Toolasha-dev.user.js
-npm run build           # Build production bundles → dist/Toolasha.user.js + dist/libraries
+npm run build:dev       # Build dev standalone → dist/Cheezasha-dev.user.js
+npm run build           # Build production bundles → dist/Cheezasha.user.js + dist/libraries
 npm run dev            # Watch mode (auto-rebuild)
 
 npm run lint           # Lint code
@@ -29,7 +29,7 @@ npm test -- -t "numberFormatter"
 ```
 
 **Pre-commit hooks:** ESLint + Prettier + tests + build run on commit.
-**Manual testing:** Install `dist/Toolasha-dev.user.js` in Tampermonkey and open <https://www.milkywayidle.com/game>.
+**Manual testing:** Install `dist/Cheezasha-dev.user.js` in Tampermonkey and open <https://www.milkywayidle.com/game>.
 
 ## Project Structure (High-Level)
 

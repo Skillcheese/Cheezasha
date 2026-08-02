@@ -2,7 +2,7 @@
  * Foundation Core Library
  * Core infrastructure and API clients only (no utilities)
  *
- * Exports to: window.Toolasha.Core
+ * Exports to: window.Cheezasha.Core
  */
 
 // Core modules
@@ -22,14 +22,14 @@ import performanceMonitor from '../utils/performance-monitor.js';
 import marketAPI from '../api/marketplace.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.Core = {
+cheezashaRoot.Core = {
     storage,
     config,
     webSocketHook,
@@ -48,4 +48,4 @@ toolashaRoot.Core = {
     performanceMonitor,
 };
 
-console.log('[Toolasha] Core library loaded');
+console.log('[Cheezasha] Core library loaded');

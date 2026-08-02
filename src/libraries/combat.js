@@ -2,7 +2,7 @@
  * Combat Library
  * Combat, abilities, and combat stats features
  *
- * Exports to: window.Toolasha.Combat
+ * Exports to: window.Cheezasha.Combat
  */
 
 // Combat features
@@ -39,14 +39,14 @@ import combatScore from '../features/profile/combat-score.js';
 import characterCardButton from '../features/profile/character-card-button.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.Combat = {
+cheezashaRoot.Combat = {
     zoneIndices,
     loadoutEnhancementDisplay,
     loadoutSnapshot,
@@ -76,4 +76,4 @@ toolashaRoot.Combat = {
     labSim,
 };
 
-console.log('[Toolasha] Combat library loaded');
+console.log('[Cheezasha] Combat library loaded');

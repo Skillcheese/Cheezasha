@@ -1,6 +1,6 @@
 /**
  * Settings UI Module
- * Injects Toolasha settings tab into the game's settings panel
+ * Injects Cheezasha settings tab into the game's settings panel
  * Based on MWITools Extended approach
  */
 
@@ -25,7 +25,7 @@ import {
     initCustomPriceOverrides,
 } from './custom-price-overrides.js';
 
-const COLLAPSED_GROUPS_KEY = 'toolasha_collapsedGroups';
+const COLLAPSED_GROUPS_KEY = 'cheezasha_collapsedGroups';
 
 class SettingsUI {
     constructor() {
@@ -46,7 +46,7 @@ class SettingsUI {
      */
     async initialize() {
         // Inject CSS styles (check if already injected)
-        if (!document.getElementById('toolasha-settings-styles')) {
+        if (!document.getElementById('cheezasha-settings-styles')) {
             this.injectStyles();
         }
 
@@ -115,13 +115,13 @@ class SettingsUI {
         }
 
         // Remove settings tab
-        const tab = document.querySelector('#toolasha-settings-tab');
+        const tab = document.querySelector('#cheezasha-settings-tab');
         if (tab) {
             tab.remove();
         }
 
         // Remove settings panel
-        const panel = document.querySelector('#toolasha-settings');
+        const panel = document.querySelector('#cheezasha-settings');
         if (panel) {
             panel.remove();
         }
@@ -140,7 +140,7 @@ class SettingsUI {
      */
     injectStyles() {
         const styleEl = document.createElement('style');
-        styleEl.id = 'toolasha-settings-styles';
+        styleEl.id = 'cheezasha-settings-styles';
         styleEl.textContent = settingsCSS;
         document.head.appendChild(styleEl);
     }
@@ -164,7 +164,7 @@ class SettingsUI {
 
                 if (tabsContainer) {
                     // Check if our tab already exists before injecting
-                    if (!tabsContainer.querySelector('#toolasha-settings-tab')) {
+                    if (!tabsContainer.querySelector('#cheezasha-settings-tab')) {
                         this.injectSettingsTab();
                     }
 
@@ -173,7 +173,7 @@ class SettingsUI {
                         try {
                             callback();
                         } catch (error) {
-                            console.error('[Toolasha Settings] Callback error:', error);
+                            console.error('[Cheezasha Settings] Callback error:', error);
                         }
                     });
 
@@ -190,7 +190,7 @@ class SettingsUI {
                 });
             } else {
                 // Fallback: observe entire body if game panel not found (Firefox timing issue)
-                console.warn('[Toolasha Settings] Could not find game panel, observing body instead');
+                console.warn('[Cheezasha Settings] Could not find game panel, observing body instead');
                 this.settingsObserverCleanup = createMutationWatcher(document.body, onMutation, {
                     childList: true,
                     subtree: true,
@@ -202,7 +202,7 @@ class SettingsUI {
 
             // Also check immediately in case settings is already open
             const existingTabsContainer = document.querySelector('div[class*="SettingsPanel_tabsComponentContainer"]');
-            if (existingTabsContainer && !existingTabsContainer.querySelector('#toolasha-settings-tab')) {
+            if (existingTabsContainer && !existingTabsContainer.querySelector('#cheezasha-settings-tab')) {
                 this.injectSettingsTab();
 
                 // Call registered callbacks for other features
@@ -210,7 +210,7 @@ class SettingsUI {
                     try {
                         callback();
                     } catch (error) {
-                        console.error('[Toolasha Settings] Callback error:', error);
+                        console.error('[Cheezasha Settings] Callback error:', error);
                     }
                 });
             }
@@ -220,7 +220,7 @@ class SettingsUI {
     }
 
     /**
-     * Inject Toolasha settings tab into game's settings panel
+     * Inject Cheezasha settings tab into game's settings panel
      */
     async injectSettingsTab() {
         // Guard against concurrent injection
@@ -234,7 +234,7 @@ class SettingsUI {
             const tabsComponentContainer = document.querySelector('div[class*="SettingsPanel_tabsComponentContainer"]');
 
             if (!tabsComponentContainer) {
-                console.warn('[Toolasha Settings] Could not find tabsComponentContainer');
+                console.warn('[Cheezasha Settings] Could not find tabsComponentContainer');
                 return;
             }
 
@@ -245,12 +245,12 @@ class SettingsUI {
             );
 
             if (!tabsContainer || !tabPanelsContainer) {
-                console.warn('[Toolasha Settings] Could not find tabs or panels container');
+                console.warn('[Cheezasha Settings] Could not find tabs or panels container');
                 return;
             }
 
             // Check if already injected
-            if (tabsContainer.querySelector('#toolasha-settings-tab')) {
+            if (tabsContainer.querySelector('#cheezasha-settings-tab')) {
                 return;
             }
 
@@ -284,7 +284,7 @@ class SettingsUI {
             // Store reference
             this.settingsPanel = tabPanel;
         } catch (error) {
-            console.error('[Toolasha Settings] Error during tab injection:', error);
+            console.error('[Cheezasha Settings] Error during tab injection:', error);
         } finally {
             // Always reset the guard flag
             this.isInjecting = false;
@@ -297,7 +297,7 @@ class SettingsUI {
      */
     createTabButton() {
         const button = document.createElement('button');
-        button.id = 'toolasha-settings-tab';
+        button.id = 'cheezasha-settings-tab';
         button.setAttribute('role', 'tab');
         button.setAttribute('aria-selected', 'false');
         button.setAttribute('tabindex', '-1');
@@ -306,7 +306,7 @@ class SettingsUI {
 
         const span = document.createElement('span');
         span.className = 'MuiTab-wrapper';
-        span.textContent = 'Toolasha';
+        span.textContent = 'Cheezasha';
 
         button.appendChild(span);
 
@@ -319,15 +319,15 @@ class SettingsUI {
      */
     createTabPanel() {
         const panel = document.createElement('div');
-        panel.id = 'toolasha-settings';
+        panel.id = 'cheezasha-settings';
         panel.className = 'TabPanel_tabPanel__tXMJF TabPanel_hidden__26UM3';
         panel.setAttribute('role', 'tabpanel');
         panel.style.display = 'none';
 
         // Create settings card
         const card = document.createElement('div');
-        card.className = 'toolasha-settings-card';
-        card.id = 'toolasha-settings-content';
+        card.className = 'cheezasha-settings-card';
+        card.id = 'cheezasha-settings-content';
 
         // Add search box at the top
         this.addSearchBox(card);
@@ -351,18 +351,18 @@ class SettingsUI {
 
         // Add click listener for template edit buttons
         card.addEventListener('click', (e) => {
-            if (e.target.classList.contains('toolasha-template-edit-btn')) {
+            if (e.target.classList.contains('cheezasha-template-edit-btn')) {
                 const settingId = e.target.dataset.settingId;
                 this.openTemplateEditor(settingId);
             }
-            if (e.target.classList.contains('toolasha-text-vars-btn')) {
+            if (e.target.classList.contains('cheezasha-text-vars-btn')) {
                 const settingId = e.target.dataset.settingId;
                 this.openTextVariablesHelper(settingId);
             }
-            if (e.target.classList.contains('toolasha-custom-price-edit-btn')) {
+            if (e.target.classList.contains('cheezasha-custom-price-edit-btn')) {
                 this.openCustomPriceOverridesEditor();
             }
-            if (e.target.classList.contains('toolasha-scroll-defaults-btn')) {
+            if (e.target.classList.contains('cheezasha-scroll-defaults-btn')) {
                 scrollSimulatorUI.openDefaultsPopup();
             }
         });
@@ -378,12 +378,12 @@ class SettingsUI {
         for (const [groupKey, group] of Object.entries(settingsGroups)) {
             // Create collapsible group container
             const groupContainer = document.createElement('div');
-            groupContainer.className = 'toolasha-settings-group';
+            groupContainer.className = 'cheezasha-settings-group';
             groupContainer.dataset.group = groupKey;
 
             // Add section header with collapse toggle
             const header = document.createElement('h3');
-            header.className = 'toolasha-settings-group-header';
+            header.className = 'cheezasha-settings-group-header';
             header.innerHTML = `
                 <span class="collapse-icon">▼</span>
                 <span class="icon">${group.icon}</span>
@@ -394,7 +394,7 @@ class SettingsUI {
 
             // Create content container for this group
             const content = document.createElement('div');
-            content.className = 'toolasha-settings-group-content';
+            content.className = 'cheezasha-settings-group-content';
 
             // Add computed stats summary for enhancement simulator group
             if (groupKey === 'enhancementSimulator') {
@@ -438,7 +438,7 @@ class SettingsUI {
 
                 const parentEntry = this.config.settingsMap[settingDef.disabledBy];
                 const parentValue = parentEntry?.isTrue ?? false;
-                const settingEl = document.querySelector(`.toolasha-setting[data-setting-id="${settingId}"]`);
+                const settingEl = document.querySelector(`.cheezasha-setting[data-setting-id="${settingId}"]`);
                 if (!settingEl) continue;
 
                 if (parentValue) {
@@ -454,7 +454,7 @@ class SettingsUI {
         // Iron Cow locking pass
         const ironCowActive = ironCowMode.isEnabled();
         for (const id of IRON_COW_SETTINGS) {
-            const el = document.querySelector(`.toolasha-setting[data-setting-id="${id}"]`);
+            const el = document.querySelector(`.cheezasha-setting[data-setting-id="${id}"]`);
             if (!el) continue;
             if (ironCowActive) {
                 el.style.opacity = '0.35';
@@ -495,7 +495,7 @@ class SettingsUI {
      */
     createSettingElement(settingId, settingDef) {
         const div = document.createElement('div');
-        div.className = 'toolasha-setting';
+        div.className = 'cheezasha-setting';
         div.dataset.settingId = settingId;
         div.dataset.type = settingDef.type || 'checkbox';
 
@@ -506,7 +506,7 @@ class SettingsUI {
 
         // Create label container
         const labelContainer = document.createElement('div');
-        labelContainer.className = 'toolasha-setting-label-container';
+        labelContainer.className = 'cheezasha-setting-label-container';
         labelContainer.style.display = 'flex';
         labelContainer.style.alignItems = 'center';
         labelContainer.style.flex = '1';
@@ -514,13 +514,13 @@ class SettingsUI {
 
         // Create label
         const label = document.createElement('span');
-        label.className = 'toolasha-setting-label';
+        label.className = 'cheezasha-setting-label';
         label.textContent = settingDef.label;
 
         // Add help text if present
         if (settingDef.help) {
             const help = document.createElement('span');
-            help.className = 'toolasha-setting-help';
+            help.className = 'cheezasha-setting-help';
             help.textContent = settingDef.help;
             label.appendChild(help);
         }
@@ -530,7 +530,7 @@ class SettingsUI {
         // Create input
         const inputHTML = this.generateSettingInput(settingId, settingDef);
         const inputContainer = document.createElement('div');
-        inputContainer.className = 'toolasha-setting-input';
+        inputContainer.className = 'cheezasha-setting-input';
         inputContainer.innerHTML = inputHTML;
 
         div.appendChild(labelContainer);
@@ -578,7 +578,7 @@ class SettingsUI {
                 const input = `
                     <input type="text"
                         id="${settingId}"
-                        class="toolasha-text-input"
+                        class="cheezasha-text-input"
                         value="${String(value).replace(/"/g, '&quot;')}"
                         placeholder="${settingDef.placeholder || ''}">
                 `;
@@ -587,7 +587,7 @@ class SettingsUI {
                     <div style="display:flex; gap:6px; align-items:center;">
                         ${input}
                         <button type="button"
-                            class="toolasha-text-vars-btn"
+                            class="cheezasha-text-vars-btn"
                             data-setting-id="${settingId}"
                             style="
                                 background: #4a7c59;
@@ -617,7 +617,7 @@ class SettingsUI {
                         id="${settingId}"
                         value="${escapedValue}">
                     <button type="button"
-                        class="toolasha-template-edit-btn"
+                        class="cheezasha-template-edit-btn"
                         data-setting-id="${settingId}"
                         style="
                             background: #4a7c59;
@@ -640,7 +640,7 @@ class SettingsUI {
                 return `
                     <input type="number"
                         id="${settingId}"
-                        class="toolasha-number-input"
+                        class="cheezasha-number-input"
                         value="${value}"
                         min="${settingDef.min ?? ''}"
                         max="${settingDef.max ?? ''}"
@@ -662,7 +662,7 @@ class SettingsUI {
                     .join('');
 
                 return `
-                    <select id="${settingId}" class="toolasha-select-input">
+                    <select id="${settingId}" class="cheezasha-select-input">
                         ${optionsHTML}
                     </select>
                 `;
@@ -674,11 +674,11 @@ class SettingsUI {
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <input type="color"
                             id="${settingId}"
-                            class="toolasha-color-input"
+                            class="cheezasha-color-input"
                             value="${value}">
                         <input type="text"
                             id="${settingId}_text"
-                            class="toolasha-color-text-input"
+                            class="cheezasha-color-text-input"
                             value="${value}"
                             style="width: 80px; padding: 4px; background: #2a2a2a; color: white; border: 1px solid #555; border-radius: 3px;"
                             readonly>
@@ -706,7 +706,7 @@ class SettingsUI {
                                 `<option value="${t.value}" ${t.value === tier ? 'selected' : ''}>${t.label}</option>`
                         )
                         .join('');
-                    tierHTML = `<select id="${settingId}_tier" class="toolasha-select-input" style="width:100px; font-size:12px; padding:2px 4px; ${disabledStyle}">${options}</select>`;
+                    tierHTML = `<select id="${settingId}_tier" class="cheezasha-select-input" style="width:100px; font-size:12px; padding:2px 4px; ${disabledStyle}">${options}</select>`;
                 }
 
                 return `
@@ -724,13 +724,13 @@ class SettingsUI {
                     <div style="display: flex; align-items: center; gap: 12px; width: 100%;">
                         <input type="range"
                             id="${settingId}"
-                            class="toolasha-slider-input"
+                            class="cheezasha-slider-input"
                             value="${value}"
                             min="${settingDef.min ?? 0}"
                             max="${settingDef.max ?? 1}"
                             step="${settingDef.step ?? 0.01}"
                             style="flex: 1;">
-                        <span id="${settingId}_value" class="toolasha-slider-value" style="min-width: 50px; color: #aaa; font-size: 0.9em;">${value}</span>
+                        <span id="${settingId}_value" class="cheezasha-slider-value" style="min-width: 50px; color: #aaa; font-size: 0.9em;">${value}</span>
                     </div>
                 `;
             }
@@ -743,7 +743,7 @@ class SettingsUI {
                         id="${settingId}"
                         value="">
                     <button type="button"
-                        class="toolasha-custom-price-edit-btn"
+                        class="cheezasha-custom-price-edit-btn"
                         data-setting-id="${settingId}"
                         style="
                             background: #4a7c59;
@@ -767,7 +767,7 @@ class SettingsUI {
                 return `
                     <div style="display:flex; align-items:center; gap:8px;">
                         <button type="button"
-                            class="toolasha-scroll-defaults-btn"
+                            class="cheezasha-scroll-defaults-btn"
                             data-setting-id="${settingId}"
                             style="
                                 background: #4a7c59;
@@ -800,7 +800,7 @@ class SettingsUI {
      */
     addSearchBox(container) {
         const searchContainer = document.createElement('div');
-        searchContainer.className = 'toolasha-search-container';
+        searchContainer.className = 'cheezasha-search-container';
         searchContainer.style.cssText = `
             margin-bottom: 20px;
             display: flex;
@@ -811,7 +811,7 @@ class SettingsUI {
         // Search input
         const searchInput = document.createElement('input');
         searchInput.type = 'text';
-        searchInput.className = 'toolasha-search-input';
+        searchInput.className = 'cheezasha-search-input';
         searchInput.placeholder = 'Search settings...';
         searchInput.style.cssText = `
             flex: 1;
@@ -826,7 +826,7 @@ class SettingsUI {
         // Clear button
         const clearButton = document.createElement('button');
         clearButton.textContent = 'Clear';
-        clearButton.className = 'toolasha-search-clear';
+        clearButton.className = 'cheezasha-search-clear';
         clearButton.style.cssText = `
             padding: 8px 16px;
             background: #444;
@@ -845,11 +845,11 @@ class SettingsUI {
             // If query is empty, show everything
             if (!lowerQuery) {
                 // Show all settings
-                document.querySelectorAll('.toolasha-setting').forEach((setting) => {
+                document.querySelectorAll('.cheezasha-setting').forEach((setting) => {
                     setting.style.display = 'flex';
                 });
                 // Show all groups
-                document.querySelectorAll('.toolasha-settings-group').forEach((group) => {
+                document.querySelectorAll('.cheezasha-settings-group').forEach((group) => {
                     group.style.display = 'block';
                 });
                 clearButton.style.display = 'none';
@@ -859,12 +859,12 @@ class SettingsUI {
             clearButton.style.display = 'block';
 
             // Filter settings
-            document.querySelectorAll('.toolasha-settings-group').forEach((group) => {
+            document.querySelectorAll('.cheezasha-settings-group').forEach((group) => {
                 let visibleCount = 0;
 
-                group.querySelectorAll('.toolasha-setting').forEach((setting) => {
-                    const label = setting.querySelector('.toolasha-setting-label')?.textContent || '';
-                    const help = setting.querySelector('.toolasha-setting-help')?.textContent || '';
+                group.querySelectorAll('.cheezasha-setting').forEach((setting) => {
+                    const label = setting.querySelector('.cheezasha-setting-label')?.textContent || '';
+                    const help = setting.querySelector('.cheezasha-setting-help')?.textContent || '';
                     const searchText = (label + ' ' + help).toLowerCase();
 
                     if (searchText.includes(lowerQuery)) {
@@ -907,48 +907,48 @@ class SettingsUI {
      */
     addUtilityButtons(container) {
         const buttonsDiv = document.createElement('div');
-        buttonsDiv.className = 'toolasha-utility-buttons';
+        buttonsDiv.className = 'cheezasha-utility-buttons';
 
         // Sync button (at top - most important)
         const syncBtn = document.createElement('button');
         syncBtn.textContent = 'Copy Settings to All Characters';
-        syncBtn.className = 'toolasha-utility-button toolasha-sync-button';
+        syncBtn.className = 'cheezasha-utility-button cheezasha-sync-button';
         syncBtn.addEventListener('click', () => this.handleSync());
 
         // Fetch Latest Prices button
         const fetchPricesBtn = document.createElement('button');
         fetchPricesBtn.textContent = '🔄 Fetch Latest Prices';
-        fetchPricesBtn.className = 'toolasha-utility-button toolasha-fetch-prices-button';
+        fetchPricesBtn.className = 'cheezasha-utility-button cheezasha-fetch-prices-button';
         fetchPricesBtn.addEventListener('click', () => this.handleFetchPrices(fetchPricesBtn));
 
         // Reset button
         const resetBtn = document.createElement('button');
         resetBtn.textContent = 'Reset to Defaults';
-        resetBtn.className = 'toolasha-utility-button';
+        resetBtn.className = 'cheezasha-utility-button';
         resetBtn.addEventListener('click', () => this.handleReset());
 
         // Export button
         const exportBtn = document.createElement('button');
         exportBtn.textContent = 'Export Settings';
-        exportBtn.className = 'toolasha-utility-button';
+        exportBtn.className = 'cheezasha-utility-button';
         exportBtn.addEventListener('click', () => this.handleExport());
 
         // Import button
         const importBtn = document.createElement('button');
         importBtn.textContent = 'Import Settings';
-        importBtn.className = 'toolasha-utility-button';
+        importBtn.className = 'cheezasha-utility-button';
         importBtn.addEventListener('click', () => this.handleImport());
 
         // All Off button
         const allOffBtn = document.createElement('button');
         allOffBtn.textContent = 'All Off';
-        allOffBtn.className = 'toolasha-utility-button';
+        allOffBtn.className = 'cheezasha-utility-button';
         allOffBtn.addEventListener('click', () => this.handleAllOff(restoreBtn));
 
         // Restore button (only shown when an All Off snapshot exists)
         const restoreBtn = document.createElement('button');
         restoreBtn.textContent = 'Restore';
-        restoreBtn.className = 'toolasha-utility-button';
+        restoreBtn.className = 'cheezasha-utility-button';
         restoreBtn.style.display = 'none';
         restoreBtn.addEventListener('click', () => this.handleRestore(restoreBtn));
 
@@ -969,7 +969,7 @@ class SettingsUI {
 
         const pformanceBtn = document.createElement('button');
         pformanceBtn.textContent = 'PFormance';
-        pformanceBtn.className = 'toolasha-utility-button';
+        pformanceBtn.className = 'cheezasha-utility-button';
         pformanceBtn.addEventListener('click', () => pformancePanel.show());
         buttonsDiv.appendChild(pformanceBtn);
 
@@ -982,15 +982,15 @@ class SettingsUI {
      */
     addRefreshNotice(container) {
         const notice = document.createElement('div');
-        notice.className = 'toolasha-refresh-notice';
+        notice.className = 'cheezasha-refresh-notice';
         notice.textContent = 'Some settings require a page refresh to take effect';
         container.appendChild(notice);
     }
 
     /**
      * Setup tab switching functionality
-     * @param {HTMLElement} tabButton - Toolasha tab button
-     * @param {HTMLElement} tabPanel - Toolasha tab panel
+     * @param {HTMLElement} tabButton - Cheezasha tab button
+     * @param {HTMLElement} tabPanel - Cheezasha tab panel
      * @param {HTMLElement[]} existingTabs - Existing tab buttons
      * @param {HTMLElement} tabPanelsContainer - Tab panels container
      */
@@ -1021,16 +1021,16 @@ class SettingsUI {
             // Update title
             const titleEl = document.querySelector('[class*="SettingsPanel_title"]');
             if (titleEl) {
-                if (targetButton.id === 'toolasha-settings-tab') {
-                    const ver = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).Toolasha?.version || '';
-                    titleEl.textContent = `⚙️ Toolasha ${ver ? `v${ver} ` : ''}Settings (refresh to apply)`;
+                if (targetButton.id === 'cheezasha-settings-tab') {
+                    const ver = (typeof unsafeWindow !== 'undefined' ? unsafeWindow : window).Cheezasha?.version || '';
+                    titleEl.textContent = `⚙️ Cheezasha ${ver ? `v${ver} ` : ''}Settings (refresh to apply)`;
                 } else {
                     titleEl.textContent = 'Settings';
                 }
             }
         };
 
-        // Click handler for Toolasha tab
+        // Click handler for Cheezasha tab
         tabButton.addEventListener('click', () => {
             switchToTab(tabButton, tabPanel);
         });
@@ -1058,7 +1058,7 @@ class SettingsUI {
 
         // Block changes to locked settings while Iron Cow mode is active
         if (ironCowMode.isEnabled() && IRON_COW_SETTINGS.has(settingId)) return;
-        const settingEl = input.closest('.toolasha-setting');
+        const settingEl = input.closest('.cheezasha-setting');
         const type = settingEl?.dataset.type || 'checkbox';
         const isCheckboxType = type === 'checkbox' || type === 'checkboxWithButton';
 
@@ -1442,7 +1442,7 @@ class SettingsUI {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `toolasha-settings-${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `cheezasha-settings-${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
     }
@@ -1474,7 +1474,7 @@ class SettingsUI {
                     alert('Failed to import settings. Please check the file format.');
                 }
             } catch (error) {
-                console.error('[Toolasha Settings] Import error:', error);
+                console.error('[Cheezasha Settings] Import error:', error);
                 alert('Failed to import settings.');
             }
         });
@@ -1488,7 +1488,7 @@ class SettingsUI {
      */
     async _getAllOffSnapshotKey() {
         const cid = dataManager.getCurrentCharacterId?.();
-        return cid ? `toolasha_allOffSnapshot_${cid}` : 'toolasha_allOffSnapshot';
+        return cid ? `cheezasha_allOffSnapshot_${cid}` : 'cheezasha_allOffSnapshot';
     }
 
     /**
@@ -1558,7 +1558,7 @@ class SettingsUI {
                 const entry = this.config.settingsMap[id];
                 if (!entry) continue;
                 const input = document.querySelector(
-                    `.toolasha-setting[data-setting-id="${id}"] input[type="checkbox"]`
+                    `.cheezasha-setting[data-setting-id="${id}"] input[type="checkbox"]`
                 );
                 if (input) input.checked = entry.isTrue ?? false;
             }
@@ -1745,7 +1745,7 @@ class SettingsUI {
 
         // Create overlay
         const overlay = document.createElement('div');
-        overlay.className = 'toolasha-template-editor-overlay';
+        overlay.className = 'cheezasha-template-editor-overlay';
         overlay.style.cssText = `
             position: fixed;
             top: 0;
@@ -1761,7 +1761,7 @@ class SettingsUI {
 
         // Create modal
         const modal = document.createElement('div');
-        modal.className = 'toolasha-template-editor-modal';
+        modal.className = 'cheezasha-template-editor-modal';
         modal.style.cssText = `
             background: #1a1a1a;
             border: 2px solid #3a3a3a;
@@ -1786,7 +1786,7 @@ class SettingsUI {
         `;
         header.innerHTML = `
             <h3 style="margin: 0; color: #e0e0e0;">Edit Template</h3>
-            <button class="toolasha-template-close-btn" style="
+            <button class="cheezasha-template-close-btn" style="
                 background: none;
                 border: none;
                 color: #e0e0e0;
@@ -1804,7 +1804,7 @@ class SettingsUI {
             '<h4 style="margin: 0 0 10px 0; color: #e0e0e0;">Template Items (drag to reorder):</h4>';
 
         const listContainer = document.createElement('div');
-        listContainer.className = 'toolasha-template-list';
+        listContainer.className = 'cheezasha-template-list';
         listContainer.style.cssText = `
             background: #2a2a2a;
             border: 1px solid #4a4a4a;
@@ -1994,7 +1994,7 @@ class SettingsUI {
         overlay.appendChild(modal);
 
         // Close button handler
-        header.querySelector('.toolasha-template-close-btn').onclick = () => overlay.remove();
+        header.querySelector('.cheezasha-template-close-btn').onclick = () => overlay.remove();
 
         // Close on overlay click
         overlay.onclick = (e) => {
@@ -2082,7 +2082,7 @@ class SettingsUI {
         `;
         header.innerHTML = `
             <h3 style="margin: 0; color: #e0e0e0;">Custom Price Overrides</h3>
-            <button class="toolasha-cpo-close-btn" style="
+            <button class="cheezasha-cpo-close-btn" style="
                 background: none;
                 border: none;
                 color: #e0e0e0;
@@ -2541,7 +2541,7 @@ class SettingsUI {
             }
 
             // Update the button text
-            const btn = document.querySelector('.toolasha-custom-price-edit-btn');
+            const btn = document.querySelector('.cheezasha-custom-price-edit-btn');
             if (btn) {
                 const count = Object.keys(workingOverrides).length;
                 btn.textContent = `Manage Overrides${count > 0 ? ` (${count})` : ''}`;
@@ -2565,7 +2565,7 @@ class SettingsUI {
         overlay.appendChild(modal);
 
         // Close handlers
-        header.querySelector('.toolasha-cpo-close-btn').addEventListener('click', () => overlay.remove());
+        header.querySelector('.cheezasha-cpo-close-btn').addEventListener('click', () => overlay.remove());
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.remove();
@@ -2713,7 +2713,7 @@ class SettingsUI {
         const enabled = ironCowMode.isEnabled();
 
         const wrapper = document.createElement('div');
-        wrapper.id = 'toolasha-iron-cow-toggle';
+        wrapper.id = 'cheezasha-iron-cow-toggle';
         wrapper.style.cssText = `
             display: flex;
             align-items: flex-start;

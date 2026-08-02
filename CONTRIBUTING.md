@@ -1,6 +1,6 @@
-# Contributing to Toolasha
+# Contributing to Cheezasha
 
-Thank you for your interest in contributing to Toolasha! This guide will help you get started with contributing to this Tampermonkey userscript for Milky Way Idle.
+Thank you for your interest in contributing to Cheezasha! This guide will help you get started with contributing to this Tampermonkey userscript for Milky Way Idle.
 
 > **Note for AI Agents**: See [AGENTS.md](AGENTS.md) for AI-specific development guidelines.
 
@@ -9,8 +9,8 @@ Thank you for your interest in contributing to Toolasha! This guide will help yo
 1. **Fork and clone the repository**
 
     ```bash
-    git clone https://github.com/yourusername/Toolasha.git # replace with your fork of https://github.com/Skillcheese/Toolasha
-    cd Toolasha
+    git clone https://github.com/yourusername/Cheezasha.git # replace with your fork of https://github.com/Skillcheese/Cheezasha
+    cd Cheezasha
     ```
 
 2. **Install dependencies**
@@ -65,12 +65,12 @@ Thank you for your interest in contributing to Toolasha! This guide will help yo
     npm run build:dev
     ```
 
-    This creates `dist/Toolasha-dev.user.js`
+    This creates `dist/Cheezasha-dev.user.js`
 
 2. **Install in Tampermonkey**
     - Open Tampermonkey dashboard
     - Click "+" to create new script
-    - Copy contents of `dist/Toolasha-dev.user.js`
+    - Copy contents of `dist/Cheezasha-dev.user.js`
     - Save
 
 3. **Test in-game**
@@ -305,7 +305,7 @@ Add screenshots for UI changes
 
 ## Release Process
 
-Toolasha uses an automated release system powered by [release-please](https://github.com/googleapis/release-please). This means **releases happen automatically** based on your commit messages - no manual version bumping required!
+Cheezasha uses an automated release system powered by [release-please](https://github.com/googleapis/release-please). This means **releases happen automatically** based on your commit messages - no manual version bumping required!
 
 ### How It Works
 
@@ -410,7 +410,7 @@ When the release PR is created, a GitHub Action automatically:
 - Runs `npm run version:sync` to update:
     - `userscript-header.txt` - `@version` tag
     - `README.md` - version badge and footer
-    - `src/main.js` - `Toolasha.version` property
+    - `src/main.js` - `Cheezasha.version` property
 - Formats all files with Prettier
 - Commits changes to the release PR
 
@@ -431,7 +431,7 @@ When the release PR is merged:
 2. **Build process** runs:
     - `npm ci` - Install dependencies
     - `npm run build` - Build production bundles
-3. **Asset upload** - `dist/Toolasha.user.js` + `dist/libraries/*.user.js` attached to release
+3. **Asset upload** - `dist/Cheezasha.user.js` + `dist/libraries/*.user.js` attached to release
 4. **Releases branch** updated:
     - Built artifacts committed to `releases` branch
     - Entrypoint @require URLs pinned to the release commit SHA
@@ -447,9 +447,9 @@ The `npm run version:sync` script keeps version numbers consistent across:
 | `userscript-header.txt`    | `@version` tag                                     | `// @version 0.7.0`                      |
 | `README.md`                | Badge                                              | `badge/version-0.7.0-orange`             |
 | `README.md`                | Footer                                             | `**Version:** 0.7.0 (Pre-release)`       |
-| `src/main.js`              | `Toolasha.version`                                 | `version: '0.7.0',`                      |
+| `src/main.js`              | `Cheezasha.version`                                | `version: '0.7.0',`                      |
 | `.release-please-*.json`   | Manifest                                           | `{ ".": "0.7.0" }`                       |
-| `dist/Toolasha.user.js`    | Built entrypoint (updated on next `npm run build`) | `// @version 0.7.0` + `version: '0.7.0'` |
+| `dist/Cheezasha.user.js`   | Built entrypoint (updated on next `npm run build`) | `// @version 0.7.0` + `version: '0.7.0'` |
 | `dist/libraries/*.user.js` | Built libraries (updated on next `npm run build`)  | `// @version 0.7.0`                      |
 
 **Source of truth**: `package.json` version field
@@ -485,7 +485,7 @@ git commit -m "chore(main): release X.X.X"
 git tag vX.X.X
 git push origin main --tags
 
-# 5. Create GitHub release manually and upload dist/Toolasha.user.js and dist/libraries/*.user.js
+# 5. Create GitHub release manually and upload dist/Cheezasha.user.js and dist/libraries/*.user.js
 ```
 
 ### Troubleshooting
@@ -545,7 +545,7 @@ Before merging a release PR:
 After merging:
 
 - [ ] GitHub release published successfully
-- [ ] `Toolasha.user.js` + libraries attached to release
+- [ ] `Cheezasha.user.js` + libraries attached to release
 - [ ] `releases` branch updated with pinned entrypoint
 
 ### Questions?
@@ -691,7 +691,7 @@ Include:
 - **Steps to Reproduce**: Detailed steps
 - **Expected Behavior**: What should happen
 - **Actual Behavior**: What actually happens
-- **Environment**: Browser, Tampermonkey version, Toolasha version
+- **Environment**: Browser, Tampermonkey version, Cheezasha version
 - **Screenshots**: If applicable
 
 ### Feature Requests
@@ -723,4 +723,4 @@ By contributing, you agree that your contributions will be licensed under the sa
 
 ---
 
-Thank you for contributing to Toolasha! 🎉
+Thank you for contributing to Cheezasha! 🎉

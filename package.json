@@ -1,7 +1,7 @@
 {
-    "name": "toolasha",
+    "name": "cheezasha",
     "version": "2.87.1",
-    "description": "Toolasha - Enhanced tools for Milky Way Idle",
+    "description": "Cheezasha - Enhanced tools for Milky Way Idle",
     "type": "module",
     "scripts": {
         "build": "cross-env BUILD_MODE=production rollup -c",

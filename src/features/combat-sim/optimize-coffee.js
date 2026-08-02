@@ -8,7 +8,7 @@ import config from '../../core/config.js';
 import domObserver from '../../core/dom-observer.js';
 import optimizeCoffeeUI from './optimize-coffee-ui.js';
 
-const BUTTON_CLASS = 'toolasha-optimize-coffee-btn';
+const BUTTON_CLASS = 'cheezasha-optimize-coffee-btn';
 
 class OptimizeCoffee {
     constructor() {

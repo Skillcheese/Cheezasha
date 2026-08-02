@@ -355,7 +355,7 @@ function buildCheckboxHtml(f) {
         ? `<svg class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-1k33q06" focusable="false" aria-hidden="true" viewBox="0 0 24 24" data-testid="CheckBoxOutlineBlankIcon"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"></path></svg>`
         : '';
     return (
-        `<div class="AchievementsPanel_checkboxControl__3e6CJ ${f.className} toolasha-cf" style="${hidden}">` +
+        `<div class="AchievementsPanel_checkboxControl__3e6CJ ${f.className} cheezasha-cf" style="${hidden}">` +
         `<label class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd Checkbox_checkbox__dP0DH css-1jaw3da">` +
         `<span class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall ` +
         `PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall ${checkedClass} ` +
@@ -382,14 +382,14 @@ function buildCSSText(flags, includeFavorites = true) {
         .filter((f) => f.generateCSS !== false)
         .map(
             (f) =>
-                `.AchievementsPanel_categories__34hno.toolasha-cf:not(.show-${f.className})` +
+                `.AchievementsPanel_categories__34hno.cheezasha-cf:not(.show-${f.className})` +
                 ` .Collection_collectionContainer__3ZlUO.${f.className} { display: none; }`
         )
         .join('\n');
 
     const starCSS = includeFavorites
         ? `
-.Collection_collectionContainer__3ZlUO .toolasha-cf.star {
+.Collection_collectionContainer__3ZlUO .cheezasha-cf.star {
     position: absolute;
     top: 0;
     right: 0;
@@ -397,28 +397,28 @@ function buildCSSText(flags, includeFavorites = true) {
     height: 25px;
 }
 
-.Collection_collectionContainer__3ZlUO .toolasha-cf.star::before {
+.Collection_collectionContainer__3ZlUO .cheezasha-cf.star::before {
     display: block;
     content: "☆";
     font-size: 15px;
     margin-left: 5px;
 }
 
-.Collection_collectionContainer__3ZlUO.cf-favorite .toolasha-cf.star::before {
+.Collection_collectionContainer__3ZlUO.cf-favorite .cheezasha-cf.star::before {
     content: "★";
     color: orange;
     font-size: 21px;
     margin-top: -5px;
 }
 
-.AchievementsPanel_categories__34hno.toolasha-cf.show-favorite .Collection_collectionContainer__3ZlUO.cf-favorite {
+.AchievementsPanel_categories__34hno.cheezasha-cf.show-favorite .Collection_collectionContainer__3ZlUO.cf-favorite {
     display: initial !important;
 }
 `
         : '';
 
     return `
-.toolasha-cf.Collection_collection__3H6c8 {
+.cheezasha-cf.Collection_collection__3H6c8 {
     border-radius: var(--radius-sm, 4px);
     margin-left: 4px;
     padding: 2px;
@@ -440,7 +440,7 @@ ${hideRules}
 
 ${starCSS}
 
-.toolasha-cf-favorites-header {
+.cheezasha-cf-favorites-header {
     width: 100%;
     font-size: 11px;
     font-weight: 600;
@@ -452,11 +452,11 @@ ${starCSS}
     gap: 4px;
 }
 
-.toolasha-cf-favorites-header::before {
+.cheezasha-cf-favorites-header::before {
     content: "\\2605";
 }
 
-.toolasha-cf-favorites-section {
+.cheezasha-cf-favorites-section {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
@@ -506,7 +506,7 @@ class CollectionFilters {
                 this.disable();
                 this.initialize();
             } else {
-                document.querySelectorAll('.toolasha-cf.collection-badge').forEach((el) => el.remove());
+                document.querySelectorAll('.cheezasha-cf.collection-badge').forEach((el) => el.remove());
             }
         });
     }
@@ -581,7 +581,7 @@ class CollectionFilters {
             this.catsObserver = null;
         }
         // Remove injected UI elements
-        document.querySelectorAll('.toolasha-cf').forEach((el) => el.remove());
+        document.querySelectorAll('.cheezasha-cf').forEach((el) => el.remove());
     }
 
     // -------------------------------------------------------------------------
@@ -650,13 +650,13 @@ class CollectionFilters {
     _buildCSS() {
         this._removeCSS();
         const style = document.createElement('style');
-        style.id = 'toolasha-cf-styles';
+        style.id = 'cheezasha-cf-styles';
         style.textContent = buildCSSText(this.flags, this._favoritesEnabled);
         document.head.appendChild(style);
     }
 
     _removeCSS() {
-        document.getElementById('toolasha-cf-styles')?.remove();
+        document.getElementById('cheezasha-cf-styles')?.remove();
     }
 
     // -------------------------------------------------------------------------
@@ -672,7 +672,7 @@ class CollectionFilters {
         if (!catsEl) return;
 
         // Move tiles back from favorites section before scanning
-        const existingSection = catsEl.parentElement?.querySelector('.toolasha-cf-favorites-section');
+        const existingSection = catsEl.parentElement?.querySelector('.cheezasha-cf-favorites-section');
         if (existingSection) {
             const movedTiles = Array.from(existingSection.querySelectorAll('.Collection_collectionContainer__3ZlUO'));
             for (let i = movedTiles.length - 1; i >= 0; i--) {
@@ -724,10 +724,10 @@ class CollectionFilters {
                     el.classList.remove('cf-favorite');
                 }
 
-                let starEl = el.querySelector('.toolasha-cf.star');
+                let starEl = el.querySelector('.cheezasha-cf.star');
                 if (!starEl) {
-                    el.insertAdjacentHTML('beforeend', '<div class="toolasha-cf star"></div>');
-                    starEl = el.querySelector('.toolasha-cf.star');
+                    el.insertAdjacentHTML('beforeend', '<div class="cheezasha-cf star"></div>');
+                    starEl = el.querySelector('.cheezasha-cf.star');
                     starEl.addEventListener(
                         'click',
                         (event) => {
@@ -754,8 +754,8 @@ class CollectionFilters {
         storage.set(this._charKey('collectionsUpdatedAt'), this.collectionsLastUpdated, 'collections');
 
         // --- Inject checkboxes ---
-        // Remove old Toolasha checkboxes (but not stars, which are inside catsEl)
-        panelEl.querySelectorAll('.toolasha-cf').forEach((el) => el.remove());
+        // Remove old Cheezasha checkboxes (but not stars, which are inside catsEl)
+        panelEl.querySelectorAll('.cheezasha-cf').forEach((el) => el.remove());
 
         // Determine showUncollected from the native checkbox
         const nativeCheckbox = panelEl.parentElement.querySelector(
@@ -777,9 +777,9 @@ class CollectionFilters {
         // Inject sort dropdown
         panelEl.insertAdjacentHTML(
             'beforeend',
-            `<div class="toolasha-cf cf-sort-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">` +
+            `<div class="cheezasha-cf cf-sort-row" style="display:flex;align-items:center;gap:6px;margin-top:4px;">` +
                 `<span style="font-size:12px;color:#aaa;">Sort:</span>` +
-                `<select class="toolasha-cf cf-sort-select" style="font-size:12px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:1px 4px;">` +
+                `<select class="cheezasha-cf cf-sort-select" style="font-size:12px;background:#222;color:#eee;border:1px solid #444;border-radius:4px;padding:1px 4px;">` +
                 `<option value="default"${this.sortMode === 'default' ? ' selected' : ''}>Default</option>` +
                 `<option value="items-needed"${this.sortMode === 'items-needed' ? ' selected' : ''}>Items to next tier</option>` +
                 `<option value="gold-cost"${this.sortMode === 'gold-cost' ? ' selected' : ''}>Gold cost to next tier</option>` +
@@ -794,7 +794,7 @@ class CollectionFilters {
 
         // Wire click handlers on each injected checkbox
         this.flags.forEach((f) => {
-            const checkEl = panelEl.querySelector('.' + f.className + '.toolasha-cf');
+            const checkEl = panelEl.querySelector('.' + f.className + '.cheezasha-cf');
             if (!checkEl) return;
             checkEl.addEventListener('click', (event) => {
                 event.stopPropagation();
@@ -805,7 +805,7 @@ class CollectionFilters {
         });
 
         // --- Apply show-* classes on catsEl ---
-        catsEl.classList.add('toolasha-cf');
+        catsEl.classList.add('cheezasha-cf');
         this.flags.forEach((f) => {
             if (f.checked) {
                 catsEl.classList.add('show-' + f.className);
@@ -823,8 +823,8 @@ class CollectionFilters {
         }
 
         // --- Wire native checkbox change ---
-        if (nativeCheckbox && !nativeCheckbox._toolashaWired) {
-            nativeCheckbox._toolashaWired = true;
+        if (nativeCheckbox && !nativeCheckbox._cheezashaWired) {
+            nativeCheckbox._cheezashaWired = true;
             nativeCheckbox.addEventListener('click', () => {
                 requestAnimationFrame(() => {
                     const isChecked =
@@ -837,8 +837,8 @@ class CollectionFilters {
 
         // --- Wire Refresh button ---
         const refreshBtn = panelEl.querySelector('.AchievementsPanel_refreshButton__3RYCh');
-        if (refreshBtn && !refreshBtn._toolashaWired) {
-            refreshBtn._toolashaWired = true;
+        if (refreshBtn && !refreshBtn._cheezashaWired) {
+            refreshBtn._cheezashaWired = true;
             refreshBtn.addEventListener('click', () => {
                 setTimeout(() => this._rerenderPanel(panelEl), 500);
             });
@@ -891,7 +891,7 @@ class CollectionFilters {
         if (!parent) return;
 
         // Move tiles back to their original positions (reverse order to keep references valid)
-        const existingSection = parent.querySelector('.toolasha-cf-favorites-section');
+        const existingSection = parent.querySelector('.cheezasha-cf-favorites-section');
         if (existingSection) {
             const movedTiles = Array.from(existingSection.querySelectorAll('.Collection_collectionContainer__3ZlUO'));
             // Restore in reverse order so _favOrigNext references remain valid
@@ -915,10 +915,10 @@ class CollectionFilters {
         if (favTiles.length === 0) return;
 
         const section = document.createElement('div');
-        section.className = 'toolasha-cf-favorites-section';
+        section.className = 'cheezasha-cf-favorites-section';
 
         const header = document.createElement('div');
-        header.className = 'toolasha-cf-favorites-header';
+        header.className = 'cheezasha-cf-favorites-header';
         header.textContent = 'Favorites';
         section.appendChild(header);
 
@@ -948,7 +948,7 @@ class CollectionFilters {
         const tiles = Array.from(catsEl.querySelectorAll('.Collection_collectionContainer__3ZlUO'));
 
         // Always clear time badges and margin overrides so they disappear when switching modes
-        catsEl.querySelectorAll('.toolasha-cf.time-to-tier').forEach((el) => {
+        catsEl.querySelectorAll('.cheezasha-cf.time-to-tier').forEach((el) => {
             el.parentElement?.style.removeProperty('margin-bottom');
             el.parentElement?.style.removeProperty('overflow');
             el.remove();
@@ -1011,7 +1011,7 @@ class CollectionFilters {
 
                 el.insertAdjacentHTML(
                     'beforeend',
-                    '<span class="toolasha-cf time-to-tier" style="position:absolute;bottom:-14px;left:0;right:0;font-size:9px;color:#aaa;text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                    '<span class="cheezasha-cf time-to-tier" style="position:absolute;bottom:-14px;left:0;right:0;font-size:9px;color:#aaa;text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
                         timeStr +
                         '</span>'
                 );
@@ -1157,14 +1157,14 @@ class CollectionFilters {
             if (!nameEl) return;
 
             // Remove old badge
-            el.querySelector('.toolasha-cf.collection-badge')?.remove();
+            el.querySelector('.cheezasha-cf.collection-badge')?.remove();
 
             const tooltip = this._getBadgeStalenessTooltip(n);
             const colorStyle = stalenessColor ? ` style="color:${stalenessColor}"` : '';
 
             nameEl.insertAdjacentHTML(
                 'beforeend',
-                `<span class="toolasha-cf collection-badge Collection_collection__3H6c8 ${tierColorClass(n)}"` +
+                `<span class="cheezasha-cf collection-badge Collection_collection__3H6c8 ${tierColorClass(n)}"` +
                     ` title="${tooltip}">` +
                     `<span class="Collection_count__3oj-t"${colorStyle}>${formatCount(n)}</span></span>`
             );

@@ -1,6 +1,6 @@
 /**
  * Guild Activity Display
- * Renders the guild activity calculator panel in the Toolasha settings section.
+ * Renders the guild activity calculator panel in the Cheezasha settings section.
  * Shows live session stats, budget tracking, tier comparisons, and guild progress.
  */
 

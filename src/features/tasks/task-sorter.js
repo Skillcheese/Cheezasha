@@ -3,7 +3,7 @@
  * Sorts tasks in the task board by skill type
  */
 
-import { GAME, TOOLASHA } from '../../utils/selectors.js';
+import { GAME, CHEEZASHA } from '../../utils/selectors.js';
 import config from '../../core/config.js';
 import dataManager from '../../core/data-manager.js';
 import taskIcons from './task-icons.js';
@@ -193,8 +193,8 @@ class TaskSorter {
         if (orderA.isCompleted !== orderB.isCompleted) {
             return orderA.isCompleted ? -1 : 1;
         }
-        const profitA = cardA.querySelector(TOOLASHA.TASK_PROFIT);
-        const profitB = cardB.querySelector(TOOLASHA.TASK_PROFIT);
+        const profitA = cardA.querySelector(CHEEZASHA.TASK_PROFIT);
+        const profitB = cardB.querySelector(CHEEZASHA.TASK_PROFIT);
         const secondsA = profitA?.dataset.completionSeconds ? parseFloat(profitA.dataset.completionSeconds) : null;
         const secondsB = profitB?.dataset.completionSeconds ? parseFloat(profitB.dataset.completionSeconds) : null;
 

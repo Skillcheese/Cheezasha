@@ -17,10 +17,10 @@ class MarketAPI {
 
         // Cache settings
         this.CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
-        this.CACHE_KEY_DATA = 'Toolasha_marketAPI_json';
-        this.CACHE_KEY_TIMESTAMP = 'Toolasha_marketAPI_timestamp';
-        this.CACHE_KEY_PATCHES = 'Toolasha_marketAPI_patches';
-        this.CACHE_KEY_MIGRATION = 'Toolasha_marketAPI_migration_version';
+        this.CACHE_KEY_DATA = 'Cheezasha_marketAPI_json';
+        this.CACHE_KEY_TIMESTAMP = 'Cheezasha_marketAPI_timestamp';
+        this.CACHE_KEY_PATCHES = 'Cheezasha_marketAPI_patches';
+        this.CACHE_KEY_MIGRATION = 'Cheezasha_marketAPI_migration_version';
         this.CURRENT_MIGRATION_VERSION = 1; // Increment this when patches need to be cleared
 
         // Current market data

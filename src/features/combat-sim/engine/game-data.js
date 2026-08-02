@@ -2,7 +2,7 @@
  * Game Data Singleton
  *
  * Replaces static JSON imports across the ported combat simulator engine.
- * Game data maps are set once per simulation run from Toolasha's live data.
+ * Game data maps are set once per simulation run from Cheezasha's live data.
  */
 
 let _gameData = null;

@@ -2,7 +2,7 @@
  * Actions Library
  * Production, gathering, and alchemy features
  *
- * Exports to: window.Toolasha.Actions
+ * Exports to: window.Cheezasha.Actions
  */
 
 // Action features
@@ -31,14 +31,14 @@ import alchemyBestItems from '../features/alchemy/alchemy-best-items.js';
 import skillingOptimizer from '../features/skilling-optimizer/skilling-optimizer-ui.js';
 
 // Export to global namespace
-const toolashaRoot = window.Toolasha || {};
-window.Toolasha = toolashaRoot;
+const cheezashaRoot = window.Cheezasha || {};
+window.Cheezasha = cheezashaRoot;
 
 if (typeof unsafeWindow !== 'undefined') {
-    unsafeWindow.Toolasha = toolashaRoot;
+    unsafeWindow.Cheezasha = cheezashaRoot;
 }
 
-toolashaRoot.Actions = {
+cheezashaRoot.Actions = {
     initActionPanelObserver,
     actionTimeDisplay,
     actionCountdown,
@@ -60,4 +60,4 @@ toolashaRoot.Actions = {
     skillingOptimizer,
 };
 
-console.log('[Toolasha] Actions library loaded');
+console.log('[Cheezasha] Actions library loaded');
