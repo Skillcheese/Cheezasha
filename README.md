@@ -111,21 +111,42 @@ This is Skillcheese's fork of [Celasha's Toolasha](https://github.com/Celasha/To
 - **Browser**: Chrome, Firefox, or Edge with [Tampermonkey](https://www.tampermonkey.net/)
 - **Steam**: Use Tampermonkey through the game's built-in extension manager
 
-### Install from GitHub Release (Recommended)
+### Install from URL (Recommended)
 
-1. **Download the latest release**
-    - Visit the [Releases page](../../releases)
-    - Download `Cheezasha.user.js` from the latest release
+1. With Tampermonkey installed, click this link (or paste it into your browser's address bar and press Enter):
 
-2. **Install in Tampermonkey**
-    - Click the downloaded file, or
-    - Open Tampermonkey dashboard → Utilities → Import from file
+    **[https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js](https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js)**
 
-3. **Visit the game**
-    - Go to [Milky Way Idle](https://www.milkywayidle.com/game)
-    - Cheezasha loads automatically
+2. Tampermonkey will open its install page automatically — click **Install**.
+3. Go to [Milky Way Idle](https://www.milkywayidle.com/game) — Cheezasha loads automatically.
+
+Because the URL points at the `releases` branch, Tampermonkey will also **auto-update** the script whenever a new version is published — no manual reinstall needed.
 
 > The entrypoint loads required libraries automatically from GitHub raw URLs.
+
+<details>
+<summary>Steam version: installing from URL</summary>
+
+The Steam client's embedded browser has no address bar to paste a link into, so use Tampermonkey's own URL importer instead:
+
+1. Open the game in Steam, then open Tampermonkey's dashboard (via the extension icon in the Steam browser's toolbar).
+2. Go to the **Utilities** tab.
+3. Under **Import from URL**, paste:
+
+    `https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js`
+
+4. Click **Install**, then confirm on the install page that opens.
+5. Reload the game — Cheezasha loads automatically, and Tampermonkey will keep it updated from the same URL going forward.
+
+</details>
+
+<details>
+<summary>Alternative: manual download</summary>
+
+1. Visit the [Releases page](../../releases) and download `Cheezasha.user.js` from the latest release.
+2. Open Tampermonkey dashboard → Utilities → Import from file, or just click the downloaded file.
+
+</details>
 
 ### Install from Source
 
