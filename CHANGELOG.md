@@ -1,22 +1,26 @@
 # Changelog
 
-## [3.0.0](https://github.com/Skillcheese/Cheezasha/compare/v2.87.1...v3.0.0) (2026-08-02)
-
-
-### ⚠ BREAKING CHANGES
-
-* The userscript name, IndexedDB database, window global namespace, and CSS variable prefixes are renamed from Toolasha/toolasha to Cheezasha/cheezasha. A one-time migration copies existing users' IndexedDB data from ToolashaDB to CheezashaDB on first load so settings and history are preserved. The GitHub repo is renamed to Skillcheese/Cheezasha and downloadURL/updateURL now point at the releases branch instead of the old Greasy Fork listing.
-
-### Features
-
-* rename project from Toolasha to Cheezasha ([d4e31c1](https://github.com/Skillcheese/Cheezasha/commit/d4e31c11fe941c24710392f1cdcf4f8e5965cc44))
-
-## [2.87.1](https://github.com/Skillcheese/Toolasha/compare/v2.87.0...v2.87.1) (2026-08-02)
-
+## [3.0.1](https://github.com/Skillcheese/Cheezasha/compare/v3.0.0...v3.0.1) (2026-08-02)
 
 ### Bug Fixes
 
-* point userscript update URLs to the Skillcheese fork and refresh docs ([c7b116c](https://github.com/Skillcheese/Toolasha/commit/c7b116c2d079f2f7cc956a584b933d5ff6b7fd00))
+- export getSettingDefinition/getSettingDependencies from Core library ([b1fc68f](https://github.com/Skillcheese/Cheezasha/commit/b1fc68fbd94511235f99d9f1fc203427e8fbfb94))
+
+## [3.0.0](https://github.com/Skillcheese/Cheezasha/compare/v2.87.1...v3.0.0) (2026-08-02)
+
+### ⚠ BREAKING CHANGES
+
+- The userscript name, IndexedDB database, window global namespace, and CSS variable prefixes are renamed from Toolasha/toolasha to Cheezasha/cheezasha. A one-time migration copies existing users' IndexedDB data from ToolashaDB to CheezashaDB on first load so settings and history are preserved. The GitHub repo is renamed to Skillcheese/Cheezasha and downloadURL/updateURL now point at the releases branch instead of the old Greasy Fork listing.
+
+### Features
+
+- rename project from Toolasha to Cheezasha ([d4e31c1](https://github.com/Skillcheese/Cheezasha/commit/d4e31c11fe941c24710392f1cdcf4f8e5965cc44))
+
+## [2.87.1](https://github.com/Skillcheese/Toolasha/compare/v2.87.0...v2.87.1) (2026-08-02)
+
+### Bug Fixes
+
+- point userscript update URLs to the Skillcheese fork and refresh docs ([c7b116c](https://github.com/Skillcheese/Toolasha/commit/c7b116c2d079f2f7cc956a584b933d5ff6b7fd00))
 
 ## [2.87.0](https://github.com/Skillcheese/Toolasha/compare/v2.86.0...v2.87.0) (2026-08-02)
 
