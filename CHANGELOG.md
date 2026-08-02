@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/Skillcheese/Cheezasha/compare/v3.0.0...v3.0.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* export getSettingDefinition/getSettingDependencies from Core library ([b1fc68f](https://github.com/Skillcheese/Cheezasha/commit/b1fc68fbd94511235f99d9f1fc203427e8fbfb94))
+
 ## [3.0.0](https://github.com/Skillcheese/Cheezasha/compare/v2.87.1...v3.0.0) (2026-08-02)
 
 
