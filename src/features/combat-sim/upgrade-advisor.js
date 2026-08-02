@@ -26,6 +26,15 @@ const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
 /**
+ * Slots where damage-style role grouping (melee_stab/ranged/magic/etc.) actually
+ * matters, since a stab weapon isn't a valid replacement for a ranged one. Armor
+ * slots are NOT grouped by role — a defense-leaning boot and an accuracy-leaning
+ * boot are both valid boots, and the sim (not a stat heuristic) should decide which
+ * is actually better.
+ */
+const WEAPON_SLOTS = new Set(['/equipment_types/main_hand', '/equipment_types/two_hand', '/equipment_types/off_hand']);
+
+/**
  * Get the next ability level target (next multiple of 10) above the current level.
  * Used as fallback when no explicit target level is provided.
  * @param {number} currentLevel - Current ability level
@@ -61,6 +70,65 @@ function getNextBreakpoint(currentLevel, slot, itemHrid) {
         if (bp > currentLevel) return bp;
     }
     return null;
+}
+
+/**
+ * Get the highest enhancement breakpoint affordable within a coin budget, rather than
+ * just the next single breakpoint — so if the budget covers a jump straight to a
+ * higher tier, that's what gets suggested.
+ * @param {number} currentLevel - Current enhancement level
+ * @param {string} slot - Equipment slot HRID
+ * @param {string} itemHrid - Item HRID
+ * @param {Object} gameData
+ * @param {number} budget - Coin budget
+ * @returns {number|null} Highest affordable breakpoint level, or null if none affordable
+ */
+function getBudgetMatchedBreakpoint(currentLevel, slot, itemHrid, gameData, budget) {
+    let breakpoints;
+    if (itemHrid.includes('_refined')) {
+        breakpoints = BREAKPOINTS_REFINED;
+    } else if (JEWELRY_SLOTS.has(slot)) {
+        breakpoints = BREAKPOINTS_JEWELRY;
+    } else if (slot === '/equipment_types/back') {
+        breakpoints = BREAKPOINTS_BACK;
+    } else {
+        breakpoints = BREAKPOINTS_DEFAULT;
+    }
+
+    let best = null;
+    for (const bp of breakpoints) {
+        if (bp <= currentLevel) continue;
+        const cost = calculateEnhancementCost(itemHrid, currentLevel, bp, gameData, { slot });
+        // Cost is monotonically non-decreasing with level, so the first unaffordable
+        // breakpoint means every subsequent one is unaffordable too.
+        if (cost <= budget) {
+            best = bp;
+        } else {
+            break;
+        }
+    }
+    return best;
+}
+
+/**
+ * Get the highest enhancement level of an item that's both listed on the market and
+ * affordable within budget. A tier-replacement candidate should only ever generate
+ * ONE row per item — the best level actually worth buying — not a separate row per
+ * +0/+X level of the same item.
+ * @param {string} hrid - Item HRID
+ * @param {number} budget - Coin budget
+ * @returns {number} Highest affordable enhancement level with a market listing, or 0
+ */
+function getBudgetMatchedItemLevel(hrid, budget) {
+    let bestLevel = 0;
+    for (let level = 1; level <= 20; level++) {
+        const market = getItemPrices(hrid, level);
+        if (!market || !(market.ask > 0)) continue;
+        if (market.ask <= budget) {
+            bestLevel = level;
+        }
+    }
+    return bestLevel;
 }
 
 /**
@@ -178,6 +246,26 @@ function getCharacterSkillLevelMap() {
 function meetsAbilityBookRequirements(abilityHrid, skillLevelMap, gameData) {
     const bookHrid = abilityHrid.replace('/abilities/', '/items/');
     const reqs = gameData.itemDetailMap[bookHrid]?.abilityBookDetail?.levelRequirements;
+    if (!reqs || reqs.length === 0) return true;
+
+    for (const req of reqs) {
+        if (!req.skillHrid) continue;
+        const playerLevel = skillLevelMap.get(req.skillHrid) ?? 0;
+        if (playerLevel < (req.level || 0)) return false;
+    }
+    return true;
+}
+
+/**
+ * Check whether the player's skills meet an equippable item's level requirements
+ * (e.g. armor requiring 50 Defense can't be equipped below that level).
+ * @param {string} itemHrid
+ * @param {Map<string, number>} skillLevelMap - From getCharacterSkillLevelMap()
+ * @param {Object} gameData
+ * @returns {boolean}
+ */
+function meetsItemLevelRequirements(itemHrid, skillLevelMap, gameData) {
+    const reqs = gameData.itemDetailMap[itemHrid]?.equipmentDetail?.levelRequirements;
     if (!reqs || reqs.length === 0) return true;
 
     for (const req of reqs) {
@@ -470,7 +558,7 @@ export function getEquipmentTierProgression(gameData) {
 
         const slot = item.equipmentDetail.type;
         const role = getItemRole(item.equipmentDetail.combatStats);
-        const key = `${slot}|${role}`;
+        const key = WEAPON_SLOTS.has(slot) ? `${slot}|${role}` : slot;
         if (!progression[key]) {
             progression[key] = [];
         }
@@ -621,6 +709,64 @@ function buildUpgradeMap(gameData) {
 }
 
 /**
+ * Build a map of DIRECT single-item upgrade chains only (action.upgradeItemHrid), e.g.
+ * Cheese Boots → Verdant Boots. Deliberately excludes combination recipes (multiple
+ * different inputItems combined, like Philosopher's-style crafts) — those don't mean
+ * one input is a strictly-inferior version of the output, just an ingredient of it, so
+ * they must not be used to exclude candidates as "same line".
+ * @param {Object} gameData
+ * @returns {Map<string, Set<string>>} itemHrid → Set of direct upgrade output hrids
+ */
+function buildDirectUpgradeMap(gameData) {
+    const map = new Map();
+
+    for (const action of Object.values(gameData.actionDetailMap)) {
+        if (!action.upgradeItemHrid || !action.outputItems?.length) continue;
+        const outputHrid = action.outputItems[0].itemHrid;
+
+        const outputItem = gameData.itemDetailMap[outputHrid];
+        if (!outputItem?.equipmentDetail?.type) continue;
+        const upgradeItem = gameData.itemDetailMap[action.upgradeItemHrid];
+        if (!upgradeItem?.equipmentDetail?.type) continue;
+
+        if (!map.has(action.upgradeItemHrid)) map.set(action.upgradeItemHrid, new Set());
+        map.get(action.upgradeItemHrid).add(outputHrid);
+    }
+
+    return map;
+}
+
+/**
+ * Find every item that eventually crafts forward into targetHrid via DIRECT upgrade
+ * chains only (i.e. is a strictly-inferior earlier tier in the SAME item line, like
+ * Cheese Boots → Verdant Boots). These are excluded from tier candidates since they're
+ * objectively worse than what's already equipped. Items with a lower item level that
+ * belong to a DIFFERENT, unrelated line (e.g. Shoebill vs. Burble Boots) are not
+ * ancestors and remain valid candidates — the sim decides if they're actually better.
+ * @param {string} targetHrid
+ * @param {Map<string, Set<string>>} directUpgradeMap - itemHrid → Set of direct upgrade output hrids
+ * @returns {Set<string>} Hrids that are lower-tier predecessors of targetHrid
+ */
+function getSameLineAncestors(targetHrid, directUpgradeMap) {
+    const ancestors = new Set();
+    const queue = [targetHrid];
+    const visited = new Set([targetHrid]);
+
+    while (queue.length) {
+        const current = queue.shift();
+        for (const [hrid, upgrades] of directUpgradeMap.entries()) {
+            if (!upgrades.has(current)) continue;
+            if (visited.has(hrid)) continue;
+            visited.add(hrid);
+            ancestors.add(hrid);
+            queue.push(hrid);
+        }
+    }
+
+    return ancestors;
+}
+
+/**
  * Get the primary damage style of an item's combat stats.
  * @param {Object} combatStats - Item combat stats
  * @returns {string} 'slash', 'stab', 'smash', 'ranged', 'magic', or 'unknown'
@@ -727,13 +873,17 @@ export function generateCandidates(
     abilityLevelType = 'increment',
     skipBackSlot = false,
     abilitySwapBudget = null,
-    abilityLevelBudget = null
+    abilityLevelBudget = null,
+    equipmentBudget = null
 ) {
     const candidates = [];
 
     if (mode === 'equipment') {
+        const enhancementBudget = equipmentBudget != null && equipmentBudget > 0 ? equipmentBudget : 1_000_000;
         const tierProgression = getEquipmentTierProgression(gameData);
         const upgradeMap = buildUpgradeMap(gameData);
+        const directUpgradeMap = buildDirectUpgradeMap(gameData);
+        const skillLevelMap = getCharacterSkillLevelMap();
 
         for (const [slot, equip] of Object.entries(playerDTO.equipment)) {
             if (!equip) continue;
@@ -747,8 +897,8 @@ export function generateCandidates(
             if (skipBackSlot && slot === '/equipment_types/back') continue;
             if (!hasCombatStats(itemDetails)) continue;
 
-            // Enhancement upgrade: next breakpoint
-            const nextBP = getNextBreakpoint(currentLevel, slot, currentHrid);
+            // Enhancement upgrade: highest breakpoint affordable within budget
+            const nextBP = getBudgetMatchedBreakpoint(currentLevel, slot, currentHrid, gameData, enhancementBudget);
             if (nextBP) {
                 const itemName = gameData.itemDetailMap[currentHrid]?.name || currentHrid.split('/').pop();
                 candidates.push({
@@ -762,119 +912,72 @@ export function generateCandidates(
                 });
             }
 
-            // Tier upgrade
+            // Tier/replacement upgrades: every other item in the same slot (weapon slots
+            // are further split by damage-style role, since e.g. a stab weapon isn't a
+            // valid replacement for a ranged one — see WEAPON_SLOTS) that meets skill
+            // requirements. Not filtered by item level, since a lower-item-level item
+            // (e.g. Shoebill vs. Burble Boots) can still be a real upgrade. Only exclude
+            // items that are a strictly-inferior earlier tier of the SAME crafting line
+            // as the item currently equipped (e.g. Cheese Boots is objectively worse
+            // than Verdant Boots because it upgrades directly into it).
             const role = getItemRole(itemDetails?.equipmentDetail?.combatStats);
+            const isWeaponSlot = WEAPON_SLOTS.has(slot);
+            const slotKey = isWeaponSlot ? `${slot}|${role}` : slot;
+            const slotItems = tierProgression[slotKey];
+            const currentName = itemDetails?.name || currentHrid.split('/').pop();
+            const sameLineAncestors = getSameLineAncestors(currentHrid, directUpgradeMap);
+            const candidateHrids = new Set();
 
-            if (role === 'defensive') {
-                // Defensive items: use crafting chain (upgrade path + combination recipes)
-                const upgrades = upgradeMap.get(currentHrid);
-                if (upgrades) {
-                    for (const upgradeHrid of upgrades) {
-                        const upgradeItem = gameData.itemDetailMap[upgradeHrid];
-                        if (!upgradeItem?.equipmentDetail) continue;
-                        if (upgradeItem.equipmentDetail.type !== slot) continue;
-                        const upgradeRole = getItemRole(upgradeItem.equipmentDetail?.combatStats);
-                        if (upgradeRole !== 'defensive') continue;
+            if (slotItems) {
+                for (const item of slotItems) {
+                    if (item.hrid === currentHrid) continue;
+                    if (sameLineAncestors.has(item.hrid)) continue;
+                    if (!meetsItemLevelRequirements(item.hrid, skillLevelMap, gameData)) continue;
 
-                        const upgradeName = upgradeItem.name || upgradeHrid.split('/').pop();
-                        const currentName = itemDetails?.name || currentHrid.split('/').pop();
-                        candidates.push({
-                            slot,
-                            currentHrid,
-                            currentLevel,
-                            upgradeHrid,
-                            upgradeLevel: currentLevel,
-                            description: `${currentName} → ${upgradeName} (+${currentLevel})`,
-                            type: 'tier',
-                        });
-                    }
+                    const upgradeName = item.name || item.hrid.split('/').pop();
+                    const upgradeLevel = getBudgetMatchedItemLevel(item.hrid, enhancementBudget);
+                    candidates.push({
+                        slot,
+                        currentHrid,
+                        currentLevel,
+                        upgradeHrid: item.hrid,
+                        upgradeLevel,
+                        description: `${currentName} → ${upgradeName} (+${upgradeLevel})`,
+                        type: 'tier',
+                    });
+                    candidateHrids.add(item.hrid);
                 }
-            } else {
-                // Offensive items: keep existing role-based tier progression
-                const slotKey = `${slot}|${role}`;
-                const slotItems = tierProgression[slotKey];
-                const offensiveCurrentName = itemDetails?.name || currentHrid.split('/').pop();
-                const offensiveCandidateHrids = new Set();
-                if (slotItems) {
-                    const currentIdx = slotItems.findIndex((item) => item.hrid === currentHrid);
-                    if (currentIdx >= 0 && currentIdx < slotItems.length - 1) {
-                        const nextTier = slotItems[currentIdx + 1];
-                        const nextName = nextTier.name || nextTier.hrid.split('/').pop();
-                        candidates.push({
-                            slot,
-                            currentHrid,
-                            currentLevel,
-                            upgradeHrid: nextTier.hrid,
-                            upgradeLevel: currentLevel,
-                            description: `${offensiveCurrentName} → ${nextName} (+${currentLevel})`,
-                            type: 'tier',
-                        });
-                        offensiveCandidateHrids.add(nextTier.hrid);
+            }
 
-                        // Also suggest the highest non-refined item in the same slot|role
-                        // when the player is already wearing high-tier gear (T60+). This
-                        // surfaces direct T95 jumps (e.g. Sighted → Marksman) that the
-                        // single-step progression would otherwise hide behind T75 stepping
-                        // stones.
-                        const currentItemLevel = itemDetails?.itemLevel || 0;
-                        if (currentItemLevel >= 60) {
-                            let highestNonRefined = null;
-                            for (let i = slotItems.length - 1; i >= 0; i--) {
-                                if (!slotItems[i].hrid.endsWith('_refined')) {
-                                    highestNonRefined = slotItems[i];
-                                    break;
-                                }
-                            }
-                            if (
-                                highestNonRefined &&
-                                highestNonRefined.hrid !== currentHrid &&
-                                highestNonRefined.hrid !== nextTier.hrid &&
-                                highestNonRefined.itemLevel > currentItemLevel
-                            ) {
-                                const highestName = highestNonRefined.name || highestNonRefined.hrid.split('/').pop();
-                                candidates.push({
-                                    slot,
-                                    currentHrid,
-                                    currentLevel,
-                                    upgradeHrid: highestNonRefined.hrid,
-                                    upgradeLevel: currentLevel,
-                                    description: `${offensiveCurrentName} → ${highestName} (+${currentLevel})`,
-                                    type: 'tier',
-                                });
-                                offensiveCandidateHrids.add(highestNonRefined.hrid);
-                            }
-                        }
-                    }
-                }
-
-                // Also walk the crafting-chain upgradeMap for offensive items so that
-                // direct upgrade-action targets — most importantly the refined version
-                // of the current weapon (e.g. Furious Spear → Furious Spear ★) — surface
-                // even when the role-grouped progression would step sideways to a
-                // different damage style first.
-                const offensiveUpgrades = upgradeMap.get(currentHrid);
-                if (offensiveUpgrades) {
-                    for (const upgradeHrid of offensiveUpgrades) {
-                        if (offensiveCandidateHrids.has(upgradeHrid)) continue;
-                        if (upgradeHrid === currentHrid) continue;
-                        const upgradeItem = gameData.itemDetailMap[upgradeHrid];
-                        if (!upgradeItem?.equipmentDetail) continue;
-                        if (upgradeItem.equipmentDetail.type !== slot) continue;
+            // Also walk the crafting-chain upgradeMap for direct upgrade-action targets
+            // (e.g. refined/★ variants) at the same item level, which the role-grouped
+            // progression above (itemLevel-gated) wouldn't otherwise surface.
+            const upgrades = upgradeMap.get(currentHrid);
+            if (upgrades) {
+                for (const upgradeHrid of upgrades) {
+                    if (candidateHrids.has(upgradeHrid)) continue;
+                    if (upgradeHrid === currentHrid) continue;
+                    const upgradeItem = gameData.itemDetailMap[upgradeHrid];
+                    if (!upgradeItem?.equipmentDetail) continue;
+                    if (upgradeItem.equipmentDetail.type !== slot) continue;
+                    if (isWeaponSlot) {
                         const upgradeRole = getItemRole(upgradeItem.equipmentDetail?.combatStats);
                         if (upgradeRole !== role) continue;
-
-                        const upgradeName = upgradeItem.name || upgradeHrid.split('/').pop();
-                        candidates.push({
-                            slot,
-                            currentHrid,
-                            currentLevel,
-                            upgradeHrid,
-                            upgradeLevel: currentLevel,
-                            description: `${offensiveCurrentName} → ${upgradeName} (+${currentLevel})`,
-                            type: 'tier',
-                        });
-                        offensiveCandidateHrids.add(upgradeHrid);
                     }
+                    if (!meetsItemLevelRequirements(upgradeHrid, skillLevelMap, gameData)) continue;
+
+                    const upgradeName = upgradeItem.name || upgradeHrid.split('/').pop();
+                    const upgradeLevel = getBudgetMatchedItemLevel(upgradeHrid, enhancementBudget);
+                    candidates.push({
+                        slot,
+                        currentHrid,
+                        currentLevel,
+                        upgradeHrid,
+                        upgradeLevel,
+                        description: `${currentName} → ${upgradeName} (+${upgradeLevel})`,
+                        type: 'tier',
+                    });
+                    candidateHrids.add(upgradeHrid);
                 }
             }
         }
@@ -900,13 +1003,16 @@ export function generateCandidates(
                     if (!eq || eq.type !== '/equipment_types/main_hand') continue;
                     if (!hasCombatStats(item)) continue;
                     if ((item.itemLevel || 0) < twoHandLevel) continue;
+                    if (!meetsItemLevelRequirements(itemHrid, skillLevelMap, gameData)) continue;
 
                     const style = getItemDamageStyle(eq.combatStats);
                     if (style !== damageStyle) continue;
 
                     // Find candidate off-hands at this tier (may return 1 or 2 options:
                     // style-matched and/or highest-itemLevel).
-                    const offHandCandidates = findBestOffHand(gameData, damageStyle, item.itemLevel || 999);
+                    const offHandCandidates = findBestOffHand(gameData, damageStyle, item.itemLevel || 999).filter(
+                        (oh) => meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData)
+                    );
                     if (!offHandCandidates.length) continue;
 
                     const mainName = item.name || itemHrid.split('/').pop();
@@ -953,6 +1059,7 @@ export function generateCandidates(
                     const style = getItemDamageStyle(eq.combatStats);
                     if (style !== damageStyle) continue;
                     if (getItemRole(eq.combatStats) === 'defensive') continue;
+                    if (!meetsItemLevelRequirements(itemHrid, skillLevelMap, gameData)) continue;
 
                     const twoHandName = item.name || itemHrid.split('/').pop();
                     const currentName = mainHandItem?.name || mainHandEquip.hrid.split('/').pop();
@@ -1161,6 +1268,8 @@ export function calculateUpgradeCost(candidate, gameData) {
     }
 
     if (candidate.type === 'cross_slot') {
+        // Buy cost only — never net against selling currently-equipped gear, since
+        // keeping or selling old gear is the player's own separate decision.
         let buyCost = 0;
         for (const [, item] of Object.entries(candidate.addedSlots)) {
             const price = resolveItemPrice(item.hrid, {
@@ -1169,44 +1278,31 @@ export function calculateUpgradeCost(candidate, gameData) {
             });
             buyCost += price.price;
         }
-        const sellPrice = resolveItemPrice(candidate.currentHrid, {
-            side: 'sell',
-            enhancementLevel: candidate.currentLevel,
-        }).price;
-        return Math.max(0, buyCost - sellPrice);
+        return buyCost;
     }
 
     if (candidate.type === 'enhancement') {
-        // Primary: market price delta (buy at target level - sell at current level)
-        // Only use if BOTH levels have actual market listings
-        const upgradedMarket = getItemPrices(candidate.currentHrid, candidate.upgradeLevel);
-        const currentMarket = getItemPrices(candidate.currentHrid, candidate.currentLevel);
-
-        if (upgradedMarket?.ask > 0 && currentMarket?.bid > 0) {
-            return Math.max(0, upgradedMarket.ask - currentMarket.bid);
-        }
-
-        // Fallback: enhancement cost estimate with protection
+        // Cost to enhance the item already owned (materials + protection) — never a
+        // market buy/sell delta, since that would bake in the value of gear the
+        // player may choose to keep rather than sell.
         return calculateEnhancementCost(
             candidate.currentHrid,
             candidate.currentLevel,
             candidate.upgradeLevel,
             gameData,
-            { slot: candidate.slot }
+            {
+                slot: candidate.slot,
+            }
         );
     }
 
-    // Tier upgrade: buy new item at same enhancement - sell current item
-    const buyPrice = resolveItemPrice(candidate.upgradeHrid, {
+    // Tier upgrade: buy cost of the new item only — never net against selling the
+    // currently-equipped item, since keeping or selling it is the player's own
+    // separate decision.
+    return resolveItemPrice(candidate.upgradeHrid, {
         side: 'buy',
         enhancementLevel: candidate.upgradeLevel,
     }).price;
-    const sellPrice = resolveItemPrice(candidate.currentHrid, {
-        side: 'sell',
-        enhancementLevel: candidate.currentLevel,
-    }).price;
-
-    return Math.max(0, buyPrice - sellPrice);
 }
 
 /**
@@ -1229,6 +1325,7 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         abilityTargetLevel,
         abilityLevelBudget,
         abilitySwapBudget,
+        equipmentBudget,
         skipBackSlot,
     } = params;
     const { abortSignal } = options;
@@ -1247,12 +1344,21 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         abilityLevelType,
         skipBackSlot,
         abilitySwapBudget,
-        abilityLevelBudget
+        abilityLevelBudget,
+        equipmentBudget
     );
-    const candidatesWithCost = candidates.map((c) => ({
+    let candidatesWithCost = candidates.map((c) => ({
         ...c,
         cost: calculateUpgradeCost(c, gameData),
     }));
+
+    if (upgradeMode === 'equipment') {
+        // Filter out equipment candidates the player can't reasonably afford, so time
+        // isn't wasted simulating upgrades far outside their budget. Defaults to 1M if
+        // no budget is entered; the UI allows sub-1M budgets (e.g. 0.5) for cheap slots.
+        const budget = equipmentBudget != null && equipmentBudget > 0 ? equipmentBudget : 1_000_000;
+        candidatesWithCost = candidatesWithCost.filter((c) => c.cost <= budget);
+    }
 
     const total = candidatesWithCost.length + 1; // +1 for baseline
     let current = 0;

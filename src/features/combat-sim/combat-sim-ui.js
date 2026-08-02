@@ -434,12 +434,12 @@ class CombatSimUI {
                     border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
                     title="Number of levels to add to each ability">
             </span>
-            <span id="mwi-csim-upgrade-budget-group" style="display:none; align-items:center; gap:4px;">
-                <label style="color:#888; font-size:12px;">Budget (M coins)</label>
-                <input id="mwi-csim-upgrade-swap-budget" type="number" min="0" step="0.01" placeholder="e.g. 1.5" style="
+            <span id="mwi-csim-upgrade-budget-group" style="display:inline-flex; align-items:center; gap:4px;">
+                <label id="mwi-csim-upgrade-budget-label" style="color:#888; font-size:12px;">Max Cost (M coins)</label>
+                <input id="mwi-csim-upgrade-swap-budget" type="number" min="0" step="0.01" placeholder="e.g. 1" style="
                     width:70px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
                     border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
-                    title="Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.">
+                    title="Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.">
             </span>
             <label style="display:flex; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;">
                 <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
@@ -543,10 +543,22 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
             const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
             const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
+            const budgetLabel = this.panel.querySelector('#mwi-csim-upgrade-budget-label');
+            const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
+            const isEquipmentMode = e.target.value === 'equipment';
             const isLevelMode = e.target.value === 'ability_level';
             const isSwapMode = e.target.value === 'ability_swap';
             levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
-            budgetGroup.style.display = isSwapMode ? 'inline-flex' : 'none';
+            budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
+            if (isEquipmentMode) {
+                budgetLabel.textContent = 'Max Cost (M coins)';
+                budgetInput.title =
+                    'Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.';
+            } else if (isSwapMode) {
+                budgetLabel.textContent = 'Budget (M coins)';
+                budgetInput.title =
+                    'Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.';
+            }
             if (isLevelMode) {
                 this._setDefaultAbilityTargetLevel();
             }
@@ -3110,6 +3122,8 @@ class CombatSimUI {
         const swapBudgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget')?.value;
         const abilitySwapBudget =
             swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : null;
+        const equipmentBudget =
+            swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : 1_000_000;
 
         if (!zoneHrid) {
             this._setStatus('Select a zone in Configure tab first.');
@@ -3165,6 +3179,7 @@ class CombatSimUI {
                     abilityTargetLevel,
                     abilityLevelBudget,
                     abilitySwapBudget,
+                    equipmentBudget,
                     skipBackSlot,
                 },
                 ({ current, total, description }) => {
@@ -3196,7 +3211,7 @@ class CombatSimUI {
     }
 
     /**
-     * Render upgrade analysis results as an expandable table.
+     * Render upgrade analysis results as a flat, sortable table.
      * @param {Object} results - { baseline, results: [{candidate, cost, metrics, deltas, goldPer}] }
      * @private
      */
@@ -3210,120 +3225,161 @@ class CombatSimUI {
             return;
         }
 
-        const tableStyle = 'width:100%; border-collapse:collapse; font-size:11px;';
-        const thStyle = 'padding:4px 6px; text-align:left; border-bottom:1px solid #333; color:#888; font-weight:600;';
-        const tdStyle = 'padding:4px 6px; border-bottom:1px solid #1a1a2e;';
+        this._upgradeResults = results;
+        this._displayUpgradeResults();
+    }
 
-        let html = `<table style="${tableStyle}">
-            <thead><tr>
-                <th style="${thStyle}">Upgrade</th>
-                <th style="${thStyle}">Cost</th>
-                <th style="${thStyle}">Gold/0.1% DPS</th>
-                <th style="${thStyle}">Gold/0.1% EXP</th>
-                <th style="${thStyle}">Gold/0.1% Profit</th>
-            </tr></thead><tbody>`;
+    /**
+     * @private
+     */
+    _displayUpgradeResults() {
+        const results = this._upgradeResults;
+        const container = this.panel.querySelector('#mwi-csim-upgrade-results');
+        if (!container || !results) return;
 
-        // Find best (lowest non-Infinity) value in each gold/0.1% column
-        let bestDps = Infinity;
-        let bestXp = Infinity;
-        let bestProfit = Infinity;
-        for (const r of results.results) {
-            if (r.goldPer.dps < bestDps) bestDps = r.goldPer.dps;
-            if (r.goldPer.xp < bestXp) bestXp = r.goldPer.xp;
-            if (r.goldPer.profit < bestProfit) bestProfit = r.goldPer.profit;
+        const baseline = results.baseline;
+
+        const cols = [
+            { key: 'description', label: 'Upgrade' },
+            { key: 'cost', label: 'Cost' },
+            { key: 'goldDps', label: 'Gold/0.1% DPS' },
+            { key: 'goldXp', label: 'Gold/0.1% EXP' },
+            { key: 'goldProfit', label: 'Gold/0.1% Profit' },
+            { key: 'dps', label: 'DPS' },
+            { key: 'dpsDeltaPct', label: 'DPS Δ%' },
+            { key: 'xpPerHour', label: 'XP/hr' },
+            { key: 'xpDeltaPct', label: 'XP/hr Δ%' },
+            { key: 'profitPerHour', label: 'Profit/hr' },
+            { key: 'profitDeltaPct', label: 'Profit/hr Δ%' },
+            { key: 'encountersPerHour', label: 'EPH' },
+            { key: 'deathsPerHour', label: 'DPH' },
+        ];
+
+        const rows = results.results.map((r) => ({
+            description: r.candidate.description,
+            cost: r.cost,
+            goldDps: r.goldPer.dps,
+            goldXp: r.goldPer.xp,
+            goldProfit: r.goldPer.profit,
+            dps: r.metrics.dps,
+            dpsDeltaPct: r.deltas.dps,
+            xpPerHour: r.metrics.xpPerHour,
+            xpDeltaPct: r.deltas.xp,
+            profitPerHour: r.metrics.profitPerHour,
+            profitDeltaPct: r.deltas.profit,
+            encountersPerHour: r.metrics.encountersPerHour,
+            deathsPerHour: r.metrics.deathsPerHour,
+        }));
+
+        // Sort
+        if (this._upgradeSortCol) {
+            const col = this._upgradeSortCol;
+            const asc = this._upgradeSortAsc;
+            rows.sort((a, b) => {
+                const va = a[col] ?? 0;
+                const vb = b[col] ?? 0;
+                if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                if (va === Infinity && vb === Infinity) return 0;
+                if (va === Infinity) return asc ? 1 : -1;
+                if (vb === Infinity) return asc ? -1 : 1;
+                return asc ? va - vb : vb - va;
+            });
         }
 
-        results.results.forEach((r, i) => {
-            const costStr = formatKMB(r.cost);
-            const rowColor = r.deltas.dps > 0 || r.deltas.profit > 0 ? '#e0e0e0' : '#888';
+        // Best (lowest non-Infinity) value per gold/0.1% column, for highlighting
+        const bestVals = {};
+        for (const key of ['goldDps', 'goldXp', 'goldProfit']) {
+            let best = Infinity;
+            for (const row of rows) {
+                if (row[key] < best) best = row[key];
+            }
+            bestVals[key] = best;
+        }
 
-            const fmtGoldPer = (val) => (val === Infinity ? '—' : formatKMB(val));
-            const bestColor = '#4caf50';
-            const dpsGoldStr = fmtGoldPer(r.goldPer.dps);
-            const xpGoldStr = fmtGoldPer(r.goldPer.xp);
-            const profitGoldStr = fmtGoldPer(r.goldPer.profit);
-            const dpsStyle =
-                r.goldPer.dps === bestDps && bestDps !== Infinity ? `color:${bestColor}; font-weight:700;` : '';
-            const xpStyle =
-                r.goldPer.xp === bestXp && bestXp !== Infinity ? `color:${bestColor}; font-weight:700;` : '';
-            const profitStyle =
-                r.goldPer.profit === bestProfit && bestProfit !== Infinity
-                    ? `color:${bestColor}; font-weight:700;`
-                    : '';
+        const thStyle =
+            'padding:4px 6px; text-align:left; cursor:pointer; white-space:nowrap; border-bottom:1px solid #333; color:#888; font-weight:600; user-select:none;';
+        const tdStyle = 'padding:4px 6px; border-bottom:1px solid #1a1a2e; white-space:nowrap;';
+        const bestColor = '#4caf50';
 
-            html += `<tr style="cursor:pointer; color:${rowColor};" data-upgrade-row="${i}">
-                <td style="${tdStyle}">${r.candidate.description}</td>
-                <td style="${tdStyle}">${costStr}</td>
-                <td style="${tdStyle} ${dpsStyle}">${dpsGoldStr}</td>
-                <td style="${tdStyle} ${xpStyle}">${xpGoldStr}</td>
-                <td style="${tdStyle} ${profitStyle}">${profitGoldStr}</td>
-            </tr>`;
+        const headerCells = cols
+            .map((col) => {
+                const arrow = this._upgradeSortCol === col.key ? (this._upgradeSortAsc ? ' ▲' : ' ▼') : '';
+                return `<th data-col="${col.key}" style="${thStyle}">${col.label}${arrow}</th>`;
+            })
+            .join('');
 
-            // Expanded detail row with deltas (hidden by default)
-            const dpsValueDelta = r.metrics.dps - results.baseline.dps;
-            const xpValueDelta = r.metrics.xpPerHour - results.baseline.xpPerHour;
-            const profitValueDelta = r.metrics.profitPerHour - results.baseline.profitPerHour;
-            const ephDelta = r.metrics.encountersPerHour - results.baseline.encountersPerHour;
-            const dphDelta = r.metrics.deathsPerHour - results.baseline.deathsPerHour;
-            const fmtDelta = (val) => {
-                if (Math.abs(val) < 0.5) return '—';
-                return (val >= 0 ? '+' : '') + formatKMB(val);
-            };
-            const fmtDeltaSmall = (val) => {
-                if (Math.abs(val) < 0.01) return '—';
-                return (val >= 0 ? '+' : '') + val.toFixed(1);
-            };
-            const deltaColor = (val) => (val > 0.5 ? '#4caf50' : val < -0.5 ? '#f44336' : '#888');
-            // For deaths, lower is better (inverted color)
-            const deathDeltaColor = (val) => (val < -0.01 ? '#4caf50' : val > 0.01 ? '#f44336' : '#888');
+        const fmtGoldPer = (val) => (val === Infinity ? '—' : formatKMB(val));
+        const fmtPct = (val) => (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
+        const deltaColor = (val) => (val > 0.05 ? '#4caf50' : val < -0.05 ? '#f44336' : '#888');
 
-            html += `<tr data-upgrade-detail="${i}" style="display:none;">
-                <td colspan="5" style="padding:6px 12px; background:#0d0d1a; border-bottom:1px solid #222;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr 1fr; gap:8px; font-size:11px;">
-                        <div>
-                            <div style="color:#888;">DPS</div>
-                            <div style="color:#e0e0e0;">${formatKMB(r.metrics.dps)}</div>
-                            <div style="color:${deltaColor(dpsValueDelta)};">${fmtDelta(dpsValueDelta)} (${r.deltas.dps >= 0 ? '+' : ''}${r.deltas.dps.toFixed(2)}%)</div>
-                        </div>
-                        <div>
-                            <div style="color:#888;">EXP/hr</div>
-                            <div style="color:#e0e0e0;">${formatKMB(r.metrics.xpPerHour)}</div>
-                            <div style="color:${deltaColor(xpValueDelta)};">${fmtDelta(xpValueDelta)} (${r.deltas.xp >= 0 ? '+' : ''}${r.deltas.xp.toFixed(2)}%)</div>
-                        </div>
-                        <div>
-                            <div style="color:#888;">Profit/hr</div>
-                            <div style="color:#e0e0e0;">${formatKMB(r.metrics.profitPerHour)}</div>
-                            <div style="color:${deltaColor(profitValueDelta)};">${fmtDelta(profitValueDelta)} (${r.deltas.profit >= 0 ? '+' : ''}${r.deltas.profit.toFixed(2)}%)</div>
-                        </div>
-                        <div>
-                            <div style="color:#888;">EPH</div>
-                            <div style="color:#e0e0e0;">${r.metrics.encountersPerHour.toFixed(1)}</div>
-                            <div style="color:${deltaColor(ephDelta)};">${fmtDeltaSmall(ephDelta)} (${r.deltas.encounters >= 0 ? '+' : ''}${r.deltas.encounters.toFixed(2)}%)</div>
-                        </div>
-                        <div>
-                            <div style="color:#888;">DPH</div>
-                            <div style="color:#e0e0e0;">${r.metrics.deathsPerHour.toFixed(1)}</div>
-                            <div style="color:${deathDeltaColor(dphDelta)};">${fmtDeltaSmall(dphDelta)} (${r.deltas.deaths >= 0 ? '+' : ''}${r.deltas.deaths.toFixed(2)}%)</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:6px; color:#666; font-size:10px;">
-                        Baseline: DPS ${formatKMB(results.baseline.dps)} | EXP ${formatKMB(results.baseline.xpPerHour)} | Profit ${formatKMB(results.baseline.profitPerHour)} | EPH ${results.baseline.encountersPerHour.toFixed(1)} | DPH ${results.baseline.deathsPerHour.toFixed(1)}
-                    </div>
-                </td>
-            </tr>`;
-        });
+        const bodyRows = rows
+            .map((row) => {
+                const rowColor = row.dpsDeltaPct > 0 || row.profitDeltaPct > 0 ? '#e0e0e0' : '#888';
+                const cells = cols
+                    .map((col) => {
+                        let display;
+                        let style = tdStyle;
+                        switch (col.key) {
+                            case 'description':
+                                display = row.description;
+                                break;
+                            case 'cost':
+                                display = formatKMB(row.cost);
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                break;
+                            case 'goldDps':
+                            case 'goldXp':
+                            case 'goldProfit':
+                                display = fmtGoldPer(row[col.key]);
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                if (row[col.key] === bestVals[col.key] && bestVals[col.key] !== Infinity) {
+                                    style += ` color:${bestColor}; font-weight:700;`;
+                                }
+                                break;
+                            case 'dpsDeltaPct':
+                            case 'xpDeltaPct':
+                            case 'profitDeltaPct':
+                                display = fmtPct(row[col.key]);
+                                style += ` text-align:right; font-variant-numeric:tabular-nums; color:${deltaColor(row[col.key])};`;
+                                break;
+                            case 'encountersPerHour':
+                            case 'deathsPerHour':
+                                display = row[col.key].toFixed(1);
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                break;
+                            default:
+                                display = formatKMB(row[col.key]);
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                        }
+                        return `<td style="${style}">${display}</td>`;
+                    })
+                    .join('');
+                return `<tr style="color:${rowColor};">${cells}</tr>`;
+            })
+            .join('');
 
-        html += '</tbody></table>';
-        container.innerHTML = html;
+        container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:11px; min-width:900px;">
+                    <thead><tr>${headerCells}</tr></thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+            </div>
+            <div style="margin-top:6px; color:#666; font-size:10px;">
+                Baseline: DPS ${formatKMB(baseline.dps)} | EXP ${formatKMB(baseline.xpPerHour)} | Profit ${formatKMB(baseline.profitPerHour)} | EPH ${baseline.encountersPerHour.toFixed(1)} | DPH ${baseline.deathsPerHour.toFixed(1)}
+            </div>
+        `;
 
-        // Wire up row click to expand/collapse
-        container.querySelectorAll('[data-upgrade-row]').forEach((row) => {
-            row.addEventListener('click', () => {
-                const idx = row.getAttribute('data-upgrade-row');
-                const detail = container.querySelector(`[data-upgrade-detail="${idx}"]`);
-                if (detail) {
-                    detail.style.display = detail.style.display === 'none' ? 'table-row' : 'none';
+        container.querySelectorAll('th[data-col]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (this._upgradeSortCol === col) {
+                    this._upgradeSortAsc = !this._upgradeSortAsc;
+                } else {
+                    this._upgradeSortCol = col;
+                    this._upgradeSortAsc = col === 'description';
                 }
+                this._displayUpgradeResults();
             });
         });
     }
