@@ -20,10 +20,17 @@ import {
     calculateSimRevenue,
     getZonesThatDropItem,
 } from './combat-sim-adapter.js';
-import { runSimulation, cancelSimulation } from './combat-sim-runner.js';
+import { runSimulation, cancelSimulation, buildExtraBuffs } from './combat-sim-runner.js';
 import { runAllZonesSimulation, cancelAllZonesSimulation } from './all-zones-runner.js';
 import { runUpgradeAnalysis } from './upgrade-advisor.js';
 import { SimEditor } from './sim-editor.js';
+import { runFoodOptimization, rankFoodResults, describeFoodTriggers } from './optimize-food-core.js';
+import { runCoffeeOptimization } from './optimize-coffee-core.js';
+import { runUltimateSim } from './ultimate-sim-runner.js';
+
+const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
+// Combos are considered "tied" on deaths/hr or OOM% within this margin (matches optimize-food-core).
+const FOOD_COMBOS_TO_REFINE = 10;
 
 const PANEL_ID = 'mwi-combat-sim-panel';
 const ACCENT = '#4a9eff';
@@ -77,6 +84,21 @@ class CombatSimUI {
         this._seekResults = null;
         this._seekSortCol = null;
         this._seekSortAsc = true;
+        // Optimize Food tab state
+        this._foodRunning = false;
+        this._foodAborted = false;
+        // Optimize Coffee tab state
+        this._coffeeRunning = false;
+        this._coffeeAborted = false;
+        // Ultimate Sim tab state
+        this._usimRunning = false;
+        this._usimAborted = false;
+        this._usimLastTopZones = [];
+        this._usimTopSortCol = 'score';
+        this._usimTopSortAsc = false;
+        this._usimLastTopCoffees = [];
+        this._usimCoffeeSortCol = 'score';
+        this._usimCoffeeSortAsc = false;
     }
 
     /**
@@ -159,6 +181,9 @@ class CombatSimUI {
             <button id="mwi-csim-tab-results" style="${tabStyle(false)}">Results</button>
             <button id="mwi-csim-tab-seek" style="${tabStyle(false)}">Seek</button>
             <button id="mwi-csim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
+            <button id="mwi-csim-tab-optfood" style="${tabStyle(false)}">Optimize Food</button>
+            <button id="mwi-csim-tab-optcoffee" style="${tabStyle(false)}">Optimize Coffee</button>
+            <button id="mwi-csim-tab-optultimate" style="${tabStyle(false)}">Ultimate Sim</button>
         `;
 
         // Configure tab content
@@ -495,6 +520,236 @@ class CombatSimUI {
         upgradeContent.appendChild(upgradeProgress);
         upgradeContent.appendChild(upgradeResults);
 
+        // Optimize Food tab content
+        const optFoodContent = document.createElement('div');
+        optFoodContent.id = 'mwi-csim-optfood-content';
+        optFoodContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+        const optFoodControls = document.createElement('div');
+        optFoodControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        optFoodControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Zone</label>
+            <select id="mwi-csim-optfood-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-optfood-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
+            <label style="color:#888; font-size:12px;">Test Hours</label>
+            <input id="mwi-csim-optfood-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeFoodHours', 2)}" style="${inputStyle}">
+            <button id="mwi-csim-optfood-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG};
+                color: ${ACCENT};
+                border: 1px solid ${ACCENT_BTN_BORDER};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Optimize</button>
+            <button id="mwi-csim-optfood-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+        const optFoodProgress = document.createElement('div');
+        optFoodProgress.id = 'mwi-csim-optfood-progress-container';
+        optFoodProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+        optFoodProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-optfood-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-optfood-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
+            </div>
+        `;
+
+        const optFoodResults = document.createElement('div');
+        optFoodResults.id = 'mwi-csim-optfood-results';
+        optFoodResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+        optFoodResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
+
+        optFoodContent.appendChild(optFoodControls);
+        optFoodContent.appendChild(optFoodProgress);
+        optFoodContent.appendChild(optFoodResults);
+
+        // Optimize Coffee tab content
+        const optCoffeeContent = document.createElement('div');
+        optCoffeeContent.id = 'mwi-csim-optcoffee-content';
+        optCoffeeContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+        const optCoffeeControls = document.createElement('div');
+        optCoffeeControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        optCoffeeControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Zone</label>
+            <select id="mwi-csim-optcoffee-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-optcoffee-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
+            <label style="color:#888; font-size:12px;">Test Hours</label>
+            <input id="mwi-csim-optcoffee-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeCoffeeHours', 2)}" style="${inputStyle}">
+            <button id="mwi-csim-optcoffee-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG};
+                color: ${ACCENT};
+                border: 1px solid ${ACCENT_BTN_BORDER};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Optimize</button>
+            <button id="mwi-csim-optcoffee-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+        const optCoffeeProgress = document.createElement('div');
+        optCoffeeProgress.id = 'mwi-csim-optcoffee-progress-container';
+        optCoffeeProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+        optCoffeeProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-optcoffee-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-optcoffee-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
+            </div>
+        `;
+
+        const optCoffeeResults = document.createElement('div');
+        optCoffeeResults.id = 'mwi-csim-optcoffee-results';
+        optCoffeeResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+        optCoffeeResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
+
+        optCoffeeContent.appendChild(optCoffeeControls);
+        optCoffeeContent.appendChild(optCoffeeProgress);
+        optCoffeeContent.appendChild(optCoffeeResults);
+
+        // Ultimate Sim tab content
+        const optUltimateContent = document.createElement('div');
+        optUltimateContent.id = 'mwi-csim-optultimate-content';
+        optUltimateContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+        const usimControls = document.createElement('div');
+        usimControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        usimControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Start Zone</label>
+            <select id="mwi-csim-usim-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-usim-tier" style="${selectStyle} flex:0; width:56px; min-width:56px;"></select>
+            <label style="color:#888; font-size:12px;">Optimize for</label>
+            <select id="mwi-csim-usim-metric" style="${selectStyle} flex:0; width:110px; min-width:110px;">
+                <option value="xp">XP/hr</option>
+                <option value="mixed">Best Mixed</option>
+                <option value="profit">Profit/hr</option>
+            </select>
+        `;
+
+        const usimControls2 = document.createElement('div');
+        usimControls2.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        usimControls2.innerHTML = `
+            <label style="color:#888; font-size:12px;">Food hrs</label>
+            <input id="mwi-csim-usim-food-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimFoodHours', 2)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Coffee hrs</label>
+            <input id="mwi-csim-usim-coffee-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimCoffeeHours', 2)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">All-zones hrs</label>
+            <input id="mwi-csim-usim-zones-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_ultimateSimZonesHours', 10)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Max iterations</label>
+            <input id="mwi-csim-usim-max-iter" type="number" min="1" max="50" value="${config.getSettingValue('combatSim_ultimateSimMaxIterations', 10)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-exclude-dungeons" type="checkbox">Exclude dungeons
+            </label>
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-include-zones" type="checkbox" checked>Zones
+            </label>
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-include-solo" type="checkbox" checked>Individual Mobs
+            </label>
+            <button id="mwi-csim-usim-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG};
+                color: ${ACCENT};
+                border: 1px solid ${ACCENT_BTN_BORDER};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Start</button>
+            <button id="mwi-csim-usim-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+        const usimProgress = document.createElement('div');
+        usimProgress.id = 'mwi-csim-usim-progress-container';
+        usimProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+        usimProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-usim-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-usim-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">Ready</span>
+            </div>
+        `;
+
+        const usimResults = document.createElement('div');
+        usimResults.id = 'mwi-csim-usim-results';
+        usimResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+        usimResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a start zone and click Start.</div>`;
+
+        optUltimateContent.appendChild(usimControls);
+        optUltimateContent.appendChild(usimControls2);
+        optUltimateContent.appendChild(usimProgress);
+        optUltimateContent.appendChild(usimResults);
+
         // Status bar
         const status = document.createElement('div');
         status.id = 'mwi-csim-status';
@@ -508,6 +763,9 @@ class CombatSimUI {
         this.panel.appendChild(resultsContent);
         this.panel.appendChild(seekContent);
         this.panel.appendChild(upgradeContent);
+        this.panel.appendChild(optFoodContent);
+        this.panel.appendChild(optCoffeeContent);
+        this.panel.appendChild(optUltimateContent);
         this.panel.appendChild(status);
 
         const resizeHandle = document.createElement('div');
@@ -543,6 +801,47 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-tab-results').addEventListener('click', () => this._switchTab('results'));
         this.panel.querySelector('#mwi-csim-tab-seek').addEventListener('click', () => this._switchTab('seek'));
         this.panel.querySelector('#mwi-csim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
+        this.panel.querySelector('#mwi-csim-tab-optfood').addEventListener('click', () => this._switchTab('optfood'));
+        this.panel
+            .querySelector('#mwi-csim-tab-optcoffee')
+            .addEventListener('click', () => this._switchTab('optcoffee'));
+        this.panel
+            .querySelector('#mwi-csim-tab-optultimate')
+            .addEventListener('click', () => this._switchTab('optultimate'));
+
+        this.panel
+            .querySelector('#mwi-csim-optfood-zone')
+            .addEventListener('change', () =>
+                this._updateGenericTierDropdown('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier')
+            );
+        this.panel.querySelector('#mwi-csim-optfood-run').addEventListener('click', () => this._onOptimizeFood());
+        this.panel.querySelector('#mwi-csim-optfood-stop').addEventListener('click', () => {
+            this._foodAborted = true;
+            cancelSimulation();
+        });
+
+        this.panel
+            .querySelector('#mwi-csim-optcoffee-zone')
+            .addEventListener('change', () =>
+                this._updateGenericTierDropdown('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier')
+            );
+        this.panel.querySelector('#mwi-csim-optcoffee-run').addEventListener('click', () => this._onOptimizeCoffee());
+        this.panel.querySelector('#mwi-csim-optcoffee-stop').addEventListener('click', () => {
+            this._coffeeAborted = true;
+            cancelSimulation();
+        });
+
+        this.panel
+            .querySelector('#mwi-csim-usim-zone')
+            .addEventListener('change', () =>
+                this._updateGenericTierDropdown('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true)
+            );
+        this.panel.querySelector('#mwi-csim-usim-run').addEventListener('click', () => this._onUltimateSimRun());
+        this.panel.querySelector('#mwi-csim-usim-stop').addEventListener('click', () => {
+            this._usimAborted = true;
+            cancelSimulation();
+            cancelAllZonesSimulation();
+        });
         this.panel.querySelector('#mwi-csim-upgrade-run').addEventListener('click', () => this._onUpgradeAnalyze());
         this.panel.querySelector('#mwi-csim-upgrade-stop').addEventListener('click', () => {
             this._upgradeAborted = true;
@@ -651,6 +950,88 @@ class CombatSimUI {
         });
 
         this.populateZones();
+        this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
+        this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
+        this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
+    }
+
+    /**
+     * Fill a zone dropdown (by element id) from getCombatZones() and select the current zone,
+     * used by the Optimize Food / Optimize Coffee / Ultimate Sim tabs.
+     * @param {string} zoneSelectId
+     * @param {string} tierSelectId
+     * @param {boolean} [useMaxDifficulty] - Ultimate Sim uses zone.maxDifficulty for the tier cap
+     *   instead of the isDungeon-based 2/5 cap the other tabs use.
+     */
+    _populateGenericZoneSelect(zoneSelectId, tierSelectId, useMaxDifficulty = false) {
+        const zoneSelect = this.panel?.querySelector(`#${zoneSelectId}`);
+        if (!zoneSelect) return;
+
+        const zones = getCombatZones();
+        zoneSelect.innerHTML = '';
+        for (const zone of zones) {
+            const option = document.createElement('option');
+            option.value = zone.hrid;
+            option.textContent = zone.isDungeon ? `[D] ${zone.name}` : zone.name;
+            zoneSelect.appendChild(option);
+        }
+
+        const current = getCurrentCombatZone();
+        if (current) zoneSelect.value = current.zoneHrid;
+
+        this._updateGenericTierDropdown(zoneSelectId, tierSelectId, useMaxDifficulty);
+
+        if (current) {
+            const tierSelect = this.panel.querySelector(`#${tierSelectId}`);
+            if (tierSelect) tierSelect.value = String(current.difficultyTier);
+        }
+    }
+
+    /**
+     * Update a tier dropdown (by element id) based on its paired zone select's current value.
+     * @param {string} zoneSelectId
+     * @param {string} tierSelectId
+     * @param {boolean} [useMaxDifficulty]
+     */
+    _updateGenericTierDropdown(zoneSelectId, tierSelectId, useMaxDifficulty = false) {
+        const zoneSelect = this.panel?.querySelector(`#${zoneSelectId}`);
+        const tierSelect = this.panel?.querySelector(`#${tierSelectId}`);
+        if (!zoneSelect || !tierSelect) return;
+
+        const zones = getCombatZones();
+        const zone = zones.find((z) => z.hrid === zoneSelect.value);
+        const maxTier = useMaxDifficulty ? (zone?.maxDifficulty ?? 0) : zone?.isDungeon ? 2 : 5;
+
+        const currentTier = parseInt(tierSelect.value) || 0;
+        tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
+            ''
+        );
+        tierSelect.value = String(Math.min(currentTier, maxTier));
+    }
+
+    /**
+     * Build player DTOs from the shared Configure-tab loadout (SimEditor), if edited, falling back
+     * to live game state otherwise. Used by Optimize Food / Optimize Coffee / Ultimate Sim so all
+     * sims operate on the same configured loadout as the main Simulate tab.
+     * @returns {Promise<{playerDTOs: Array<Object>, selfHrid: string, baseIndex: number}>}
+     */
+    async _getConfiguredPlayerDTOs() {
+        let playerDTOs;
+        let selfHrid;
+
+        const editedDTOs = this._editor?.getEditedDTOs();
+        if (editedDTOs) {
+            playerDTOs = Object.values(editedDTOs);
+            selfHrid = this._editor?.getSelfHrid() || playerDTOs[0]?.hrid || 'player1';
+        } else {
+            const result = await buildAllPlayerDTOs();
+            playerDTOs = result.players;
+            selfHrid = result.selfHrid;
+        }
+
+        const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
+        const baseIndex = selfIndex >= 0 ? selfIndex : 0;
+        return { playerDTOs, selfHrid, baseIndex };
     }
 
     /**
@@ -1386,10 +1767,16 @@ class CombatSimUI {
         const resultsContent = this.panel.querySelector('#mwi-csim-results-content');
         const seekContent = this.panel.querySelector('#mwi-csim-seek-content');
         const upgradeContent = this.panel.querySelector('#mwi-csim-upgrade-content');
+        const optFoodContent = this.panel.querySelector('#mwi-csim-optfood-content');
+        const optCoffeeContent = this.panel.querySelector('#mwi-csim-optcoffee-content');
+        const optUltimateContent = this.panel.querySelector('#mwi-csim-optultimate-content');
         const tabConfigure = this.panel.querySelector('#mwi-csim-tab-configure');
         const tabResults = this.panel.querySelector('#mwi-csim-tab-results');
         const tabSeek = this.panel.querySelector('#mwi-csim-tab-seek');
         const tabUpgrade = this.panel.querySelector('#mwi-csim-tab-upgrade');
+        const tabOptFood = this.panel.querySelector('#mwi-csim-tab-optfood');
+        const tabOptCoffee = this.panel.querySelector('#mwi-csim-tab-optcoffee');
+        const tabOptUltimate = this.panel.querySelector('#mwi-csim-tab-optultimate');
 
         const activeStyle = `flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:${ACCENT_BG}; color:${ACCENT}; border-bottom:2px solid ${ACCENT};`;
         const inactiveStyle =
@@ -1399,10 +1786,16 @@ class CombatSimUI {
         resultsContent.style.display = 'none';
         if (seekContent) seekContent.style.display = 'none';
         if (upgradeContent) upgradeContent.style.display = 'none';
+        if (optFoodContent) optFoodContent.style.display = 'none';
+        if (optCoffeeContent) optCoffeeContent.style.display = 'none';
+        if (optUltimateContent) optUltimateContent.style.display = 'none';
         tabConfigure.style.cssText = inactiveStyle;
         tabResults.style.cssText = inactiveStyle;
         if (tabSeek) tabSeek.style.cssText = inactiveStyle;
         if (tabUpgrade) tabUpgrade.style.cssText = inactiveStyle;
+        if (tabOptFood) tabOptFood.style.cssText = inactiveStyle;
+        if (tabOptCoffee) tabOptCoffee.style.cssText = inactiveStyle;
+        if (tabOptUltimate) tabOptUltimate.style.cssText = inactiveStyle;
 
         if (tab === 'configure') {
             configureContent.style.display = 'flex';
@@ -1418,6 +1811,18 @@ class CombatSimUI {
             if (tabUpgrade) tabUpgrade.style.cssText = activeStyle;
             this._populateUpgradePlayerSelector();
             this._setStatus('Select a player and click Analyze.');
+        } else if (tab === 'optfood') {
+            if (optFoodContent) optFoodContent.style.display = 'flex';
+            if (tabOptFood) tabOptFood.style.cssText = activeStyle;
+            this._setStatus('Select a zone and click Optimize. Uses the loadout from Configure.');
+        } else if (tab === 'optcoffee') {
+            if (optCoffeeContent) optCoffeeContent.style.display = 'flex';
+            if (tabOptCoffee) tabOptCoffee.style.cssText = activeStyle;
+            this._setStatus('Select a zone and click Optimize. Uses the loadout from Configure.');
+        } else if (tab === 'optultimate') {
+            if (optUltimateContent) optUltimateContent.style.display = 'flex';
+            if (tabOptUltimate) tabOptUltimate.style.cssText = activeStyle;
+            this._setStatus('Select a start zone and click Start. Uses the loadout from Configure.');
         } else {
             resultsContent.style.display = 'flex';
             tabResults.style.cssText = activeStyle;
@@ -2986,6 +3391,671 @@ class CombatSimUI {
     }
 
     /**
+     * Handle the Optimize Food tab's Optimize button. Uses the shared Configure-tab loadout.
+     * @private
+     */
+    async _onOptimizeFood() {
+        if (this._foodRunning) return;
+
+        const zoneHrid = this.panel?.querySelector('#mwi-csim-optfood-zone')?.value;
+        const difficultyTier = parseInt(this.panel?.querySelector('#mwi-csim-optfood-tier')?.value) || 0;
+        const hours = Math.min(
+            1000,
+            Math.max(1, parseInt(this.panel?.querySelector('#mwi-csim-optfood-hours')?.value) || 2)
+        );
+        const setStatus = (text) => this._setStatus(text);
+
+        if (!zoneHrid) {
+            setStatus('Select a zone first.');
+            return;
+        }
+
+        const gameData = buildGameDataPayload();
+        if (!gameData) {
+            setStatus('No game data available.');
+            return;
+        }
+
+        const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
+        if (!playerDTOs.length) {
+            setStatus('No character data available.');
+            return;
+        }
+
+        const communityBuffs = getCommunityBuffs();
+        const extraBuffs = buildExtraBuffs(communityBuffs, playerDTOs[0]?.guildCombatBuffs);
+
+        this._foodRunning = true;
+        this._foodAborted = false;
+        const runBtn = this.panel.querySelector('#mwi-csim-optfood-run');
+        const stopBtn = this.panel.querySelector('#mwi-csim-optfood-stop');
+        const progressContainer = this.panel.querySelector('#mwi-csim-optfood-progress-container');
+        const progressFill = this.panel.querySelector('#mwi-csim-optfood-progress-fill');
+        const progressText = this.panel.querySelector('#mwi-csim-optfood-progress-text');
+        const resultsEl = this.panel.querySelector('#mwi-csim-optfood-results');
+
+        runBtn.disabled = true;
+        runBtn.style.opacity = '0.5';
+        runBtn.style.cursor = 'not-allowed';
+        stopBtn.style.display = '';
+        progressContainer.style.display = 'block';
+        resultsEl.innerHTML = '';
+
+        try {
+            const { results, refined } = await runFoodOptimization({
+                gameData,
+                playerDTOs,
+                baseIndex,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                extraBuffs,
+                selfHrid,
+                isAborted: () => this._foodAborted,
+                onProgress: ({ completed, total, phase }) => {
+                    progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                    progressText.textContent = `${completed} / ${total}`;
+                    if (phase === 'search') setStatus(`Tested ${completed} food combos (binary search)...`);
+                    else if (phase === 'gathering')
+                        setStatus(`Found a 0-death, 0% OOM combo. Gathering more candidates...`);
+                    else if (phase === 'exhaustive')
+                        setStatus(`No combo reaches 0 deaths/0% OOM — testing all combos...`);
+                    else if (phase === 'refining')
+                        setStatus(`Tested ${completed}/${total} food combos. Refining trigger thresholds...`);
+                },
+            });
+
+            if (this._foodAborted) {
+                setStatus(`Stopped after ${results.length} combos.`);
+                this._displayFoodResults(results);
+                return;
+            }
+
+            setStatus(`Done: tested ${results.length} food combos, refined triggers for top ${refined.length}.`);
+            this._displayFoodResults(refined, { refined: true });
+        } finally {
+            this._foodRunning = false;
+            runBtn.disabled = false;
+            runBtn.style.opacity = '1';
+            runBtn.style.cursor = 'pointer';
+            stopBtn.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render Optimize Food results.
+     * @param {Array<Object>} results
+     * @param {{refined?: boolean}} [options]
+     * @private
+     */
+    _displayFoodResults(results, options = {}) {
+        const container = this.panel?.querySelector('#mwi-csim-optfood-results');
+        if (!container) return;
+
+        if (!results.length) {
+            container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
+            return;
+        }
+
+        const ranked = rankFoodResults(results, 5);
+
+        const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
+            .map(
+                (label, i) =>
+                    `<th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${i === 0 ? 'left' : 'right'}; border-bottom:1px solid #333;">${label}</th>`
+            )
+            .join('');
+
+        const bodyRows = ranked
+            .map((r, i) => {
+                const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                const rowWeight = i === 0 ? '700' : '400';
+                const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                const triggerDesc = describeFoodTriggers(r);
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${r.label}
+                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
+                        </td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.costPerHour))}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        const note = options.refined
+            ? `${ranked.length} combo${ranked.length === 1 ? '' : 's'} tied for the lowest deaths/hr and lowest mana-OOM% (of the best ${FOOD_COMBOS_TO_REFINE} tested), after refining each food's trigger threshold, sorted by cost/hr.`
+            : `${ranked.length} cheapest combo${ranked.length === 1 ? '' : 's'} that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.`;
+
+        container.innerHTML = `
+            <div style="color:#888; font-size:11px; margin-bottom:8px;">${note}</div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+    }
+
+    /**
+     * Handle the Optimize Coffee tab's Optimize button. Uses the shared Configure-tab loadout.
+     * @private
+     */
+    async _onOptimizeCoffee() {
+        if (this._coffeeRunning) return;
+
+        const zoneHrid = this.panel?.querySelector('#mwi-csim-optcoffee-zone')?.value;
+        const difficultyTier = parseInt(this.panel?.querySelector('#mwi-csim-optcoffee-tier')?.value) || 0;
+        const hours = Math.min(
+            1000,
+            Math.max(1, parseInt(this.panel?.querySelector('#mwi-csim-optcoffee-hours')?.value) || 2)
+        );
+        const setStatus = (text) => this._setStatus(text);
+
+        if (!zoneHrid) {
+            setStatus('Select a zone first.');
+            return;
+        }
+
+        const gameData = buildGameDataPayload();
+        if (!gameData) {
+            setStatus('No game data available.');
+            return;
+        }
+
+        const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
+        if (!playerDTOs.length) {
+            setStatus('No character data available.');
+            return;
+        }
+
+        const communityBuffs = getCommunityBuffs();
+        const extraBuffs = buildExtraBuffs(communityBuffs, playerDTOs[0]?.guildCombatBuffs);
+
+        this._coffeeRunning = true;
+        this._coffeeAborted = false;
+        const runBtn = this.panel.querySelector('#mwi-csim-optcoffee-run');
+        const stopBtn = this.panel.querySelector('#mwi-csim-optcoffee-stop');
+        const progressContainer = this.panel.querySelector('#mwi-csim-optcoffee-progress-container');
+        const progressFill = this.panel.querySelector('#mwi-csim-optcoffee-progress-fill');
+        const progressText = this.panel.querySelector('#mwi-csim-optcoffee-progress-text');
+        const resultsEl = this.panel.querySelector('#mwi-csim-optcoffee-results');
+
+        runBtn.disabled = true;
+        runBtn.style.opacity = '0.5';
+        runBtn.style.cursor = 'not-allowed';
+        stopBtn.style.display = '';
+        progressContainer.style.display = 'block';
+        resultsEl.innerHTML = '';
+
+        try {
+            const results = await runCoffeeOptimization({
+                gameData,
+                playerDTOs,
+                baseIndex,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                extraBuffs,
+                selfHrid,
+                isAborted: () => this._coffeeAborted,
+                onProgress: ({ completed, total }) => {
+                    progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                    progressText.textContent = `${completed} / ${total}`;
+                    setStatus(`Tested ${completed}/${total} coffee combos...`);
+                },
+            });
+
+            progressFill.style.width = '100%';
+
+            if (this._coffeeAborted) {
+                setStatus(`Stopped after ${results.length} combos.`);
+            } else {
+                setStatus(`Done: tested ${results.length} coffee combos.`);
+            }
+
+            this._displayCoffeeResults(results);
+        } finally {
+            this._coffeeRunning = false;
+            runBtn.disabled = false;
+            runBtn.style.opacity = '1';
+            runBtn.style.cursor = 'pointer';
+            stopBtn.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render Optimize Coffee results (best XP/hr, best coins/hr, best mixed).
+     * @param {Array<Object>} results
+     * @private
+     */
+    _displayCoffeeResults(results) {
+        const container = this.panel?.querySelector('#mwi-csim-optcoffee-results');
+        if (!container) return;
+
+        if (!results.length) {
+            container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
+            return;
+        }
+
+        const byXP = [...results].sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, 8);
+        const byProfit = [...results].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, 8);
+        const byMixed = [...results].sort((a, b) => b.mixedScore - a.mixedScore).slice(0, 8);
+
+        const fmtXP = (v) => formatKMB(Math.round(v));
+        const fmtCoins = (v) => formatKMB(Math.round(v));
+
+        const renderColumn = (title, rows, valueKey, valueFmt) => {
+            const primaryLabel =
+                valueKey === 'xpPerHour' ? 'XP/hr' : valueKey === 'profitPerHour' ? 'Coins/hr' : 'Eff. XP/hr';
+            const showXP = valueKey !== 'xpPerHour';
+            const showCoins = valueKey !== 'profitPerHour';
+
+            const headerCells = [
+                `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Coffee</th>`,
+                `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">${primaryLabel}</th>`,
+            ];
+            if (showXP)
+                headerCells.push(
+                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">XP/hr</th>`
+                );
+            if (showCoins)
+                headerCells.push(
+                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">Coins/hr</th>`
+                );
+
+            const bodyRows = rows
+                .map((r, i) => {
+                    const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                    const rowWeight = i === 0 ? '700' : '400';
+                    const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                    const cells = [
+                        `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
+                        `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
+                    ];
+                    if (showXP)
+                        cells.push(
+                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtXP(r.xpPerHour)}</td>`
+                        );
+                    if (showCoins)
+                        cells.push(
+                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtCoins(r.profitPerHour)}</td>`
+                        );
+                    return `<tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">${cells.join('')}</tr>`;
+                })
+                .join('');
+
+            return `
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin-bottom:6px; text-align:center;">${title}</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr>${headerCells.join('')}</tr></thead>
+                        <tbody>${bodyRows}</tbody>
+                    </table>
+                </div>
+            `;
+        };
+
+        container.innerHTML = `
+            <div style="display:flex; gap:14px; align-items:flex-start;">
+                ${renderColumn('Best XP/hr', byXP, 'xpPerHour', fmtXP)}
+                ${renderColumn('Best Coins/hr', byProfit, 'profitPerHour', fmtCoins)}
+                ${renderColumn('Best Mixed (Eff. XP/hr)', byMixed, 'mixedScore', fmtXP)}
+            </div>
+        `;
+    }
+
+    /**
+     * Handle the Ultimate Sim tab's Start button. Uses the shared Configure-tab loadout as the
+     * starting point for its food/coffee/zone optimization loop.
+     * @private
+     */
+    async _onUltimateSimRun() {
+        if (this._usimRunning) return;
+
+        const zoneSelect = this.panel?.querySelector('#mwi-csim-usim-zone');
+        const tierSelect = this.panel?.querySelector('#mwi-csim-usim-tier');
+        const metricSelect = this.panel?.querySelector('#mwi-csim-usim-metric');
+        const foodHoursEl = this.panel?.querySelector('#mwi-csim-usim-food-hours');
+        const coffeeHoursEl = this.panel?.querySelector('#mwi-csim-usim-coffee-hours');
+        const zonesHoursEl = this.panel?.querySelector('#mwi-csim-usim-zones-hours');
+        const maxIterEl = this.panel?.querySelector('#mwi-csim-usim-max-iter');
+        const excludeDungeonsEl = this.panel?.querySelector('#mwi-csim-usim-exclude-dungeons');
+        const includeZonesEl = this.panel?.querySelector('#mwi-csim-usim-include-zones');
+        const includeSoloEl = this.panel?.querySelector('#mwi-csim-usim-include-solo');
+        const setStatus = (text) => this._setStatus(text);
+
+        const startZoneHrid = zoneSelect?.value;
+        if (!startZoneHrid) {
+            setStatus('Select a zone first.');
+            return;
+        }
+        const startTier = parseInt(tierSelect?.value) || 0;
+        const metric = metricSelect?.value || 'mixed';
+        const foodHours = Math.min(1000, Math.max(1, parseInt(foodHoursEl?.value) || 2));
+        const coffeeHours = Math.min(1000, Math.max(1, parseInt(coffeeHoursEl?.value) || 2));
+        const allZonesHours = Math.min(10000, Math.max(1, parseInt(zonesHoursEl?.value) || 10));
+        const maxIterations = Math.min(50, Math.max(1, parseInt(maxIterEl?.value) || 10));
+        const excludeDungeons = !!excludeDungeonsEl?.checked;
+        const includeZones = includeZonesEl ? includeZonesEl.checked : true;
+        const includeSoloMobs = includeSoloEl ? includeSoloEl.checked : true;
+
+        if (!includeZones && !includeSoloMobs) {
+            setStatus('Enable at least one of "Zones" or "Individual Mobs".');
+            return;
+        }
+
+        const { playerDTOs, selfHrid } = await this._getConfiguredPlayerDTOs();
+        if (!playerDTOs.length) {
+            setStatus('No character data available.');
+            return;
+        }
+
+        this._usimRunning = true;
+        this._usimAborted = false;
+        const runBtn = this.panel.querySelector('#mwi-csim-usim-run');
+        const stopBtn = this.panel.querySelector('#mwi-csim-usim-stop');
+        const progressContainer = this.panel.querySelector('#mwi-csim-usim-progress-container');
+        const progressFill = this.panel.querySelector('#mwi-csim-usim-progress-fill');
+        const progressText = this.panel.querySelector('#mwi-csim-usim-progress-text');
+        const resultsEl = this.panel.querySelector('#mwi-csim-usim-results');
+
+        runBtn.disabled = true;
+        runBtn.style.opacity = '0.5';
+        runBtn.style.cursor = 'not-allowed';
+        stopBtn.style.display = '';
+        progressContainer.style.display = 'block';
+        resultsEl.innerHTML = '';
+        this._renderUltimateHistory([]);
+
+        try {
+            const result = await runUltimateSim({
+                startZoneHrid,
+                startTier,
+                foodHours,
+                coffeeHours,
+                allZonesHours,
+                metric,
+                maxIterations,
+                excludeDungeons,
+                includeZones,
+                includeSoloMobs,
+                playerDTOs,
+                selfHrid,
+                isAborted: () => this._usimAborted,
+                onProgress: (p) => {
+                    const phaseLabel = PHASE_LABELS[p.phase] || p.phase;
+                    let percent = 0;
+                    let detail = '';
+                    if (p.phase === 'zones') {
+                        percent = p.percent || 0;
+                    } else if (p.total) {
+                        percent = Math.round((p.completed / p.total) * 100);
+                        detail = ` (${p.completed}/${p.total})`;
+                    }
+                    progressFill.style.width = `${percent}%`;
+                    progressText.textContent = `${percent}%`;
+                    setStatus(`Iteration ${p.iteration + 1}: ${phaseLabel}${detail}...`);
+                },
+            });
+
+            this._usimLastTopZones = result.history[result.history.length - 1]?.topZones || [];
+            this._usimLastTopCoffees = result.history[result.history.length - 1]?.topCoffees || [];
+            this._renderUltimateHistory(result.history, result);
+
+            if (result.reason === 'aborted') {
+                setStatus(`Stopped after ${result.history.length} iteration(s).`);
+            } else if (result.reason === 'stable') {
+                setStatus(`Converged after ${result.history.length} iteration(s): best zone is stable.`);
+            } else if (result.reason === 'repeat') {
+                setStatus(`Converged after ${result.history.length} iteration(s): zone cycle detected.`);
+            } else if (result.reason === 'max_iterations') {
+                setStatus(`Stopped after reaching the max of ${maxIterations} iterations.`);
+            } else {
+                setStatus(`Stopped: ${result.reason}.`);
+            }
+        } catch (error) {
+            console.error('[CombatSimUI] Ultimate Sim run failed:', error);
+            setStatus(`Error: ${error.message || 'Unknown error'}`);
+        } finally {
+            this._usimRunning = false;
+            runBtn.disabled = false;
+            runBtn.style.opacity = '1';
+            runBtn.style.cursor = 'pointer';
+            stopBtn.style.display = 'none';
+            progressContainer.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render the Ultimate Sim iteration history table plus the top-5-zones and top-5-coffees
+     * sortable tables for the most recent iteration.
+     * @param {Array<Object>} history
+     * @param {Object} [result]
+     * @private
+     */
+    _renderUltimateHistory(history, result) {
+        const container = this.panel?.querySelector('#mwi-csim-usim-results');
+        if (!container) return;
+
+        if (!history.length) {
+            container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Running...</div>`;
+            return;
+        }
+
+        const rows = history
+            .map((h) => {
+                const foodLabel = h.food?.label || 'None';
+                const coffeeLabel = h.coffee?.label || 'None';
+                const bestZoneName = h.bestZone?.zone?.name || '?';
+                const bestTier = h.bestZone?.zone?.difficultyTier ?? '?';
+                const xp = formatKMB(Math.round(h.bestZone?.xpPerHour || 0));
+                const profit = formatKMB(Math.round(h.bestZone?.profitPerHour || 0));
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a;">
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${h.iteration + 1}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${foodLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:${ACCENT}; font-weight:600;">${bestZoneName} (T${bestTier})</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${xp}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${profit}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        const finalNote =
+            result && result.finalZone
+                ? `<div style="margin:10px 0; padding:10px; background:rgba(76,175,80,0.08); border:1px solid rgba(76,175,80,0.3); border-radius:6px; color:#4caf50; font-weight:600; font-size:12px;">
+                    Final zone: ${result.finalZone.zone.name} (Tier ${result.finalZone.zone.difficultyTier}) —
+                    ${formatKMB(Math.round(result.finalZone.xpPerHour))} XP/hr,
+                    ${formatKMB(Math.round(result.finalZone.profitPerHour))} coins/hr,
+                    ${formatKMB(Math.round(result.finalZone.effXpPerHour))} eff. XP/hr
+                   </div>`
+                : '';
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">#</th>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Food</th>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Coffee</th>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Best Zone Found</th>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">XP/hr</th>
+                        <th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">Profit/hr</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+            ${finalNote}
+            <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin:12px 0 6px 0;">Top Zones (latest all-zones pass)</div>
+            <div id="mwi-csim-usim-top-zones"></div>
+            <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin:12px 0 6px 0;">Top Coffees (latest coffee pass)</div>
+            <div id="mwi-csim-usim-top-coffees"></div>
+        `;
+
+        this._renderUsimTopZonesTable();
+        this._renderUsimTopCoffeesTable();
+    }
+
+    /**
+     * Render the sortable top-5-zones table from the last completed all-zones pass.
+     * @private
+     */
+    _renderUsimTopZonesTable() {
+        const container = this.panel?.querySelector('#mwi-csim-usim-top-zones');
+        if (!container) return;
+
+        const topZones = this._usimLastTopZones;
+        if (!topZones.length) {
+            container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No zone results yet.</div>`;
+            return;
+        }
+
+        const cols = [
+            { key: 'zone', label: 'Zone' },
+            { key: 'tier', label: 'Tier' },
+            { key: 'xpPerHour', label: 'XP/hr' },
+            { key: 'profitPerHour', label: 'Profit/hr' },
+            { key: 'effXpPerHour', label: 'Eff. XP/hr' },
+        ];
+
+        const sortCol = this._usimTopSortCol;
+        const sortAsc = this._usimTopSortAsc;
+        const sorted = [...topZones].sort((a, b) => {
+            const va = sortCol === 'zone' ? a.zone.name : sortCol === 'tier' ? a.zone.difficultyTier : a[sortCol];
+            const vb = sortCol === 'zone' ? b.zone.name : sortCol === 'tier' ? b.zone.difficultyTier : b[sortCol];
+            if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return sortAsc ? va - vb : vb - va;
+        });
+
+        const headerCells = cols
+            .map((col) => {
+                const arrow = sortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+                const align = col.key === 'zone' ? 'left' : 'right';
+                return `<th data-sort-col="${col.key}" style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${align}; border-bottom:1px solid #333; cursor:pointer; user-select:none;">${col.label}${arrow}</th>`;
+            })
+            .join('');
+
+        const bodyRows = sorted
+            .map((r, i) => {
+                const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                const rowWeight = i === 0 ? '700' : '400';
+                const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.zone.name}${r.zone.isDungeon ? ' [D]' : ''}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.zone.difficultyTier}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.xpPerHour))}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.profitPerHour))}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.effXpPerHour))}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+
+        container.querySelectorAll('th[data-sort-col]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const col = th.getAttribute('data-sort-col');
+                if (this._usimTopSortCol === col) {
+                    this._usimTopSortAsc = !this._usimTopSortAsc;
+                } else {
+                    this._usimTopSortCol = col;
+                    this._usimTopSortAsc = col === 'zone';
+                }
+                this._renderUsimTopZonesTable();
+            });
+        });
+    }
+
+    /**
+     * Render the sortable top-5-coffee-combos table from the last completed coffee pass.
+     * @private
+     */
+    _renderUsimTopCoffeesTable() {
+        const container = this.panel?.querySelector('#mwi-csim-usim-top-coffees');
+        if (!container) return;
+
+        const topCoffees = this._usimLastTopCoffees;
+        if (!topCoffees.length) {
+            container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No coffee results yet.</div>`;
+            return;
+        }
+
+        const cols = [
+            { key: 'label', label: 'Coffee' },
+            { key: 'xpPerHour', label: 'XP/hr' },
+            { key: 'profitPerHour', label: 'Profit/hr' },
+            { key: 'mixedScore', label: 'Eff. XP/hr' },
+        ];
+
+        const sortCol = this._usimCoffeeSortCol === 'score' ? 'score' : this._usimCoffeeSortCol;
+        const sortAsc = this._usimCoffeeSortAsc;
+        const sorted = [...topCoffees].sort((a, b) => {
+            const va = sortCol === 'label' ? a.label : a[sortCol];
+            const vb = sortCol === 'label' ? b.label : b[sortCol];
+            if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return sortAsc ? va - vb : vb - va;
+        });
+
+        const headerCells = cols
+            .map((col) => {
+                const arrow = this._usimCoffeeSortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+                const align = col.key === 'label' ? 'left' : 'right';
+                return `<th data-sort-col="${col.key}" style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${align}; border-bottom:1px solid #333; cursor:pointer; user-select:none;">${col.label}${arrow}</th>`;
+            })
+            .join('');
+
+        const bodyRows = sorted
+            .map((r, i) => {
+                const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                const rowWeight = i === 0 ? '700' : '400';
+                const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.xpPerHour))}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.profitPerHour))}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.mixedScore))}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+
+        container.querySelectorAll('th[data-sort-col]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const col = th.getAttribute('data-sort-col');
+                if (this._usimCoffeeSortCol === col) {
+                    this._usimCoffeeSortAsc = !this._usimCoffeeSortAsc;
+                } else {
+                    this._usimCoffeeSortCol = col;
+                    this._usimCoffeeSortAsc = col === 'label';
+                }
+                this._renderUsimTopCoffeesTable();
+            });
+        });
+    }
+
+    /**
      * Toggle panel visibility.
      */
     toggle() {
@@ -2995,6 +4065,9 @@ class CombatSimUI {
         if (!visible) {
             bringPanelToFront(this.panel);
             this.populateZones();
+            this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
+            this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
+            this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
             if (!this._editor.isInitialized()) {
                 this._editor.initEditor();
             }
@@ -3009,6 +4082,11 @@ class CombatSimUI {
             clearInterval(this.elapsedTimer);
             this.elapsedTimer = null;
         }
+        cancelSimulation();
+        cancelAllZonesSimulation();
+        this._foodAborted = true;
+        this._coffeeAborted = true;
+        this._usimAborted = true;
         if (this.panel) {
             unregisterFloatingPanel(this.panel);
             this.panel.remove();

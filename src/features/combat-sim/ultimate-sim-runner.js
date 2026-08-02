@@ -98,6 +98,9 @@ function buildAllZoneTiers() {
  * @param {boolean} [params.includeSoloMobs] - Include individual-monster encounters (maxSpawnCount === 1)
  * @param {Function} [params.onProgress] - ({iteration, phase, zoneHrid, difficultyTier, percent}) => void
  * @param {Function} [params.isAborted] - () => boolean
+ * @param {Array<Object>} [params.playerDTOs] - Pre-built player DTOs (e.g. from an edited loadout). If
+ *   omitted, DTOs are built from live game state instead.
+ * @param {string} [params.selfHrid] - Required alongside params.playerDTOs.
  * @returns {Promise<{converged: boolean, reason: string, history: Array<Object>, finalZone: Object|null}>}
  */
 export async function runUltimateSim(params) {
@@ -119,12 +122,21 @@ export async function runUltimateSim(params) {
     const gameData = buildGameDataPayload();
     if (!gameData) throw new Error('No game data available.');
 
-    const { players: playerDTOs, selfHrid } = await buildAllPlayerDTOs();
+    let playerDTOs;
+    let selfHrid;
+    if (params.playerDTOs) {
+        playerDTOs = [...params.playerDTOs];
+        selfHrid = params.selfHrid;
+    } else {
+        const result = await buildAllPlayerDTOs();
+        playerDTOs = result.players;
+        selfHrid = result.selfHrid;
+    }
     if (!playerDTOs.length) throw new Error('No character data available.');
 
     const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
     const baseIndex = selfIndex >= 0 ? selfIndex : 0;
-    applyLiveSelfOverrides(playerDTOs[baseIndex]);
+    if (!params.playerDTOs) applyLiveSelfOverrides(playerDTOs[baseIndex]);
 
     // Non-dungeon zones support at most 3 players; drop dungeons from the all-zones pool if the
     // party is too large for them to be simulated honestly, rather than fail the whole run.
