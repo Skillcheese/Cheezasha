@@ -229,6 +229,13 @@ export function buildFoodDTO(combo, slotTriggers) {
  * @returns {Promise<{deathsPerHour: number, oomPercent: number, costPerHour: number}>}
  */
 async function evaluateFood(ctx, food, comboHrids) {
+    // The exact same food+trigger config can come up more than once (e.g. refineTriggers's
+    // slot-0 default candidate duplicates the combo's original all-default search result, or two
+    // combos happen to share a slot config) — cache by the config itself so repeats never pay for
+    // another sim.
+    const cacheKey = JSON.stringify(food);
+    if (ctx.simCache.has(cacheKey)) return ctx.simCache.get(cacheKey);
+
     const { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid } = ctx;
     const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, food } : p));
 
@@ -265,7 +272,9 @@ async function evaluateFood(ctx, food, comboHrids) {
         costPerHour += (count / simHours) * price;
     }
 
-    return { deathsPerHour, oomPercent, costPerHour };
+    const metrics = { deathsPerHour, oomPercent, costPerHour };
+    ctx.simCache.set(cacheKey, metrics);
+    return metrics;
 }
 
 /**
@@ -349,7 +358,10 @@ async function refineTriggers(entry, ctx) {
             }
         }
 
-        const defaultCandidate = await testCandidate(null);
+        // At slot 0, every slotTriggers entry is still null, so this "default" test is the exact
+        // same all-default-trigger config already simulated once for this combo during the
+        // initial search — reuse that result instead of re-running an identical sim.
+        const defaultCandidate = s === 0 ? { triggers: null, metrics: bestMetrics } : await testCandidate(null);
 
         const candidates = [...cache.values(), defaultCandidate];
         candidates.sort((a, b) => compareMetrics(a.metrics, b.metrics));
@@ -362,24 +374,18 @@ async function refineTriggers(entry, ctx) {
 }
 
 /**
- * Rank combos by restricting to the best survival/mana tier first — fewest deaths/hr, then
- * least OOM time (0% whenever any combo achieves it) — and only *then* sorting what's left
- * by cost/hr. A cheaper combo with worse deaths/OOM must never outrank a pricier one that
- * actually survives better; cost only breaks ties within the same deaths/OOM tier.
+ * Rank combos fewest deaths/hr first, then least OOM time, then cheapest — the same priority
+ * order used throughout this module (see compareMetrics) — and return the top N overall. A
+ * cheaper combo with worse deaths/OOM can never outrank a pricier one that actually survives
+ * better, since that comparison always wins first; cost only breaks ties within the same
+ * deaths/OOM tier.
  * @param {Array<Object>} results
  * @param {number} [limit]
  * @returns {Array<Object>}
  */
 export function rankFoodResults(results, limit = 5) {
     if (!results.length) return [];
-
-    const minDeaths = Math.min(...results.map((r) => r.deathsPerHour));
-    const survivalTier = results.filter((r) => r.deathsPerHour <= minDeaths + TIE_EPSILON);
-
-    const minOOM = Math.min(...survivalTier.map((r) => r.oomPercent));
-    const manaTier = survivalTier.filter((r) => r.oomPercent <= minOOM + TIE_EPSILON);
-
-    return [...manaTier].sort((a, b) => a.costPerHour - b.costPerHour).slice(0, limit);
+    return [...results].sort(compareMetrics).slice(0, limit);
 }
 
 /**
@@ -454,6 +460,7 @@ export async function runFoodOptimization(params) {
         extraBuffs,
         selfHrid,
         isAborted,
+        simCache: new Map(),
     };
 
     const results = [];
@@ -527,12 +534,39 @@ export async function runFoodOptimization(params) {
             }
             await testIndicesInParallel(fillIndices);
         } else {
-            onProgress({ completed, total: combos.length, phase: 'exhaustive' });
-            const remaining = [];
-            for (let i = 0; i < combos.length; i++) {
-                if (!tested.has(i)) remaining.push(i);
+            // No combo reaches the 0-death/0-OOM floor (e.g. the build takes too much damage for
+            // food alone to fully prevent deaths) — the boundary-search shortcut above doesn't
+            // apply, since there's no floor to binary-search a boundary against. Rather than
+            // falling back to testing all combos, ternary-search the price-sorted list for the
+            // region of lowest deaths/hr (then OOM%, then cost): each round tests two interior
+            // points and discards the third of the range on the worse side, assuming
+            // survivability is roughly non-decreasing with price (stronger/pricier food is never
+            // less safe) — the same shortcut the floor-search already relies on, just aimed at
+            // minimizing instead of hitting an exact floor. Once the range narrows to a normal
+            // fill-window size, that final (small) window is tested in full for a real pool to
+            // rank/refine from.
+            onProgress({ completed, total: combos.length, phase: 'narrowing' });
+            let lo = 0;
+            let hi = combos.length - 1;
+            while (hi - lo > FILL_WINDOW && !isAborted()) {
+                const third = Math.floor((hi - lo) / 3);
+                const m1 = lo + third;
+                const m2 = hi - third;
+                const [r1, r2] = await Promise.all([testIndex(m1), testIndex(m2)]);
+                if (!r1 || !r2) break;
+                if (compareMetrics(r1, r2) <= 0) {
+                    hi = m2;
+                } else {
+                    lo = m1;
+                }
             }
-            await testIndicesInParallel(remaining);
+
+            onProgress({ completed, total: combos.length, phase: 'gathering' });
+            const windowIndices = [];
+            for (let i = lo; i <= hi; i++) {
+                if (!tested.has(i)) windowIndices.push(i);
+            }
+            await testIndicesInParallel(windowIndices);
         }
     }
 
@@ -540,12 +574,23 @@ export async function runFoodOptimization(params) {
         return { results, refined: results, reachedFloor };
     }
 
-    onProgress({ completed, total: combos.length, phase: 'refining' });
-
     // Refine trigger thresholds on the best few combos rather than just the single best — a
-    // slightly pricier combo can end up winning once its food's triggers are tuned.
+    // slightly pricier combo can end up winning once its food's triggers are tuned. Report
+    // progress as combos finish refining (each one runs its own multi-sim binary search
+    // internally) so the bar keeps moving through what would otherwise look like a long stall.
     const toRefine = [...results].sort(compareMetrics).slice(0, COMBOS_TO_REFINE);
-    const refined = isAborted() ? toRefine : await Promise.all(toRefine.map((entry) => refineTriggers(entry, ctx)));
+    let refinedCount = 0;
+    onProgress({ completed: refinedCount, total: toRefine.length, phase: 'refining' });
+    const refined = isAborted()
+        ? toRefine
+        : await Promise.all(
+              toRefine.map(async (entry) => {
+                  const result = await refineTriggers(entry, ctx);
+                  refinedCount++;
+                  onProgress({ completed: refinedCount, total: toRefine.length, phase: 'refining' });
+                  return result;
+              })
+          );
 
     return { results, refined, reachedFloor };
 }

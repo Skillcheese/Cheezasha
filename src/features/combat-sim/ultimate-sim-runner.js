@@ -171,8 +171,15 @@ export async function runUltimateSim(params) {
             extraBuffs,
             selfHrid,
             isAborted,
-            onProgress: (p) =>
-                onProgress({ iteration, phase: 'food', zoneHrid: currentZone, difficultyTier: currentTier, ...p }),
+            onProgress: ({ phase: subPhase, ...p }) =>
+                onProgress({
+                    iteration,
+                    phase: 'food',
+                    subPhase,
+                    zoneHrid: currentZone,
+                    difficultyTier: currentTier,
+                    ...p,
+                }),
         });
         if (isAborted()) return { converged: false, reason: 'aborted', history, finalZone: null };
 
@@ -194,7 +201,13 @@ export async function runUltimateSim(params) {
             selfHrid,
             isAborted,
             onProgress: (p) =>
-                onProgress({ iteration, phase: 'coffee', zoneHrid: currentZone, difficultyTier: currentTier, ...p }),
+                onProgress({
+                    iteration,
+                    phase: 'coffee',
+                    zoneHrid: currentZone,
+                    difficultyTier: currentTier,
+                    ...p,
+                }),
         });
         if (isAborted()) return { converged: false, reason: 'aborted', history, finalZone: null };
 

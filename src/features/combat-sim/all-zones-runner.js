@@ -14,10 +14,19 @@ import { calculateSimRevenue } from './combat-sim-adapter.js';
 import config from '../../core/config.js';
 
 let multiWorker = null;
+let multiWorkerBlobURL = null;
+let coordinatorHasGameData = null; // gameData reference the coordinator already has cached
+let coordinatorHasScript = false;
 let activeReject = null;
 
 /**
  * Run simulations for all specified zones in parallel via a coordinator worker.
+ *
+ * The coordinator worker (and its own internal pool of child sim workers) is kept alive and
+ * reused across calls rather than torn down after every run — Ultimate Sim calls this
+ * repeatedly (once per iteration) against the same gameData, so reuse avoids re-paying worker
+ * boot and gameData clone cost every iteration. gameData/the worker script are only sent when
+ * they differ (by identity) from what the coordinator already has cached.
  * @param {Object} params
  * @param {Object} params.gameData - Game data maps from buildGameDataPayload()
  * @param {Array<Object>} params.playerDTOs - Player DTOs from buildAllPlayerDTOs()
@@ -33,8 +42,10 @@ export async function runAllZonesSimulation(params, onProgress) {
 
     if (!zones.length) return [];
 
-    // Cancel any previous run
-    cancelAllZonesSimulation();
+    // Cancel any previous run that's still in flight (not a normal, already-resolved reuse)
+    if (activeReject) {
+        cancelAllZonesSimulation();
+    }
 
     const extraBuffs = buildExtraBuffs(communityBuffs);
     const ONE_HOUR_NS = 3600 * 1e9;
@@ -48,16 +59,31 @@ export async function runAllZonesSimulation(params, onProgress) {
         // Store reject so cancelAllZonesSimulation can unblock the promise
         activeReject = reject;
 
-        // Create the coordinator worker
-        const blob = new Blob([MULTI_WORKER_SCRIPT], { type: 'application/javascript' });
-        const blobURL = URL.createObjectURL(blob);
-        const worker = new Worker(blobURL);
-        multiWorker = worker;
+        // Reuse the existing coordinator worker if one is still alive; only create a new one
+        // (and reset what it's known to have cached) the first time or after a cancel/error.
+        if (!multiWorker) {
+            const blob = new Blob([MULTI_WORKER_SCRIPT], { type: 'application/javascript' });
+            multiWorkerBlobURL = URL.createObjectURL(blob);
+            multiWorker = new Worker(multiWorkerBlobURL);
+            coordinatorHasGameData = null;
+            coordinatorHasScript = false;
+        }
+        const worker = multiWorker;
 
         const cleanup = () => {
-            multiWorker = null;
             activeReject = null;
-            URL.revokeObjectURL(blobURL);
+        };
+
+        const teardown = () => {
+            worker.terminate();
+            if (multiWorker === worker) {
+                multiWorker = null;
+                if (multiWorkerBlobURL) {
+                    URL.revokeObjectURL(multiWorkerBlobURL);
+                    multiWorkerBlobURL = null;
+                }
+            }
+            cleanup();
         };
 
         // Per-zone tier metrics for early exit comparison: zoneHrid → [{xpPerHour, profitPerHour}]
@@ -106,35 +132,43 @@ export async function runAllZonesSimulation(params, onProgress) {
 
                 worker.postMessage({ type: 'zone_tier_decision', zoneHrid, skip });
             } else if (msg.type === 'all_zones_result') {
-                worker.terminate();
+                // Success — leave the coordinator (and its child worker pool) running so the
+                // next call (e.g. the next Ultimate Sim iteration) can reuse it.
                 cleanup();
                 if (onProgress) onProgress(100);
                 resolve(msg.results);
             } else if (msg.type === 'error') {
-                worker.terminate();
-                cleanup();
+                // The coordinator may be in a bad state after an error — don't reuse it.
+                teardown();
                 reject(new Error(msg.error));
             }
         };
 
         worker.onerror = (error) => {
-            worker.terminate();
-            cleanup();
+            teardown();
             reject(new Error(error.message || 'MultiWorker error'));
         };
 
-        // Send the simulation worker script as a string so the multiWorker can spawn child workers
-        worker.postMessage({
+        // Only send the worker script / gameData when the coordinator doesn't already have them
+        // cached (identity check — both are stable references reused across an entire run).
+        const message = {
             type: 'start_all_zones',
-            workerScript: WORKER_SCRIPT,
-            gameData,
             playerDTOs,
             zones,
             simulationTimeLimit,
             extraBuffs,
             maxWorkers,
             useEarlyExit: !!useEarlyExit,
-        });
+        };
+        if (!coordinatorHasScript) {
+            message.workerScript = WORKER_SCRIPT;
+            coordinatorHasScript = true;
+        }
+        if (coordinatorHasGameData !== gameData) {
+            message.gameData = gameData;
+            coordinatorHasGameData = gameData;
+        }
+        worker.postMessage(message);
     });
 }
 
@@ -146,6 +180,12 @@ export function cancelAllZonesSimulation() {
         multiWorker.terminate();
         multiWorker = null;
     }
+    if (multiWorkerBlobURL) {
+        URL.revokeObjectURL(multiWorkerBlobURL);
+        multiWorkerBlobURL = null;
+    }
+    coordinatorHasGameData = null;
+    coordinatorHasScript = false;
     if (activeReject) {
         activeReject(new Error('Cancelled'));
         activeReject = null;

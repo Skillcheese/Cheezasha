@@ -12,12 +12,95 @@ import WORKER_SCRIPT from './combat-sim-worker-entry.js?worker';
 import config from '../../core/config.js';
 
 let workerBlobURL = null;
-let activeWorkers = [];
 let taskIdCounter = 0;
-let pendingRejects = []; // Track reject functions to abort on cancel
 
 const MIN_HOURS_PER_WORKER = 20;
 const MAX_WORKERS = 4;
+
+// Persistent worker pool: reused across many small sim calls (e.g. hundreds of calls during
+// food/coffee optimization) instead of spinning up and terminating a fresh Worker per call.
+// Worker boot + module init is the dominant per-call overhead for short sims, not the sim compute
+// itself, so reuse alone is a large, purely mechanical speedup with no change in sim behavior.
+const WORKER_POOL_MAX = typeof navigator !== 'undefined' ? Math.min(navigator.hardwareConcurrency || 4, 16) : 4;
+let workerPool = []; // { worker, busy, currentTask, lastGameData }
+const taskQueue = []; // tasks waiting for a free worker slot
+
+/**
+ * Get an idle pooled worker, creating a new one (up to WORKER_POOL_MAX) if none are idle.
+ * @returns {{worker: Worker, busy: boolean, currentTask: Object|null, lastGameData: Object|null}|null}
+ */
+function getIdleSlot() {
+    const idle = workerPool.find((s) => !s.busy);
+    if (idle) return idle;
+    if (workerPool.length < WORKER_POOL_MAX) {
+        const slot = { worker: new Worker(getWorkerURL()), busy: false, currentTask: null, lastGameData: null };
+        workerPool.push(slot);
+        return slot;
+    }
+    return null;
+}
+
+/**
+ * Dispatch as many queued tasks as there are idle worker slots.
+ */
+function pumpQueue() {
+    while (taskQueue.length) {
+        const slot = getIdleSlot();
+        if (!slot) break;
+        runOnSlot(slot, taskQueue.shift());
+    }
+}
+
+/**
+ * Run one task on a pooled worker slot, posting gameData only when it differs from what that
+ * worker already has loaded (identity check — gameData is a stable object reused across an
+ * entire optimization run, so this skips the expensive re-clone on every call after the first).
+ * @param {Object} slot
+ * @param {{message: Object, onProgress: Function, resolve: Function, reject: Function}} task
+ */
+function runOnSlot(slot, task) {
+    slot.busy = true;
+    slot.currentTask = task;
+
+    slot.worker.onmessage = (event) => {
+        const msg = event.data;
+        if (msg.taskId !== task.message.taskId) return;
+
+        if (msg.type === 'progress') {
+            if (task.onProgress) task.onProgress(msg.progress);
+        } else if (msg.type === 'result') {
+            finishSlot(slot);
+            task.resolve(msg.simResult);
+        } else if (msg.type === 'error') {
+            finishSlot(slot);
+            task.reject(new Error(msg.error));
+        }
+    };
+
+    slot.worker.onerror = (error) => {
+        finishSlot(slot);
+        task.reject(new Error(error.message || 'Worker error'));
+    };
+
+    let payload = task.message;
+    if (slot.lastGameData === task.message.gameData) {
+        const { gameData: _omit, ...rest } = task.message;
+        payload = rest;
+    } else {
+        slot.lastGameData = task.message.gameData;
+    }
+    slot.worker.postMessage(payload);
+}
+
+/**
+ * Free a worker slot and pump the next queued task onto it.
+ * @param {Object} slot
+ */
+function finishSlot(slot) {
+    slot.busy = false;
+    slot.currentTask = null;
+    pumpQueue();
+}
 
 /**
  * @returns {number} Max worker count from setting, or hardware concurrency if 0/unset
@@ -103,39 +186,8 @@ export function buildExtraBuffs(communityBuffs, guildCombatBuffs) {
  */
 export function runWorkerChunk(message, onProgress) {
     return new Promise((resolve, reject) => {
-        const worker = new Worker(getWorkerURL());
-        activeWorkers.push(worker);
-        pendingRejects.push(reject);
-
-        const cleanup = () => {
-            activeWorkers = activeWorkers.filter((w) => w !== worker);
-            pendingRejects = pendingRejects.filter((r) => r !== reject);
-        };
-
-        worker.onmessage = (event) => {
-            const msg = event.data;
-            if (msg.taskId !== message.taskId) return;
-
-            if (msg.type === 'progress') {
-                if (onProgress) onProgress(msg.progress);
-            } else if (msg.type === 'result') {
-                worker.terminate();
-                cleanup();
-                resolve(msg.simResult);
-            } else if (msg.type === 'error') {
-                worker.terminate();
-                cleanup();
-                reject(new Error(msg.error));
-            }
-        };
-
-        worker.onerror = (error) => {
-            worker.terminate();
-            cleanup();
-            reject(new Error(error.message || 'Worker error'));
-        };
-
-        worker.postMessage(message);
+        taskQueue.push({ message, onProgress, resolve, reject });
+        pumpQueue();
     });
 }
 
@@ -454,17 +506,19 @@ export async function runLabyrinthSimulation(params, onProgress) {
 }
 
 /**
- * Terminate all active simulation workers and reject pending promises.
+ * Terminate all pooled workers (including any mid-simulation, since a running sim can't be
+ * interrupted any other way) and reject every in-flight or queued task. The pool rebuilds itself
+ * lazily on the next call.
  */
 export function cancelSimulation() {
-    for (const worker of activeWorkers) {
-        worker.terminate();
+    const inFlight = workerPool.filter((s) => s.busy).map((s) => s.currentTask);
+    for (const slot of workerPool) {
+        slot.worker.terminate();
     }
-    activeWorkers = [];
+    workerPool = [];
 
-    const rejects = pendingRejects.slice();
-    pendingRejects = [];
-    for (const reject of rejects) {
-        reject(new Error('Cancelled'));
+    const queued = taskQueue.splice(0);
+    for (const task of [...inFlight, ...queued]) {
+        if (task) task.reject(new Error('Cancelled'));
     }
 }

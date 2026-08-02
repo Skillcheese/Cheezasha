@@ -29,6 +29,13 @@ import { runCoffeeOptimization } from './optimize-coffee-core.js';
 import { runUltimateSim } from './ultimate-sim-runner.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
+// Sub-phases reported by runFoodOptimization while phase is 'food' (see optimize-food-core.js).
+const FOOD_SUB_PHASE_LABELS = {
+    search: 'searching combos',
+    gathering: 'gathering candidates',
+    narrowing: 'narrowing down safest combos',
+    refining: 'refining triggers',
+};
 // Combos are considered "tied" on deaths/hr or OOM% within this margin (matches optimize-food-core).
 const FOOD_COMBOS_TO_REFINE = 10;
 
@@ -466,7 +473,7 @@ class CombatSimUI {
                     border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
                     title="Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.">
             </span>
-            <span id="mwi-csim-upgrade-level-boost-group" style="display:none; align-items:center; gap:4px;">
+            <span id="mwi-csim-upgrade-level-boost-group" style="display:inline-flex; align-items:center; gap:4px;">
                 <label style="color:#888; font-size:12px;">+Levels</label>
                 <input id="mwi-csim-upgrade-level-boost" type="number" min="0" step="1" placeholder="0" style="
                     width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
@@ -704,7 +711,7 @@ class CombatSimUI {
                 <input id="mwi-csim-usim-include-zones" type="checkbox" checked>Zones
             </label>
             <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                <input id="mwi-csim-usim-include-solo" type="checkbox" checked>Individual Mobs
+                <input id="mwi-csim-usim-include-solo" type="checkbox">Individual Mobs
             </label>
             <button id="mwi-csim-usim-run" style="
                 margin-left: auto;
@@ -3441,6 +3448,10 @@ class CombatSimUI {
         progressContainer.style.display = 'block';
         resultsEl.innerHTML = '';
 
+        const showRunningLabel = (text) => {
+            resultsEl.innerHTML = `<div style="color:#aaa; font-size:12px; text-align:center; padding:20px 0;">${text}</div>`;
+        };
+
         try {
             const { results, refined } = await runFoodOptimization({
                 gameData,
@@ -3455,13 +3466,16 @@ class CombatSimUI {
                 onProgress: ({ completed, total, phase }) => {
                     progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
                     progressText.textContent = `${completed} / ${total}`;
-                    if (phase === 'search') setStatus(`Tested ${completed} food combos (binary search)...`);
+                    let text;
+                    if (phase === 'search') text = `Tested ${completed} food combos (binary search)...`;
                     else if (phase === 'gathering')
-                        setStatus(`Found a 0-death, 0% OOM combo. Gathering more candidates...`);
-                    else if (phase === 'exhaustive')
-                        setStatus(`No combo reaches 0 deaths/0% OOM — testing all combos...`);
+                        text = `Found a 0-death, 0% OOM combo. Gathering more candidates...`;
+                    else if (phase === 'narrowing')
+                        text = `No combo reaches 0 deaths/0% OOM — narrowing down the safest combos...`;
                     else if (phase === 'refining')
-                        setStatus(`Tested ${completed}/${total} food combos. Refining trigger thresholds...`);
+                        text = `Refining trigger thresholds: ${completed}/${total} combos done...`;
+                    setStatus(text);
+                    showRunningLabel(text);
                 },
             });
 
@@ -3498,7 +3512,7 @@ class CombatSimUI {
             return;
         }
 
-        const ranked = rankFoodResults(results, 5);
+        const ranked = rankFoodResults(results, 10);
 
         const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
             .map(
@@ -3528,8 +3542,8 @@ class CombatSimUI {
             .join('');
 
         const note = options.refined
-            ? `${ranked.length} combo${ranked.length === 1 ? '' : 's'} tied for the lowest deaths/hr and lowest mana-OOM% (of the best ${FOOD_COMBOS_TO_REFINE} tested), after refining each food's trigger threshold, sorted by cost/hr.`
-            : `${ranked.length} cheapest combo${ranked.length === 1 ? '' : 's'} that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.`;
+            ? `Top ${ranked.length} combo${ranked.length === 1 ? '' : 's'} (of the best ${FOOD_COMBOS_TO_REFINE} tested), ranked by lowest deaths/hr, then lowest mana-OOM%, then cheapest, after refining each food's trigger threshold.`
+            : `Top ${ranked.length} combo${ranked.length === 1 ? '' : 's'}, ranked by lowest deaths/hr, then lowest mana-OOM%, then cheapest, found across ${results.length} tested combos.`;
 
         container.innerHTML = `
             <div style="color:#888; font-size:11px; margin-bottom:8px;">${note}</div>
@@ -3591,6 +3605,10 @@ class CombatSimUI {
         progressContainer.style.display = 'block';
         resultsEl.innerHTML = '';
 
+        const showRunningLabel = (text) => {
+            resultsEl.innerHTML = `<div style="color:#aaa; font-size:12px; text-align:center; padding:20px 0;">${text}</div>`;
+        };
+
         try {
             const results = await runCoffeeOptimization({
                 gameData,
@@ -3605,7 +3623,9 @@ class CombatSimUI {
                 onProgress: ({ completed, total }) => {
                     progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
                     progressText.textContent = `${completed} / ${total}`;
-                    setStatus(`Tested ${completed}/${total} coffee combos...`);
+                    const text = `Tested ${completed}/${total} coffee combos...`;
+                    setStatus(text);
+                    showRunningLabel(text);
                 },
             });
 
@@ -3757,6 +3777,7 @@ class CombatSimUI {
 
         this._usimRunning = true;
         this._usimAborted = false;
+        this._usimPhaseLabel = null;
         const runBtn = this.panel.querySelector('#mwi-csim-usim-run');
         const stopBtn = this.panel.querySelector('#mwi-csim-usim-stop');
         const progressContainer = this.panel.querySelector('#mwi-csim-usim-progress-container');
@@ -3788,7 +3809,10 @@ class CombatSimUI {
                 selfHrid,
                 isAborted: () => this._usimAborted,
                 onProgress: (p) => {
-                    const phaseLabel = PHASE_LABELS[p.phase] || p.phase;
+                    let phaseLabel = PHASE_LABELS[p.phase] || p.phase;
+                    if (p.phase === 'food' && p.subPhase) {
+                        phaseLabel += ` (${FOOD_SUB_PHASE_LABELS[p.subPhase] || p.subPhase})`;
+                    }
                     let percent = 0;
                     let detail = '';
                     if (p.phase === 'zones') {
@@ -3800,6 +3824,8 @@ class CombatSimUI {
                     progressFill.style.width = `${percent}%`;
                     progressText.textContent = `${percent}%`;
                     setStatus(`Iteration ${p.iteration + 1}: ${phaseLabel}${detail}...`);
+                    this._usimPhaseLabel = `Iteration ${p.iteration + 1}: ${phaseLabel}${detail}...`;
+                    this._renderUltimateHistory([]);
                 },
             });
 
@@ -3843,7 +3869,8 @@ class CombatSimUI {
         if (!container) return;
 
         if (!history.length) {
-            container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Running...</div>`;
+            const label = this._usimPhaseLabel || 'Running...';
+            container.innerHTML = `<div style="color:#aaa; font-size:12px; text-align:center; padding:20px 0;">${label}</div>`;
             return;
         }
 

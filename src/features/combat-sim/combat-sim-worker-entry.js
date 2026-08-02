@@ -12,6 +12,11 @@ import Labyrinth from './engine/labyrinth.js';
 import Player from './engine/player.js';
 import Zone from './engine/zone.js';
 
+// Worker instances are pooled and reused across many sim calls (see combat-sim-runner.js), so
+// gameData is only re-sent (and re-cloned across the postMessage boundary) when it actually
+// changes; the main thread omits it from the message once a worker already has the current copy.
+let hasGameData = false;
+
 onmessage = function (event) {
     const { type, taskId } = event.data;
 
@@ -29,7 +34,12 @@ onmessage = function (event) {
         } = event.data;
 
         // Set game data for the engine singleton
-        setGameData(gameData);
+        if (gameData) {
+            setGameData(gameData);
+            hasGameData = true;
+        } else if (!hasGameData) {
+            throw new Error('Worker received no game data and has none cached');
+        }
 
         // Create Zone (used as fallback even in labyrinth mode for SimResult constructor)
         const zone = new Zone(zoneHrid, difficultyTier);

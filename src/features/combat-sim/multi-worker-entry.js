@@ -1,13 +1,21 @@
 /**
  * Multi-Worker Entry for All-Zones Simulation
  *
- * This file is bundled into a string and runs inside a Web Worker.
- * It receives all zones to simulate, creates a pool of child simulation workers,
- * and processes zones via a task queue. Child workers are spawned from a Blob URL
+ * This file is bundled into a string and runs inside a Worker (the "coordinator").
+ * It receives all zones to simulate and processes them via a task queue against a
+ * persistent pool of child simulation workers. Child workers are spawned from a Blob URL
  * created from the simulation worker script passed in the init message.
  *
  * This matches Shykai's architecture: worker-spawned workers get different
  * CPU scheduling from the browser than main-thread-spawned workers.
+ *
+ * The coordinator itself is also kept alive and reused across multiple 'start_all_zones'
+ * calls (see all-zones-runner.js) rather than being torn down after each one — Ultimate Sim
+ * runs this same all-zones pass repeatedly (once per iteration) against the same gameData, so
+ * reusing both the coordinator and its child worker pool avoids re-paying worker boot and
+ * gameData clone cost on every iteration. gameData and the worker script are only included in
+ * a message when they differ from what's already cached (by object identity), both here and at
+ * the child-worker level.
  *
  * When useEarlyExit is true, only T0 is seeded per zone initially. After each tier
  * completes, a zone_tier_result message is sent to the main thread. The main thread
@@ -16,10 +24,83 @@
  */
 
 let simWorkerBlobURL = null;
+let cachedWorkerScript = null;
+let cachedGameData = null;
 let taskIdCounter = 0;
+
+// Persistent child worker pool, reused across tasks within a run and across separate
+// 'start_all_zones' calls on this same coordinator instance. Grows as needed, never shrinks.
+const childPool = []; // { worker, busy, lastGameData, onProgress }
 
 // Pending early-exit decisions: zoneHrid → resolve function
 const pendingDecisions = new Map();
+
+/**
+ * Get or create the Blob URL for child simulation workers, from the cached worker script.
+ * @returns {string}
+ */
+function ensureWorkerURL() {
+    if (!simWorkerBlobURL) {
+        const blob = new Blob([cachedWorkerScript], { type: 'application/javascript' });
+        simWorkerBlobURL = URL.createObjectURL(blob);
+    }
+    return simWorkerBlobURL;
+}
+
+/**
+ * Get an idle pooled child worker, creating a new one if none are idle.
+ * @param {string} workerURL
+ * @returns {{worker: Worker, busy: boolean, lastGameData: Object|null, onProgress: Function|null}}
+ */
+function getIdleChild(workerURL) {
+    const idle = childPool.find((s) => !s.busy);
+    if (idle) return idle;
+    const slot = { worker: new Worker(workerURL), busy: false, lastGameData: null, onProgress: null };
+    childPool.push(slot);
+    return slot;
+}
+
+/**
+ * Run one simulation task on a pooled child worker slot, posting gameData only when it differs
+ * from what that worker already has cached.
+ * @param {Object} slot
+ * @param {Object} message - start_simulation message (including gameData)
+ * @returns {Promise<Object>} simResult
+ */
+function runTaskOnChild(slot, message) {
+    return new Promise((resolve, reject) => {
+        slot.busy = true;
+
+        slot.worker.onmessage = (event) => {
+            const msg = event.data;
+            if (msg.taskId !== message.taskId) return;
+
+            if (msg.type === 'progress') {
+                if (slot.onProgress) slot.onProgress(msg.progress);
+            } else if (msg.type === 'result') {
+                slot.busy = false;
+                resolve(msg.simResult);
+            } else if (msg.type === 'error') {
+                slot.busy = false;
+                reject(new Error(msg.error));
+            }
+        };
+
+        slot.worker.onerror = (error) => {
+            slot.busy = false;
+            reject(new Error(error.message || 'Worker error'));
+        };
+
+        let payload = message;
+        if (slot.lastGameData === message.gameData) {
+            const { gameData: _omit, ...rest } = message;
+            payload = rest;
+        } else {
+            slot.lastGameData = message.gameData;
+        }
+        slot.worker.postMessage(payload);
+    });
+}
 
 onmessage = async function (event) {
     const { type } = event.data;
@@ -28,10 +109,10 @@ onmessage = async function (event) {
         const { workerScript, gameData, playerDTOs, zones, simulationTimeLimit, extraBuffs, maxWorkers, useEarlyExit } =
             event.data;
 
-        // Create Blob URL for simulation workers from the bundled script string
-        const blob = new Blob([workerScript], { type: 'application/javascript' });
-        simWorkerBlobURL = URL.createObjectURL(blob);
-        const workerURL = simWorkerBlobURL;
+        if (workerScript) cachedWorkerScript = workerScript;
+        if (gameData) cachedGameData = gameData;
+        const effectiveGameData = gameData || cachedGameData;
+        const workerURL = ensureWorkerURL();
 
         const results = new Array(zones.length);
 
@@ -71,51 +152,35 @@ onmessage = async function (event) {
             taskQueue = [...zones.map((zone, index) => ({ ...zone, index }))];
         }
 
-        const poolSize = Math.min(maxWorkers, taskQueue.length);
+        const poolSize = Math.min(maxWorkers, taskQueue.length || 1);
+        // Grow the persistent pool up to this run's concurrency need; never shrink it back down.
+        while (childPool.length < poolSize) {
+            childPool.push({ worker: new Worker(workerURL), busy: false, lastGameData: null, onProgress: null });
+        }
 
-        // Each pool slot processes tasks sequentially, one fresh worker per task
         const processQueue = async () => {
             while (taskQueue.length > 0) {
                 const task = taskQueue.shift();
                 if (!task) continue;
                 const taskId = ++taskIdCounter;
 
+                const slot = getIdleChild(workerURL);
+                slot.onProgress = (p) => {
+                    zoneProgress[task.index] = p;
+                    reportProgress();
+                };
+
                 let simResult = null;
                 try {
-                    simResult = await new Promise((resolve, reject) => {
-                        const worker = new Worker(workerURL);
-
-                        worker.onmessage = (e) => {
-                            const msg = e.data;
-                            if (msg.taskId !== taskId) return;
-
-                            if (msg.type === 'progress') {
-                                zoneProgress[task.index] = msg.progress;
-                                reportProgress();
-                            } else if (msg.type === 'result') {
-                                worker.terminate();
-                                resolve(msg.simResult);
-                            } else if (msg.type === 'error') {
-                                worker.terminate();
-                                reject(new Error(msg.error));
-                            }
-                        };
-
-                        worker.onerror = (error) => {
-                            worker.terminate();
-                            reject(new Error(error.message || 'Worker error'));
-                        };
-
-                        worker.postMessage({
-                            type: 'start_simulation',
-                            taskId,
-                            gameData,
-                            playerDTOs,
-                            zoneHrid: task.zoneHrid,
-                            difficultyTier: task.difficultyTier,
-                            simulationTimeLimit,
-                            extraBuffs,
-                        });
+                    simResult = await runTaskOnChild(slot, {
+                        type: 'start_simulation',
+                        taskId,
+                        gameData: effectiveGameData,
+                        playerDTOs,
+                        zoneHrid: task.zoneHrid,
+                        difficultyTier: task.difficultyTier,
+                        simulationTimeLimit,
+                        extraBuffs,
                     });
                 } catch (error) {
                     console.error(`[MultiWorker] Zone ${task.zoneHrid} T${task.difficultyTier} failed:`, error);
@@ -175,9 +240,8 @@ onmessage = async function (event) {
             postMessage({ type: 'error', error: error.message || String(error) });
         }
 
-        // Clean up
-        URL.revokeObjectURL(simWorkerBlobURL);
-        simWorkerBlobURL = null;
+        // Deliberately no cleanup here: the child pool and blob URL persist so the next
+        // start_all_zones message (e.g. the next Ultimate Sim iteration) can reuse them.
     } else if (type === 'zone_tier_decision') {
         // Main thread responded to an early-exit zone_tier_result
         const { zoneHrid, skip } = event.data;
