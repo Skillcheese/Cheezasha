@@ -15,7 +15,6 @@ import {
     getCombatZones,
     getCurrentCombatZone,
     getCommunityBuffs,
-    calculateSimRevenue,
     getBuyPrice,
 } from './combat-sim-adapter.js';
 import { runSimulation, cancelSimulation } from './combat-sim-runner.js';
@@ -462,12 +461,16 @@ class OptimizeFoodUI {
                     ? Math.min(100, (oomStat.totalTimeForOutOfMana / simResult.simulatedTime) * 100)
                     : 0;
 
+                // Only cost the food in this combo — consumablesUsed also includes whatever
+                // coffee/drinks the player already has equipped (unchanged across every combo
+                // tested here), which calculateSimRevenue's costPerHour would otherwise lump in.
+                const comboHrids = new Set(combo.map((c) => c.hrid));
+                const consumablesUsed = simResult.consumablesUsed?.[selfHrid] || {};
                 let costPerHour = 0;
-                try {
-                    const revenue = calculateSimRevenue(simResult, gameData, selfHrid, simHours);
-                    costPerHour = revenue.costPerHour;
-                } catch {
-                    // Cost may not be available
+                for (const [itemHrid, count] of Object.entries(consumablesUsed)) {
+                    if (!comboHrids.has(itemHrid)) continue;
+                    const price = getBuyPrice(marketAPI.getPrice(itemHrid));
+                    costPerHour += (count / simHours) * price;
                 }
 
                 results.push({
