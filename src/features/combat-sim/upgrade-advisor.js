@@ -135,6 +135,96 @@ function getAbilityCombatStyle(abilityDetail) {
     return 'universal';
 }
 
+/** Intelligence level required to unlock the 2nd, 3rd, and 4th normal ability slots. */
+const ABILITY_SLOT_INT_REQUIREMENTS = { 2: 20, 3: 50, 4: 90 };
+
+/**
+ * Check whether an ability slot is unlocked for the player.
+ * Slots 0-1 (special + first normal slot) are always available. Slots 2, 3,
+ * and 4 (2nd/3rd/4th normal ability slots) require Intelligence 20 / 50 / 90.
+ * @param {number} slotIdx - 0 = special ability, 1-4 = normal ability slots
+ * @param {Object} playerDTO
+ * @returns {boolean}
+ */
+function isAbilitySlotUnlocked(slotIdx, playerDTO) {
+    const req = ABILITY_SLOT_INT_REQUIREMENTS[slotIdx];
+    if (req === undefined) return true;
+    return (playerDTO.intelligenceLevel || 0) >= req;
+}
+
+/**
+ * Check whether the player's skills meet an ability book's level requirements
+ * (e.g. a book requiring 50 Melee can't be learned/equipped below that level).
+ * @param {string} abilityHrid
+ * @param {Object} playerDTO
+ * @param {Object} gameData
+ * @returns {boolean}
+ */
+function meetsAbilityBookRequirements(abilityHrid, playerDTO, gameData) {
+    const bookHrid = abilityHrid.replace('/abilities/', '/items/');
+    const reqs = gameData.itemDetailMap[bookHrid]?.abilityBookDetail?.levelRequirements;
+    if (!reqs || reqs.length === 0) return true;
+
+    for (const req of reqs) {
+        const skillName = req.skillHrid?.split('/').pop();
+        if (!skillName) continue;
+        const playerLevel = playerDTO[skillName + 'Level'] ?? 0;
+        if (playerLevel < (req.level || 0)) return false;
+    }
+    return true;
+}
+
+/**
+ * Get the map of all abilities the player has ever learned (equipped or not) to their level.
+ * @returns {Map<string, number>} abilityHrid -> level
+ */
+function getLearnedAbilityLevels() {
+    const learned = new Map();
+    for (const ab of dataManager.characterData?.characterAbilities || []) {
+        if (ab?.abilityHrid) learned.set(ab.abilityHrid, ab.level || 0);
+    }
+    return learned;
+}
+
+/**
+ * Average coin cost of the XP currently invested across the player's equipped abilities.
+ * Used as a "fair" spending budget for sizing swap candidates that aren't equipped.
+ * @param {Object} playerDTO
+ * @returns {number} Average coin cost, or 0 if no equipped abilities / no price data
+ */
+function getAverageEquippedAbilityCost(playerDTO) {
+    let total = 0;
+    let count = 0;
+    for (const ability of playerDTO.abilities) {
+        if (!ability) continue;
+        total += calculateAbilityLevelUpCost(ability.hrid, 0, 0, ability.level);
+        count++;
+    }
+    return count > 0 ? total / count : 0;
+}
+
+/**
+ * Find the highest ability level whose training cost (from level 0) doesn't exceed budget.
+ * Cost is monotonically non-decreasing with level, so a linear scan is safe and cheap
+ * (levels are capped at 200).
+ * @param {string} abilityHrid
+ * @param {number} budget - Coin budget
+ * @returns {number} Level (at least 1)
+ */
+function getBudgetMatchedAbilityLevel(abilityHrid, budget) {
+    if (budget <= 0) return 1;
+    let bestLevel = 1;
+    for (let level = 1; level <= 200; level++) {
+        const cost = calculateAbilityLevelUpCost(abilityHrid, 0, 0, level);
+        if (cost <= budget) {
+            bestLevel = level;
+        } else {
+            break;
+        }
+    }
+    return bestLevel;
+}
+
 /**
  * Check if an ability is compatible with a player's weapon style.
  * @param {string} abilityStyle - From getAbilityCombatStyle()
@@ -849,16 +939,31 @@ export function generateCandidates(
         const playerStyle = getPlayerCombatStyle(playerDTO, gameData);
         const equippedAbilityHrids = new Set(playerDTO.abilities.filter((a) => a).map((a) => a.hrid));
 
+        // Swap-mode-only setup: a fair coin budget derived from the abilities already
+        // equipped, and a cache of computed swap-candidate levels (same budget/list is
+        // reused across every slot, so compute each candidate's level only once).
+        const swapBudget = mode === 'ability_swap' ? getAverageEquippedAbilityCost(playerDTO) : 0;
+        const learnedAbilityLevels = mode === 'ability_swap' ? getLearnedAbilityLevels() : null;
+        const swapLevelCache = new Map();
+        const getSwapTargetLevel = (abHrid) => {
+            if (swapLevelCache.has(abHrid)) return swapLevelCache.get(abHrid);
+            const budgetLevel = getBudgetMatchedAbilityLevel(abHrid, swapBudget);
+            const learnedLevel = learnedAbilityLevels.get(abHrid) || 0;
+            const level = Math.min(200, Math.max(budgetLevel, learnedLevel, 1));
+            swapLevelCache.set(abHrid, { level, learnedLevel });
+            return { level, learnedLevel };
+        };
+
         for (let slotIdx = 0; slotIdx < playerDTO.abilities.length; slotIdx++) {
             const ability = playerDTO.abilities[slotIdx];
-            if (!ability) continue;
-
-            const abilityDetail = gameData.abilityDetailMap[ability.hrid];
-            if (!abilityDetail) continue;
-            const abilityName = abilityDetail.name || ability.hrid.split('/').pop();
 
             if (mode === 'ability_level') {
-                // Level upgrade candidate
+                // Level upgrade candidate (existing equipped abilities only)
+                if (!ability) continue;
+                const abilityDetail = gameData.abilityDetailMap[ability.hrid];
+                if (!abilityDetail) continue;
+                const abilityName = abilityDetail.name || ability.hrid.split('/').pop();
+
                 let targetLevel;
                 if (abilityLevelType === 'target') {
                     targetLevel =
@@ -882,7 +987,15 @@ export function generateCandidates(
                     });
                 }
             } else {
-                // Swap candidates: other compatible abilities not already equipped
+                // Swap candidates: other compatible abilities not already equipped anywhere,
+                // including empty slots (if unlocked). Covers damage, special, and buff
+                // abilities alike — the only filters are slot type and weapon-style compatibility.
+                if (!ability && !isAbilitySlotUnlocked(slotIdx, playerDTO)) continue;
+
+                const abilityName = ability
+                    ? gameData.abilityDetailMap[ability.hrid]?.name || ability.hrid.split('/').pop()
+                    : '(empty slot)';
+
                 for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
                     if (equippedAbilityHrids.has(abHrid)) continue;
                     if (abDetail.isSpecialAbility && slotIdx !== 0) continue;
@@ -891,15 +1004,19 @@ export function generateCandidates(
 
                     const abStyle = getAbilityCombatStyle(abDetail);
                     if (!isAbilityCompatible(abStyle, playerStyle)) continue;
+                    if (!meetsAbilityBookRequirements(abHrid, playerDTO, gameData)) continue;
 
                     const swapName = abDetail.name || abHrid.split('/').pop();
+                    const { level: targetLevel, learnedLevel } = getSwapTargetLevel(abHrid);
+
                     candidates.push({
                         slot: `ability_${slotIdx}`,
-                        currentHrid: ability.hrid,
-                        currentLevel: ability.level,
+                        currentHrid: ability ? ability.hrid : null,
+                        currentLevel: ability ? ability.level : 0,
                         upgradeHrid: abHrid,
-                        upgradeLevel: ability.level,
-                        description: `${abilityName} → ${swapName} (Lv${ability.level})`,
+                        upgradeLevel: targetLevel,
+                        learnedLevel,
+                        description: `${abilityName} → ${swapName} (Lv${targetLevel})`,
                         type: 'ability_swap',
                     });
                 }
@@ -931,7 +1048,10 @@ export function calculateUpgradeCost(candidate, gameData) {
     }
 
     if (candidate.type === 'ability_swap') {
-        return calculateAbilityLevelUpCost(candidate.upgradeHrid, 0, 0, candidate.upgradeLevel);
+        const learnedLevel = candidate.learnedLevel || 0;
+        const levelXpTable = gameData.levelExperienceTable || [];
+        const learnedXp = learnedLevel > 0 ? levelXpTable[learnedLevel] || 0 : 0;
+        return calculateAbilityLevelUpCost(candidate.upgradeHrid, learnedLevel, learnedXp, candidate.upgradeLevel);
     }
 
     if (candidate.type === 'cross_slot') {
