@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Toolasha
 // @namespace    http://tampermonkey.net/
-// @version      2.85.1
+// @version      2.87.0
 // @downloadURL  https://greasyfork.org/scripts/562662-toolasha/code/Toolasha.user.js
 // @updateURL    https://greasyfork.org/scripts/562662-toolasha/code/Toolasha.meta.js
 // @description  Toolasha - Enhanced tools for Milky Way Idle.
@@ -21,12 +21,12 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.js
 // @require      https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-core.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-utils.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-market.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-actions.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-combat.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Toolasha@0f4b4542ffbc87e1fbd56b978183ccb55f8ed928/dist/libraries/toolasha-ui.js
+// @require      https://UPDATE-THIS-URL/toolasha-core.js
+// @require      https://UPDATE-THIS-URL/toolasha-utils.js
+// @require      https://UPDATE-THIS-URL/toolasha-market.js
+// @require      https://UPDATE-THIS-URL/toolasha-actions.js
+// @require      https://UPDATE-THIS-URL/toolasha-combat.js
+// @require      https://UPDATE-THIS-URL/toolasha-ui.js
 // ==/UserScript==
 // Note: Combat Sim auto-import requires Tampermonkey for cross-domain storage. Not available on Steam (use manual clipboard copy/paste instead).
 
@@ -486,6 +486,22 @@
                 async: false,
             },
             {
+                key: 'optimizeCoffee',
+                name: 'Optimize Coffee',
+                category: 'Combat',
+                module: Combat.optimizeCoffee,
+                async: false,
+                customCheck: () => config.getSetting('combatSim'),
+            },
+            {
+                key: 'optimizeFood',
+                name: 'Optimize Food',
+                category: 'Combat',
+                module: Combat.optimizeFood,
+                async: false,
+                customCheck: () => config.getSetting('combatSim'),
+            },
+            {
                 key: 'labSim',
                 name: 'Lab Simulator',
                 category: 'Combat',
@@ -640,6 +656,20 @@
             { key: 'skillRemainingXP', name: 'Remaining XP', category: 'Skills', module: UI.remainingXP, async: false },
             { key: 'xpTracker', name: 'XP/hr Tracker', category: 'Skills', module: UI.xpTracker, async: false },
             {
+                key: 'bestRatesPopup',
+                name: 'Best Rates Popup',
+                category: 'Skills',
+                module: UI.bestRatesPopup,
+                async: false,
+            },
+            {
+                key: 'skillOptimizerPopup',
+                name: 'Skill Optimizer Popup',
+                category: 'Skills',
+                module: UI.skillOptimizerPopup,
+                async: false,
+            },
+            {
                 key: 'housePanelObserver',
                 name: 'House Panel Observer',
                 category: 'House',
@@ -714,6 +744,13 @@
                 name: 'Enhancement XPH Calculator',
                 category: 'Enhancement',
                 module: UI.xphCalculator,
+                async: false,
+            },
+            {
+                key: 'enhancementProfitCalc',
+                name: 'Enhancement Optimizer',
+                category: 'Enhancement',
+                module: UI.profitCalculator,
                 async: false,
             },
             {
@@ -920,7 +957,7 @@
         // Expose minimal user-facing API
         const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-        targetWindow.Toolasha.version = '2.85.1';
+        targetWindow.Toolasha.version = '2.87.0';
 
         // Feature toggle API (for users to manage settings via console)
         targetWindow.Toolasha.features = {

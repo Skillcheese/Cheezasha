@@ -1,7 +1,7 @@
 /**
  * Toolasha Utils Library
  * All utility modules
- * Version: 2.85.1
+ * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -3584,7 +3584,7 @@
         }
 
         // 4. Production cost fallback
-        const prodCost = getProductionCost(itemHrid, mode || 'ask');
+        const prodCost = getProductionCost(itemHrid, mode || getPricingMode(context, side));
         if (prodCost > 0) {
             return { price: prodCost, custom: false, missing: false };
         }
@@ -7223,9 +7223,9 @@ self.onmessage = function (e) {
         // Observatory
         result.enhanceSim_houseLevel = dataManager.getHouseRoomLevel('/house_rooms/observatory');
 
-        // Community buff
-        const communityLevel = dataManager.getCommunityBuffLevel('/community_buff_types/enhancing_speed');
-        result.enhanceSim_communityBuff = { enabled: true, level: communityLevel };
+        // Community buffs
+        result.enhanceSim_communityBuff = dataManager.getCommunityBuffLevel('/community_buff_types/enhancing_speed');
+        result.enhanceSim_communityBuffWisdom = dataManager.getCommunityBuffLevel('/community_buff_types/experience');
 
         // Achievement
         const achievementBonus = dataManager.getAchievementBuffRatioBoost(
@@ -7240,17 +7240,22 @@ self.onmessage = function (e) {
             '/items/super_enhancing_tea': 'super',
             '/items/enhancing_tea': 'basic',
         };
+        const WISDOM_TEA_HRIDS = ['/items/wisdom_tea', '/items/wisdom_coffee'];
         let detectedTea = 'none';
         let hasBlessed = false;
+        let hasWisdom = false;
         if (drinkSlots) {
             for (const drink of drinkSlots) {
                 if (!drink?.itemHrid) continue;
                 if (teaMap[drink.itemHrid]) detectedTea = teaMap[drink.itemHrid];
                 if (drink.itemHrid === '/items/blessed_tea') hasBlessed = true;
+                if (WISDOM_TEA_HRIDS.includes(drink.itemHrid)) hasWisdom = true;
             }
         }
-        result.enhanceSim_tea = detectedTea;
+        result.enhanceSim_teaEnabled = detectedTea !== 'none';
+        result.enhanceSim_tea = detectedTea === 'none' ? 'ultra' : detectedTea;
         result.enhanceSim_blessedTea = hasBlessed;
+        result.enhanceSim_wisdomTea = hasWisdom;
 
         // Gear detection — match equipped items to known gear HRIDs
         const ENHANCER_HRIDS = {
@@ -7350,12 +7355,15 @@ self.onmessage = function (e) {
         const baseEnhancingLevel = getValue('enhanceSim_enhancingLevel', 140);
 
         // --- TEA ---
-        const teaSelection = getValue('enhanceSim_tea', 'ultra');
+        const teaEnabled = getValue('enhanceSim_teaEnabled', true);
+        const teaSelection = teaEnabled ? getValue('enhanceSim_tea', 'ultra') : 'none';
+        const wisdomTeaEnabled = getValue('enhanceSim_wisdomTea', true);
         const teas = {
             enhancing: teaSelection === 'basic',
             superEnhancing: teaSelection === 'super',
             ultraEnhancing: teaSelection === 'ultra',
             blessed: getValue('enhanceSim_blessedTea', true),
+            wisdom: wisdomTeaEnabled,
         };
         const teaLevelBonus =
             teaSelection === 'ultra' ? 8 : teaSelection === 'super' ? 6 : teaSelection === 'basic' ? 3 : 0;
@@ -7592,14 +7600,7 @@ self.onmessage = function (e) {
         }
 
         // --- COMMUNITY BUFF ---
-        const communityBuff = getGear('enhanceSim_communityBuff', { enabled: true, level: 1 });
-        let communityBuffLevel;
-        if (communityBuff.enabled) {
-            // Checked = auto-detect from game
-            communityBuffLevel = dataManager.getCommunityBuffLevel('/community_buff_types/enhancing_speed');
-        } else {
-            communityBuffLevel = communityBuff.level;
-        }
+        const communityBuffLevel = getValue('enhanceSim_communityBuff', 0);
         const communitySpeedBonus = communityBuffLevel > 0 ? 20 + (communityBuffLevel - 1) * 0.5 : 0;
 
         // --- ACHIEVEMENT ---
@@ -7625,25 +7626,11 @@ self.onmessage = function (e) {
         const scaledTeaSpeedBonus = teaSpeedBonus > 0 ? teaSpeedBonus * (1 + drinkConcentration / 100) : 0;
 
         // Tea wisdom bonus (Wisdom Tea/Coffee provide 12% wisdom, scales with drink concentration)
-        let baseTeaWisdom = 0;
-        const drinkSlots = dataManager.getActionDrinkSlots('/action_types/enhancing');
-        if (drinkSlots && drinkSlots.length > 0) {
-            for (const drink of drinkSlots) {
-                if (!drink || !drink.itemHrid) continue;
-                const drinkDetails = itemDetailMap[drink.itemHrid];
-                if (!drinkDetails?.consumableDetail?.buffs) continue;
-                const wisdomBuff = drinkDetails.consumableDetail.buffs.find(
-                    (buff) => buff.typeHrid === '/buff_types/wisdom'
-                );
-                if (wisdomBuff && wisdomBuff.flatBoost) {
-                    baseTeaWisdom += wisdomBuff.flatBoost * 100;
-                }
-            }
-        }
+        const baseTeaWisdom = wisdomTeaEnabled ? 12 : 0;
         const teaWisdomBonus = baseTeaWisdom > 0 ? baseTeaWisdom * (1 + drinkConcentration / 100) : 0;
 
         // Community wisdom buff
-        const communityWisdomLevel = dataManager.getCommunityBuffLevel('/community_buff_types/experience');
+        const communityWisdomLevel = getValue('enhanceSim_communityBuffWisdom', 0);
         const communityWisdomBonus = communityWisdomLevel > 0 ? 20 + (communityWisdomLevel - 1) * 0.5 : 0;
 
         // Achievement wisdom buff

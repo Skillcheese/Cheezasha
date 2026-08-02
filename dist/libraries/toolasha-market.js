@@ -1,7 +1,7 @@
 /**
  * Toolasha Market Library
  * Market, inventory, and economy features
- * Version: 2.85.1
+ * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -1215,7 +1215,7 @@
                 const upgradeChainTime = getProductionChainTime(actionDetails.upgradeItemHrid);
                 if (upgradeChainTime > 0) {
                     const resolved = profitHelpers_js.resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' });
-                    const craftCost = getProductionCost(actionDetails.upgradeItemHrid, 'ask');
+                    const craftCost = getProductionCost(actionDetails.upgradeItemHrid, marketData_js.getPricingMode('profit', 'buy'));
                     if (craftCost > 0 && (resolved.price === 0 || craftCost < resolved.price)) {
                         const chainTimeWithSpeed = upgradeChainTime / (1 + equipmentSpeedBonus + personalSpeedBonus);
                         effectiveActionTime += chainTimeWithSpeed;
@@ -1254,11 +1254,13 @@
 
             // Get output price based on pricing mode setting
             // Uses 'profit' context with 'sell' side to get correct sell price
-            const rawOutputPrice = getCachedPrice(itemHrid, { context: 'profit', side: 'sell' });
-            const outputPriceMissing = rawOutputPrice === null;
+            // Resolved through the same custom-override → shop-floor → market → production-cost
+            // chain as material costs below, so output and input pricing stay consistent.
+            const resolvedOutputPrice = profitHelpers_js.resolveItemPrice(itemHrid, { context: 'profit', side: 'sell' });
+            const outputPriceMissing = resolvedOutputPrice.missing;
             const craftingFallback = outputPriceMissing ? this.calculateCraftingCostFallback(itemHrid, getCachedPrice) : 0;
             const outputPriceEstimated = outputPriceMissing && craftingFallback > 0;
-            const outputPrice = outputPriceMissing ? craftingFallback : rawOutputPrice;
+            const outputPrice = outputPriceMissing ? craftingFallback : resolvedOutputPrice.price;
 
             // Apply market tax (2% tax on sales)
             const priceAfterTax = profitHelpers_js.calculatePriceAfterTax(outputPrice);
@@ -1442,7 +1444,9 @@
                         resolved = profitHelpers_js.resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' });
 
                         const craftEnabled = config.getSetting('profitCalc_craftUpgradeItems');
-                        const craftCost = craftEnabled ? getProductionCost(actionDetails.upgradeItemHrid, 'ask') : 0;
+                        const craftCost = craftEnabled
+                            ? getProductionCost(actionDetails.upgradeItemHrid, marketData_js.getPricingMode('profit', 'buy'))
+                            : 0;
                         isCrafted = craftCost > 0 && (resolved.price === 0 || craftCost < resolved.price);
                         if (isCrafted) {
                             resolved = { price: craftCost, custom: false, missing: false };
@@ -2493,7 +2497,7 @@ self.onmessage = function (e) {
             essencePrice = expectedValueCalculator.getCachedValue('/items/alchemy_essence') || 0;
         } else {
             const price = marketAPI.getPrice('/items/alchemy_essence', 0);
-            essencePrice = price?.bid ?? 0;
+            essencePrice = profitHelpers_js.calculatePriceAfterTax(price?.bid ?? 0);
         }
 
         const essenceRevenuePerHour = essenceDropsPerHour * essencePrice;
@@ -2538,7 +2542,7 @@ self.onmessage = function (e) {
                 0;
         } else {
             const price = marketAPI.getPrice(crateHrid, 0);
-            cratePrice = price?.bid ?? 0;
+            cratePrice = profitHelpers_js.calculatePriceAfterTax(price?.bid ?? 0);
         }
 
         const rareRevenuePerHour = rareDropsPerHour * cratePrice;
@@ -3146,7 +3150,7 @@ self.onmessage = function (e) {
                         dropDetails.push({
                             itemHrid: output.itemHrid,
                             count: output.count,
-                            price: outputPrice,
+                            price: afterTax,
                             afterTax,
                             isEssence: false,
                             expectedValue: dropValue,
@@ -3169,7 +3173,7 @@ self.onmessage = function (e) {
                         dropDetails.push({
                             itemHrid: '/items/enhancing_essence',
                             count: essenceAmount,
-                            price: essencePrice,
+                            price: afterTax,
                             afterTax,
                             isEssence: true,
                             expectedValue: dropValue,
@@ -3480,7 +3484,7 @@ self.onmessage = function (e) {
                             minCount: drop.minCount,
                             maxCount: drop.maxCount,
                             averageCount,
-                            price: outputPrice,
+                            price: afterTax,
                             expectedValue: isSelfReturn ? 0 : dropValue, // Self-return has 0 effective value
                             isSelfReturn,
                         });

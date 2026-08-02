@@ -1,7 +1,7 @@
 /**
  * Toolasha Core Library
  * Core infrastructure and API clients
- * Version: 2.85.1
+ * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -1459,35 +1459,61 @@
                     disabledBy: 'enhanceSim_autoDetect',
                 },
                 // --- BUFFS ---
+                enhanceSim_teaEnabled: {
+                    id: 'enhanceSim_teaEnabled',
+                    label: 'Enhancing Tea',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Uncheck to simulate with no enhancing tea',
+                    disabledBy: 'enhanceSim_autoDetect',
+                },
                 enhanceSim_tea: {
                     id: 'enhanceSim_tea',
-                    label: 'Enhancing tea',
+                    label: 'Enhancing tea level',
                     type: 'select',
                     default: 'ultra',
                     options: [
-                        { value: 'none', label: 'None' },
-                        { value: 'basic', label: 'Enhancing Tea (+3)' },
-                        { value: 'super', label: 'Super Enhancing Tea (+6)' },
-                        { value: 'ultra', label: 'Ultra Enhancing Tea (+8)' },
+                        { value: 'basic', label: 'Normal (+3)' },
+                        { value: 'super', label: 'Super (+6)' },
+                        { value: 'ultra', label: 'Ultra (+8)' },
                     ],
                     help: 'Enhancing tea provides skill level bonus',
                     disabledBy: 'enhanceSim_autoDetect',
                 },
                 enhanceSim_blessedTea: {
                     id: 'enhanceSim_blessedTea',
-                    label: 'Blessed Tea active',
+                    label: 'Blessed Tea',
                     type: 'checkbox',
                     default: true,
-                    help: 'Professional enhancers use this to reduce attempts',
+                    help: '1% chance to jump +2 levels instead of +1 on success',
+                    disabledBy: 'enhanceSim_autoDetect',
+                },
+                enhanceSim_wisdomTea: {
+                    id: 'enhanceSim_wisdomTea',
+                    label: 'Wisdom Tea',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Wisdom Tea/Coffee provide +12% experience',
                     disabledBy: 'enhanceSim_autoDetect',
                 },
                 enhanceSim_communityBuff: {
                     id: 'enhanceSim_communityBuff',
-                    label: 'Community Buff',
-                    type: 'enhanceGear',
-                    default: { enabled: true, level: 1 },
-                    help: 'Enhancing speed community buff. Checked = auto-detect from game.',
-                    checkedMeansAuto: true,
+                    label: 'Community Buff Level: Enhancing Speed',
+                    type: 'number',
+                    default: 0,
+                    min: 0,
+                    max: 20,
+                    help: 'Enter the buff LEVEL, not the %. 0 = no buff. +20% action speed at level 1, +0.5% per additional level.',
+                    disabledBy: 'enhanceSim_autoDetect',
+                },
+                enhanceSim_communityBuffWisdom: {
+                    id: 'enhanceSim_communityBuffWisdom',
+                    label: 'Community Buff Level: Experience',
+                    type: 'number',
+                    default: 0,
+                    min: 0,
+                    max: 20,
+                    help: 'Enter the buff LEVEL, not the %. 0 = no buff. +20% wisdom at level 1, +0.5% per additional level.',
                     disabledBy: 'enhanceSim_autoDetect',
                 },
             },
@@ -1529,6 +1555,26 @@
                     label: 'Enhancement XPH: Default protect from level (0 = no protection)',
                     type: 'text',
                     default: '0',
+                },
+                enhancementProfitCalc: {
+                    id: 'enhancementProfitCalc',
+                    label: 'Enhancement: Optimizer',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Ranks enhanceable items by profit/hr and gold-neutral effective XP/hr using live buy offers',
+                },
+                enhancementProfitCalc_maxLevel: {
+                    id: 'enhancementProfitCalc_maxLevel',
+                    label: 'Enhancement Optimizer: Default max enhancement level (1–20)',
+                    type: 'text',
+                    default: '10',
+                },
+                enhancementProfitCalc_excludeCharms: {
+                    id: 'enhancementProfitCalc_excludeCharms',
+                    label: 'Enhancement Optimizer: Exclude charms',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Charms require an item to enhance that has no market value but is hard to obtain',
                 },
             },
         },
@@ -2072,6 +2118,20 @@
                     default: true,
                     help: 'Displays how much XP needed to reach the next level under skill progress bars',
                 },
+                bestRatesPopup: {
+                    id: 'bestRatesPopup',
+                    label: 'Show Best Rates button (top profit/hr & XP/hr per skill)',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Adds a floating button that opens a popup listing the highest profit/hr and fastest cheap XP/hr methods for each skill',
+                },
+                skillOptimizerPopup: {
+                    id: 'skillOptimizerPopup',
+                    label: 'Show Skill Optimizer button (customizable gear/stats profit calculator)',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Adds a floating button with a fully customizable gear/skill-level/house/community-buff loadout, and shows the top 3 profit/hr actions per skill for that loadout',
+                },
                 skillRemainingXP_blackBorder: {
                     id: 'skillRemainingXP_blackBorder',
                     label: 'Remaining XP: Add black text border for better visibility',
@@ -2284,6 +2344,26 @@
                     type: 'checkbox',
                     default: false,
                     help: 'Automatically run combat estimates using the default loadout when task cards appear',
+                },
+                combatSim_optimizeCoffeeHours: {
+                    id: 'combatSim_optimizeCoffeeHours',
+                    label: 'Combat Simulator: Optimize Coffee test hours per combo',
+                    type: 'number',
+                    default: 2,
+                    min: 1,
+                    max: 1000,
+                    step: 1,
+                    help: 'Simulated hours run per coffee combination when ranking XP/hr and coins/hr (lower = faster search)',
+                },
+                combatSim_optimizeFoodHours: {
+                    id: 'combatSim_optimizeFoodHours',
+                    label: 'Combat Simulator: Optimize Food test hours per combo',
+                    type: 'number',
+                    default: 2,
+                    min: 1,
+                    max: 1000,
+                    step: 1,
+                    help: 'Simulated hours run per food combination when ranking deaths/hr, mana OOM%, and cost/hr (lower = faster search)',
                 },
                 combatSim_maxThreads: {
                     id: 'combatSim_maxThreads',
@@ -5674,6 +5754,20 @@
                     category: 'Skills',
                     description: 'Optimizer tab in the character panel',
                     settingKey: 'skillingOptimizer',
+                },
+                bestRatesPopup: {
+                    enabled: true,
+                    name: 'Best Rates Popup',
+                    category: 'Skills',
+                    description: 'Floating button showing top profit/hr and XP/hr methods per skill',
+                    settingKey: 'bestRatesPopup',
+                },
+                skillOptimizerPopup: {
+                    enabled: true,
+                    name: 'Skill Optimizer Popup',
+                    category: 'Skills',
+                    description: 'Floating button with a customizable gear/stat loadout and top profit/hr per skill',
+                    settingKey: 'skillOptimizerPopup',
                 },
 
                 // House Features

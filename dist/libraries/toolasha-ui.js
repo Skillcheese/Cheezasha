@@ -1,11 +1,11 @@
 /**
  * Toolasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 2.85.1
+ * Version: 2.87.0
  * License: CC-BY-NC-SA-4.0
  */
 
-(function (config, dataManager, domObserver, formatters_js, timerRegistry_js, domObserverHelpers_js, dom_js, storage, marketAPI, efficiency_js, webSocketHook, reactInput_js, actionPanelHelper_js, expectedValueCalculator, bonusRevenueCalculator_js, marketData_js, profitConstants_js, profitHelpers_js, profitCalculator, selectors_js, actionCalculator_js, equipmentParser_js, cleanupRegistry_js, settingsSchema_js, settingsStorage, enhancementConfig_js, materialCalculator_js, enhancementCalculator_js, teaParser_js) {
+(function (config, dataManager, domObserver, formatters_js, timerRegistry_js, domObserverHelpers_js, dom_js, storage, marketAPI, efficiency_js, webSocketHook, reactInput_js, actionPanelHelper_js, expectedValueCalculator, bonusRevenueCalculator_js, marketData_js, profitConstants_js, profitHelpers_js, profitCalculator$1, selectors_js, actionCalculator_js, equipmentParser_js, experienceParser_js, teaParser_js, alchemyProfitCalculator, cleanupRegistry_js, settingsSchema_js, settingsStorage, enhancementConfig_js, materialCalculator_js, enhancementCalculator_js) {
     'use strict';
 
     /**
@@ -6070,7 +6070,7 @@ ${starCSS}
         const outputItemHrid = actionDetail.outputItems[0].itemHrid;
 
         // Reuse existing profit calculator (does all the heavy lifting)
-        const profitData = await profitCalculator.calculateProfit(outputItemHrid);
+        const profitData = await profitCalculator$1.calculateProfit(outputItemHrid);
 
         if (!profitData) {
             return null;
@@ -7193,6 +7193,7 @@ ${starCSS}
             combatTriggerComparatorDetailMap: clientData.combatTriggerComparatorDetailMap,
             enhancementLevelTotalBonusMultiplierTable: clientData.enhancementLevelTotalBonusMultiplierTable,
             abilitySlotsLevelRequirementList: clientData.abilitySlotsLevelRequirementList,
+            levelExperienceTable: clientData.levelExperienceTable,
             openableLootDropMap: clientData.openableLootDropMap,
             labyrinthCrateDetailMap: clientData.labyrinthCrateDetailMap,
         };
@@ -15381,7 +15382,7 @@ ${starCSS}
     /**
      * Skill definitions matching game skill HRIDs
      */
-    const SKILLS = [
+    const SKILLS$2 = [
         { id: 'total_level', hrid: '/skills/total_level', name: 'Total Level' },
         { id: 'milking', hrid: '/skills/milking', name: 'Milking' },
         { id: 'foraging', hrid: '/skills/foraging', name: 'Foraging' },
@@ -15403,11 +15404,11 @@ ${starCSS}
     ];
 
     const SKILL_NAME_TO_ID = {};
-    SKILLS.forEach((s) => (SKILL_NAME_TO_ID[s.name.toLowerCase()] = s.id));
+    SKILLS$2.forEach((s) => (SKILL_NAME_TO_ID[s.name.toLowerCase()] = s.id));
 
     // Also map hrid → skill for reverse lookups
     const SKILL_HRID_TO_ID = {};
-    SKILLS.forEach((s) => (SKILL_HRID_TO_ID[s.hrid] = s.id));
+    SKILLS$2.forEach((s) => (SKILL_HRID_TO_ID[s.hrid] = s.id));
 
     const COMBAT_SKILL_IDS = new Set(['stamina', 'intelligence', 'attack', 'melee', 'defense', 'ranged', 'magic']);
 
@@ -15863,6 +15864,2817 @@ ${starCSS}
         initialize: () => xpTracker.initialize(),
         cleanup: () => xpTracker.disable(),
     };
+
+    /**
+     * Tea Optimizer Utility
+     * Calculates optimal tea combinations for XP or Gold optimization
+     */
+
+
+    // Skill name to action type mapping
+    const SKILL_TO_ACTION_TYPE$1 = {
+        milking: '/action_types/milking',
+        foraging: '/action_types/foraging',
+        woodcutting: '/action_types/woodcutting',
+        cheesesmithing: '/action_types/cheesesmithing',
+        crafting: '/action_types/crafting',
+        tailoring: '/action_types/tailoring',
+        cooking: '/action_types/cooking',
+        brewing: '/action_types/brewing',
+        alchemy: '/action_types/alchemy',
+    };
+
+    const GATHERING_SKILLS = ['milking', 'foraging', 'woodcutting'];
+    const PRODUCTION_SKILLS = ['cheesesmithing', 'crafting', 'tailoring', 'cooking', 'brewing', 'alchemy'];
+
+    // Rank used for profit-opportunity anchors: the Nth-highest profit/hr rather than the single
+    // highest, so one item with a wildly inflated market price (a common occurrence) doesn't
+    // single-handedly set the "gold-neutral" bar for every XP action's effective XP/hr.
+    const PROFIT_ANCHOR_RANK$1 = 10;
+
+    /**
+     * Pick a robust profit/xp anchor from a list of {profit, xp} entries: the Nth-highest by profit
+     * (see PROFIT_ANCHOR_RANK) instead of the single highest, to avoid one outlier-priced item
+     * dictating the opportunity-cost bar.
+     * @param {Array<{profit: number, xp: number}>} entries
+     * @returns {{profit: number, xp: number}|null} null if no entry has positive profit
+     */
+    function pickRankedProfitAnchor(entries) {
+        const profitable = entries.filter((e) => e.profit > 0).sort((a, b) => b.profit - a.profit);
+        if (profitable.length === 0) return null;
+        const rankIndex = Math.min(PROFIT_ANCHOR_RANK$1 - 1, profitable.length - 1);
+        return profitable[rankIndex];
+    }
+
+    /**
+     * Get all relevant teas for a skill and optimization goal
+     * Returns teas grouped by exclusivity (skill teas are mutually exclusive)
+     * @param {string} skillName - Skill name (e.g., 'milking')
+     * @param {string} goal - 'xp' or 'gold'
+     * @returns {Object} { skillTeas: [], generalTeas: [] }
+     */
+    function getRelevantTeas(skillName, goal) {
+        const skill = skillName.toLowerCase();
+        const isGathering = GATHERING_SKILLS.includes(skill);
+
+        // Skill-specific teas (mutually exclusive - can only equip ONE)
+        const skillTeas = [`/items/${skill}_tea`, `/items/super_${skill}_tea`, `/items/ultra_${skill}_tea`];
+
+        // General teas (can equip any combination)
+        const generalTeas = new Set();
+
+        // Universal efficiency tea
+        generalTeas.add('/items/efficiency_tea');
+
+        // Artisan tea - action level helps everyone, artisan buff helps production gold (not alchemy)
+        if (skill !== 'alchemy') {
+            generalTeas.add('/items/artisan_tea');
+        }
+
+        // Catalytic tea - alchemy success rate boost
+        if (skill === 'alchemy') {
+            generalTeas.add('/items/catalytic_tea');
+        }
+
+        // Wisdom tea - always shown so users can evaluate the XP/gold trade-off in any mode
+        generalTeas.add('/items/wisdom_tea');
+
+        if (goal === 'xp') {
+            if (skill === 'cooking' || skill === 'brewing') {
+                // Gourmet tea shown on XP tab too — users may want to run it alongside XP teas
+                generalTeas.add('/items/gourmet_tea');
+            }
+        } else if (goal === 'gold') {
+            if (isGathering) {
+                // Gathering-specific gold teas
+                generalTeas.add('/items/gathering_tea');
+                generalTeas.add('/items/processing_tea');
+            } else if (skill === 'cooking' || skill === 'brewing') {
+                // Gourmet tea only applies to cooking and brewing
+                generalTeas.add('/items/gourmet_tea');
+            }
+        }
+
+        // Filter to only teas that exist in game data
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) {
+            return { skillTeas: [], generalTeas: [] };
+        }
+
+        return {
+            skillTeas: skillTeas.filter((hrid) => gameData.itemDetailMap[hrid]),
+            generalTeas: Array.from(generalTeas).filter((hrid) => gameData.itemDetailMap[hrid]),
+        };
+    }
+
+    /**
+     * Generate all valid tea combinations respecting exclusivity rules
+     * - Can only use ONE skill-specific tea (mutually exclusive)
+     * - Can use any combination of general teas
+     * - Max 3 teas total
+     * @param {Object} teaGroups - { skillTeas: [], generalTeas: [] }
+     * @returns {Array<Array<string>>} Array of valid tea combinations
+     */
+    function generateCombinations(teaGroups, constraints = null) {
+        const { skillTeas, generalTeas } = teaGroups;
+        const combinations = [];
+
+        // Helper to add combination if valid
+        const addCombo = (combo) => {
+            if (combo.length > 0 && combo.length <= 3) {
+                if (constraints) {
+                    if ([...constraints.pinned].some((t) => !combo.includes(t))) return;
+                    if (combo.some((t) => constraints.banned.has(t))) return;
+                }
+                combinations.push(combo);
+            }
+        };
+
+        // Option 1: No skill tea, only general teas (1-3 general teas)
+        for (let i = 0; i < generalTeas.length; i++) {
+            addCombo([generalTeas[i]]);
+            for (let j = i + 1; j < generalTeas.length; j++) {
+                addCombo([generalTeas[i], generalTeas[j]]);
+                for (let k = j + 1; k < generalTeas.length; k++) {
+                    addCombo([generalTeas[i], generalTeas[j], generalTeas[k]]);
+                }
+            }
+        }
+
+        // Option 2: One skill tea + general teas (1 skill + 0-2 general)
+        for (const skillTea of skillTeas) {
+            // Just skill tea alone
+            addCombo([skillTea]);
+
+            // Skill tea + 1 general tea
+            for (let i = 0; i < generalTeas.length; i++) {
+                addCombo([skillTea, generalTeas[i]]);
+
+                // Skill tea + 2 general teas
+                for (let j = i + 1; j < generalTeas.length; j++) {
+                    addCombo([skillTea, generalTeas[i], generalTeas[j]]);
+                }
+            }
+        }
+
+        return combinations;
+    }
+
+    /**
+     * Parse tea buffs from a tea combination
+     * @param {Array<string>} teaHrids - Array of tea item HRIDs
+     * @param {Object} itemDetailMap - Item details from game data
+     * @param {number} drinkConcentration - Drink concentration as decimal
+     * @returns {Object} Aggregated buff values
+     */
+    function parseTeaBuffs(teaHrids, itemDetailMap, drinkConcentration) {
+        const buffs = {
+            efficiency: 0,
+            wisdom: 0,
+            gathering: 0,
+            processing: 0,
+            artisan: 0,
+            gourmet: 0,
+            actionLevel: 0,
+            alchemySuccess: 0,
+            skillLevels: {}, // skill name → level bonus
+        };
+
+        for (const teaHrid of teaHrids) {
+            const itemDetails = itemDetailMap[teaHrid];
+            if (!itemDetails?.consumableDetail?.buffs) continue;
+
+            for (const buff of itemDetails.consumableDetail.buffs) {
+                const baseValue = buff.flatBoost || 0;
+                const scaledValue = baseValue * (1 + drinkConcentration);
+
+                switch (buff.typeHrid) {
+                    case '/buff_types/efficiency':
+                        buffs.efficiency += scaledValue * 100; // Convert to percentage
+                        break;
+                    case '/buff_types/wisdom':
+                        buffs.wisdom += scaledValue * 100;
+                        break;
+                    case '/buff_types/gathering':
+                        buffs.gathering += scaledValue;
+                        break;
+                    case '/buff_types/processing':
+                        buffs.processing += scaledValue;
+                        break;
+                    case '/buff_types/artisan':
+                        buffs.artisan += scaledValue;
+                        break;
+                    case '/buff_types/gourmet':
+                        buffs.gourmet += scaledValue;
+                        break;
+                    case '/buff_types/action_level':
+                        buffs.actionLevel += scaledValue;
+                        break;
+                    case '/buff_types/alchemy_success':
+                        // alchemy_success uses ratioBoost, not flatBoost
+                        buffs.alchemySuccess += (buff.ratioBoost || 0) * (1 + drinkConcentration);
+                        break;
+                    default:
+                        // Check for skill level buffs (e.g., /buff_types/milking_level)
+                        if (buff.typeHrid.endsWith('_level')) {
+                            const skillMatch = buff.typeHrid.match(/\/buff_types\/(\w+)_level/);
+                            if (skillMatch) {
+                                const skill = skillMatch[1];
+                                buffs.skillLevels[skill] = (buffs.skillLevels[skill] || 0) + scaledValue;
+                            }
+                        }
+                }
+            }
+        }
+
+        return buffs;
+    }
+
+    /**
+     * Calculate XP/hour for an action with a specific tea combination
+     * @param {Object} actionDetails - Action details from game data
+     * @param {Object} buffs - Parsed tea buffs
+     * @param {number} playerLevel - Player's skill level
+     * @param {Object} otherEfficiency - Other efficiency sources (house, equipment, etc.)
+     * @param {Object} context - Additional context (equipment, itemDetailMap)
+     * @returns {number} XP per hour
+     */
+    function calculateXpPerHour(actionDetails, buffs, playerLevel, otherEfficiency, context) {
+        if (!actionDetails.experienceGain?.value) {
+            return 0;
+        }
+
+        const { equipment, itemDetailMap } = context;
+        const requiredLevel = actionDetails.levelRequirement?.level || 1;
+        const skillName = actionDetails.type.split('/').pop();
+
+        // Calculate tea skill level bonus for this skill
+        const teaSkillLevelBonus = buffs.skillLevels[skillName] || 0;
+
+        // Get equipment speed bonus
+        const equipmentSpeedBonus = equipmentParser_js.parseEquipmentSpeedBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Get equipment efficiency bonus
+        const equipmentEfficiencyBonus = equipmentParser_js.parseEquipmentEfficiencyBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Calculate efficiency breakdown
+        const efficiencyData = efficiency_js.calculateEfficiencyBreakdown({
+            requiredLevel,
+            skillLevel: playerLevel,
+            teaSkillLevelBonus,
+            actionLevelBonus: buffs.actionLevel,
+            houseEfficiency: otherEfficiency.house || 0,
+            equipmentEfficiency: equipmentEfficiencyBonus,
+            teaEfficiency: buffs.efficiency,
+            communityEfficiency: otherEfficiency.community || 0,
+            achievementEfficiency: otherEfficiency.achievement || 0,
+        });
+
+        const totalEfficiency = efficiencyData.totalEfficiency;
+        const efficiencyMultiplier = efficiency_js.calculateEfficiencyMultiplier(totalEfficiency);
+
+        // Calculate actions per hour with equipment speed bonus
+        const baseTime = (actionDetails.baseTimeCost || 3e9) / 1e9;
+        const actionTime = baseTime / (1 + equipmentSpeedBonus);
+        const baseActionsPerHour = profitHelpers_js.calculateActionsPerHour(actionTime);
+        const actionsPerHour = profitHelpers_js.calculateEffectiveActionsPerHour(baseActionsPerHour, efficiencyMultiplier);
+
+        // Get the FULL XP multiplier from all sources
+        const skillHrid = actionDetails.experienceGain.skillHrid;
+        const currentXpData = experienceParser_js.calculateExperienceMultiplier(skillHrid, actionDetails.type);
+
+        // Replace current tea wisdom with our calculated tea wisdom
+        const currentTeaWisdom = currentXpData.breakdown?.consumableWisdom || 0;
+        const baseWisdomWithoutTea = currentXpData.totalWisdom - currentTeaWisdom;
+        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
+        const charmExperience = currentXpData.charmExperience || 0;
+        const xpMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
+
+        // XP per hour
+        const baseXp = actionDetails.experienceGain.value;
+        return actionsPerHour * baseXp * xpMultiplier;
+    }
+
+    /**
+     * Calculate Gold/hour for a gathering action with a specific tea combination
+     * @param {Object} actionDetails - Action details from game data
+     * @param {Object} buffs - Parsed tea buffs
+     * @param {number} playerLevel - Player's skill level
+     * @param {Object} otherEfficiency - Other efficiency sources
+     * @param {Object} gameData - Full game data
+     * @param {Object} context - Additional context (equipment, itemDetailMap)
+     * @returns {number} Gold per hour (profit after market tax)
+     */
+    function calculateGatheringGoldPerHour(actionDetails, buffs, playerLevel, otherEfficiency, gameData, context) {
+        const { equipment, itemDetailMap } = context;
+        const requiredLevel = actionDetails.levelRequirement?.level || 1;
+        const skillName = actionDetails.type.split('/').pop();
+
+        // Calculate tea skill level bonus for this skill
+        const teaSkillLevelBonus = buffs.skillLevels[skillName] || 0;
+
+        // Get equipment speed bonus
+        const equipmentSpeedBonus = equipmentParser_js.parseEquipmentSpeedBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Get equipment efficiency bonus
+        const equipmentEfficiencyBonus = equipmentParser_js.parseEquipmentEfficiencyBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Calculate efficiency
+        const efficiencyData = efficiency_js.calculateEfficiencyBreakdown({
+            requiredLevel,
+            skillLevel: playerLevel,
+            teaSkillLevelBonus,
+            actionLevelBonus: buffs.actionLevel,
+            houseEfficiency: otherEfficiency.house || 0,
+            equipmentEfficiency: equipmentEfficiencyBonus,
+            teaEfficiency: buffs.efficiency,
+            communityEfficiency: otherEfficiency.community || 0,
+            achievementEfficiency: otherEfficiency.achievement || 0,
+        });
+
+        const totalEfficiency = efficiencyData.totalEfficiency;
+        const efficiencyMultiplier = efficiency_js.calculateEfficiencyMultiplier(totalEfficiency);
+
+        // Calculate actions per hour (with speed bonus, WITHOUT efficiency - efficiency applied to outputs)
+        const baseTime = (actionDetails.baseTimeCost || 3e9) / 1e9;
+        const actionTime = baseTime / (1 + equipmentSpeedBonus);
+        const actionsPerHour = profitHelpers_js.calculateActionsPerHour(actionTime);
+
+        // Calculate revenue from drops
+        let totalRevenue = 0;
+        const dropTable = actionDetails.dropTable || [];
+        const gatheringBonus = 1 + buffs.gathering + (otherEfficiency.gathering || 0);
+
+        for (const drop of dropTable) {
+            const dropRate = drop.dropRate || 1;
+            const minCount = drop.minCount || 1;
+            const maxCount = drop.maxCount || minCount;
+            const avgCount = (minCount + maxCount) / 2;
+
+            // Apply gathering bonus to quantity
+            const avgAmountPerAction = avgCount * gatheringBonus;
+
+            // Get item price (use 'sell' side for output items to match tile calculation)
+            const rawPrice = profitHelpers_js.resolveItemPrice(drop.itemHrid, { context: 'profit', side: 'sell' }).price || 0;
+
+            // Check for processing conversion
+            if (buffs.processing > 0) {
+                const processedData = findProcessingConversion(drop.itemHrid, gameData);
+                if (processedData) {
+                    const processedPrice =
+                        profitHelpers_js.resolveItemPrice(processedData.outputItemHrid, { context: 'profit', side: 'sell' }).price || 0;
+                    const conversionRatio = processedData.conversionRatio;
+
+                    // Processing Tea check happens per action:
+                    // If procs (processingBonus% chance): Convert to processed
+                    const processedIfProcs = Math.floor(avgAmountPerAction / conversionRatio);
+
+                    // Expected processed items per action
+                    const processedPerAction = buffs.processing * processedIfProcs;
+
+                    // Net processing bonus = processed value - cost of raw converted
+                    const processingNetValue =
+                        actionsPerHour *
+                        dropRate *
+                        efficiencyMultiplier *
+                        (processedPerAction * (processedPrice - conversionRatio * rawPrice));
+
+                    // Total = base raw revenue + processing net gain
+                    const baseRawItemsPerHour = actionsPerHour * dropRate * avgAmountPerAction * efficiencyMultiplier;
+                    totalRevenue += baseRawItemsPerHour * rawPrice + processingNetValue;
+                    continue;
+                }
+            }
+
+            // No processing - simple calculation
+            const itemsPerHour = actionsPerHour * dropRate * avgAmountPerAction * efficiencyMultiplier;
+            totalRevenue += itemsPerHour * rawPrice;
+        }
+
+        // Add bonus revenue from essence and rare find drops
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
+        totalRevenue += efficiencyBoostedBonusRevenue;
+
+        // Apply market tax (2%)
+        const MARKET_TAX = 0.02;
+        const profitPerHour = totalRevenue * (1 - MARKET_TAX);
+
+        return profitPerHour;
+    }
+
+    /**
+     * Calculate Gold/hour for a production action with a specific tea combination
+     * @param {Object} actionDetails - Action details from game data
+     * @param {Object} buffs - Parsed tea buffs
+     * @param {number} playerLevel - Player's skill level
+     * @param {Object} otherEfficiency - Other efficiency sources
+     * @param {Object} gameData - Full game data
+     * @param {Object} context - Additional context (equipment, itemDetailMap)
+     * @returns {number} Gold per hour (profit after market tax)
+     */
+    function calculateProductionGoldPerHour(actionDetails, buffs, playerLevel, otherEfficiency, gameData, context) {
+        const { equipment, itemDetailMap } = context;
+        const requiredLevel = actionDetails.levelRequirement?.level || 1;
+        const skillName = actionDetails.type.split('/').pop();
+
+        // Calculate tea skill level bonus for this skill
+        const teaSkillLevelBonus = buffs.skillLevels[skillName] || 0;
+
+        // Get equipment speed bonus
+        const equipmentSpeedBonus = equipmentParser_js.parseEquipmentSpeedBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Get equipment efficiency bonus
+        const equipmentEfficiencyBonus = equipmentParser_js.parseEquipmentEfficiencyBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        // Calculate efficiency
+        const efficiencyData = efficiency_js.calculateEfficiencyBreakdown({
+            requiredLevel,
+            skillLevel: playerLevel,
+            teaSkillLevelBonus,
+            actionLevelBonus: buffs.actionLevel,
+            houseEfficiency: otherEfficiency.house || 0,
+            equipmentEfficiency: equipmentEfficiencyBonus,
+            teaEfficiency: buffs.efficiency,
+            communityEfficiency: otherEfficiency.community || 0,
+            achievementEfficiency: otherEfficiency.achievement || 0,
+        });
+
+        const totalEfficiency = efficiencyData.totalEfficiency;
+        const efficiencyMultiplier = efficiency_js.calculateEfficiencyMultiplier(totalEfficiency);
+
+        // Calculate actions per hour (with speed bonus, WITHOUT efficiency - efficiency applied to outputs)
+        const baseTime = (actionDetails.baseTimeCost || 3e9) / 1e9;
+        const actionTime = baseTime / (1 + equipmentSpeedBonus);
+        const actionsPerHour = profitHelpers_js.calculateActionsPerHour(actionTime);
+
+        // Calculate input costs (with artisan reduction for regular inputs)
+        // Use 'buy' side for inputs to match tile calculation
+        let inputCost = 0;
+        const artisanReduction = 1 - buffs.artisan;
+
+        // Add upgrade item cost (NOT affected by Artisan Tea)
+        if (actionDetails.upgradeItemHrid) {
+            let upgradePrice =
+                profitHelpers_js.resolveItemPrice(actionDetails.upgradeItemHrid, { context: 'profit', side: 'buy' }).price || 0;
+            // Special case: Coins have no market price but have face value of 1
+            if (actionDetails.upgradeItemHrid === '/items/coin' && upgradePrice === 0) {
+                upgradePrice = 1;
+            }
+            inputCost += upgradePrice; // Always 1 upgrade item, no artisan reduction
+        }
+
+        // Add regular input item costs (affected by Artisan Tea)
+        for (const input of actionDetails.inputItems || []) {
+            let price = profitHelpers_js.resolveItemPrice(input.itemHrid, { context: 'profit', side: 'buy' }).price || 0;
+            // Special case: Coins have no market price but have face value of 1
+            if (input.itemHrid === '/items/coin' && price === 0) {
+                price = 1;
+            }
+            const effectiveCount = input.count * artisanReduction;
+            inputCost += price * effectiveCount;
+        }
+
+        // Calculate output revenue (with gourmet bonus - only for cooking/brewing)
+        // Use 'sell' side for outputs to match tile calculation
+        let outputRevenue = 0;
+        const isCookingOrBrewing =
+            actionDetails.type === '/action_types/cooking' || actionDetails.type === '/action_types/brewing';
+        const gourmetBonus = isCookingOrBrewing ? 1 + buffs.gourmet : 1;
+        for (const output of actionDetails.outputItems || []) {
+            const price = profitHelpers_js.resolveItemPrice(output.itemHrid, { context: 'profit', side: 'sell' }).price || 0;
+            const effectiveCount = output.count * gourmetBonus;
+            outputRevenue += price * effectiveCount;
+        }
+
+        // Profit per action (before market tax)
+        const profitPerAction = outputRevenue - inputCost;
+
+        // Profit per hour (with efficiency applied once)
+        const grossProfitPerHour = actionsPerHour * profitPerAction * efficiencyMultiplier;
+
+        // Add bonus revenue from essence and rare find drops (same as tile calculation)
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
+
+        // Apply market tax (2%) to revenue portion only (including bonus revenue)
+        const MARKET_TAX = 0.02;
+        const revenuePerHour = actionsPerHour * outputRevenue * efficiencyMultiplier;
+        const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * MARKET_TAX;
+        const netProfitPerHour = grossProfitPerHour + efficiencyBoostedBonusRevenue - marketTax;
+
+        return netProfitPerHour;
+    }
+
+    /**
+     * Calculate Gold/hour for an alchemy action with a specific tea combination
+     * @param {Object} alchemyContext - { actionType: 'coinify'|'decompose'|'transmute', itemHrid, enhancementLevel }
+     * @param {Object} buffs - Parsed tea buffs (includes alchemySuccess)
+     * @returns {number} Gold per hour (profit after all costs)
+     */
+    function calculateAlchemyGoldPerHour(alchemyContext, buffs) {
+        const { actionType, itemHrid, enhancementLevel = 0 } = alchemyContext;
+        const teaBonusOverride = buffs.alchemySuccess || 0;
+
+        let profitData = null;
+        if (actionType === 'coinify') {
+            profitData = alchemyProfitCalculator.calculateCoinifyProfit(
+                itemHrid,
+                enhancementLevel,
+                false,
+                teaBonusOverride
+            );
+        } else if (actionType === 'decompose') {
+            profitData = alchemyProfitCalculator.calculateDecomposeProfit(
+                itemHrid,
+                enhancementLevel,
+                false,
+                teaBonusOverride
+            );
+        } else if (actionType === 'transmute') {
+            profitData = alchemyProfitCalculator.calculateTransmuteProfit(itemHrid, false, teaBonusOverride);
+        }
+
+        if (!profitData) return 0;
+        return profitData.profitPerHour || 0;
+    }
+
+    /**
+     * Calculate XP/hour for an alchemy action with a specific tea combination.
+     * Alchemy XP is derived from item level, not from actionDetails.experienceGain.
+     * @param {Object} alchemyContext - { actionType, itemHrid, enhancementLevel }
+     * @param {Object} buffs - Parsed tea buffs
+     * @param {number} playerLevel - Player's alchemy level
+     * @param {Object} otherEfficiency - Non-tea efficiency sources
+     * @param {Object} calcContext - { equipment, itemDetailMap }
+     * @returns {number} XP per hour
+     */
+    function calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext) {
+        const { actionType, itemHrid } = alchemyContext;
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.actionDetailMap) return 0;
+
+        const actionHrid = `/actions/alchemy/${actionType}`;
+        const actionDetails = gameData.actionDetailMap[actionHrid];
+        if (!actionDetails) return 0;
+
+        const itemDetails = gameData.itemDetailMap?.[itemHrid];
+        if (!itemDetails?.itemLevel) return 0;
+
+        // Base XP from alchemy formula (depends on action type + item level)
+        const itemLevel = itemDetails.itemLevel;
+        let baseXP;
+        switch (actionType) {
+            case 'coinify':
+                baseXP = itemLevel + 10;
+                break;
+            case 'decompose':
+                baseXP = itemLevel * 1.4 + 14;
+                break;
+            case 'transmute':
+                baseXP = itemLevel * 1.6 + 16;
+                break;
+            default:
+                return 0;
+        }
+
+        // Success rate with this tea's alchemy bonus (affects XP: failures give 10%)
+        const teaBonusOverride = buffs.alchemySuccess || 0;
+        let baseSuccessRate;
+        if (actionType === 'coinify') baseSuccessRate = 0.7;
+        else if (actionType === 'decompose') baseSuccessRate = 0.6;
+        else baseSuccessRate = itemDetails.alchemyDetail?.transmuteSuccessRate || 0;
+
+        // Level penalty (transmute only)
+        const levelPenalty =
+            actionType === 'transmute' && playerLevel < itemLevel ? (0.9 / itemLevel) * (playerLevel - itemLevel) : 0;
+
+        const successRate = Math.max(0, Math.min(1.0, baseSuccessRate * (1 + levelPenalty) * (1 + teaBonusOverride)));
+
+        // XP per action: success gives full XP, failure gives 10%
+        // Wisdom multiplier — replace current tea wisdom with our hypothetical tea wisdom
+        const xpData = experienceParser_js.calculateExperienceMultiplier('/skills/alchemy', '/action_types/alchemy');
+        const currentTeaWisdom = xpData.breakdown?.consumableWisdom || 0;
+        const baseWisdomWithoutTea = xpData.totalWisdom - currentTeaWisdom;
+        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
+        const charmExperience = xpData.charmExperience || 0;
+        const wisdomMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
+
+        const fullXP = baseXP * wisdomMultiplier;
+        const xpPerAction = successRate * fullXP + (1 - successRate) * fullXP * 0.1;
+
+        // Actions per hour (uses item level for efficiency, not action level requirement)
+        const requiredLevel = itemLevel;
+        const { equipment, itemDetailMap } = calcContext;
+        const teaSkillLevelBonus = buffs.skillLevels['alchemy'] || 0;
+        const equipmentSpeedBonus = equipmentParser_js.parseEquipmentSpeedBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+        const equipmentEfficiencyBonus = equipmentParser_js.parseEquipmentEfficiencyBonuses(equipment, actionDetails.type, itemDetailMap) || 0;
+
+        const efficiencyData = efficiency_js.calculateEfficiencyBreakdown({
+            requiredLevel,
+            skillLevel: playerLevel,
+            teaSkillLevelBonus,
+            actionLevelBonus: buffs.actionLevel,
+            houseEfficiency: otherEfficiency.house || 0,
+            equipmentEfficiency: equipmentEfficiencyBonus,
+            teaEfficiency: buffs.efficiency,
+            communityEfficiency: otherEfficiency.community || 0,
+            achievementEfficiency: otherEfficiency.achievement || 0,
+        });
+
+        const efficiencyMultiplier = efficiency_js.calculateEfficiencyMultiplier(efficiencyData.totalEfficiency);
+        const baseTime = (actionDetails.baseTimeCost || 20e9) / 1e9;
+        const actionTime = baseTime / (1 + equipmentSpeedBonus);
+        const baseActionsPerHour = profitHelpers_js.calculateActionsPerHour(actionTime);
+        const actionsPerHour = profitHelpers_js.calculateEffectiveActionsPerHour(baseActionsPerHour, efficiencyMultiplier);
+
+        return actionsPerHour * xpPerAction;
+    }
+
+    /**
+     * Find processing conversion for an item
+     * @param {string} itemHrid - Item HRID
+     * @param {Object} gameData - Game data
+     * @returns {Object|null} Conversion data or null
+     */
+    function findProcessingConversion(itemHrid, gameData) {
+        const validProcessingTypes = ['/action_types/cheesesmithing', '/action_types/crafting', '/action_types/tailoring'];
+
+        for (const [_actionHrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (!validProcessingTypes.includes(action.type)) continue;
+
+            const inputItem = action.inputItems?.[0];
+            const outputItem = action.outputItems?.[0];
+
+            if (inputItem?.itemHrid === itemHrid && outputItem) {
+                return {
+                    outputItemHrid: outputItem.itemHrid,
+                    conversionRatio: inputItem.count,
+                };
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get all actions for a skill that the player can do
+     * @param {string} skillName - Skill name
+     * @param {number} playerLevel - Player's skill level
+     * @returns {Array<Object>} Array of action details
+     */
+    /**
+     * Get all actions for a skill, separating available from excluded
+     * @param {string} skillName - Skill name
+     * @param {number} playerLevel - Player's skill level
+     * @returns {Object} { available: [], excluded: [] } with exclusion reasons
+     */
+    function getActionsForSkill(skillName, playerLevel, selectedActionHrids = null) {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.actionDetailMap) return { available: [], excluded: [] };
+
+        const actionType = SKILL_TO_ACTION_TYPE$1[skillName.toLowerCase()];
+        if (!actionType) return { available: [], excluded: [] };
+
+        const available = [];
+        const excluded = [];
+
+        for (const [hrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (action.type !== actionType) continue;
+            if (selectedActionHrids && !selectedActionHrids.has(hrid)) continue;
+
+            const requiredLevel = action.levelRequirement?.level || 1;
+            if (playerLevel >= requiredLevel) {
+                available.push(action);
+            } else {
+                excluded.push({ action, reason: 'level', requiredLevel });
+            }
+        }
+
+        return { available, excluded };
+    }
+
+    /**
+     * Get all actions for a skill for display purposes, including level-locked ones.
+     * @param {string} skillName
+     * @param {number} playerLevel
+     * @returns {Array<{ hrid, name, requiredLevel, available }>} Sorted by level requirement
+     */
+    function getSkillActionsForDisplay(skillName, playerLevel) {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.actionDetailMap) return [];
+
+        const actionType = SKILL_TO_ACTION_TYPE$1[skillName.toLowerCase()];
+        if (!actionType) return [];
+
+        const result = [];
+        for (const [hrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (action.type !== actionType) continue;
+            const requiredLevel = action.levelRequirement?.level || 1;
+            result.push({ hrid, name: action.name, requiredLevel, available: playerLevel >= requiredLevel });
+        }
+        return result.sort((a, b) => a.requiredLevel - b.requiredLevel || a.name.localeCompare(b.name));
+    }
+
+    /**
+     * Calculate tea consumption cost per hour for a tea combination
+     * Uses the same pricing logic as the tile calculation
+     * @param {Array<string>} teaHrids - Array of tea item HRIDs
+     * @param {number} drinkConcentration - Drink concentration as decimal
+     * @returns {{ total: number, breakdown: Array<{hrid: string, name: string, unitsPerHour: number, unitPrice: number, costPerHour: number}> }}
+     */
+    function calculateTeaCostPerHour(teaHrids, drinkConcentration) {
+        const gameData = dataManager.getInitClientData();
+        const drinksPerHour = profitHelpers_js.calculateDrinksPerHour(drinkConcentration);
+        const breakdown = [];
+        let total = 0;
+
+        for (const teaHrid of teaHrids) {
+            // Use getItemPrice with 'profit' context and 'buy' side to match tile calculation
+            const unitPrice = profitHelpers_js.resolveItemPrice(teaHrid, { context: 'profit', side: 'buy' }).price || 0;
+            const costPerHour = unitPrice * drinksPerHour;
+            const name = gameData?.itemDetailMap?.[teaHrid]?.name || teaHrid;
+            breakdown.push({ hrid: teaHrid, name, unitsPerHour: drinksPerHour, unitPrice, costPerHour });
+            total += costPerHour;
+        }
+
+        return { total, breakdown };
+    }
+
+    /**
+     * Get other efficiency sources (non-tea)
+     * @param {string} actionType - Action type HRID
+     * @param {Object|null} overrides - Optional custom-loadout overrides: { houseRooms: Map, communityBuffLevels: Object }.
+     *  Falls back to live player data for any field not present.
+     * @returns {Object} Other efficiency values
+     */
+    function getOtherEfficiencySources(actionType, overrides = null) {
+        const houseRoomsMap = overrides?.houseRooms ?? dataManager.getHouseRooms();
+        const houseRooms = houseRoomsMap ? Array.from(houseRoomsMap.values()) : [];
+        const gameData = dataManager.getInitClientData();
+
+        const result = {
+            house: 0,
+            equipment: 0,
+            community: 0,
+            achievement: 0,
+            wisdom: 0,
+            gathering: 0,
+        };
+
+        if (!gameData) return result;
+
+        // House efficiency
+        if (houseRooms) {
+            for (const room of houseRooms) {
+                const roomDetail = gameData.houseRoomDetailMap?.[room.houseRoomHrid];
+                if (roomDetail?.usableInActionTypeMap?.[actionType]) {
+                    result.house += (room.level || 0) * 1.5;
+                }
+            }
+        }
+
+        // Community efficiency buff - use production_efficiency for production skills
+        // Match the tile's calculation from profit-calculator.js
+        const isProductionType = PRODUCTION_SKILLS.some((skill) => actionType.includes(skill));
+        const communityBuffType = isProductionType
+            ? '/community_buff_types/production_efficiency'
+            : '/community_buff_types/efficiency';
+        const communityEffLevel =
+            overrides?.communityBuffLevels?.[communityBuffType] ?? dataManager.getCommunityBuffLevel(communityBuffType);
+        if (communityEffLevel) {
+            // Get buff definition from game data for accurate calculation
+            const buffDef = gameData.communityBuffTypeDetailMap?.[communityBuffType];
+            if (buffDef?.usableInActionTypeMap?.[actionType] && buffDef?.buff) {
+                // Formula: flatBoost + (level - 1) × flatBoostLevelBonus
+                const baseBonus = (buffDef.buff.flatBoost || 0) * 100;
+                const levelBonus = (communityEffLevel - 1) * (buffDef.buff.flatBoostLevelBonus || 0) * 100;
+                result.community = baseBonus + levelBonus;
+            } else {
+                // Fallback to old formula if buff doesn't apply to this action
+                result.community = 0;
+            }
+        }
+
+        // Community gathering buff
+        const communityGatheringLevel =
+            overrides?.communityBuffLevels?.['/community_buff_types/gathering_quantity'] ??
+            dataManager.getCommunityBuffLevel('/community_buff_types/gathering_quantity');
+        if (communityGatheringLevel) {
+            result.gathering = 0.2 + (communityGatheringLevel - 1) * 0.005;
+        }
+
+        // Achievement gathering buff (stacks with community gathering)
+        const achievementGathering = dataManager.getAchievementBuffFlatBoost(actionType, '/buff_types/gathering');
+        result.gathering += achievementGathering;
+
+        // Community wisdom buff
+        const communityWisdomLevel =
+            overrides?.communityBuffLevels?.['/community_buff_types/experience'] ??
+            dataManager.getCommunityBuffLevel('/community_buff_types/experience');
+        if (communityWisdomLevel) {
+            result.wisdom = 20 + (communityWisdomLevel - 1) * 0.5;
+        }
+
+        // Achievement buffs
+        result.achievement = dataManager.getAchievementBuffFlatBoost(actionType, '/buff_types/efficiency') * 100;
+
+        // Equipment efficiency (simplified - would need full parser for accuracy)
+        // For now, we'll skip this as it requires more complex parsing
+
+        return result;
+    }
+
+    /**
+     * Find optimal tea combination for a skill and goal
+     * @param {string} skillName - Skill name (e.g., 'Milking')
+     * @param {string} goal - 'xp' or 'gold'
+     * @param {string|null} locationName - Optional location name to filter actions (e.g., "Silly Cow Valley")
+     * @param {string|null} actionNameFilter - Optional action name to restrict optimization to a single action
+     * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr achievable across ALL
+     *  skills (not just this one), used as the recovery-ratio denominator for gold-neutral effective XP.
+     *  Falls back to this skill's own best-profit action if omitted.
+     * @param {Object|null} overrides - Optional custom-loadout overrides: { equipment, skillLevels, houseRooms,
+     *  communityBuffLevels }. Any field not present falls back to live player data. `equipmentOverride` (above)
+     *  takes precedence over `overrides.equipment` when both are given.
+     * @returns {Object} Optimization result
+     */
+    function findOptimalTeas(
+        skillName,
+        goal,
+        locationName = null,
+        actionNameFilter = null,
+        constraints = null,
+        alchemyContext = null,
+        equipmentOverride = null,
+        selectedActionHrids = null,
+        globalBestProfit = null,
+        overrides = null
+    ) {
+        const normalizedSkill = skillName.toLowerCase();
+        const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
+        const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
+
+        if (!isGathering && !isProduction) {
+            return { error: `Unknown skill: ${skillName}` };
+        }
+
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) {
+            return { error: 'Game data not loaded' };
+        }
+
+        // Get player's skill level
+        const overrideLevel = overrides?.skillLevels?.[normalizedSkill];
+        let playerLevel;
+        if (overrideLevel != null) {
+            playerLevel = overrideLevel;
+        } else {
+            const skills = dataManager.getSkills();
+            const skillHrid = `/skills/${normalizedSkill}`;
+            playerLevel = 1;
+            for (const skill of skills || []) {
+                if (skill.skillHrid === skillHrid) {
+                    playerLevel = skill.level;
+                    break;
+                }
+            }
+        }
+
+        // Get drink concentration
+        const equipment = equipmentOverride ?? overrides?.equipment ?? dataManager.getEquipment();
+        const drinkConcentration = teaParser_js.getDrinkConcentration(equipment, gameData.itemDetailMap);
+
+        // Get relevant teas and generate combinations
+        const relevantTeas = getRelevantTeas(normalizedSkill, goal);
+        const combinations = generateCombinations(relevantTeas, constraints);
+
+        // Get actions for this skill (available and excluded)
+        const actionData = getActionsForSkill(normalizedSkill, playerLevel, selectedActionHrids);
+        let actions = actionData.available;
+        let excludedActions = actionData.excluded;
+
+        // Filter to specific location if provided (using game data category)
+        if (locationName && gameData.actionCategoryDetailMap) {
+            // Find the category HRID that matches this location name AND skill
+            // Multiple skills can have categories with the same name (e.g., "Material" exists for both Tailoring and Cheesesmithing)
+            // So we need to match the skill-specific category path
+            let targetCategoryHrid = null;
+            const skillPrefix = `/action_categories/${normalizedSkill}/`;
+
+            for (const [categoryHrid, categoryDetail] of Object.entries(gameData.actionCategoryDetailMap)) {
+                // Match both the category name AND ensure it's for the correct skill
+                if (categoryDetail.name === locationName && categoryHrid.startsWith(skillPrefix)) {
+                    targetCategoryHrid = categoryHrid;
+                    break;
+                }
+            }
+
+            // Filter actions to only those in this category
+            if (targetCategoryHrid) {
+                // Filter available actions
+                actions = actions.filter((action) => action.category === targetCategoryHrid);
+
+                // Also filter excluded actions to same category (so we only show relevant excluded items)
+                excludedActions = excludedActions.filter((item) => item.action.category === targetCategoryHrid);
+            }
+        }
+
+        // Optionally narrow to a single action by name
+        if (actionNameFilter) {
+            actions = actions.filter((a) => a.name === actionNameFilter);
+            excludedActions = excludedActions.filter((item) => item.action.name === actionNameFilter);
+        }
+
+        // Check if there are no available actions (even if there are excluded ones)
+        if (actions.length === 0) {
+            const locationSuffix = locationName ? ` at ${locationName}` : '';
+            if (excludedActions.length > 0) {
+                const lowestLevel = Math.min(...excludedActions.map((item) => item.requiredLevel));
+                return {
+                    error: `No actions available for ${skillName}${locationSuffix} at level ${playerLevel}. All actions require level ${lowestLevel}+.`,
+                };
+            } else {
+                return { error: `No actions available for ${skillName}${locationSuffix} at level ${playerLevel}` };
+            }
+        }
+
+        // Get other efficiency sources
+        const actionType = SKILL_TO_ACTION_TYPE$1[normalizedSkill];
+        const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
+
+        // Score each combination
+        const results = [];
+
+        // Create context for calculations
+        const calcContext = {
+            equipment,
+            itemDetailMap: gameData.itemDetailMap,
+        };
+
+        for (const combo of combinations) {
+            const buffs = parseTeaBuffs(combo, gameData.itemDetailMap, drinkConcentration);
+
+            // Calculate tea cost per hour for this combo
+            const teaCostPerHour = calculateTeaCostPerHour(combo, drinkConcentration);
+
+            let totalScore = 0;
+            let profitableCount = 0;
+            const actionScores = [];
+
+            // Alchemy mode: score the specific item, not all actions
+            if (alchemyContext) {
+                const actionName = `${alchemyContext.actionType}: ${alchemyContext.itemName || alchemyContext.itemHrid}`;
+                let score;
+                if (goal === 'xp') {
+                    score = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
+                    totalScore += score;
+                } else {
+                    score = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour.total;
+                    if (score > 0) {
+                        totalScore += score;
+                        profitableCount++;
+                    }
+                }
+                actionScores.push({ action: actionName, score });
+            } else if (goal === 'xp') {
+                // Score combos by gold-neutral effective XP/hr, not raw XP/hr, so a combo that
+                // trades away a huge amount of profit for a tiny XP bump doesn't win by default.
+                const perActionData = actions.map((action) => {
+                    const xp = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
+                    const rawProfit = isGathering
+                        ? calculateGatheringGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext)
+                        : calculateProductionGoldPerHour(
+                              action,
+                              buffs,
+                              playerLevel,
+                              otherEfficiency,
+                              gameData,
+                              calcContext
+                          );
+                    const profit = rawProfit - teaCostPerHour.total;
+                    return { action, xp, profit };
+                });
+
+                const localAnchor = pickRankedProfitAnchor(perActionData);
+                const localBestProfit = localAnchor?.profit ?? -Infinity;
+                // The recovery-ratio denominator represents the true opportunity cost of your time,
+                // which is the best profit/hr available anywhere, not just within this skill.
+                const profitAnchor =
+                    globalBestProfit != null ? Math.max(globalBestProfit, localBestProfit) : localBestProfit;
+
+                for (const { action, xp, profit } of perActionData) {
+                    let effectiveXp;
+                    if (profit >= 0) {
+                        effectiveXp = xp;
+                    } else if (profitAnchor > 0) {
+                        const recoveryRatio = Math.abs(profit) / profitAnchor;
+                        // The recovery action's own XP isn't fungible with this skill's XP (it's often a
+                        // different skill entirely), so it's never blended in — recovery time is dead
+                        // time for this skill's XP, diluting the rate rather than adding to it.
+                        effectiveXp = xp / (1 + recoveryRatio);
+                    } else {
+                        effectiveXp = 0;
+                    }
+                    totalScore += effectiveXp;
+                    actionScores.push({ action: action.name, score: xp });
+                }
+            } else {
+                for (const action of actions) {
+                    let score;
+                    if (isGathering) {
+                        score = calculateGatheringGoldPerHour(
+                            action,
+                            buffs,
+                            playerLevel,
+                            otherEfficiency,
+                            gameData,
+                            calcContext
+                        );
+                        // Deduct tea costs from gold score
+                        score -= teaCostPerHour.total;
+                        // Only include profitable actions in gold calculations
+                        if (score > 0) {
+                            totalScore += score;
+                            profitableCount++;
+                        }
+                    } else {
+                        score = calculateProductionGoldPerHour(
+                            action,
+                            buffs,
+                            playerLevel,
+                            otherEfficiency,
+                            gameData,
+                            calcContext
+                        );
+                        // Deduct tea costs from gold score
+                        score -= teaCostPerHour.total;
+                        // Only include profitable actions in gold calculations
+                        if (score > 0) {
+                            totalScore += score;
+                            profitableCount++;
+                        }
+                    }
+
+                    actionScores.push({ action: action.name, score });
+                }
+            }
+
+            // For gold, average across profitable actions only; for XP, average across all
+            const avgDivisor = goal === 'gold' ? profitableCount || 1 : alchemyContext ? 1 : actions.length;
+
+            results.push({
+                teas: combo,
+                totalScore,
+                avgScore: totalScore / avgDivisor,
+                actionScores,
+                buffs,
+                teaCostPerHour,
+                profitableCount, // Track how many actions are profitable
+            });
+        }
+
+        // Sort by total score (descending)
+        results.sort((a, b) => b.totalScore - a.totalScore);
+
+        // Get tea names for display
+        const getTeaName = (hrid) => gameData.itemDetailMap[hrid]?.name || hrid;
+
+        // Format excluded actions for display
+        const excludedForDisplay = excludedActions
+            .map((item) => ({
+                action: item.action.name,
+                reason: item.reason,
+                requiredLevel: item.requiredLevel,
+            }))
+            .sort((a, b) => a.requiredLevel - b.requiredLevel);
+
+        // Handle case where no actions are available (all excluded by level)
+        if (results.length === 0 || !results[0]) {
+            return {
+                optimal: null,
+                isConsistent: false,
+                skill: skillName,
+                goal,
+                playerLevel,
+                drinkConcentration,
+                otherEfficiency,
+                actionsEvaluated: 0,
+                profitableActionsCount: 0,
+                combinationsEvaluated: combinations.length,
+                allResults: [],
+                excludedActions: excludedForDisplay,
+                teaCostPerHour: { total: 0, breakdown: [] },
+            };
+        }
+
+        // Check if top result is consistent across all actions
+        const topResult = results[0];
+        const isConsistent = topResult.actionScores.every((as, _i, _arr) => {
+            return as.score > 0;
+        });
+
+        return {
+            optimal: {
+                teas: topResult.teas.map((hrid) => ({
+                    hrid,
+                    name: getTeaName(hrid),
+                })),
+                totalScore: topResult.totalScore,
+                avgScore: topResult.avgScore,
+                actionScores: topResult.actionScores,
+                buffs: topResult.buffs, // Include for UI debugging
+                profitableCount: topResult.profitableCount, // How many actions are profitable
+            },
+            isConsistent,
+            skill: skillName,
+            goal,
+            playerLevel,
+            drinkConcentration,
+            otherEfficiency,
+            actionsEvaluated: alchemyContext ? 1 : actions.length,
+            profitableActionsCount: topResult.profitableCount, // For display in stats
+            combinationsEvaluated: combinations.length,
+            allResults: results.slice(0, 5).map((r) => ({
+                teas: r.teas.map(getTeaName),
+                avgScore: r.avgScore,
+                teaCostPerHour: r.teaCostPerHour,
+            })),
+            excludedActions: excludedForDisplay, // Actions excluded due to level
+            // Include top result's tea cost for debug
+            teaCostPerHour: topResult.teaCostPerHour,
+        };
+    }
+
+    /**
+     * Find the highest-level item at or below the player's alchemy level for use as a scoring reference.
+     * Falls back to the lowest available alchemy item if none are at/below the player's level.
+     * @param {number} playerLevel
+     * @param {Object} itemDetailMap
+     * @returns {string|null}
+     */
+    function getRepresentativeAlchemyItemHrid(playerLevel, itemDetailMap) {
+        let bestHrid = null;
+        let bestLevel = 0;
+        let fallbackHrid = null;
+        let fallbackLevel = Infinity;
+        for (const [hrid, detail] of Object.entries(itemDetailMap)) {
+            if (!detail.alchemyDetail || !detail.itemLevel) continue;
+            if (detail.itemLevel <= playerLevel) {
+                if (detail.itemLevel > bestLevel) {
+                    bestLevel = detail.itemLevel;
+                    bestHrid = hrid;
+                }
+            } else if (detail.itemLevel < fallbackLevel) {
+                fallbackLevel = detail.itemLevel;
+                fallbackHrid = hrid;
+            }
+        }
+        return bestHrid ?? fallbackHrid;
+    }
+
+    /**
+     * Score a hypothetical equipment setup for a skill and goal with zero tea buffs.
+     * Used by the skilling optimizer to rank equipment candidates per slot independently of teas.
+     * @param {string} skillName
+     * @param {string} goal - 'xp' or 'gold'
+     * @param {Map} equipment - Map<itemLocationHrid, { itemHrid, enhancementLevel }>
+     * @param {number} playerLevel
+     * @param {Object|null} overrides - Optional custom-loadout overrides: { houseRooms, communityBuffLevels }.
+     * @returns {number} Average XP/hr or Gold/hr across available actions
+     */
+    function scoreEquipmentSetup(
+        skillName,
+        goal,
+        equipment,
+        playerLevel,
+        selectedActionHrids = null,
+        overrides = null
+    ) {
+        const normalizedSkill = skillName.toLowerCase();
+        const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
+        const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
+
+        if (!isGathering && !isProduction) return 0;
+
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) return 0;
+
+        const actionType = SKILL_TO_ACTION_TYPE$1[normalizedSkill];
+        if (!actionType) return 0;
+
+        const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
+
+        // Add equipment gathering quantity bonus — not captured by the standard speed/efficiency parsers
+        if (isGathering) {
+            const equipGathering = equipmentParser_js.parseGatheringQuantityBonus(equipment, gameData.itemDetailMap);
+            if (equipGathering > 0) otherEfficiency.gathering = (otherEfficiency.gathering || 0) + equipGathering;
+        }
+
+        const { available: actions } = getActionsForSkill(normalizedSkill, playerLevel, selectedActionHrids);
+        if (!actions.length) return 0;
+
+        const emptyBuffs = {
+            efficiency: 0,
+            wisdom: 0,
+            gathering: 0,
+            processing: 0,
+            artisan: 0,
+            gourmet: 0,
+            actionLevel: 0,
+            alchemySuccess: 0,
+            skillLevels: {},
+        };
+
+        const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
+
+        // Alchemy XP is derived from item level, not from action data — standard calculateXpPerHour
+        // always returns 0 for alchemy. Use a dedicated path with a representative item instead.
+        if (normalizedSkill === 'alchemy') {
+            const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
+            if (!repItemHrid) return 0;
+            return calculateAlchemyXpPerHour(
+                { actionType: 'decompose', itemHrid: repItemHrid },
+                emptyBuffs,
+                playerLevel,
+                otherEfficiency,
+                calcContext
+            );
+        }
+
+        let totalScore = 0;
+        let count = 0;
+
+        for (const action of actions) {
+            let score;
+            if (goal === 'xp') {
+                score = calculateXpPerHour(action, emptyBuffs, playerLevel, otherEfficiency, calcContext);
+                totalScore += score;
+                count++;
+            } else if (isGathering) {
+                score = calculateGatheringGoldPerHour(
+                    action,
+                    emptyBuffs,
+                    playerLevel,
+                    otherEfficiency,
+                    gameData,
+                    calcContext
+                );
+                if (score > 0) {
+                    totalScore += score;
+                    count++;
+                }
+            } else {
+                score = calculateProductionGoldPerHour(
+                    action,
+                    emptyBuffs,
+                    playerLevel,
+                    otherEfficiency,
+                    gameData,
+                    calcContext
+                );
+                if (score > 0) {
+                    totalScore += score;
+                    count++;
+                }
+            }
+        }
+
+        return count > 0 ? totalScore / count : 0;
+    }
+
+    /**
+     * Get per-action XP/hr or profit/hr (net of tea cost) for every available action in a skill,
+     * using the player's current equipment and the optimal tea combination for the given goal.
+     * Used to rank actions for "best rates" displays.
+     * @param {string} skillName - Skill name (e.g., 'milking')
+     * @param {number} playerLevel - Player's skill level
+     * @param {string} goal - 'xp' or 'gold' — determines which optimal tea combo is used
+     * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr across ALL skills,
+     *  used as the opportunity-cost anchor for gold-neutral effective XP. See {@link getGlobalBestProfitPerHour}.
+     * @param {Object|null} overrides - Optional custom-loadout overrides: { equipment, houseRooms,
+     *  communityBuffLevels }. Any field not present falls back to live player data.
+     * @returns {Array<{name: string, hrid: string, requiredLevel: number, xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
+     */
+    function getSkillActionRates(skillName, playerLevel, goal, globalBestProfit = null, overrides = null) {
+        const normalizedSkill = skillName.toLowerCase();
+        const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
+        const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
+        if (!isGathering && !isProduction) return [];
+
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap || !gameData?.actionDetailMap) return [];
+
+        const actionType = SKILL_TO_ACTION_TYPE$1[normalizedSkill];
+        if (!actionType) return [];
+
+        const equipment = overrides?.equipment ?? dataManager.getEquipment();
+        const drinkConcentration = teaParser_js.getDrinkConcentration(equipment, gameData.itemDetailMap);
+        const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
+        if (isGathering) {
+            const equipGathering = equipmentParser_js.parseGatheringQuantityBonus(equipment, gameData.itemDetailMap);
+            if (equipGathering > 0) otherEfficiency.gathering = (otherEfficiency.gathering || 0) + equipGathering;
+        }
+
+        const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
+
+        if (normalizedSkill === 'alchemy') {
+            const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
+            if (!repItemHrid) return [];
+            const itemDetails = gameData.itemDetailMap[repItemHrid];
+            const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
+
+            const optimalResult = findOptimalTeas(
+                'alchemy',
+                goal,
+                null,
+                null,
+                null,
+                alchemyContext,
+                equipment,
+                null,
+                globalBestProfit,
+                overrides
+            );
+            const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+            const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
+            const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+            const xpPerHour = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
+            const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+
+            return [
+                {
+                    name: `Decompose ${itemDetails?.name || repItemHrid}`,
+                    hrid: '/actions/alchemy/decompose',
+                    requiredLevel: itemDetails?.itemLevel || 1,
+                    xpPerHour,
+                    profitPerHour,
+                    teaHrids,
+                },
+            ];
+        }
+
+        const results = [];
+        for (const [hrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (action.type !== actionType) continue;
+
+            const requiredLevel = action.levelRequirement?.level || 1;
+            if (playerLevel < requiredLevel) continue;
+
+            // Optimize teas per action, not per skill-average — a combo that's best in aggregate can
+            // easily be beaten, for one specific action, by a different combo (e.g. gourmet/artisan
+            // relevance and action time/cost vary a lot between actions in the same skill).
+            const optimalResult = findOptimalTeas(
+                skillName,
+                goal,
+                null,
+                action.name,
+                null,
+                null,
+                equipment,
+                null,
+                globalBestProfit,
+                overrides
+            );
+            const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+            const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
+            const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+            const xpPerHour = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
+            const rawProfitPerHour = isGathering
+                ? calculateGatheringGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext)
+                : calculateProductionGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext);
+            const profitPerHour = rawProfitPerHour - teaCostPerHour;
+
+            results.push({ name: action.name, hrid, requiredLevel, xpPerHour, profitPerHour, teaHrids });
+        }
+
+        return results;
+    }
+
+    /**
+     * Get the Nth-best profit/hr entry achievable across ALL skills (gold-optimal teas per skill), for
+     * use as the opportunity-cost anchor when computing gold-neutral effective XP/hr. Using the Nth-best
+     * (see PROFIT_ANCHOR_RANK) instead of the single best avoids letting one outlier-priced item —
+     * which can trade far above its "real" value — dictate the bar for every XP action.
+     * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
+     *  entry, or null if fewer than 1 profitable action exists across all skills
+     */
+    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+    let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+
+    function getGlobalProfitAnchor() {
+        const now = Date.now();
+        if (now < globalProfitAnchorCache.expiresAt) {
+            return globalProfitAnchorCache.value;
+        }
+
+        const skills = dataManager.getSkills();
+        const allEntries = [];
+        for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
+            const skillHrid = `/skills/${skillName}`;
+            let playerLevel = 1;
+            for (const skill of skills || []) {
+                if (skill.skillHrid === skillHrid) {
+                    playerLevel = skill.level;
+                    break;
+                }
+            }
+            const rates = getSkillActionRates(skillName, playerLevel, 'gold');
+            for (const r of rates) {
+                if (r.profitPerHour > 0) {
+                    allEntries.push({ profitPerHour: r.profitPerHour, xpPerHour: r.xpPerHour, name: r.name, hrid: r.hrid });
+                }
+            }
+        }
+
+        let result = null;
+        if (allEntries.length > 0) {
+            allEntries.sort((a, b) => b.profitPerHour - a.profitPerHour);
+            const rankIndex = Math.min(PROFIT_ANCHOR_RANK$1 - 1, allEntries.length - 1);
+            result = allEntries[rankIndex];
+        }
+
+        globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+        return result;
+    }
+
+    /**
+     * Convenience wrapper around {@link getGlobalProfitAnchor} for callers that only need the number.
+     * @returns {number} Nth-best profit/hr across all skills (0 if fewer than 1 profitable action)
+     */
+    function getGlobalBestProfitPerHour() {
+        return getGlobalProfitAnchor()?.profitPerHour ?? 0;
+    }
+
+    /**
+     * Get buff description for a tea
+     * @param {string} teaHrid - Tea item HRID
+     * @returns {string} Human-readable buff description
+     */
+    function getTeaBuffDescription(teaHrid, drinkConcentration = 0) {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) return '';
+
+        const itemDetails = gameData.itemDetailMap[teaHrid];
+        if (!itemDetails?.consumableDetail?.buffs) return '';
+
+        const dcMultiplier = 1 + drinkConcentration;
+        const descriptions = [];
+
+        for (const buff of itemDetails.consumableDetail.buffs) {
+            const baseValue = buff.flatBoost || 0;
+            const scaledValue = baseValue * dcMultiplier;
+            const dcBonus = baseValue * drinkConcentration;
+
+            switch (buff.typeHrid) {
+                case '/buff_types/efficiency':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% eff', true));
+                    break;
+                case '/buff_types/wisdom':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% XP', true));
+                    break;
+                case '/buff_types/gathering':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% gathering', true));
+                    break;
+                case '/buff_types/processing':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% processing', true));
+                    break;
+                case '/buff_types/artisan':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% mat savings', true));
+                    break;
+                case '/buff_types/gourmet':
+                    descriptions.push(formatBuffWithDC(scaledValue * 100, dcBonus * 100, '% extra output', true));
+                    break;
+                case '/buff_types/action_level':
+                    descriptions.push(formatBuffWithDC(scaledValue, dcBonus, ' action lvl', false));
+                    break;
+                default:
+                    if (buff.typeHrid.endsWith('_level')) {
+                        const skill = buff.typeHrid.match(/\/buff_types\/(\w+)_level/)?.[1];
+                        if (skill) {
+                            descriptions.push(formatBuffWithDC(scaledValue, dcBonus, ` ${skill}`, false));
+                        }
+                    }
+            }
+        }
+
+        return descriptions.join(', ');
+    }
+
+    /**
+     * Format a buff value with optional drink concentration bonus
+     * @param {number} scaledValue - Total value including DC
+     * @param {number} dcBonus - Just the DC bonus portion
+     * @param {string} suffix - Unit suffix (e.g., '% eff', ' tailoring')
+     * @param {boolean} isPercent - Whether to format as percentage
+     * @returns {string} Formatted string like "+8.8 tailoring (+.8)"
+     */
+    function formatBuffWithDC(scaledValue, dcBonus, suffix, isPercent) {
+        // Format the main value
+        const mainFormatted = isPercent
+            ? `+${Number.isInteger(scaledValue) ? scaledValue : scaledValue.toFixed(1)}${suffix}`
+            : `+${Number.isInteger(scaledValue) ? scaledValue : scaledValue.toFixed(1)}${suffix}`;
+
+        // If no DC bonus, just return the main value
+        if (dcBonus === 0) {
+            return mainFormatted;
+        }
+
+        // Format the DC bonus (with % suffix if percentage)
+        const dcFormatted = isPercent
+            ? `(+${dcBonus < 1 ? dcBonus.toFixed(1) : dcBonus.toFixed(0)}%)`
+            : `(+${dcBonus < 1 ? dcBonus.toFixed(1) : dcBonus.toFixed(0)})`;
+
+        return `${mainFormatted} ${dcFormatted}`;
+    }
+
+    /**
+     * Calculate XP/hr and Gold/hr for a specific equipment and tea setup.
+     * Unlike scoreEquipmentSetup (which uses empty teas for equipment comparison),
+     * this evaluates a real configured setup and returns both metrics.
+     * @param {string} skillName
+     * @param {Map} equipment - Map<itemLocationHrid, { itemHrid, enhancementLevel }>
+     * @param {string[]} teaHrids - Tea item HRIDs (null/empty entries are filtered)
+     * @param {number} playerLevel
+     * @param {Set<string>|null} selectedActionHrids
+     * @returns {{ xpPerHour: number, goldPerHour: number, teaCostPerHour: number }}
+     */
+    function calculateSkillPerformance(skillName, equipment, teaHrids, playerLevel, selectedActionHrids = null) {
+        const normalizedSkill = skillName.toLowerCase();
+        const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
+        const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
+
+        const empty = { xpPerHour: 0, goldPerHour: 0, teaCostPerHour: 0 };
+        if (!isGathering && !isProduction) return empty;
+        if (selectedActionHrids !== null && selectedActionHrids.size === 0) return empty;
+
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) return empty;
+
+        const actionType = SKILL_TO_ACTION_TYPE$1[normalizedSkill];
+        if (!actionType) return empty;
+
+        const { available: actions } = getActionsForSkill(normalizedSkill, playerLevel, selectedActionHrids);
+        if (!actions.length) return empty;
+
+        const filteredTeas = (teaHrids || []).filter(Boolean);
+        const drinkConcentration = teaParser_js.getDrinkConcentration(equipment, gameData.itemDetailMap);
+        const buffs = parseTeaBuffs(filteredTeas, gameData.itemDetailMap, drinkConcentration);
+
+        const otherEfficiency = getOtherEfficiencySources(actionType);
+        if (isGathering) {
+            const equipGathering = equipmentParser_js.parseGatheringQuantityBonus(equipment, gameData.itemDetailMap);
+            if (equipGathering > 0) otherEfficiency.gathering = (otherEfficiency.gathering || 0) + equipGathering;
+        }
+
+        const teaCost = calculateTeaCostPerHour(filteredTeas, drinkConcentration);
+        const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
+
+        let totalXp = 0,
+            xpCount = 0;
+        let totalGold = 0,
+            goldCount = 0;
+
+        for (const action of actions) {
+            const xp = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
+            if (xp > 0) {
+                totalXp += xp;
+                xpCount++;
+            }
+
+            const gold = isGathering
+                ? calculateGatheringGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext) -
+                  teaCost.total
+                : calculateProductionGoldPerHour(action, buffs, playerLevel, otherEfficiency, gameData, calcContext) -
+                  teaCost.total;
+            if (gold > 0) {
+                totalGold += gold;
+                goldCount++;
+            }
+        }
+
+        return {
+            xpPerHour: xpCount > 0 ? totalXp / xpCount : 0,
+            goldPerHour: goldCount > 0 ? totalGold / goldCount : 0,
+            teaCostPerHour: teaCost.total,
+        };
+    }
+
+    var teaOptimizer = {
+        findOptimalTeas,
+        getRelevantTeas,
+        getTeaBuffDescription,
+        scoreEquipmentSetup,
+        getSkillActionsForDisplay,
+        calculateSkillPerformance,
+        getSkillActionRates,
+        getGlobalBestProfitPerHour,
+        getGlobalProfitAnchor,
+    };
+
+    /**
+     * Best Rates Popup
+     * Floating button that opens a modal listing the top profit/hr and Eff. XP/hr methods per
+     * skill, computed from the player's current equipment and the optimal tea combo per goal.
+     */
+
+
+    const SKILLS$1 = [
+        'milking',
+        'foraging',
+        'woodcutting',
+        'cheesesmithing',
+        'crafting',
+        'tailoring',
+        'cooking',
+        'brewing',
+        'alchemy',
+    ];
+
+    const TOP_N$1 = 5;
+
+    // Rank used for the local profit anchor: the Nth-highest profit/hr within a skill rather than the
+    // single highest, so one outlier-priced item doesn't dictate the "gold-neutral" bar on its own.
+    const PROFIT_ANCHOR_RANK = 10;
+
+    function capitalize$1(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    /**
+     * Compute gold-neutral "Eff. XP/hr" for a set of action rates, matching the formula used
+     * elsewhere in the tool (see gathering-stats.js / max-produceable.js): actions that already
+     * profit keep their raw XP/hr; actions that lose gold have their XP discounted by how much
+     * time-equivalent it would take on the best-profit action here to recover that loss. Actions
+     * with no profitable action to recover against are excluded entirely. The recovery-ratio
+     * denominator uses the best profit/hr across ALL skills (globalBestProfit), since the true
+     * opportunity cost of an unprofitable action is the best use of your time anywhere, not just
+     * the best profit within this one skill.
+     * @param {Array<{xpPerHour: number, profitPerHour: number}>} rates
+     * @param {number} globalBestProfit - Best profit/hr across all skills, from getGlobalBestProfitPerHour()
+     * @returns {Array} rates with an added effectiveXpPerHour field, unprofitable-with-no-recovery entries dropped
+     */
+    function computeEffectiveXpRates(rates, globalBestProfit) {
+        const validRates = rates.filter((r) => r.xpPerHour > 0);
+        if (validRates.length === 0) return [];
+
+        const profitableRates = validRates
+            .filter((r) => r.profitPerHour > 0)
+            .sort((a, b) => b.profitPerHour - a.profitPerHour);
+        const localRankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitableRates.length - 1);
+        const localAnchor = profitableRates[localRankIndex];
+        const localBestProfit = localAnchor?.profitPerHour ?? -Infinity;
+        const profitAnchor = Math.max(globalBestProfit, localBestProfit);
+
+        const results = [];
+        for (const r of validRates) {
+            let effectiveXpPerHour;
+            if (r.profitPerHour >= 0) {
+                effectiveXpPerHour = r.xpPerHour;
+            } else if (profitAnchor > 0) {
+                const loss = Math.abs(r.profitPerHour);
+                const recoveryRatio = loss / profitAnchor;
+                // The recovery action's own XP isn't fungible with this skill's XP (it's often a
+                // different skill entirely), so it's never blended in — recovery time is dead time
+                // for this skill's XP, diluting the rate rather than adding to it.
+                effectiveXpPerHour = r.xpPerHour / (1 + recoveryRatio);
+            } else {
+                continue;
+            }
+            results.push({ ...r, effectiveXpPerHour });
+        }
+        return results;
+    }
+
+    /**
+     * Score actions on both profit/hr and gold-neutral Eff. XP/hr at once, anchored to the
+     * best-profit action's own numbers: an action's score is (its profit / best profit) +
+     * (its Eff. XP / best profit's Eff. XP). Using Eff. XP/hr rather than raw XP/hr (see
+     * {@link computeEffectiveXpRates}) means an action that loses a huge amount of gold has its
+     * XP contribution properly diluted first, so it can no longer out-score genuinely profitable
+     * options just by having a large raw XP number. Evaluates each action under both the
+     * profit-optimal and XP-optimal tea combos and keeps whichever combo scores higher per action,
+     * since a player could equip either.
+     * @param {Array} goldRates - getSkillActionRates(..., 'gold') result
+     * @param {Array} xpRates - getSkillActionRates(..., 'xp') result
+     * @param {number} globalBestProfit - Best profit/hr across all skills, from getGlobalBestProfitPerHour()
+     * @returns {Array} one best-scoring entry per action, with an added balancedScore field
+     */
+    function computeBalancedRates(goldRates, xpRates, globalBestProfit) {
+        const profitable = goldRates.filter((r) => r.profitPerHour > 0);
+        if (profitable.length === 0) return [];
+
+        let bestProfitEntry = profitable[0];
+        for (const r of profitable) {
+            if (r.profitPerHour > bestProfitEntry.profitPerHour) bestProfitEntry = r;
+        }
+        const bestProfit = bestProfitEntry.profitPerHour;
+        const bestProfitExp = bestProfitEntry.xpPerHour;
+
+        const variants = [...goldRates, ...xpRates].filter((r) => r.xpPerHour > 0);
+        const scored = computeEffectiveXpRates(variants, globalBestProfit).map((r) => ({
+            ...r,
+            balancedScore: r.profitPerHour / bestProfit + (bestProfitExp > 0 ? r.effectiveXpPerHour / bestProfitExp : 0),
+        }));
+
+        const bestByHrid = new Map();
+        for (const entry of scored) {
+            const existing = bestByHrid.get(entry.hrid);
+            if (!existing || entry.balancedScore > existing.balancedScore) {
+                bestByHrid.set(entry.hrid, entry);
+            }
+        }
+
+        return Array.from(bestByHrid.values());
+    }
+
+    function getPlayerLevel(skillName) {
+        const skills = dataManager.getSkills();
+        const skillHrid = `/skills/${skillName}`;
+        for (const skill of skills || []) {
+            if (skill.skillHrid === skillHrid) return skill.level;
+        }
+        return 1;
+    }
+
+    class BestRatesPopup {
+        constructor() {
+            this.isInitialized = false;
+            this.button = null;
+            this.modal = null;
+            this.activeTab = 'profit';
+        }
+
+        initialize() {
+            if (this.isInitialized) return;
+            if (!config.getSetting('bestRatesPopup')) return;
+
+            this.isInitialized = true;
+            this.createButton();
+        }
+
+        createButton() {
+            if (document.getElementById('mwi-best-rates-btn')) return;
+
+            const button = document.createElement('button');
+            button.id = 'mwi-best-rates-btn';
+            button.textContent = '📊 Best Rates';
+            button.style.cssText = `
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
+            z-index: ${config.Z_POPUP};
+            padding: 8px 14px;
+            background: ${config.COLOR_ACCENT};
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        `;
+            button.addEventListener('click', () => this.openModal());
+
+            document.body.appendChild(button);
+            this.button = button;
+        }
+
+        openModal() {
+            if (!this.modal) {
+                this.createModal();
+            }
+            this.modal.style.display = 'flex';
+            this.renderContent();
+        }
+
+        closeModal() {
+            if (this.modal) {
+                this.modal.style.display = 'none';
+            }
+        }
+
+        createModal() {
+            this.modal = document.createElement('div');
+            this.modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: ${config.Z_MODAL};
+        `;
+            this.modal.addEventListener('click', (e) => {
+                if (e.target === this.modal) this.closeModal();
+            });
+
+            const content = document.createElement('div');
+            content.style.cssText = `
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            width: 600px;
+            max-width: 95%;
+            max-height: 85%;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        `;
+
+            const header = document.createElement('div');
+            header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        `;
+            const title = document.createElement('h2');
+            title.textContent = 'Best Rates';
+            title.style.cssText = 'margin: 0; color: #fff;';
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '✕';
+            closeBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        `;
+            closeBtn.addEventListener('click', () => this.closeModal());
+            header.appendChild(title);
+            header.appendChild(closeBtn);
+
+            const tabs = document.createElement('div');
+            tabs.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px;';
+
+            const profitTab = this.createTabButton('Best Profit/hr', 'profit');
+            const xpTab = this.createTabButton('Best XP/hr', 'xp');
+            const balancedTab = this.createTabButton('Balanced', 'balanced');
+            tabs.appendChild(profitTab);
+            tabs.appendChild(xpTab);
+            tabs.appendChild(balancedTab);
+
+            const body = document.createElement('div');
+            body.className = 'mwi-best-rates-body';
+
+            content.appendChild(header);
+            content.appendChild(tabs);
+            content.appendChild(body);
+            this.modal.appendChild(content);
+            document.body.appendChild(this.modal);
+        }
+
+        createTabButton(label, tabKey) {
+            const btn = document.createElement('button');
+            btn.textContent = label;
+            btn.dataset.tab = tabKey;
+            btn.addEventListener('click', () => {
+                this.activeTab = tabKey;
+                this.renderContent();
+            });
+            this.styleTabButton(btn, tabKey);
+            return btn;
+        }
+
+        styleTabButton(btn, tabKey) {
+            const isActive = this.activeTab === tabKey;
+            btn.style.cssText = `
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            background: ${isActive ? config.COLOR_ACCENT : '#3a3a3a'};
+            color: ${isActive ? '#fff' : '#aaa'};
+        `;
+        }
+
+        renderContent() {
+            const tabsContainer = this.modal.querySelectorAll('button[data-tab]');
+            tabsContainer.forEach((btn) => this.styleTabButton(btn, btn.dataset.tab));
+
+            const body = this.modal.querySelector('.mwi-best-rates-body');
+            while (body.firstChild) body.removeChild(body.firstChild);
+
+            if (this.activeTab === 'profit') {
+                this.renderProfitTab(body);
+            } else if (this.activeTab === 'xp') {
+                this.renderXpTab(body);
+            } else {
+                this.renderBalancedTab(body);
+            }
+        }
+
+        renderProfitTab(body) {
+            for (const skill of SKILLS$1) {
+                const playerLevel = getPlayerLevel(skill);
+                const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
+                const top = rates
+                    .filter((r) => r.profitPerHour > 0)
+                    .sort((a, b) => b.profitPerHour - a.profitPerHour)
+                    .slice(0, TOP_N$1);
+
+                body.appendChild(
+                    this.renderSkillSection(skill, top, (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr`, {
+                        perEntryTeas: true,
+                    })
+                );
+            }
+        }
+
+        renderXpTab(body) {
+            const globalBestProfit = teaOptimizer.getGlobalBestProfitPerHour();
+            for (const skill of SKILLS$1) {
+                const playerLevel = getPlayerLevel(skill);
+                const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
+                const top = computeEffectiveXpRates(rates, globalBestProfit)
+                    .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
+                    .slice(0, TOP_N$1);
+
+                body.appendChild(
+                    this.renderSkillSection(
+                        skill,
+                        top,
+                        (r) => {
+                            const costText =
+                                r.profitPerHour < 0 ? ` (-${formatters_js.formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
+                            return `${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
+                        },
+                        { perEntryTeas: true }
+                    )
+                );
+            }
+        }
+
+        renderBalancedTab(body) {
+            const globalBestProfit = teaOptimizer.getGlobalBestProfitPerHour();
+            for (const skill of SKILLS$1) {
+                const playerLevel = getPlayerLevel(skill);
+                const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
+                const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
+                const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
+                    .sort((a, b) => b.balancedScore - a.balancedScore)
+                    .slice(0, TOP_N$1);
+
+                body.appendChild(
+                    this.renderSkillSection(
+                        skill,
+                        top,
+                        (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr, ${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`,
+                        { perEntryTeas: true }
+                    )
+                );
+            }
+        }
+
+        renderSkillSection(skill, entries, formatValue, options = {}) {
+            const { perEntryTeas = false } = options;
+            const section = document.createElement('div');
+            section.style.cssText = 'margin-bottom: 16px;';
+
+            const heading = document.createElement('div');
+            heading.textContent = capitalize$1(skill);
+            heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 2px; font-size: 14px;';
+            section.appendChild(heading);
+
+            if (entries.length === 0) {
+                const empty = document.createElement('div');
+                empty.textContent = 'No data available';
+                empty.style.cssText = 'color: #888; font-size: 13px; padding-left: 8px;';
+                section.appendChild(empty);
+                return section;
+            }
+
+            if (!perEntryTeas) {
+                const teaHrids = entries[0]?.teaHrids || [];
+                if (teaHrids.length > 0) {
+                    const teaNames = teaHrids.map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
+                    const teaLine = document.createElement('div');
+                    teaLine.textContent = `Teas: ${teaNames.join(', ')}`;
+                    teaLine.style.cssText = 'color: #888; font-size: 11px; margin-bottom: 6px;';
+                    section.appendChild(teaLine);
+                }
+            }
+
+            const list = document.createElement('div');
+            list.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
+
+            entries.forEach((entry) => {
+                const row = document.createElement('div');
+                row.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: ${perEntryTeas ? 'flex-start' : 'center'};
+                padding: 4px 8px;
+                background: #1f1f1f;
+                border-radius: 4px;
+                color: #ddd;
+                font-size: 13px;
+            `;
+
+                const left = document.createElement('div');
+                const name = document.createElement('span');
+                name.textContent = entry.name;
+                left.appendChild(name);
+
+                if (perEntryTeas) {
+                    const teaNames = (entry.teaHrids || []).map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
+                    if (teaNames.length > 0) {
+                        const teaSub = document.createElement('div');
+                        teaSub.textContent = `Teas: ${teaNames.join(', ')}`;
+                        teaSub.style.cssText = 'color: #888; font-size: 10px; margin-top: 2px;';
+                        left.appendChild(teaSub);
+                    }
+                }
+
+                const value = document.createElement('span');
+                value.style.color = config.COLOR_ACCENT;
+                value.style.whiteSpace = 'nowrap';
+                value.textContent = formatValue(entry);
+                row.appendChild(left);
+                row.appendChild(value);
+                list.appendChild(row);
+            });
+
+            section.appendChild(list);
+            return section;
+        }
+
+        disable() {
+            if (this.button) {
+                this.button.remove();
+                this.button = null;
+            }
+            if (this.modal) {
+                this.modal.remove();
+                this.modal = null;
+            }
+            this.isInitialized = false;
+        }
+    }
+
+    const bestRatesPopup = new BestRatesPopup();
+
+    config.onSettingChange('bestRatesPopup', (value) => {
+        if (value) {
+            bestRatesPopup.initialize();
+        } else {
+            bestRatesPopup.disable();
+        }
+    });
+
+    /**
+     * Skill Optimizer Calc
+     * Computes best profit/hr across all gathering/production skills (excludes enhancing) for a
+     * fully customizable loadout: equipment, skill levels, house room levels, and community buffs.
+     * Defaults to the player's live data for any field the user hasn't overridden, and delegates all
+     * gold/XP/tea math to tea-optimizer.js.
+     */
+
+
+    const SKILLS = [
+        'milking',
+        'foraging',
+        'woodcutting',
+        'cheesesmithing',
+        'crafting',
+        'tailoring',
+        'cooking',
+        'brewing',
+        'alchemy',
+    ];
+
+    const SKILL_TO_ACTION_TYPE = {
+        milking: '/action_types/milking',
+        foraging: '/action_types/foraging',
+        woodcutting: '/action_types/woodcutting',
+        cheesesmithing: '/action_types/cheesesmithing',
+        crafting: '/action_types/crafting',
+        tailoring: '/action_types/tailoring',
+        cooking: '/action_types/cooking',
+        brewing: '/action_types/brewing',
+        alchemy: '/action_types/alchemy',
+    };
+
+    const EQUIPMENT_LOCATIONS = [
+        '/item_locations/milking_tool',
+        '/item_locations/foraging_tool',
+        '/item_locations/woodcutting_tool',
+        '/item_locations/cheesesmithing_tool',
+        '/item_locations/crafting_tool',
+        '/item_locations/tailoring_tool',
+        '/item_locations/cooking_tool',
+        '/item_locations/brewing_tool',
+        '/item_locations/alchemy_tool',
+        '/item_locations/main_hand',
+        '/item_locations/off_hand',
+        '/item_locations/head',
+        '/item_locations/body',
+        '/item_locations/legs',
+        '/item_locations/hands',
+        '/item_locations/feet',
+        '/item_locations/back',
+        '/item_locations/neck',
+        '/item_locations/ring',
+        '/item_locations/earrings',
+        '/item_locations/trinket',
+        '/item_locations/pouch',
+        '/item_locations/charm',
+    ];
+
+    const SLOT_DISPLAY_NAMES = {
+        '/item_locations/milking_tool': 'Milking Tool',
+        '/item_locations/foraging_tool': 'Foraging Tool',
+        '/item_locations/woodcutting_tool': 'Woodcutting Tool',
+        '/item_locations/cheesesmithing_tool': 'Cheesesmithing Tool',
+        '/item_locations/crafting_tool': 'Crafting Tool',
+        '/item_locations/tailoring_tool': 'Tailoring Tool',
+        '/item_locations/cooking_tool': 'Cooking Tool',
+        '/item_locations/brewing_tool': 'Brewing Tool',
+        '/item_locations/alchemy_tool': 'Alchemy Tool',
+        '/item_locations/main_hand': 'Main Hand',
+        '/item_locations/off_hand': 'Off Hand',
+        '/item_locations/head': 'Head',
+        '/item_locations/body': 'Body',
+        '/item_locations/legs': 'Legs',
+        '/item_locations/hands': 'Hands',
+        '/item_locations/feet': 'Feet',
+        '/item_locations/back': 'Back',
+        '/item_locations/neck': 'Neck',
+        '/item_locations/ring': 'Ring',
+        '/item_locations/earrings': 'Earrings',
+        '/item_locations/trinket': 'Trinket',
+        '/item_locations/pouch': 'Pouch',
+        '/item_locations/charm': 'Charm',
+    };
+
+    // Equipment type (item's own equip slot) → item location map key. Two-handed weapons occupy the
+    // main_hand location just like one-handers, so both types are offered for that slot.
+    const LOCATION_TO_EQUIPMENT_TYPES = {
+        '/item_locations/main_hand': ['/equipment_types/main_hand', '/equipment_types/two_hand'],
+    };
+    for (const loc of EQUIPMENT_LOCATIONS) {
+        if (!LOCATION_TO_EQUIPMENT_TYPES[loc]) {
+            LOCATION_TO_EQUIPMENT_TYPES[loc] = [loc.replace('/item_locations/', '/equipment_types/')];
+        }
+    }
+
+    const COMMUNITY_BUFF_TYPES = [
+        { hrid: '/community_buff_types/efficiency', name: 'Efficiency (Gathering)' },
+        { hrid: '/community_buff_types/production_efficiency', name: 'Efficiency (Production)' },
+        { hrid: '/community_buff_types/gathering_quantity', name: 'Gathering Quantity' },
+        { hrid: '/community_buff_types/experience', name: 'Wisdom (XP)' },
+    ];
+
+    /**
+     * Get all equippable items for a given item-location slot, regardless of level requirement —
+     * this is a "what if" customization tool, not restricted to what the player can currently wear.
+     * @param {string} locationHrid
+     * @returns {Array<{hrid: string, name: string}>} Sorted by item level ascending
+     */
+    function getItemsForSlot(locationHrid) {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.itemDetailMap) return [];
+
+        const validEqTypes = new Set(LOCATION_TO_EQUIPMENT_TYPES[locationHrid] || []);
+        if (!validEqTypes.size) return [];
+
+        const result = [];
+        for (const [hrid, detail] of Object.entries(gameData.itemDetailMap)) {
+            if (!detail.equipmentDetail || !validEqTypes.has(detail.equipmentDetail.type)) continue;
+            // Combat-only gear (e.g. armor/weapons with no noncombatStats) is dead space for a
+            // skilling loadout — only keep items that actually carry a skilling-relevant stat.
+            const noncombatStats = detail.equipmentDetail.noncombatStats;
+            if (!noncombatStats || Object.keys(noncombatStats).length === 0) continue;
+            result.push({ hrid, name: detail.name, itemLevel: detail.itemLevel || 0 });
+        }
+        return result.sort((a, b) => a.itemLevel - b.itemLevel || a.name.localeCompare(b.name));
+    }
+
+    /**
+     * Get all house rooms relevant to at least one of the tracked skills (i.e. that grant efficiency
+     * to one of SKILL_TO_ACTION_TYPE's action types).
+     * @returns {Array<{hrid: string, name: string}>}
+     */
+    function getRelevantHouseRooms() {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.houseRoomDetailMap) return [];
+
+        const relevantActionTypes = new Set(Object.values(SKILL_TO_ACTION_TYPE));
+        const result = [];
+        for (const [hrid, detail] of Object.entries(gameData.houseRoomDetailMap)) {
+            const usable = detail.usableInActionTypeMap || {};
+            if (Object.keys(usable).some((actionType) => relevantActionTypes.has(actionType))) {
+                result.push({ hrid, name: detail.name || hrid });
+            }
+        }
+        return result.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    /**
+     * Snapshot the player's live loadout (equipment, skill levels, house rooms, community buffs) in
+     * the same shape consumed by computeTopResults' overrides, for pre-filling the customization tab.
+     * @returns {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}}
+     */
+    function getLiveLoadout() {
+        const equipment = dataManager.getEquipment();
+        const houseRooms = dataManager.getHouseRooms();
+
+        const skillLevels = {};
+        for (const skill of dataManager.getSkills() || []) {
+            const name = skill.skillHrid?.replace('/skills/', '');
+            if (name) skillLevels[name] = skill.level;
+        }
+
+        const communityBuffLevels = {};
+        for (const { hrid } of COMMUNITY_BUFF_TYPES) {
+            communityBuffLevels[hrid] = dataManager.getCommunityBuffLevel(hrid);
+        }
+
+        return { equipment, skillLevels, houseRooms, communityBuffLevels };
+    }
+
+    /**
+     * Compute the top-N profit/hr actions for every skill under a given loadout override.
+     * @param {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}} overrides
+     * @param {number} topN
+     * @returns {Object<string, Array<{name: string, hrid: string, profitPerHour: number, xpPerHour: number, teaHrids: Array<string>}>>}
+     */
+    function computeTopResults(overrides, topN = 3) {
+        const results = {};
+        for (const skill of SKILLS) {
+            const playerLevel = overrides.skillLevels?.[skill] ?? 1;
+            const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
+            results[skill] = rates
+                .filter((r) => r.profitPerHour > 0)
+                .sort((a, b) => b.profitPerHour - a.profitPerHour)
+                .slice(0, topN);
+        }
+        return results;
+    }
+
+    /**
+     * Mutate the given loadout in place to a "best case" setup: max skill levels, the highest-level
+     * item available in every slot enhanced to +15, and every relevant house room at level 8.
+     * @param {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}} loadout
+     */
+    function applyMaxLoadout(loadout) {
+        for (const skill of SKILLS) {
+            loadout.skillLevels[skill] = 150;
+        }
+
+        for (const location of EQUIPMENT_LOCATIONS) {
+            const items = getItemsForSlot(location);
+            if (items.length === 0) {
+                loadout.equipment.delete(location);
+                continue;
+            }
+            const bestItem = items[items.length - 1];
+            loadout.equipment.set(location, { itemHrid: bestItem.hrid, enhancementLevel: 15 });
+        }
+
+        for (const room of getRelevantHouseRooms()) {
+            loadout.houseRooms.set(room.hrid, { houseRoomHrid: room.hrid, level: 8 });
+        }
+    }
+
+    /**
+     * Skill Optimizer Popup
+     * Floating button (next to Best Rates) that opens a modal with two sub-tabs:
+     *  - Customize: edit equipment, skill levels, house room levels, and community buffs
+     *  - Results: top-3 profit/hr actions per skill (excludes enhancing) under that loadout,
+     *    with the best tea combo picked automatically per skill.
+     */
+
+
+    const TOP_N = 3;
+
+    function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function styledSelect() {
+        const select = document.createElement('select');
+        select.style.cssText = `
+        background: #1f1f1f;
+        color: #ddd;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 3px 6px;
+        font-size: 12px;
+        flex: 1;
+        min-width: 0;
+    `;
+        return select;
+    }
+
+    function styledNumberInput(width = '52px') {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.style.cssText = `
+        background: #1f1f1f;
+        color: #ddd;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 3px 6px;
+        font-size: 12px;
+        width: ${width};
+    `;
+        return input;
+    }
+
+    function fieldRow(labelText) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; gap: 6px; padding: 3px 0;';
+        const label = document.createElement('span');
+        label.textContent = labelText;
+        label.style.cssText = 'color: #bbb; font-size: 12px; width: 150px; flex-shrink: 0;';
+        row.appendChild(label);
+        return row;
+    }
+
+    class SkillOptimizerPopup {
+        constructor() {
+            this.isInitialized = false;
+            this.button = null;
+            this.modal = null;
+            this.activeTab = 'customize';
+            this.loadout = null;
+            this.results = null;
+        }
+
+        initialize() {
+            if (this.isInitialized) return;
+            if (!config.getSetting('skillOptimizerPopup')) return;
+
+            this.isInitialized = true;
+            this.loadout = getLiveLoadout();
+            this.createButton();
+        }
+
+        createButton() {
+            if (document.getElementById('mwi-skill-optimizer-btn')) return;
+
+            const button = document.createElement('button');
+            button.id = 'mwi-skill-optimizer-btn';
+            button.textContent = '🧮 Optimizer';
+            button.style.cssText = `
+            position: fixed;
+            bottom: 12px;
+            left: 132px;
+            z-index: ${config.Z_POPUP};
+            padding: 8px 14px;
+            background: ${config.COLOR_ACCENT};
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        `;
+            button.addEventListener('click', () => this.openModal());
+
+            document.body.appendChild(button);
+            this.button = button;
+        }
+
+        openModal() {
+            if (!this.modal) {
+                this.createModal();
+            }
+            this.modal.style.display = 'flex';
+            this.renderContent();
+        }
+
+        closeModal() {
+            if (this.modal) {
+                this.modal.style.display = 'none';
+            }
+        }
+
+        createModal() {
+            this.modal = document.createElement('div');
+            this.modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: ${config.Z_MODAL};
+        `;
+            this.modal.addEventListener('click', (e) => {
+                if (e.target === this.modal) this.closeModal();
+            });
+
+            const content = document.createElement('div');
+            content.style.cssText = `
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            width: 700px;
+            max-width: 95%;
+            max-height: 85%;
+            overflow: auto;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        `;
+
+            const header = document.createElement('div');
+            header.style.cssText =
+                'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;';
+            const title = document.createElement('h2');
+            title.textContent = 'Skill Optimizer';
+            title.style.cssText = 'margin: 0; color: #fff;';
+            const closeBtn = document.createElement('button');
+            closeBtn.textContent = '✕';
+            closeBtn.style.cssText = `
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        `;
+            closeBtn.addEventListener('click', () => this.closeModal());
+            header.appendChild(title);
+            header.appendChild(closeBtn);
+
+            const tabs = document.createElement('div');
+            tabs.style.cssText = 'display: flex; gap: 8px; margin-bottom: 16px;';
+            tabs.appendChild(this.createTabButton('Customize', 'customize'));
+            tabs.appendChild(this.createTabButton('Results', 'results'));
+
+            const body = document.createElement('div');
+            body.className = 'mwi-skill-optimizer-body';
+
+            content.appendChild(header);
+            content.appendChild(tabs);
+            content.appendChild(body);
+            this.modal.appendChild(content);
+            document.body.appendChild(this.modal);
+        }
+
+        createTabButton(label, tabKey) {
+            const btn = document.createElement('button');
+            btn.textContent = label;
+            btn.dataset.tab = tabKey;
+            btn.addEventListener('click', () => {
+                this.activeTab = tabKey;
+                this.renderContent();
+            });
+            this.styleTabButton(btn, tabKey);
+            return btn;
+        }
+
+        styleTabButton(btn, tabKey) {
+            const isActive = this.activeTab === tabKey;
+            btn.style.cssText = `
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            background: ${isActive ? config.COLOR_ACCENT : '#3a3a3a'};
+            color: ${isActive ? '#fff' : '#aaa'};
+        `;
+        }
+
+        renderContent() {
+            this.modal.querySelectorAll('button[data-tab]').forEach((btn) => this.styleTabButton(btn, btn.dataset.tab));
+
+            const body = this.modal.querySelector('.mwi-skill-optimizer-body');
+            while (body.firstChild) body.removeChild(body.firstChild);
+
+            if (this.activeTab === 'customize') {
+                this.renderCustomizeTab(body);
+            } else {
+                this.renderResultsTab(body);
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // Customize tab
+        // -------------------------------------------------------------------------
+
+        renderCustomizeTab(body) {
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display: flex; gap: 8px; margin-bottom: 12px;';
+
+            const resetBtn = document.createElement('button');
+            resetBtn.textContent = 'Reset to current gear/stats';
+            resetBtn.style.cssText = `
+            padding: 6px 12px;
+            background: #3a3a3a;
+            color: #ddd;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+            resetBtn.addEventListener('click', () => {
+                this.loadout = getLiveLoadout();
+                this.renderContent();
+            });
+
+            const maxBtn = document.createElement('button');
+            maxBtn.textContent = 'Set Max';
+            maxBtn.title = 'Level 150 skills, best item at +15 in every slot, level 8 house rooms';
+            maxBtn.style.cssText = `
+            padding: 6px 12px;
+            background: #3a3a3a;
+            color: #ddd;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+            maxBtn.addEventListener('click', () => {
+                applyMaxLoadout(this.loadout);
+                this.renderContent();
+            });
+
+            btnRow.appendChild(resetBtn);
+            btnRow.appendChild(maxBtn);
+            body.appendChild(btnRow);
+
+            body.appendChild(this.renderSection('Skill Levels', this.renderSkillLevelFields()));
+            body.appendChild(this.renderSection('Equipment', this.renderEquipmentFields()));
+            body.appendChild(this.renderSection('House Rooms', this.renderHouseRoomFields()));
+            body.appendChild(this.renderSection('Community Buffs', this.renderCommunityBuffFields()));
+        }
+
+        renderSection(title, contentEl) {
+            const section = document.createElement('div');
+            section.style.cssText = 'margin-bottom: 16px;';
+            const heading = document.createElement('div');
+            heading.textContent = title;
+            heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 6px; font-size: 14px;';
+            section.appendChild(heading);
+            section.appendChild(contentEl);
+            return section;
+        }
+
+        renderSkillLevelFields() {
+            const container = document.createElement('div');
+            container.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;';
+            for (const skill of SKILLS) {
+                const row = fieldRow(capitalize(skill));
+                const input = styledNumberInput();
+                input.min = 1;
+                input.max = 200;
+                input.value = this.loadout.skillLevels[skill] ?? 1;
+                input.addEventListener('change', () => {
+                    const level = Math.max(1, parseInt(input.value, 10) || 1);
+                    this.loadout.skillLevels[skill] = level;
+                    input.value = level;
+                });
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+            return container;
+        }
+
+        renderEquipmentFields() {
+            const container = document.createElement('div');
+            container.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
+
+            for (const location of EQUIPMENT_LOCATIONS) {
+                const current = this.loadout.equipment.get(location);
+                const items = getItemsForSlot(location);
+
+                const row = fieldRow(SLOT_DISPLAY_NAMES[location] || location);
+
+                const select = styledSelect();
+                const noneOption = document.createElement('option');
+                noneOption.value = '';
+                noneOption.textContent = '(none)';
+                select.appendChild(noneOption);
+                for (const item of items) {
+                    const option = document.createElement('option');
+                    option.value = item.hrid;
+                    option.textContent = item.name;
+                    if (current?.itemHrid === item.hrid) option.selected = true;
+                    select.appendChild(option);
+                }
+
+                const enhInput = styledNumberInput('44px');
+                enhInput.min = 0;
+                enhInput.max = 20;
+                enhInput.title = 'Enhancement level';
+                enhInput.value = current?.enhancementLevel ?? 0;
+                enhInput.disabled = !current;
+
+                select.addEventListener('change', () => {
+                    if (!select.value) {
+                        this.loadout.equipment.delete(location);
+                        enhInput.value = 0;
+                        enhInput.disabled = true;
+                    } else {
+                        const enhancementLevel = parseInt(enhInput.value, 10) || 0;
+                        this.loadout.equipment.set(location, { itemHrid: select.value, enhancementLevel });
+                        enhInput.disabled = false;
+                    }
+                });
+
+                enhInput.addEventListener('change', () => {
+                    const existing = this.loadout.equipment.get(location);
+                    if (!existing) return;
+                    const level = Math.max(0, Math.min(20, parseInt(enhInput.value, 10) || 0));
+                    this.loadout.equipment.set(location, { ...existing, enhancementLevel: level });
+                    enhInput.value = level;
+                });
+
+                row.appendChild(select);
+                row.appendChild(enhInput);
+                container.appendChild(row);
+            }
+
+            return container;
+        }
+
+        renderHouseRoomFields() {
+            const container = document.createElement('div');
+            container.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;';
+
+            for (const room of getRelevantHouseRooms()) {
+                const current = this.loadout.houseRooms.get(room.hrid);
+                const row = fieldRow(room.name);
+                const input = styledNumberInput();
+                input.min = 0;
+                input.max = 8;
+                input.value = current?.level ?? 0;
+                input.addEventListener('change', () => {
+                    const level = Math.max(0, Math.min(8, parseInt(input.value, 10) || 0));
+                    if (level === 0) {
+                        this.loadout.houseRooms.delete(room.hrid);
+                    } else {
+                        this.loadout.houseRooms.set(room.hrid, { houseRoomHrid: room.hrid, level });
+                    }
+                    input.value = level;
+                });
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+
+            return container;
+        }
+
+        renderCommunityBuffFields() {
+            const container = document.createElement('div');
+            container.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px;';
+
+            for (const buff of COMMUNITY_BUFF_TYPES) {
+                const row = fieldRow(buff.name);
+                const input = styledNumberInput();
+                input.min = 0;
+                input.max = 20;
+                input.value = this.loadout.communityBuffLevels[buff.hrid] ?? 0;
+                input.addEventListener('change', () => {
+                    const level = Math.max(0, parseInt(input.value, 10) || 0);
+                    this.loadout.communityBuffLevels[buff.hrid] = level;
+                    input.value = level;
+                });
+                row.appendChild(input);
+                container.appendChild(row);
+            }
+
+            return container;
+        }
+
+        // -------------------------------------------------------------------------
+        // Results tab
+        // -------------------------------------------------------------------------
+
+        renderResultsTab(body) {
+            const calcBtn = document.createElement('button');
+            calcBtn.textContent = 'Calculate Best Profit/hr';
+            calcBtn.style.cssText = `
+            padding: 8px 16px;
+            margin-bottom: 12px;
+            background: ${config.COLOR_ACCENT};
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+        `;
+            calcBtn.addEventListener('click', () => {
+                this.results = computeTopResults(this.loadout, TOP_N);
+                this.renderContent();
+            });
+            body.appendChild(calcBtn);
+
+            if (!this.results) {
+                const hint = document.createElement('div');
+                hint.textContent = 'Click "Calculate" to see the top 3 profit/hr actions per skill for the loadout above.';
+                hint.style.cssText = 'color: #888; font-size: 13px;';
+                body.appendChild(hint);
+                return;
+            }
+
+            for (const skill of SKILLS) {
+                const entries = this.results[skill] || [];
+                body.appendChild(this.renderSkillSection(skill, entries));
+            }
+        }
+
+        renderSkillSection(skill, entries) {
+            const section = document.createElement('div');
+            section.style.cssText = 'margin-bottom: 16px;';
+
+            const heading = document.createElement('div');
+            heading.textContent = capitalize(skill);
+            heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 4px; font-size: 14px;';
+            section.appendChild(heading);
+
+            if (entries.length === 0) {
+                const empty = document.createElement('div');
+                empty.textContent = 'No profitable actions found';
+                empty.style.cssText = 'color: #888; font-size: 13px; padding-left: 8px;';
+                section.appendChild(empty);
+                return section;
+            }
+
+            const list = document.createElement('div');
+            list.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
+
+            entries.forEach((entry) => {
+                const row = document.createElement('div');
+                row.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                padding: 4px 8px;
+                background: #1f1f1f;
+                border-radius: 4px;
+                color: #ddd;
+                font-size: 13px;
+            `;
+
+                const left = document.createElement('div');
+                const name = document.createElement('span');
+                name.textContent = entry.name;
+                left.appendChild(name);
+
+                const teaNames = (entry.teaHrids || []).map((hrid) => dataManager.getItemDetails(hrid)?.name || hrid);
+                if (teaNames.length > 0) {
+                    const teaSub = document.createElement('div');
+                    teaSub.textContent = `Teas: ${teaNames.join(', ')}`;
+                    teaSub.style.cssText = 'color: #888; font-size: 10px; margin-top: 2px;';
+                    left.appendChild(teaSub);
+                }
+
+                const value = document.createElement('span');
+                value.style.color = config.COLOR_ACCENT;
+                value.style.whiteSpace = 'nowrap';
+                value.textContent = `${formatters_js.formatKMB(entry.profitPerHour, 1)}/hr`;
+                row.appendChild(left);
+                row.appendChild(value);
+                list.appendChild(row);
+            });
+
+            section.appendChild(list);
+            return section;
+        }
+
+        disable() {
+            if (this.button) {
+                this.button.remove();
+                this.button = null;
+            }
+            if (this.modal) {
+                this.modal.remove();
+                this.modal = null;
+            }
+            this.isInitialized = false;
+        }
+    }
+
+    const skillOptimizerPopup = new SkillOptimizerPopup();
+
+    config.onSettingChange('skillOptimizerPopup', (value) => {
+        if (value) {
+            skillOptimizerPopup.initialize();
+        } else {
+            skillOptimizerPopup.disable();
+        }
+    });
 
     /**
      * Loot Log History Storage
@@ -16972,13 +19784,13 @@ ${starCSS}
         }
 
         /**
-         * Get market price for an item (uses 'ask' price for buying materials)
+         * Get market price for an item (buy-side price for purchasing materials)
          * @param {string} itemHrid - Item HRID
          * @returns {Promise<number>} Market price
          */
         async getItemMarketPrice(itemHrid) {
-            // Use 'ask' mode since house upgrades involve buying materials
-            const price = marketData_js.getItemPrice(itemHrid, { mode: 'ask' });
+            // House upgrades involve buying materials, so respect the user's pricing mode setting
+            const price = marketData_js.getItemPrice(itemHrid, { context: 'profit', side: 'buy' });
 
             if (price === null || price === 0) {
                 // Fallback to vendor price from game data
@@ -32245,8 +35057,8 @@ ${starCSS}
      */
 
 
-    const PANEL_ID$1 = 'mwi-xph-calc-panel';
-    const BTN_CLASS = 'mwi-xph-calc-btn';
+    const PANEL_ID$2 = 'mwi-xph-calc-panel';
+    const BTN_CLASS$1 = 'mwi-xph-calc-btn';
 
     /**
      * Calculate XPH and cost metrics for a single item.
@@ -32378,10 +35190,10 @@ ${starCSS}
         }
 
         _injectButton(panel) {
-            if (panel.querySelector(`.${BTN_CLASS}`)) return;
+            if (panel.querySelector(`.${BTN_CLASS$1}`)) return;
 
             const btn = document.createElement('button');
-            btn.className = BTN_CLASS;
+            btn.className = BTN_CLASS$1;
             btn.textContent = 'XPH Calc';
             btn.style.cssText = `
             background: linear-gradient(180deg, rgba(0,200,150,0.2) 0%, rgba(0,200,150,0.1) 100%);
@@ -32408,7 +35220,7 @@ ${starCSS}
 
         _buildPanel() {
             this.panel = document.createElement('div');
-            this.panel.id = PANEL_ID$1;
+            this.panel.id = PANEL_ID$2;
             this.panel.style.cssText = `
             position: fixed;
             top: 60px;
@@ -32671,12 +35483,1115 @@ ${starCSS}
                 this.panel.remove();
                 this.panel = null;
             }
-            document.querySelectorAll(`.${BTN_CLASS}`).forEach((el) => el.remove());
+            document.querySelectorAll(`.${BTN_CLASS$1}`).forEach((el) => el.remove());
             this.isInitialized = false;
         }
     }
 
     const xphCalculator = new XPHCalculator();
+
+    /**
+     * Enhancement Optimizer
+     * Ranks all enhanceable items by expected profit/hr and gold-neutral effective XP/hr,
+     * using live marketplace buy offers at every enhancement level.
+     */
+
+
+    // Sortable table columns (th id suffix -> result field). 'age' is not sortable (global value).
+    const TABLE_COLUMNS = [
+        'name',
+        'pph',
+        'totalprofit',
+        'time',
+        'protect',
+        'roi',
+        'basecost',
+        'enhcost',
+        'sellprice',
+        'totalxp',
+        'xph',
+        'effxph',
+    ];
+    const COL_KEY_MAP = {
+        name: 'name',
+        pph: 'profitPerHour',
+        totalprofit: 'totalProfit',
+        time: 'totalTime',
+        protect: 'protectFrom',
+        roi: 'roi',
+        basecost: 'baseCost',
+        enhcost: 'enhancingCost',
+        sellprice: 'sellPrice',
+        totalxp: 'totalXP',
+        xph: 'xph',
+        effxph: 'effXph',
+    };
+
+    // Item/level pruning: enhancement cost grows steeply as target level rises (success rate decays
+    // geometrically) while sell price grows far more slowly, so profit/hr and eff. XP/hr for a given
+    // item tend to get monotonically worse at higher levels once they're already deeply bad. Once a
+    // level comes back "hopeless" by both measures and worse than the previous level for
+    // PRUNE_CONSECUTIVE_LEVELS levels in a row, stop simulating higher levels for that item — they're
+    // essentially guaranteed to be worse too, and each level costs a full Markov simulation per
+    // protect-from candidate.
+    const PRUNE_PROFIT_MULTIPLE = 20; // profit/hr must be at least this many multiples worse than the anchor
+    const PRUNE_EFFXPH_FRACTION = 0.05; // ...and eff. XP/hr must be below this fraction of the best seen so far
+    const PRUNE_CONSECUTIVE_LEVELS = 2; // consecutive worsening "hopeless" levels before giving up on the item
+    // Market bid prices are independent per-level listings, not a smooth curve — a much higher +level
+    // can have a disproportionately high buy offer even if lower levels look bad (e.g. rarity demand).
+    // Before actually giving up on an item, cheaply peek at the raw (unsimulated) bid price for every
+    // remaining level; if any of them jumps well above what we've seen so far, keep simulating instead
+    // of trusting the cost/profit trend.
+    const PRUNE_SPIKE_MULTIPLE = 3; // a remaining level's raw bid must exceed the best bid seen so far by this factor to count as a spike
+
+    // Fixed column widths for the Configure tab rows, so the checkbox/label/input "tab stops" line up
+    // consistently across rows instead of stretching to fill the panel width when it's resized wide.
+    const CONFIG_CHECKBOX_COL_WIDTH = 18;
+    const CONFIG_LABEL_COL_WIDTH = 190;
+
+    const PANEL_ID$1 = 'mwi-profit-calc-panel';
+    const BTN_CLASS = 'mwi-profit-calc-btn';
+    const AUTODETECT_ID = 'enhanceSim_autoDetect';
+
+    // Gear/stat settings shown on the Configure tab. These are the same account-wide
+    // `enhanceSim_*` settings used by the Enhancement Simulator/XPH Calculator elsewhere,
+    // so edits here apply everywhere and match the Settings page's "Enhancement Simulator" section.
+    const CONFIG_SCALAR_IDS = ['enhanceSim_enhancingLevel', 'enhanceSim_houseLevel', 'enhanceSim_achievement'];
+    const CONFIG_BUFF_IDS = [
+        'enhanceSim_teaEnabled',
+        'enhanceSim_tea',
+        'enhanceSim_blessedTea',
+        'enhanceSim_wisdomTea',
+        'enhanceSim_communityBuff',
+        'enhanceSim_communityBuffWisdom',
+    ];
+    // Rendered together as one combined row (checkbox + tier dropdown) instead of two stacked rows.
+    const TEA_COMBO_IDS = ['enhanceSim_teaEnabled', 'enhanceSim_tea'];
+    const CONFIG_GEAR_IDS = [
+        'enhanceSim_gear_enhancer',
+        'enhanceSim_gear_gloves',
+        'enhanceSim_gear_top',
+        'enhanceSim_gear_bottoms',
+        'enhanceSim_gear_neck',
+        'enhanceSim_gear_ring',
+        'enhanceSim_gear_earring',
+        'enhanceSim_gear_cape',
+        'enhanceSim_gear_guzzling',
+        'enhanceSim_gear_charm',
+    ];
+
+    /**
+     * The Markov-chain matrix inversion in calculateEnhancement() depends only on itemLevel/targetLevel/
+     * protectFrom and the (fixed, per-run) player stats — not on which specific item is being enhanced.
+     * Hundreds of items in the game share the same itemLevel, so caching this result by
+     * `itemLevel|targetLevel|protectFrom` for the duration of one _compute() run turns what would be a
+     * fresh 20×20 matrix inversion per item into a single shared computation per distinct combination.
+     * @param {Map} cache
+     * @param {number} itemLevel
+     * @param {number} targetLevel
+     * @param {number} protectFrom
+     * @param {Object} params - from getEnhancingParams()
+     * @returns {Object|null} the calculateEnhancement() result, or null if it threw/was invalid
+     */
+    function getCachedEnhancementCalc(cache, itemLevel, targetLevel, protectFrom, params) {
+        const key = `${itemLevel}|${targetLevel}|${protectFrom}`;
+        if (cache.has(key)) return cache.get(key);
+
+        let calc;
+        try {
+            calc = enhancementCalculator_js.calculateEnhancement({
+                enhancingLevel: params.enhancingLevel,
+                houseLevel: params.houseLevel,
+                toolBonus: params.toolBonus,
+                speedBonus: params.speedBonus,
+                itemLevel,
+                targetLevel,
+                startLevel: 0,
+                protectFrom,
+                blessedTea: params.teas.blessed,
+                guzzlingBonus: params.guzzlingBonus,
+            });
+        } catch {
+            calc = null;
+        }
+
+        if (!calc?.visitCounts || calc.totalTime <= 0) calc = null;
+        cache.set(key, calc);
+        return calc;
+    }
+
+    /**
+     * Run the enhancement simulation + cost/revenue math for one item/target-level/protectFrom
+     * combination. Returns null if required price data is unavailable.
+     * @param {string} itemHrid
+     * @param {Object} itemDetails
+     * @param {number} targetLevel
+     * @param {number} protectFrom
+     * @param {Object} params - from getEnhancingParams()
+     * @param {number} anchorProfitPerHour - global recovery anchor (10th-best profit/hr across skills)
+     * @param {{price: number}|null} protectionInfo - cheapest protection item price for this item (cached per item)
+     * @param {Map} calcCache - shared cache of calculateEnhancement() results for this _compute() run
+     * @returns {Object|null}
+     */
+    function simulateItemAtProtectFrom(
+        itemHrid,
+        itemDetails,
+        targetLevel,
+        protectFrom,
+        params,
+        anchorProfitPerHour,
+        protectionInfo,
+        calcCache
+    ) {
+        const itemLevel = itemDetails.itemLevel || 0;
+
+        const calc = getCachedEnhancementCalc(calcCache, itemLevel, targetLevel, protectFrom, params);
+        if (!calc) return null;
+
+        // Revenue: live buy offer (insta-sell) at the target level, after market tax
+        const targetPrice = marketAPI.getPrice(itemHrid, targetLevel);
+        if (!targetPrice?.bid || targetPrice.bid <= 0) return null;
+        const revenue = profitHelpers_js.calculatePriceAfterTax(targetPrice.bid);
+
+        // Base item acquisition cost (unenhanced)
+        const basePrice = marketAPI.getPrice(itemHrid, 0);
+        if (!basePrice?.ask || basePrice.ask <= 0) return null;
+        const baseCost = basePrice.ask;
+        let enhancingCost = 0;
+        let costPartial = false;
+
+        // Material cost for all enhancement attempts
+        if (itemDetails.enhancementCosts?.length) {
+            for (const matCost of itemDetails.enhancementCosts) {
+                if (matCost.itemHrid === '/items/coin') {
+                    enhancingCost += matCost.count * calc.attempts;
+                    continue;
+                }
+                const price = marketAPI.getPrice(matCost.itemHrid);
+                if (price?.ask > 0) {
+                    enhancingCost += matCost.count * price.ask * calc.attempts;
+                } else {
+                    costPartial = true;
+                }
+            }
+        }
+
+        // Protection cost
+        if (protectFrom > 0 && calc.protectionCount > 0) {
+            if (protectionInfo?.price > 0) {
+                enhancingCost += protectionInfo.price * calc.protectionCount;
+            } else {
+                costPartial = true;
+            }
+        }
+
+        const cost = baseCost + enhancingCost;
+
+        // XP accumulation
+        let totalXP = 0;
+        for (let i = 0; i < targetLevel; i++) {
+            const visits = calc.visitCounts[i];
+            if (!visits) continue;
+            const successRate = (calc.successRates[i]?.actualRate ?? 0) / 100;
+            const successXP = calculateSuccessXP(i, itemHrid);
+            const failXP = calculateFailureXP(i, itemHrid);
+            totalXP += visits * (successRate * successXP + (1 - successRate) * failXP);
+        }
+        if (totalXP <= 0) return null;
+
+        const profit = revenue - cost;
+        const profitPerHour = (profit / calc.totalTime) * 3600;
+        const xph = Math.round((totalXP / calc.totalTime) * 3600);
+
+        let effTime = calc.totalTime;
+        if (profit < 0 && anchorProfitPerHour > 0) {
+            const recoveryTime = -profit / (anchorProfitPerHour / 3600);
+            effTime += recoveryTime;
+        }
+        const effXph = Math.round((totalXP / effTime) * 3600);
+        const roi = cost > 0 ? (profit / cost) * 100 : 0;
+
+        return {
+            itemHrid,
+            name: `${itemDetails.name} +${targetLevel}`,
+            level: targetLevel,
+            protectFrom,
+            profitPerHour,
+            totalProfit: profit,
+            totalTime: calc.totalTime,
+            roi,
+            baseCost,
+            enhancingCost,
+            sellPrice: revenue,
+            totalXP,
+            xph,
+            effXph,
+            costPartial,
+        };
+    }
+
+    /**
+     * Calculate profit/hr, XP/hr, and eff. XP/hr for enhancing a single item to a single target level,
+     * automatically choosing the protect-from level (0 = never protect) that yields the best profit/hr.
+     * Protection only ever helps profit above the level where the protection item's own cost is
+     * recovered by the attempts it saves, so trying every candidate and keeping the best is exact
+     * rather than heuristic.
+     * @param {string} itemHrid
+     * @param {Object} itemDetails
+     * @param {number} targetLevel
+     * @param {Object} params - from getEnhancingParams()
+     * @param {number} anchorProfitPerHour - global recovery anchor (10th-best profit/hr across skills)
+     * @param {{price: number}|null} protectionInfo - cheapest protection item price for this item (cached per item)
+     * @param {Map} calcCache - shared cache of calculateEnhancement() results for this _compute() run
+     * @returns {Object|null}
+     */
+    function calculateItemProfit(
+        itemHrid,
+        itemDetails,
+        targetLevel,
+        params,
+        anchorProfitPerHour,
+        protectionInfo,
+        calcCache
+    ) {
+        let best = null;
+        const canProtect = protectionInfo?.price > 0;
+        const maxProtectFrom = canProtect ? targetLevel - 1 : 0;
+
+        for (let protectFrom = 0; protectFrom <= maxProtectFrom; protectFrom++) {
+            const result = simulateItemAtProtectFrom(
+                itemHrid,
+                itemDetails,
+                targetLevel,
+                protectFrom,
+                params,
+                anchorProfitPerHour,
+                protectionInfo,
+                calcCache
+            );
+            if (result && (!best || result.profitPerHour > best.profitPerHour)) {
+                best = result;
+            }
+        }
+
+        return best;
+    }
+
+    class ProfitCalculator {
+        constructor() {
+            this.isInitialized = false;
+            this.unregisterHandlers = [];
+            this.timerRegistry = timerRegistry_js.createTimerRegistry();
+            this.panel = null;
+            this.tableBody = null;
+            this.sortColumn = 'profitPerHour';
+            this.sortAsc = false;
+            this.lastResults = [];
+            this.isDragging = false;
+            this.dragOffset = { x: 0, y: 0 };
+        }
+
+        initialize() {
+            if (this.isInitialized) return;
+            if (!config.getSetting('enhancementProfitCalc')) return;
+
+            this.isInitialized = true;
+            this._buildPanel();
+
+            const unregister = domObserver.onClass('ProfitCalculator', 'EnhancingPanel_enhancingPanel', (panel) =>
+                this._injectButton(panel)
+            );
+            this.unregisterHandlers.push(unregister);
+
+            document.querySelectorAll('[class*="EnhancingPanel_enhancingPanel"]').forEach((panel) => {
+                this._injectButton(panel);
+            });
+        }
+
+        _injectButton(panel) {
+            if (panel.querySelector(`.${BTN_CLASS}`)) return;
+
+            const btn = document.createElement('button');
+            btn.className = BTN_CLASS;
+            btn.textContent = 'Optimizer';
+            btn.style.cssText = `
+            background: linear-gradient(180deg, rgba(230,180,0,0.2) 0%, rgba(230,180,0,0.1) 100%);
+            color: #e0e0e0;
+            border: 1px solid rgba(230,180,0,0.4);
+            border-radius: 6px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 4px 8px;
+            display: block;
+        `;
+            btn.addEventListener('click', () => this._toggle());
+            panel.insertBefore(btn, panel.firstChild);
+        }
+
+        _toggle() {
+            if (!this.panel) return;
+            const visible = this.panel.style.display !== 'none';
+            this.panel.style.display = visible ? 'none' : 'flex';
+            if (!visible) bringPanelToFront(this.panel);
+        }
+
+        _buildPanel() {
+            this.panel = document.createElement('div');
+            this.panel.id = PANEL_ID$1;
+            this.panel.style.cssText = `
+            position: fixed;
+            top: 60px;
+            right: 60px;
+            z-index: ${config.Z_FLOATING_PANEL};
+            background: rgba(10, 10, 20, 0.97);
+            border: 2px solid rgba(230, 180, 0, 0.5);
+            border-radius: 10px;
+            width: 600px;
+            height: 580px;
+            display: none;
+            flex-direction: column;
+            font-family: 'Segoe UI', sans-serif;
+            color: #e0e0e0;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        `;
+
+            const header = document.createElement('div');
+            header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            cursor: grab;
+            background: rgba(230,180,0,0.12);
+            border-bottom: 1px solid rgba(230,180,0,0.3);
+            border-radius: 8px 8px 0 0;
+            flex-shrink: 0;
+        `;
+            header.innerHTML = `
+            <span style="font-weight:700; font-size:14px; color:#e6b400;">Enhancement Optimizer</span>
+            <button id="mwi-profit-close" style="
+                background:none; border:none; color:#aaa; font-size:22px;
+                cursor:pointer; padding:0; line-height:1;">×</button>
+        `;
+            this._setupDrag(header);
+
+            const tabBar = document.createElement('div');
+            tabBar.style.cssText = `
+            display: flex;
+            gap: 4px;
+            padding: 6px 14px 0 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            tabBar.innerHTML = `
+            <button id="mwi-profit-tab-calc" class="mwi-profit-tab" style="
+                background: rgba(230,180,0,0.18); color: #e6b400; border: 1px solid rgba(230,180,0,0.4);
+                border-bottom: none; border-radius: 6px 6px 0 0; padding: 5px 12px; font-size: 12px;
+                font-weight: 600; cursor: pointer;">Calculator</button>
+            <button id="mwi-profit-tab-config" class="mwi-profit-tab" style="
+                background: transparent; color: #888; border: 1px solid transparent;
+                border-bottom: none; border-radius: 6px 6px 0 0; padding: 5px 12px; font-size: 12px;
+                font-weight: 600; cursor: pointer;">Configure</button>
+        `;
+
+            const calcTab = document.createElement('div');
+            calcTab.id = 'mwi-profit-tab-content-calc';
+            calcTab.style.cssText = 'display: flex; flex-direction: column; flex: 1; min-height: 0;';
+
+            const controls = document.createElement('div');
+            controls.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+
+            const defaultMax = config.getSettingValue('enhancementProfitCalc_maxLevel') || '10';
+            const defaultExcludeCharms = config.getSettingValue('enhancementProfitCalc_excludeCharms', true);
+
+            const inputStyle =
+                'width:46px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
+
+            controls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Max level</label>
+            <input id="mwi-profit-maxlevel" type="number" min="1" max="20" value="${defaultMax}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px; margin-left:6px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-profit-exclude-charms" type="checkbox" ${defaultExcludeCharms ? 'checked' : ''}>
+                Exclude charms
+            </label>
+            <button id="mwi-profit-run" style="
+                margin-left: auto;
+                background: rgba(230,180,0,0.2);
+                color: #e6b400;
+                border: 1px solid rgba(230,180,0,0.4);
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;">Calculate</button>
+        `;
+
+            const tableContainer = document.createElement('div');
+            tableContainer.style.cssText = 'overflow-y: auto; flex: 1;';
+
+            const thBase =
+                'padding:6px 10px; font-weight:600; font-size:11px; cursor:pointer; white-space:nowrap; border-bottom:1px solid #222; color:#888;';
+            tableContainer.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead style="position:sticky; top:0; background:#0a0a14; z-index:1;">
+                    <tr>
+                        <th id="mwi-profit-th-name"  style="${thBase} text-align:left;"># Item</th>
+                        <th id="mwi-profit-th-pph"   style="${thBase} text-align:right;">Profit/hr ▼</th>
+                        <th id="mwi-profit-th-totalprofit" style="${thBase} text-align:right;">Total Profit</th>
+                        <th id="mwi-profit-th-time" style="${thBase} text-align:right;">Total Time</th>
+                        <th id="mwi-profit-th-protect" style="${thBase} text-align:right;">Protect From</th>
+                        <th id="mwi-profit-th-roi" style="${thBase} text-align:right;">ROI</th>
+                        <th id="mwi-profit-th-basecost" style="${thBase} text-align:right;">Base Cost</th>
+                        <th id="mwi-profit-th-enhcost" style="${thBase} text-align:right;">Enhancing Cost</th>
+                        <th id="mwi-profit-th-sellprice" style="${thBase} text-align:right;">Sell Price</th>
+                        <th id="mwi-profit-th-totalxp" style="${thBase} text-align:right;">Total XP</th>
+                        <th id="mwi-profit-th-xph"   style="${thBase} text-align:right;">XP/hr</th>
+                        <th id="mwi-profit-th-effxph" style="${thBase} text-align:right;">Eff. XP/hr</th>
+                        <th id="mwi-profit-th-age" style="${thBase} text-align:right;">Listing Age</th>
+                    </tr>
+                </thead>
+                <tbody id="mwi-profit-tbody"></tbody>
+            </table>
+        `;
+
+            const status = document.createElement('div');
+            status.id = 'mwi-profit-status';
+            status.style.cssText =
+                'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
+            status.textContent = 'Enter parameters and click Calculate.';
+
+            calcTab.appendChild(controls);
+            calcTab.appendChild(tableContainer);
+            calcTab.appendChild(status);
+
+            const configTab = this._buildConfigureTab();
+            configTab.style.display = 'none';
+
+            this.panel.appendChild(header);
+            this.panel.appendChild(tabBar);
+            this.panel.appendChild(calcTab);
+            this.panel.appendChild(configTab);
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.style.cssText = `
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, rgba(230, 180, 0, 0.4) 50%);
+            border-radius: 0 0 8px 0;
+            z-index: 1;
+        `;
+            this.panel.appendChild(resizeHandle);
+            this._setupResize(resizeHandle);
+
+            document.body.appendChild(this.panel);
+            registerFloatingPanel(this.panel);
+
+            this.calcTab = calcTab;
+            this.configTab = configTab;
+            this.tableBody = this.panel.querySelector('#mwi-profit-tbody');
+
+            this.panel.querySelector('#mwi-profit-close').addEventListener('click', () => {
+                this.panel.style.display = 'none';
+            });
+            this.panel.querySelector('#mwi-profit-run').addEventListener('click', () => this._run());
+            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
+            this.panel.querySelector('#mwi-profit-tab-calc').addEventListener('click', () => this._switchTab('calc'));
+            this.panel.querySelector('#mwi-profit-tab-config').addEventListener('click', () => this._switchTab('config'));
+
+            TABLE_COLUMNS.forEach((col) => {
+                this.panel.querySelector(`#mwi-profit-th-${col}`)?.addEventListener('click', () => this._sort(col));
+            });
+        }
+
+        _switchTab(tab) {
+            const activeStyle =
+                'background: rgba(230,180,0,0.18); color: #e6b400; border: 1px solid rgba(230,180,0,0.4); border-bottom: none;';
+            const inactiveStyle =
+                'background: transparent; color: #888; border: 1px solid transparent; border-bottom: none;';
+
+            const calcBtn = this.panel.querySelector('#mwi-profit-tab-calc');
+            const configBtn = this.panel.querySelector('#mwi-profit-tab-config');
+            calcBtn.style.cssText += tab === 'calc' ? activeStyle : inactiveStyle;
+            configBtn.style.cssText += tab === 'config' ? activeStyle : inactiveStyle;
+
+            this.calcTab.style.display = tab === 'calc' ? 'flex' : 'none';
+            this.configTab.style.display = tab === 'config' ? 'flex' : 'none';
+        }
+
+        /**
+         * Build the Configure tab: lets the user override the enhancing stats/gear used by the
+         * calculator (same account-wide `enhanceSim_*` settings as the Enhancement Simulator),
+         * with a "Reset to Current" button that repopulates every field from live character data.
+         * @returns {HTMLElement}
+         */
+        _buildConfigureTab() {
+            const tab = document.createElement('div');
+            tab.id = 'mwi-profit-tab-content-config';
+            tab.style.cssText = 'display: flex; flex-direction: column; flex: 1; min-height: 0;';
+            // Assigned now (not after appending to this.panel) so the wiring below — which looks
+            // elements up via this.configTab — can find them while the tab is still detached.
+            this.configTab = tab;
+
+            const topBar = document.createElement('div');
+            topBar.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            const autoDetectChecked = config.getSetting(AUTODETECT_ID);
+            topBar.innerHTML = `
+            <label style="color:#ccc; font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input id="mwi-cfg-autodetect" type="checkbox" ${autoDetectChecked ? 'checked' : ''}>
+                Auto-detect my current stats
+            </label>
+            <button id="mwi-cfg-reset" style="
+                margin-left: auto;
+                background: rgba(100,150,230,0.2);
+                color: #6b9fff;
+                border: 1px solid rgba(100,150,230,0.4);
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;">Reset to Current</button>
+        `;
+
+            const rowsContainer = document.createElement('div');
+            rowsContainer.id = 'mwi-cfg-rows';
+            rowsContainer.style.cssText = 'overflow-y: auto; flex: 1; padding: 10px 14px;';
+
+            const sectionHTML = (title, ids) => {
+                const rendered = [];
+                for (let i = 0; i < ids.length; i++) {
+                    if (ids[i] === TEA_COMBO_IDS[0] && ids[i + 1] === TEA_COMBO_IDS[1]) {
+                        rendered.push(this._renderTeaComboRowHTML());
+                        i++;
+                        continue;
+                    }
+                    rendered.push(this._renderConfigRowHTML(ids[i]));
+                }
+                return `
+                <div style="color:#6b9fff; font-weight:600; font-size:11px; margin:8px 0 4px;">${title}</div>
+                ${rendered.join('')}
+            `;
+            };
+            rowsContainer.innerHTML =
+                sectionHTML('Stats', CONFIG_SCALAR_IDS) +
+                sectionHTML('Buffs', CONFIG_BUFF_IDS) +
+                sectionHTML('Gear', CONFIG_GEAR_IDS);
+
+            tab.appendChild(topBar);
+            tab.appendChild(rowsContainer);
+
+            topBar.querySelector('#mwi-cfg-reset').addEventListener('click', () => this._resetConfigToCurrent());
+            topBar.querySelector('#mwi-cfg-autodetect').addEventListener('change', (e) => {
+                config.setSetting(AUTODETECT_ID, e.target.checked);
+                if (e.target.checked) this._populateConfigFromDetection();
+                this._applyConfigDisabledState();
+            });
+
+            [...CONFIG_SCALAR_IDS, ...CONFIG_BUFF_IDS, ...CONFIG_GEAR_IDS].forEach((id) => this._wireConfigRow(id));
+            this._applyConfigDisabledState();
+
+            return tab;
+        }
+
+        /**
+         * Render one Configure-tab row for a given `enhanceSim_*` setting id, based on its schema
+         * definition (checkbox / number / select / compound enhanceGear).
+         * @param {string} settingId
+         * @returns {string} HTML
+         */
+        _renderConfigRowHTML(settingId) {
+            const def = settingsSchema_js.getSettingDefinition(settingId);
+            if (!def) return '';
+
+            const rowStyle = 'display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px;';
+            const labelStyle = `color:#aaa; width:${CONFIG_LABEL_COL_WIDTH}px; flex-shrink:0;`;
+            const checkboxSlot = `width:${CONFIG_CHECKBOX_COL_WIDTH}px; flex-shrink:0; display:flex; justify-content:center;`;
+            const inputStyle =
+                'width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
+
+            if (def.type === 'checkbox') {
+                const checked = this._getConfigCheckboxDefault(settingId, def.default);
+                return `
+                <div style="${rowStyle}">
+                    <span style="${checkboxSlot}"><input id="mwi-cfg-${settingId}" type="checkbox" ${checked ? 'checked' : ''}></span>
+                    <label style="${labelStyle}">${def.label}</label>
+                </div>`;
+            }
+
+            if (def.type === 'number') {
+                const value = this._getConfigNumberDefault(settingId, def.default);
+                return `
+                <div style="${rowStyle}">
+                    <span style="${checkboxSlot}"></span>
+                    <label style="${labelStyle}"${def.help ? ` title="${def.help}"` : ''}>${def.label}</label>
+                    <input id="mwi-cfg-${settingId}" type="number" min="${def.min ?? 0}" max="${def.max ?? 999}" value="${value}" style="${inputStyle}" ${def.help ? `title="${def.help}"` : ''}>
+                </div>`;
+            }
+
+            if (def.type === 'select') {
+                const value = config.getSettingValue(settingId, def.default);
+                const options = def.options
+                    .map((o) => `<option value="${o.value}" ${o.value === value ? 'selected' : ''}>${o.label}</option>`)
+                    .join('');
+                return `
+                <div style="${rowStyle}">
+                    <span style="${checkboxSlot}"></span>
+                    <label style="${labelStyle}">${def.label}</label>
+                    <select id="mwi-cfg-${settingId}" style="${inputStyle} width:140px;">${options}</select>
+                </div>`;
+            }
+
+            if (def.type === 'enhanceGear') {
+                const val = config.getSettingValue(settingId, def.default) || def.default;
+                const enabled = val.enabled ?? true;
+                const tier = val.tier || '';
+                const level = val.level ?? 0;
+                let tierHTML = '';
+                if (def.tiers?.length) {
+                    const options = def.tiers
+                        .map((t) => `<option value="${t.value}" ${t.value === tier ? 'selected' : ''}>${t.label}</option>`)
+                        .join('');
+                    tierHTML = `<select id="mwi-cfg-${settingId}_tier" style="${inputStyle} width:100px;">${options}</select>`;
+                }
+                return `
+                <div style="${rowStyle}">
+                    <span style="${checkboxSlot}"><input id="mwi-cfg-${settingId}_enabled" type="checkbox" ${enabled ? 'checked' : ''} title="Equipped"></span>
+                    <label style="${labelStyle}">${def.label}</label>
+                    ${tierHTML}
+                    <input id="mwi-cfg-${settingId}_level" type="number" min="0" max="20" value="${level}" style="${inputStyle}">
+                </div>`;
+            }
+
+            return '';
+        }
+
+        /**
+         * Resolve the display default for a numeric Configure-tab setting: the stored value if the
+         * user (or the Settings page) has ever set one, otherwise for Observatory level specifically,
+         * the character's actual current house room level rather than the schema's static fallback.
+         * @param {string} settingId
+         * @param {number} schemaDefault
+         * @returns {number}
+         */
+        _getConfigNumberDefault(settingId, schemaDefault) {
+            const stored = config.getSettingValue(settingId, undefined);
+            if (stored !== undefined) return stored;
+            if (settingId === 'enhanceSim_houseLevel') {
+                const live = dataManager.getHouseRoomLevel('/house_rooms/observatory');
+                if (typeof live === 'number') return live;
+            }
+            return schemaDefault;
+        }
+
+        /**
+         * Resolve the display default for a boolean Configure-tab setting: the stored value if one
+         * has ever been set, otherwise for the Achievement bonus specifically, whether the character
+         * has actually completed the enhancing success achievement (all 16 Champion achievements)
+         * rather than the schema's static "off" fallback.
+         * @param {string} settingId
+         * @param {boolean} schemaDefault
+         * @returns {boolean}
+         */
+        _getConfigCheckboxDefault(settingId, schemaDefault) {
+            const stored = config.getSettingValue(settingId, undefined);
+            if (stored !== undefined) return stored;
+            if (settingId === 'enhanceSim_achievement') {
+                const bonus = dataManager.getAchievementBuffRatioBoost(
+                    '/action_types/enhancing',
+                    '/buff_types/enhancing_success'
+                );
+                return bonus > 0;
+            }
+            return schemaDefault;
+        }
+
+        /**
+         * Render the "Enhancing Tea" checkbox + tier-level dropdown as one combined row instead of
+         * two stacked rows. Uses the same input ids the generic checkbox/select renderers would
+         * produce, so `_wireConfigRow`/`_populateConfigFromDetection` work on it unmodified.
+         * @returns {string} HTML
+         */
+        _renderTeaComboRowHTML() {
+            const enabledDef = settingsSchema_js.getSettingDefinition('enhanceSim_teaEnabled');
+            const tierDef = settingsSchema_js.getSettingDefinition('enhanceSim_tea');
+            if (!enabledDef || !tierDef) return '';
+
+            const rowStyle = 'display:flex; align-items:center; gap:8px; padding:3px 0; font-size:12px;';
+            const labelStyle = `color:#aaa; width:${CONFIG_LABEL_COL_WIDTH}px; flex-shrink:0;`;
+            const checkboxSlot = `width:${CONFIG_CHECKBOX_COL_WIDTH}px; flex-shrink:0; display:flex; justify-content:center;`;
+            const inputStyle =
+                'width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
+
+            const enabled = config.getSetting('enhanceSim_teaEnabled');
+            const tier = config.getSettingValue('enhanceSim_tea', tierDef.default);
+            const options = tierDef.options
+                .map((o) => `<option value="${o.value}" ${o.value === tier ? 'selected' : ''}>${o.label}</option>`)
+                .join('');
+
+            return `
+            <div style="${rowStyle}">
+                <span style="${checkboxSlot}"><input id="mwi-cfg-enhanceSim_teaEnabled" type="checkbox" ${enabled ? 'checked' : ''}></span>
+                <label style="${labelStyle}">${enabledDef.label}</label>
+                <select id="mwi-cfg-enhanceSim_tea" style="${inputStyle} width:100px;">${options}</select>
+            </div>`;
+        }
+
+        /**
+         * Wire a Configure-tab row's inputs to write straight through to the shared config setting.
+         * @param {string} settingId
+         */
+        _wireConfigRow(settingId) {
+            const def = settingsSchema_js.getSettingDefinition(settingId);
+            if (!def) return;
+
+            if (def.type === 'checkbox') {
+                this.configTab.querySelector(`#mwi-cfg-${settingId}`)?.addEventListener('change', (e) => {
+                    config.setSetting(settingId, e.target.checked);
+                });
+                return;
+            }
+
+            if (def.type === 'number' || def.type === 'select') {
+                const el = this.configTab.querySelector(`#mwi-cfg-${settingId}`);
+                const eventName = def.type === 'select' ? 'change' : 'input';
+                el?.addEventListener(eventName, (e) => {
+                    const value = def.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+                    config.setSettingValue(settingId, value);
+                });
+                return;
+            }
+
+            if (def.type === 'enhanceGear') {
+                const write = () => {
+                    const enabledEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_enabled`);
+                    const tierEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_tier`);
+                    const levelEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_level`);
+                    config.setSettingValue(settingId, {
+                        enabled: enabledEl?.checked ?? true,
+                        tier: tierEl?.value,
+                        level: parseInt(levelEl?.value) || 0,
+                    });
+                };
+                this.configTab.querySelector(`#mwi-cfg-${settingId}_enabled`)?.addEventListener('change', write);
+                this.configTab.querySelector(`#mwi-cfg-${settingId}_tier`)?.addEventListener('change', write);
+                this.configTab.querySelector(`#mwi-cfg-${settingId}_level`)?.addEventListener('input', write);
+            }
+        }
+
+        /**
+         * Enable/disable the manual Configure-tab inputs based on the Auto-detect checkbox —
+         * matches the Settings page's `disabledBy: 'enhanceSim_autoDetect'` behavior.
+         */
+        _applyConfigDisabledState() {
+            const autoDetect = config.getSetting(AUTODETECT_ID);
+            const rowsContainer = this.configTab.querySelector('#mwi-cfg-rows');
+            rowsContainer.style.opacity = autoDetect ? '0.5' : '1';
+            rowsContainer.style.pointerEvents = autoDetect ? 'none' : 'auto';
+        }
+
+        /**
+         * Populate the Configure tab's manual inputs from live character data without changing mode.
+         * Used both by "Reset to Current" and when Auto-detect is freshly checked.
+         */
+        _populateConfigFromDetection() {
+            const detected = enhancementConfig_js.getDetectedGearSettings();
+            if (!detected) return;
+
+            for (const [settingId, value] of Object.entries(detected)) {
+                if (value && typeof value === 'object' && 'enabled' in value) {
+                    const enabledEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_enabled`);
+                    const tierEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_tier`);
+                    const levelEl = this.configTab.querySelector(`#mwi-cfg-${settingId}_level`);
+                    if (enabledEl) enabledEl.checked = value.enabled;
+                    if (tierEl && value.tier) tierEl.value = value.tier;
+                    if (levelEl) levelEl.value = value.level;
+                    config.setSettingValue(settingId, {
+                        enabled: enabledEl?.checked ?? value.enabled,
+                        tier: tierEl?.value || value.tier,
+                        level: levelEl ? parseInt(levelEl.value) || 0 : value.level,
+                    });
+                } else {
+                    const el = this.configTab.querySelector(`#mwi-cfg-${settingId}`);
+                    if (!el) continue;
+                    if (typeof value === 'boolean') {
+                        el.checked = value;
+                        config.setSetting(settingId, value);
+                    } else {
+                        el.value = value;
+                        config.setSettingValue(settingId, value);
+                    }
+                }
+            }
+        }
+
+        /**
+         * "Reset to Current" — turns off Auto-detect (so the values stick as editable manual
+         * overrides) and repopulates every field from live character data.
+         */
+        _resetConfigToCurrent() {
+            config.setSetting(AUTODETECT_ID, false);
+            const autoDetectEl = this.configTab.querySelector('#mwi-cfg-autodetect');
+            if (autoDetectEl) autoDetectEl.checked = false;
+            this._populateConfigFromDetection();
+            this._applyConfigDisabledState();
+        }
+
+        _setupDrag(header) {
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.id === 'mwi-profit-close') return;
+                this.isDragging = true;
+                header.style.cursor = 'grabbing';
+                const rect = this.panel.getBoundingClientRect();
+                this.dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                bringPanelToFront(this.panel);
+
+                const onMove = (ev) => {
+                    if (!this.isDragging) return;
+                    this.panel.style.left = `${ev.clientX - this.dragOffset.x}px`;
+                    this.panel.style.top = `${ev.clientY - this.dragOffset.y}px`;
+                    this.panel.style.right = 'auto';
+                };
+                const onUp = () => {
+                    this.isDragging = false;
+                    header.style.cursor = 'grab';
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        _setupResize(handle) {
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startWidth = this.panel.offsetWidth;
+                const startHeight = this.panel.offsetHeight;
+                bringPanelToFront(this.panel);
+
+                const onMove = (ev) => {
+                    const newWidth = Math.max(400, startWidth + (ev.clientX - startX));
+                    const newHeight = Math.max(300, startHeight + (ev.clientY - startY));
+                    this.panel.style.width = `${newWidth}px`;
+                    this.panel.style.height = `${newHeight}px`;
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        _run() {
+            const maxLevel = Math.min(
+                20,
+                Math.max(1, parseInt(this.panel.querySelector('#mwi-profit-maxlevel').value) || 10)
+            );
+            const excludeCharms = this.panel.querySelector('#mwi-profit-exclude-charms').checked;
+
+            const status = this.panel.querySelector('#mwi-profit-status');
+            status.textContent = 'Calculating…';
+            this.tableBody.innerHTML = '';
+
+            const t = setTimeout(() => {
+                try {
+                    this._compute(maxLevel, excludeCharms);
+                } catch (err) {
+                    console.error('[ProfitCalculator] Error:', err);
+                    status.textContent = 'Error during calculation.';
+                }
+            }, 10);
+            this.timerRegistry.registerTimeout(t);
+        }
+
+        _compute(maxLevel, excludeCharms) {
+            const gameData = dataManager.getInitClientData();
+            const status = this.panel.querySelector('#mwi-profit-status');
+            if (!gameData) {
+                status.textContent = 'No game data available.';
+                return;
+            }
+
+            const params = enhancementConfig_js.getEnhancingParams();
+            const anchorProfitPerHour = getGlobalBestProfitPerHour();
+            const results = [];
+            let bestEffXphSoFar = 0;
+            // Shared across every item this run — see getCachedEnhancementCalc() for why this is safe.
+            const calcCache = new Map();
+
+            for (const [itemHrid, itemDetails] of Object.entries(gameData.itemDetailMap || {})) {
+                if (!itemDetails.enhancementCosts?.length) continue;
+                if (excludeCharms && itemDetails.equipmentDetail?.type === '/equipment_types/charm') continue;
+
+                // Skip items with no live base-item offer at all before running any simulation for them.
+                const basePrice = marketAPI.getPrice(itemHrid, 0);
+                if (!basePrice?.ask || basePrice.ask <= 0) continue;
+
+                const protectionInfo = getCheapestProtectionPrice(itemHrid);
+                let prevProfitPerHour = null;
+                let worseningStreak = 0;
+                let bestBidSoFar = 0;
+                for (let level = 1; level <= maxLevel; level++) {
+                    const bidAtLevel = marketAPI.getPrice(itemHrid, level)?.bid || 0;
+                    if (bidAtLevel > bestBidSoFar) bestBidSoFar = bidAtLevel;
+
+                    const result = calculateItemProfit(
+                        itemHrid,
+                        itemDetails,
+                        level,
+                        params,
+                        anchorProfitPerHour,
+                        protectionInfo,
+                        calcCache
+                    );
+                    if (!result) continue;
+
+                    results.push(result);
+                    if (result.effXph > bestEffXphSoFar) bestEffXphSoFar = result.effXph;
+
+                    const isHopeless =
+                        result.profitPerHour < -Math.abs(anchorProfitPerHour) * PRUNE_PROFIT_MULTIPLE &&
+                        result.effXph < bestEffXphSoFar * PRUNE_EFFXPH_FRACTION;
+                    worseningStreak =
+                        isHopeless && prevProfitPerHour !== null && result.profitPerHour <= prevProfitPerHour
+                            ? worseningStreak + 1
+                            : 0;
+                    prevProfitPerHour = result.profitPerHour;
+
+                    if (worseningStreak >= PRUNE_CONSECUTIVE_LEVELS) {
+                        // Don't give up yet if a higher level's raw (unsimulated) bid price spikes well
+                        // above anything seen so far — that level could still turn out profitable.
+                        let spikeAhead = false;
+                        for (let future = level + 1; future <= maxLevel; future++) {
+                            const futureBid = marketAPI.getPrice(itemHrid, future)?.bid || 0;
+                            if (futureBid > bestBidSoFar * PRUNE_SPIKE_MULTIPLE) {
+                                spikeAhead = true;
+                                break;
+                            }
+                        }
+                        if (!spikeAhead) break;
+                        worseningStreak = 0;
+                    }
+                }
+            }
+
+            this.lastResults = results;
+            this.dataAge = marketAPI.getDataAge();
+            this.sortColumn = 'profitPerHour';
+            this.sortAsc = false;
+            this._render();
+            this._updateSortIndicators();
+
+            const profitable = results.filter((r) => r.profitPerHour > 0).length;
+            const partialNote = results.some((r) => r.costPartial) ? ' * = partial price data.' : '';
+            status.textContent = `${results.length} item/level rows · ${profitable} profitable.${partialNote}`;
+        }
+
+        _sort(col) {
+            const key = COL_KEY_MAP[col];
+            if (this.sortColumn === key) {
+                this.sortAsc = !this.sortAsc;
+            } else {
+                this.sortColumn = key;
+                this.sortAsc = col === 'name';
+            }
+            this._render();
+            this._updateSortIndicators();
+        }
+
+        _updateSortIndicators() {
+            TABLE_COLUMNS.forEach((col) => {
+                const th = this.panel.querySelector(`#mwi-profit-th-${col}`);
+                if (!th) return;
+                const base = th.textContent.replace(/\s*[▲▼]$/, '').trimEnd();
+                th.textContent = COL_KEY_MAP[col] === this.sortColumn ? `${base} ${this.sortAsc ? '▲' : '▼'}` : base;
+            });
+        }
+
+        _render() {
+            const sorted = [...this.lastResults].sort((a, b) => {
+                const key = this.sortColumn;
+                const av = a[key];
+                const bv = b[key];
+                if (typeof av === 'string') return this.sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+                return this.sortAsc ? av - bv : bv - av;
+            });
+
+            const tdR = 'padding:5px 10px; text-align:right; border-bottom:1px solid #141414;';
+            const tdL = `padding:5px 10px; text-align:left; border-bottom:1px solid #141414;
+            max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+
+            const formatTime = (seconds) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.round((seconds % 3600) / 60);
+                return h > 0 ? `${h}h ${m}m` : `${m}m`;
+            };
+            const ageText = this.dataAge != null ? formatters_js.formatRelativeTime(this.dataAge) : '—';
+
+            this.tableBody.innerHTML = sorted
+                .map(
+                    (r, i) => `
+            <tr style="${i % 2 ? 'background:rgba(255,255,255,0.02)' : ''}">
+                <td style="${tdL}" title="${r.name}${r.protectFrom > 0 ? ` (protect from +${r.protectFrom})` : ' (no protection)'}">${i + 1}. ${r.name}</td>
+                <td style="${tdR}${r.profitPerHour < 0 ? ' color:#e05555;' : ' color:#00c896;'}">
+                    ${formatters_js.formatKMB(Math.round(r.profitPerHour))}${r.costPartial ? '*' : ''}
+                </td>
+                <td style="${tdR}${r.totalProfit < 0 ? ' color:#e05555;' : ' color:#00c896;'}">${formatters_js.formatKMB(Math.round(r.totalProfit))}</td>
+                <td style="${tdR}">${formatTime(r.totalTime)}</td>
+                <td style="${tdR}">${r.protectFrom > 0 ? `+${r.protectFrom}` : '—'}</td>
+                <td style="${tdR}${r.roi < 0 ? ' color:#e05555;' : ' color:#00c896;'}">${r.roi.toFixed(1)}%</td>
+                <td style="${tdR}">${formatters_js.formatKMB(Math.round(r.baseCost))}</td>
+                <td style="${tdR}">${formatters_js.formatKMB(Math.round(r.enhancingCost))}</td>
+                <td style="${tdR}">${formatters_js.formatKMB(Math.round(r.sellPrice))}</td>
+                <td style="${tdR}">${formatters_js.formatWithSeparator(Math.round(r.totalXP))}</td>
+                <td style="${tdR}">${formatters_js.formatWithSeparator(r.xph)}</td>
+                <td style="${tdR} color:#e6b400;">${formatters_js.formatWithSeparator(r.effXph)}</td>
+                <td style="${tdR}">${ageText}</td>
+            </tr>`
+                )
+                .join('');
+        }
+
+        disable() {
+            this.unregisterHandlers.forEach((fn) => fn());
+            this.unregisterHandlers = [];
+            this.timerRegistry.clearAll();
+            if (this.panel) {
+                unregisterFloatingPanel(this.panel);
+                this.panel.remove();
+                this.panel = null;
+            }
+            document.querySelectorAll(`.${BTN_CLASS}`).forEach((el) => el.remove());
+            this.isInitialized = false;
+        }
+    }
+
+    const profitCalculator = new ProfitCalculator();
 
     /**
      * Guild XP Tracker
@@ -36513,6 +40428,8 @@ ${starCSS}
         taskAutoReroll: taskAutoReroll$1,
         remainingXP,
         xpTracker: xpTracker$1,
+        bestRatesPopup,
+        skillOptimizerPopup,
         lootLogStats,
         housePanelObserver,
         settingsUI,
@@ -36527,6 +40444,7 @@ ${starCSS}
         alchemyActionProtection: alchemyActionProtection$1,
         enhancementFeature,
         xphCalculator,
+        profitCalculator,
         guildXPTracker: guildXPTracker$1,
         guildXPDisplay: guildXPDisplay$1,
         guildCreditValue: guildCreditValue$1,
@@ -36539,4 +40457,4 @@ ${starCSS}
 
     console.log('[Toolasha] UI library loaded');
 
-})(Toolasha.Core.config, Toolasha.Core.dataManager, Toolasha.Core.domObserver, Toolasha.Utils.formatters, Toolasha.Utils.timerRegistry, Toolasha.Utils.domObserverHelpers, Toolasha.Utils.dom, Toolasha.Core.storage, Toolasha.Core.marketAPI, Toolasha.Utils.efficiency, Toolasha.Core.webSocketHook, Toolasha.Utils.reactInput, Toolasha.Utils.actionPanelHelper, Toolasha.Market.expectedValueCalculator, Toolasha.Utils.bonusRevenueCalculator, Toolasha.Utils.marketData, Toolasha.Utils.profitConstants, Toolasha.Utils.profitHelpers, Toolasha.Market.profitCalculator, Toolasha.Utils.selectors, Toolasha.Utils.actionCalculator, Toolasha.Utils.equipmentParser, Toolasha.Utils.cleanupRegistry, Toolasha.Core, Toolasha.Core.settingsStorage, Toolasha.Utils.enhancementConfig, Toolasha.Utils.materialCalculator, Toolasha.Utils.enhancementCalculator, Toolasha.Utils.teaParser);
+})(Toolasha.Core.config, Toolasha.Core.dataManager, Toolasha.Core.domObserver, Toolasha.Utils.formatters, Toolasha.Utils.timerRegistry, Toolasha.Utils.domObserverHelpers, Toolasha.Utils.dom, Toolasha.Core.storage, Toolasha.Core.marketAPI, Toolasha.Utils.efficiency, Toolasha.Core.webSocketHook, Toolasha.Utils.reactInput, Toolasha.Utils.actionPanelHelper, Toolasha.Market.expectedValueCalculator, Toolasha.Utils.bonusRevenueCalculator, Toolasha.Utils.marketData, Toolasha.Utils.profitConstants, Toolasha.Utils.profitHelpers, Toolasha.Market.profitCalculator, Toolasha.Utils.selectors, Toolasha.Utils.actionCalculator, Toolasha.Utils.equipmentParser, Toolasha.Utils.experienceParser, Toolasha.Utils.teaParser, Toolasha.Market.alchemyProfitCalculator, Toolasha.Utils.cleanupRegistry, Toolasha.Core, Toolasha.Core.settingsStorage, Toolasha.Utils.enhancementConfig, Toolasha.Utils.materialCalculator, Toolasha.Utils.enhancementCalculator);
