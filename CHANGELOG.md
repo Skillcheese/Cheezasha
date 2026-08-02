@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.0](https://github.com/Skillcheese/Cheezasha/compare/v3.1.0...v3.2.0) (2026-08-02)
+
+
+### Features
+
+* merge Optimize Food/Coffee and Ultimate Sim into Combat Sim panel ([d911330](https://github.com/Skillcheese/Cheezasha/commit/d9113307a4f484606403f72203a3b5c9be840942))
+
+
+### Documentation
+
+* add install-from-URL instructions including Steam client ([0882d30](https://github.com/Skillcheese/Cheezasha/commit/0882d3031b1f7027d4156a8b98315841f57582f5))
+
 ## [3.1.0](https://github.com/Skillcheese/Cheezasha/compare/v3.0.1...v3.1.0) (2026-08-02)
 
 ### Features
