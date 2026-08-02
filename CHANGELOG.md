@@ -2,10 +2,9 @@
 
 ## [3.1.0](https://github.com/Skillcheese/Cheezasha/compare/v3.0.1...v3.1.0) (2026-08-02)
 
-
 ### Features
 
-* add Ultimate Sim (food/coffee/zone optimization loop) ([2eea285](https://github.com/Skillcheese/Cheezasha/commit/2eea285f9a2dd301cd1b9cb603cefc05ecf6b4f9))
+- add Ultimate Sim (food/coffee/zone optimization loop) ([2eea285](https://github.com/Skillcheese/Cheezasha/commit/2eea285f9a2dd301cd1b9cb603cefc05ecf6b4f9))
 
 ## [3.0.1](https://github.com/Skillcheese/Cheezasha/compare/v3.0.0...v3.0.1) (2026-08-02)
 
