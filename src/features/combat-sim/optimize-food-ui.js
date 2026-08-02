@@ -391,6 +391,15 @@ class OptimizeFoodUI {
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
 
         const groups = getCandidateFoodGroups();
+        console.log(
+            '[OptimizeFoodUI] Candidate food pool by category (at most 1 per category per combo):',
+            Object.fromEntries(
+                Object.entries(groups).map(([category, items]) => [
+                    category,
+                    items.map((item) => `${item.name} (${item.price}c)`),
+                ])
+            )
+        );
         const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS);
 
         const communityBuffs = getCommunityBuffs();

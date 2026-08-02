@@ -328,6 +328,10 @@ class OptimizeCoffeeUI {
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
 
         const groups = getCandidateDrinkGroups();
+        console.log(
+            `[OptimizeCoffeeUI] Candidate coffee pool (1 per buff family, ${groups.length} families):`,
+            groups.map((g) => ({ buffFamily: g.key, chosenItem: g.name }))
+        );
         const combos = generateCombos(groups, MAX_DRINK_SLOTS);
 
         const communityBuffs = getCommunityBuffs();
