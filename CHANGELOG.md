@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.87.1](https://github.com/Skillcheese/Toolasha/compare/v2.87.0...v2.87.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* point userscript update URLs to the Skillcheese fork and refresh docs ([c7b116c](https://github.com/Skillcheese/Toolasha/commit/c7b116c2d079f2f7cc956a584b933d5ff6b7fd00))
+
 ## [2.87.0](https://github.com/Skillcheese/Toolasha/compare/v2.86.0...v2.87.0) (2026-08-02)
 
 ### Features
