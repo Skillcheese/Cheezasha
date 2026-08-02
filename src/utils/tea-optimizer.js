@@ -992,7 +992,6 @@ export function findOptimalTeas(
 
             const localAnchor = pickRankedProfitAnchor(perActionData);
             const localBestProfit = localAnchor?.profit ?? -Infinity;
-            const bestProfitExp = localAnchor?.xp ?? 0;
             // The recovery-ratio denominator represents the true opportunity cost of your time,
             // which is the best profit/hr available anywhere, not just within this skill.
             const profitAnchor =
@@ -1004,9 +1003,10 @@ export function findOptimalTeas(
                     effectiveXp = xp;
                 } else if (profitAnchor > 0) {
                     const recoveryRatio = Math.abs(profit) / profitAnchor;
-                    // Blending toward the recovery action's XP is a discount, never a bonus —
-                    // cap at this action's own raw XP so a lucrative bestProfitExp can't inflate it.
-                    effectiveXp = Math.min(xp, (xp + recoveryRatio * bestProfitExp) / (1 + recoveryRatio));
+                    // The recovery action's own XP isn't fungible with this skill's XP (it's often a
+                    // different skill entirely), so it's never blended in — recovery time is dead
+                    // time for this skill's XP, diluting the rate rather than adding to it.
+                    effectiveXp = xp / (1 + recoveryRatio);
                 } else {
                     effectiveXp = 0;
                 }
@@ -1365,15 +1365,24 @@ export function getSkillActionRates(skillName, playerLevel, goal, globalBestProf
 }
 
 /**
- * Get the Nth-best profit/hr achievable across ALL skills (gold-optimal teas per skill), for use
- * as the opportunity-cost anchor when computing gold-neutral effective XP/hr. Using the Nth-best
+ * Get the Nth-best profit/hr entry achievable across ALL skills (gold-optimal teas per skill), for
+ * use as the opportunity-cost anchor when computing gold-neutral effective XP/hr. Using the Nth-best
  * (see PROFIT_ANCHOR_RANK) instead of the single best avoids letting one outlier-priced item —
  * which can trade far above its "real" value — dictate the bar for every XP action.
- * @returns {number} Nth-best profit/hr across all skills (0 if fewer than 1 profitable action)
+ * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
+ *  entry, or null if fewer than 1 profitable action exists across all skills
  */
-export function getGlobalBestProfitPerHour() {
+const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+
+export function getGlobalProfitAnchor() {
+    const now = Date.now();
+    if (now < globalProfitAnchorCache.expiresAt) {
+        return globalProfitAnchorCache.value;
+    }
+
     const skills = dataManager.getSkills();
-    const allProfits = [];
+    const allEntries = [];
     for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
         const skillHrid = `/skills/${skillName}`;
         let playerLevel = 1;
@@ -1385,14 +1394,29 @@ export function getGlobalBestProfitPerHour() {
         }
         const rates = getSkillActionRates(skillName, playerLevel, 'gold');
         for (const r of rates) {
-            if (r.profitPerHour > 0) allProfits.push(r.profitPerHour);
+            if (r.profitPerHour > 0) {
+                allEntries.push({ profitPerHour: r.profitPerHour, xpPerHour: r.xpPerHour, name: r.name, hrid: r.hrid });
+            }
         }
     }
 
-    if (allProfits.length === 0) return 0;
-    allProfits.sort((a, b) => b - a);
-    const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, allProfits.length - 1);
-    return allProfits[rankIndex];
+    let result = null;
+    if (allEntries.length > 0) {
+        allEntries.sort((a, b) => b.profitPerHour - a.profitPerHour);
+        const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, allEntries.length - 1);
+        result = allEntries[rankIndex];
+    }
+
+    globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+    return result;
+}
+
+/**
+ * Convenience wrapper around {@link getGlobalProfitAnchor} for callers that only need the number.
+ * @returns {number} Nth-best profit/hr across all skills (0 if fewer than 1 profitable action)
+ */
+export function getGlobalBestProfitPerHour() {
+    return getGlobalProfitAnchor()?.profitPerHour ?? 0;
 }
 
 /**
@@ -1558,4 +1582,5 @@ export default {
     calculateSkillPerformance,
     getSkillActionRates,
     getGlobalBestProfitPerHour,
+    getGlobalProfitAnchor,
 };

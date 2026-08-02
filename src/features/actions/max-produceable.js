@@ -21,6 +21,7 @@ import { formatKMB } from '../../utils/formatters.js';
 import { calculateExpPerHour } from '../../utils/experience-calculator.js';
 import { getDrinkConcentration, parseArtisanBonus } from '../../utils/tea-parser.js';
 import { createTimerRegistry } from '../../utils/timer-registry.js';
+import { getGlobalProfitAnchor } from '../../utils/tea-optimizer.js';
 
 /**
  * Action type constants for classification
@@ -667,14 +668,21 @@ class MaxProduceable {
             }
         }
 
-        // Recovery anchor: the Nth-best profit/hr among visible actions rather than the single
-        // best, so one outlier-priced item doesn't single-handedly set the recovery bar.
+        // Recovery anchor: the Nth-best profit/hr across ALL skilling recipes (not just this menu)
+        // rather than the single best, so one outlier-priced item doesn't single-handedly set the
+        // recovery bar, and recipes with no profitable local recovery option still get a fair anchor.
         profitableEntries.sort((a, b) => b.profitPerHour - a.profitPerHour);
         const anchorIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitableEntries.length - 1);
-        const recoveryAnchor = profitableEntries[anchorIndex] || null;
+        const localAnchor = profitableEntries[anchorIndex] || null;
+        const globalAnchor = getGlobalProfitAnchor();
+        const useGlobal = (globalAnchor?.profitPerHour ?? -Infinity) > (localAnchor?.profitPerHour ?? -Infinity);
+        const recoveryAnchor = useGlobal ? globalAnchor : localAnchor;
         const recoveryProfit = recoveryAnchor?.profitPerHour ?? null;
-        const recoveryExp = recoveryAnchor?.expPerHour ?? null;
-        const recoveryHrid = recoveryAnchor?.actionHrid ?? null;
+        const recoveryActionName = useGlobal
+            ? (recoveryAnchor?.name ?? null)
+            : recoveryAnchor?.actionHrid
+              ? dataManager.getActionDetails(recoveryAnchor.actionHrid)?.name || recoveryAnchor.actionHrid
+              : null;
 
         // Second pass: compute gold-neutral effective XP/hr and find best overall
         for (const [actionPanel, data] of this.actionElements.entries()) {
@@ -694,12 +702,10 @@ class MaxProduceable {
             } else if (recoveryProfit > 0) {
                 const loss = Math.abs(profitPerHour);
                 const recoveryRatio = loss / recoveryProfit;
-                // Blending toward the recovery action's XP is a discount, never a bonus — cap at
-                // this action's own raw XP so a lucrative recoveryExp can't inflate it.
-                effectiveXp = Math.min(
-                    expPerHour,
-                    (expPerHour + recoveryRatio * (recoveryExp || 0)) / (1 + recoveryRatio)
-                );
+                // The recovery action's own XP is not fungible with this skill's XP (it's often a
+                // different skill entirely), so it must never be blended in — recovery time is dead
+                // time for this skill's XP, diluting the rate rather than adding to it.
+                effectiveXp = expPerHour / (1 + recoveryRatio);
             } else {
                 continue;
             }
@@ -722,10 +728,6 @@ class MaxProduceable {
             for (const e of EMOJIS) t = t.replace(e, '');
             return t;
         };
-
-        const recoveryActionName = recoveryHrid
-            ? dataManager.getActionDetails(recoveryHrid)?.name || recoveryHrid
-            : null;
 
         for (const [actionPanel, data] of this.actionElements.entries()) {
             if (!document.body.contains(actionPanel) || !data.displayElement) {
@@ -758,9 +760,9 @@ class MaxProduceable {
                     overallSpan.title =
                         `Gold-neutral XP rate\n` +
                         `This action: ${formatKMB(data.expPerHour)} XP/hr, -${formatKMB(loss)}/hr\n` +
-                        `Recovery: ${recoveryActionName} (+${formatKMB(recoveryProfit)}/hr, ${formatKMB(recoveryExp || 0)} XP/hr)\n` +
+                        `Recovery: ${recoveryActionName} (+${formatKMB(recoveryProfit)}/hr)\n` +
                         `Ratio: ${ratio.toFixed(2)}hr recovery per 1hr action\n` +
-                        `Blended: (${formatKMB(data.expPerHour)} + ${ratio.toFixed(2)} × ${formatKMB(recoveryExp || 0)}) / ${(1 + ratio).toFixed(2)} = ${formatKMB(effXp)}`;
+                        `Diluted: ${formatKMB(data.expPerHour)} / ${(1 + ratio).toFixed(2)} = ${formatKMB(effXp)}`;
                 } else {
                     overallSpan.title = '';
                 }

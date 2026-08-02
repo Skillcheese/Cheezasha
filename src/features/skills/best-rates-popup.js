@@ -54,7 +54,6 @@ function computeEffectiveXpRates(rates, globalBestProfit) {
     const localRankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitableRates.length - 1);
     const localAnchor = profitableRates[localRankIndex];
     const localBestProfit = localAnchor?.profitPerHour ?? -Infinity;
-    const bestProfitExp = localAnchor?.xpPerHour ?? 0;
     const profitAnchor = Math.max(globalBestProfit, localBestProfit);
 
     const results = [];
@@ -65,12 +64,10 @@ function computeEffectiveXpRates(rates, globalBestProfit) {
         } else if (profitAnchor > 0) {
             const loss = Math.abs(r.profitPerHour);
             const recoveryRatio = loss / profitAnchor;
-            // Blending toward the recovery action's XP is a discount, never a bonus — cap at this
-            // action's own raw XP so a lucrative bestProfitExp can't inflate it.
-            effectiveXpPerHour = Math.min(
-                r.xpPerHour,
-                (r.xpPerHour + recoveryRatio * bestProfitExp) / (1 + recoveryRatio)
-            );
+            // The recovery action's own XP isn't fungible with this skill's XP (it's often a
+            // different skill entirely), so it's never blended in — recovery time is dead time
+            // for this skill's XP, diluting the rate rather than adding to it.
+            effectiveXpPerHour = r.xpPerHour / (1 + recoveryRatio);
         } else {
             continue;
         }
