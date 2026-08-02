@@ -28,13 +28,31 @@ const ACCENT_BG = 'rgba(74, 222, 128, 0.12)';
 const ACCENT_BTN_BG = 'rgba(74, 222, 128, 0.2)';
 const ACCENT_BTN_BORDER = 'rgba(74, 222, 128, 0.4)';
 const MAX_FOOD_SLOTS = 3;
-const TOP_CHEAP_PER_TYPE = 5;
+const TOP_CHEAP_PER_CATEGORY = 3;
+// Food only comes in 4 mutually-exclusive categories — you can't equip two of the same category
+// at once (e.g. two donuts), but different categories stack fine (donut + cake, gummy + yogurt).
+const FOOD_CATEGORIES = ['hp_instant', 'hp_over_time', 'mp_instant', 'mp_over_time'];
 // Combos are considered "tied" on deaths/hr or OOM% if within this margin, to absorb sim noise
 // (finite test hours) rather than treating a fractional difference as a real survivability gap.
 const TIE_EPSILON = 1e-6;
 
 /**
- * Pick the cheapest N candidates of a restore type, plus the single strongest (highest restore)
+ * Categorize a food item the same way the sim editor's conflict picker does: instant vs
+ * over-time HP/MP restore. Two items in the same category can't be equipped simultaneously.
+ * @param {Object} detail - item.consumableDetail
+ * @returns {string|null}
+ */
+function getFoodCategory(detail) {
+    const hp = detail.hitpointRestore || 0;
+    const mp = detail.manapointRestore || 0;
+    const dur = detail.recoveryDuration || 0;
+    if (hp > 0) return dur > 0 ? 'hp_over_time' : 'hp_instant';
+    if (mp > 0) return dur > 0 ? 'mp_over_time' : 'mp_instant';
+    return null;
+}
+
+/**
+ * Pick the cheapest N candidates of a category, plus the single strongest (highest restore)
  * in case cheap food alone can't prevent deaths/OOM.
  * @param {Array<Object>} list - candidates sorted ascending by price
  * @param {string} restoreKey - 'hp' or 'mp'
@@ -42,46 +60,76 @@ const TIE_EPSILON = 1e-6;
  */
 function selectCandidates(list, restoreKey) {
     const picked = new Map();
-    for (const item of list.slice(0, TOP_CHEAP_PER_TYPE)) picked.set(item.hrid, item);
+    for (const item of list.slice(0, TOP_CHEAP_PER_CATEGORY)) picked.set(item.hrid, item);
     const strongest = [...list].sort((a, b) => b[restoreKey] - a[restoreKey])[0];
     if (strongest) picked.set(strongest.hrid, strongest);
     return Array.from(picked.values());
 }
 
 /**
- * Build candidate HP/MP food items from item data, priced via the market.
- * @returns {Array<{hrid: string, name: string, hp: number, mp: number, price: number}>}
+ * Build candidate food items grouped by category, priced via the market.
+ * @returns {Object<string, Array<{hrid: string, name: string, hp: number, mp: number, price: number}>>}
  */
-function getCandidateFoodItems() {
+function getCandidateFoodGroups() {
     const clientData = dataManager.getInitClientData();
     const itemDetailMap = clientData?.itemDetailMap || {};
 
-    const hpList = [];
-    const mpList = [];
+    const byCategory = { hp_instant: [], hp_over_time: [], mp_instant: [], mp_over_time: [] };
     for (const [hrid, item] of Object.entries(itemDetailMap)) {
         const detail = item.consumableDetail;
         if (!detail) continue;
         const cat = item.categoryHrid || '';
         if (!cat.includes('food')) continue;
 
-        const hp = detail.hitpointRestore || 0;
-        const mp = detail.manapointRestore || 0;
-        if (hp <= 0 && mp <= 0) continue;
+        const category = getFoodCategory(detail);
+        if (!category) continue;
 
         const price = getBuyPrice(marketAPI.getPrice(hrid));
-        const entry = { hrid, name: item.name || hrid.split('/').pop(), hp, mp, price };
-        if (hp > 0) hpList.push(entry);
-        if (mp > 0) mpList.push(entry);
+        byCategory[category].push({
+            hrid,
+            name: item.name || hrid.split('/').pop(),
+            hp: detail.hitpointRestore || 0,
+            mp: detail.manapointRestore || 0,
+            price,
+        });
     }
 
-    hpList.sort((a, b) => a.price - b.price);
-    mpList.sort((a, b) => a.price - b.price);
-
-    const pool = new Map();
-    for (const item of [...selectCandidates(hpList, 'hp'), ...selectCandidates(mpList, 'mp')]) {
-        pool.set(item.hrid, item);
+    const groups = {};
+    for (const category of FOOD_CATEGORIES) {
+        const list = byCategory[category].sort((a, b) => a.price - b.price);
+        const restoreKey = category.startsWith('hp') ? 'hp' : 'mp';
+        groups[category] = selectCandidates(list, restoreKey);
     }
-    return Array.from(pool.values());
+    return groups;
+}
+
+/**
+ * Generate all food combos of up to maxSlots items that respect the one-item-per-category rule:
+ * pick a subset of categories (up to maxSlots of them), then the cartesian product of each
+ * chosen category's candidates.
+ * @param {Object<string, Array<Object>>} groups - category → candidate items
+ * @param {number} maxSlots
+ * @returns {Array<Array<Object>>}
+ */
+function generateFoodCombos(groups, maxSlots) {
+    const categories = FOOD_CATEGORIES.filter((c) => groups[c].length > 0);
+    const categorySubsets = generateCombos(categories, maxSlots);
+
+    const combos = [];
+    for (const subset of categorySubsets) {
+        let partials = [[]];
+        for (const category of subset) {
+            const next = [];
+            for (const partial of partials) {
+                for (const item of groups[category]) {
+                    next.push([...partial, item]);
+                }
+            }
+            partials = next;
+        }
+        combos.push(...partials);
+    }
+    return combos;
 }
 
 class OptimizeFoodUI {
@@ -342,8 +390,8 @@ class OptimizeFoodUI {
         const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
 
-        const candidates = getCandidateFoodItems();
-        const combos = generateCombos(candidates, MAX_FOOD_SLOTS);
+        const groups = getCandidateFoodGroups();
+        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS);
 
         const communityBuffs = getCommunityBuffs();
 
