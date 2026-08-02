@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cheezasha
 // @namespace    http://tampermonkey.net/
-// @version      3.1.0
+// @version      3.2.0
 // @downloadURL  https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @updateURL    https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @description  Cheezasha - Enhanced tools for Milky Way Idle.
@@ -21,12 +21,12 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.js
 // @require      https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-core.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-utils.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-market.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-actions.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-combat.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@21009c0e9a9c9925b5a6a2150ccd0b41c80f4e84/dist/libraries/cheezasha-ui.js
+// @require      https://UPDATE-THIS-URL/cheezasha-core.js
+// @require      https://UPDATE-THIS-URL/cheezasha-utils.js
+// @require      https://UPDATE-THIS-URL/cheezasha-market.js
+// @require      https://UPDATE-THIS-URL/cheezasha-actions.js
+// @require      https://UPDATE-THIS-URL/cheezasha-combat.js
+// @require      https://UPDATE-THIS-URL/cheezasha-ui.js
 // ==/UserScript==
 // Note: Combat Sim auto-import requires Tampermonkey for cross-domain storage. Not available on Steam (use manual clipboard copy/paste instead).
 
@@ -486,30 +486,6 @@
                 async: false,
             },
             {
-                key: 'optimizeCoffee',
-                name: 'Optimize Coffee',
-                category: 'Combat',
-                module: Combat.optimizeCoffee,
-                async: false,
-                customCheck: () => config.getSetting('combatSim'),
-            },
-            {
-                key: 'optimizeFood',
-                name: 'Optimize Food',
-                category: 'Combat',
-                module: Combat.optimizeFood,
-                async: false,
-                customCheck: () => config.getSetting('combatSim'),
-            },
-            {
-                key: 'ultimateSim',
-                name: 'Ultimate Sim',
-                category: 'Combat',
-                module: Combat.ultimateSim,
-                async: false,
-                customCheck: () => config.getSetting('combatSim'),
-            },
-            {
                 key: 'labSim',
                 name: 'Lab Simulator',
                 category: 'Combat',
@@ -965,7 +941,7 @@
         // Expose minimal user-facing API
         const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-        targetWindow.Cheezasha.version = '3.1.0';
+        targetWindow.Cheezasha.version = '3.2.0';
 
         // Feature toggle API (for users to manage settings via console)
         targetWindow.Cheezasha.features = {

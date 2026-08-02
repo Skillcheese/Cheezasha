@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.1.0
+ * Version: 3.2.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -15924,11 +15924,11 @@
      */
 
 
-    const ACCENT$5 = '#4a9eff';
-    const ACCENT_BG$5 = 'rgba(74, 158, 255, 0.12)';
-    const ACCENT_BORDER$5 = 'rgba(74, 158, 255, 0.5)';
-    const ACCENT_BTN_BG$5 = 'rgba(74, 158, 255, 0.2)';
-    const ACCENT_BTN_BORDER$5 = 'rgba(74, 158, 255, 0.4)';
+    const ACCENT$2 = '#4a9eff';
+    const ACCENT_BG$2 = 'rgba(74, 158, 255, 0.12)';
+    const ACCENT_BORDER$2 = 'rgba(74, 158, 255, 0.5)';
+    const ACCENT_BTN_BG$2 = 'rgba(74, 158, 255, 0.2)';
+    const ACCENT_BTN_BORDER$2 = 'rgba(74, 158, 255, 0.4)';
 
     class SimEditor {
         /**
@@ -16112,7 +16112,7 @@
                             box-sizing:border-box;"></textarea>
                         <div style="display:flex; gap:6px; margin-top:4px;">
                             <button id="mwi-csim-import-go" style="
-                                background:${ACCENT_BTN_BG$5}; border:1px solid ${ACCENT_BTN_BORDER$5}; color:${ACCENT$5};
+                                background:${ACCENT_BTN_BG$2}; border:1px solid ${ACCENT_BTN_BORDER$2}; color:${ACCENT$2};
                                 padding:3px 12px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;
                                 font-weight:600;">Import</button>
                             <button id="mwi-csim-import-cancel" style="
@@ -16171,7 +16171,7 @@
                 for (const { hrid, name } of playerInfo) {
                     const isActive = hrid === activePlayer;
                     const tabStyle = isActive
-                        ? `background:${ACCENT_BG$5}; border:1px solid ${ACCENT_BORDER$5}; color:${ACCENT$5}; font-weight:700;`
+                        ? `background:${ACCENT_BG$2}; border:1px solid ${ACCENT_BORDER$2}; color:${ACCENT$2}; font-weight:700;`
                         : 'background:rgba(255,255,255,0.04); border:1px solid #333; color:#aaa;';
                     html += `<button data-edit-tab="${hrid}" style="
                     ${tabStyle}
@@ -16182,7 +16182,7 @@
             } else if (playerInfo.length === 1) {
                 const { hrid, name } = playerInfo[0];
                 html += `<button data-edit-tab="${hrid}" style="
-                background:${ACCENT_BG$5}; border:1px solid ${ACCENT_BORDER$5}; color:${ACCENT$5}; font-weight:700;
+                background:${ACCENT_BG$2}; border:1px solid ${ACCENT_BORDER$2}; color:${ACCENT$2}; font-weight:700;
                 padding:3px 8px; border-radius:5px; font-size:12px; cursor:pointer;
                 font-family:inherit; transition:all 0.1s; position:relative;
             ">${name}<span data-remove-player="${hrid}" style="margin-left:4px; color:#f44; cursor:pointer; font-size:14px;" title="Remove player">\u00d7</span></button>`;
@@ -16201,7 +16201,7 @@
                 box-sizing:border-box;"></textarea>
             <div style="display:flex; gap:6px; margin-top:4px;">
                 <button id="mwi-csim-import-go" style="
-                    background:${ACCENT_BTN_BG$5}; border:1px solid ${ACCENT_BTN_BORDER$5}; color:${ACCENT$5};
+                    background:${ACCENT_BTN_BG$2}; border:1px solid ${ACCENT_BTN_BORDER$2}; color:${ACCENT$2};
                     padding:3px 12px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;
                     font-weight:600;">Import</button>
                 <button id="mwi-csim-import-cancel" style="
@@ -16293,7 +16293,7 @@
 
             const equippedCount = slotOrder.filter((s) => dto.equipment[s]).length;
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="equip-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="equip-section">`;
             html += `<span data-arrow="equip-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Equipment (${equippedCount} items)`;
             html += '</div>';
             html += `<div id="mwi-csim-equip-section" style="display:none;">`;
@@ -16336,7 +16336,7 @@
             const abilityCount = dto.abilities.filter((a) => a).length;
 
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="ability-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="ability-section">`;
             html += `<span data-arrow="ability-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Abilities (${abilityCount} equipped)`;
             html += '</div>';
             html += `<div id="mwi-csim-ability-section" style="display:none;">`;
@@ -16385,7 +16385,7 @@
             let html = '<div style="margin-bottom:10px;">';
             html +=
                 '<div style="color:' +
-                ACCENT$5 +
+                ACCENT$2 +
                 '; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="consumable-section">';
             html +=
                 '<span data-arrow="consumable-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Consumables (' +
@@ -16566,7 +16566,7 @@
                         lastCategory = item.categoryLabel;
                         html +=
                             '<div style="padding:6px 0 2px; font-size:10px; font-weight:700; color:' +
-                            ACCENT$5 +
+                            ACCENT$2 +
                             '; border-bottom:1px solid #2a2a4e; margin-top:4px;">' +
                             item.categoryLabel +
                             '</div>';
@@ -16696,7 +16696,7 @@
             header.style.cssText =
                 'display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(74,158,255,0.3); flex-shrink:0;';
             header.innerHTML =
-                `<span style="font-weight:700; font-size:13px; color:${ACCENT$5};">Select ${slotName}</span>` +
+                `<span style="font-weight:700; font-size:13px; color:${ACCENT$2};">Select ${slotName}</span>` +
                 '<button id="mwi-csim-equip-picker-close" style="background:none; border:none; color:#aaa; font-size:20px; cursor:pointer; padding:0; line-height:1;">\u00d7</button>';
             popup.appendChild(header);
 
@@ -16729,12 +16729,12 @@
                 for (const item of filtered.slice(0, 100)) {
                     if (item.categoryLabel !== lastCategory) {
                         lastCategory = item.categoryLabel;
-                        html += `<div style="padding:6px 0 2px; font-size:10px; font-weight:700; color:${ACCENT$5}; border-bottom:1px solid #2a2a4e; margin-top:4px;">${item.categoryLabel}</div>`;
+                        html += `<div style="padding:6px 0 2px; font-size:10px; font-weight:700; color:${ACCENT$2}; border-bottom:1px solid #2a2a4e; margin-top:4px;">${item.categoryLabel}</div>`;
                     }
 
                     const isCurrent = item.hrid === currentHrid;
-                    const color = isCurrent ? ACCENT$5 : '#ccc';
-                    const indicator = isCurrent ? ` <span style="color:${ACCENT$5};">\u25cf</span>` : '';
+                    const color = isCurrent ? ACCENT$2 : '#ccc';
+                    const indicator = isCurrent ? ` <span style="color:${ACCENT$2};">\u25cf</span>` : '';
                     const lvlTag = `<span style="color:#666; font-size:10px; margin-left:auto; flex-shrink:0;">Lv ${item.reqLevel}</span>`;
 
                     html +=
@@ -16842,7 +16842,7 @@
             header.style.cssText =
                 'display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid rgba(74,158,255,0.3); flex-shrink:0;';
             header.innerHTML =
-                `<span style="font-weight:700; font-size:13px; color:${ACCENT$5};">Select ${slotLabel}</span>` +
+                `<span style="font-weight:700; font-size:13px; color:${ACCENT$2};">Select ${slotLabel}</span>` +
                 '<button id="mwi-csim-ability-picker-close" style="background:none; border:none; color:#aaa; font-size:20px; cursor:pointer; padding:0; line-height:1;">\u00d7</button>';
             popup.appendChild(header);
 
@@ -16875,7 +16875,7 @@
                 for (const item of filtered) {
                     if (item.categoryLabel !== lastCategory) {
                         lastCategory = item.categoryLabel;
-                        html += `<div style="padding:6px 0 2px; font-size:10px; font-weight:700; color:${ACCENT$5}; border-bottom:1px solid #2a2a4e; margin-top:4px;">${item.categoryLabel}</div>`;
+                        html += `<div style="padding:6px 0 2px; font-size:10px; font-weight:700; color:${ACCENT$2}; border-bottom:1px solid #2a2a4e; margin-top:4px;">${item.categoryLabel}</div>`;
                     }
 
                     if (item.conflict) {
@@ -16885,8 +16885,8 @@
                             ' <span style="font-size:10px; color:#664;">(in use)</span></div>';
                     } else {
                         const isCurrent = item.hrid === currentHrid;
-                        const color = isCurrent ? ACCENT$5 : '#ccc';
-                        const indicator = isCurrent ? ` <span style="color:${ACCENT$5};">\u25cf</span>` : '';
+                        const color = isCurrent ? ACCENT$2 : '#ccc';
+                        const indicator = isCurrent ? ` <span style="color:${ACCENT$2};">\u25cf</span>` : '';
                         html +=
                             `<div data-pick-hrid="${item.hrid}" style="display:flex; align-items:center; gap:8px; padding:3px 4px; cursor:pointer; border-bottom:1px solid #1a1a2e; color:${color};"` +
                             ' onmouseover="this.style.background=\'rgba(255,255,255,0.04)\'" onmouseout="this.style.background=\'\'">' +
@@ -16965,7 +16965,7 @@
             const summary = skills.map((s) => `${s.label.slice(0, 3)} ${dto[s.key]}`).join(' / ');
 
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="skill-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="skill-section">`;
             html += `<span data-arrow="skill-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Skill Levels`;
             html += `<span style="color:#888; font-weight:400; font-size:11px; margin-left:6px;">${summary}</span>`;
             html += '</div>';
@@ -16993,7 +16993,7 @@
             const activeCount = roomHrids.filter((hrid) => (dto.houseRooms[hrid] || 0) > 0).length;
 
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="house-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="house-section">`;
             html += `<span data-arrow="house-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> House Rooms`;
             html += `<span style="color:#888; font-weight:400; font-size:11px; margin-left:6px;">${activeCount} active</span>`;
             html += '</div>';
@@ -17029,7 +17029,7 @@
             const activeCount = upgrades.filter((u) => (tokens[u.key] || 0) > 0).length;
 
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="token-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="token-section">`;
             html += `<span data-arrow="token-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Token Upgrades`;
             html += `<span style="color:#888; font-weight:400; font-size:11px; margin-left:6px;">${activeCount} active</span>`;
             html += '</div>';
@@ -17063,7 +17063,7 @@
             const activeCount = buffs.filter((b) => (levels[b.key] || 0) > 0).length;
 
             let html = `<div style="margin-bottom:10px;">`;
-            html += `<div style="color:${ACCENT$5}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="community-section">`;
+            html += `<div style="color:${ACCENT$2}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="community-section">`;
             html += `<span data-arrow="community-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Community Buffs`;
             html += `<span style="color:#888; font-weight:400; font-size:11px; margin-left:6px;">${activeCount} active</span>`;
             html += '</div>';
@@ -17453,3478 +17453,576 @@
     }
 
     /**
-     * Combat Simulator UI
-     * Floating panel for configuring and running combat simulations.
+     * Combinatorics helper shared by the coffee and food optimizers.
      */
-
-
-    const PANEL_ID$4 = 'mwi-combat-sim-panel';
-    const ACCENT$4 = '#4a9eff';
-    const ACCENT_BORDER$4 = 'rgba(74, 158, 255, 0.5)';
-    const ACCENT_BG$4 = 'rgba(74, 158, 255, 0.12)';
-    const ACCENT_BTN_BG$4 = 'rgba(74, 158, 255, 0.2)';
-    const ACCENT_BTN_BORDER$4 = 'rgba(74, 158, 255, 0.4)';
 
     /**
-     * Format elapsed seconds as "Xs" or "Xm Ys".
-     * @param {number} seconds
-     * @returns {string}
+     * Generate all combinations of up to maxSlots items (including the empty combo), no repetition.
+     * @param {Array} items
+     * @param {number} maxSlots
+     * @returns {Array<Array>}
      */
-    function formatElapsed$1(seconds) {
-        if (seconds < 60) return `${seconds.toFixed(1)}s`;
-        const m = Math.floor(seconds / 60);
-        const s = (seconds % 60).toFixed(0);
-        return `${m}m ${s}s`;
+    function generateCombos(items, maxSlots) {
+        const combos = [[]];
+        const recurse = (start, current) => {
+            if (current.length > 0) combos.push([...current]);
+            if (current.length >= maxSlots) return;
+            for (let i = start; i < items.length; i++) {
+                current.push(items[i]);
+                recurse(i + 1, current);
+                current.pop();
+            }
+        };
+        recurse(0, []);
+        return combos;
     }
 
-    class CombatSimUI {
-        constructor() {
-            this.panel = null;
-            this._editor = null;
-            this.isRunning = false;
-            this.isDragging = false;
-            this.dragOffset = { x: 0, y: 0 };
-            this.elapsedTimer = null;
-            this._activePlayerTab = 'player1';
-            this._playerInfo = [];
-            this._lastSimResult = null;
-            this._lastSimHours = null;
-            this._lastGameData = null;
-            // Session history for multi-scenario comparison
-            this._simHistory = [];
-            this._comparisonIndex = null;
-            // Comparison table state
-            this._comparisonBaseline = null; // index into _simHistory
-            this._comparisonSlots = []; // array of _simHistory indices to compare
-            this._activeDetailIndex = null; // which history entry's details are shown
-            this._activeMainTab = 'configure';
-            // All Zones state
-            this._allZonesMode = null; // null = off, 'group' or 'solo'
-            this._allZonesResults = null; // Array of {zone, simResult, revenue}
-            this._allZonesSortCol = null;
-            this._allZonesSortAsc = true;
-            this._earlyExitEnabled = true; // default on
-            // Seek state
-            this._seekItems = []; // [{itemHrid, name}] — droppable items across all combat zones
-            this._seekSelectedItem = null;
-            this._seekResults = null;
-            this._seekSortCol = null;
-            this._seekSortAsc = true;
-        }
-
-        /**
-         * Build and append the floating panel to the document body.
-         */
-        buildPanel() {
-            if (this.panel) return;
-
-            this.panel = document.createElement('div');
-            this.panel.id = PANEL_ID$4;
-            this.panel.style.cssText = `
-            position: fixed;
-            top: 60px;
-            right: 60px;
-            z-index: ${config.Z_FLOATING_PANEL};
-            background: rgba(10, 10, 20, 0.97);
-            border: 2px solid ${ACCENT_BORDER$4};
-            border-radius: 10px;
-            width: 600px;
-            height: 600px;
-            min-width: 400px;
-            min-height: 300px;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: none;
-            flex-direction: column;
-            font-family: 'Segoe UI', sans-serif;
-            color: #e0e0e0;
-            font-size: 13px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-        `;
-
-            // Header
-            const header = document.createElement('div');
-            header.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            cursor: grab;
-            background: ${ACCENT_BG$4};
-            border-bottom: 1px solid ${ACCENT_BORDER$4};
-            border-radius: 8px 8px 0 0;
-            flex-shrink: 0;
-        `;
-            header.innerHTML = `
-            <span style="font-weight:700; font-size:14px; color:${ACCENT$4};">Combat Simulator</span>
-            <button id="mwi-csim-close" style="
-                background:none; border:none; color:#aaa; font-size:22px;
-                cursor:pointer; padding:0; line-height:1;">×</button>
-        `;
-            this._setupDrag(header);
-
-            // Tab bar (Configure | Results)
-            const tabBar = document.createElement('div');
-            tabBar.id = 'mwi-csim-tabbar';
-            tabBar.style.cssText = `
-            display: flex;
-            gap: 0;
-            padding: 0;
-            flex-shrink: 0;
-            border-bottom: 1px solid #222;
-        `;
-            const tabStyle = (active) => `
-            flex: 1;
-            padding: 7px 0;
-            text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            border: none;
-            font-family: inherit;
-            transition: all 0.1s;
-            background: ${active ? ACCENT_BG$4 : 'transparent'};
-            color: ${active ? ACCENT$4 : '#888'};
-            border-bottom: 2px solid ${active ? ACCENT$4 : 'transparent'};
-        `;
-            tabBar.innerHTML = `
-            <button id="mwi-csim-tab-configure" style="${tabStyle(true)}">Configure</button>
-            <button id="mwi-csim-tab-results" style="${tabStyle(false)}">Results</button>
-            <button id="mwi-csim-tab-seek" style="${tabStyle(false)}">Seek</button>
-            <button id="mwi-csim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
-        `;
-
-            // Configure tab content
-            const configureContent = document.createElement('div');
-            configureContent.id = 'mwi-csim-configure-content';
-            configureContent.style.cssText = 'display:flex; flex-direction:column; flex:1; overflow:hidden;';
-
-            // Controls (zone, tier, hours, simulate)
-            const controls = document.createElement('div');
-            controls.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-
-            const selectStyle =
-                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
-            const inputStyle =
-                'width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
-
-            controls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Zone</label>
-            <select id="mwi-csim-zone" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Tier</label>
-            <select id="mwi-csim-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;">
-            </select>
-            <label style="color:#888; font-size:12px;">Hours</label>
-            <input id="mwi-csim-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_defaultHours', 100)}" style="${inputStyle}">
-            <button id="mwi-csim-run" style="
-                margin-left: auto;
-                background: ${ACCENT_BTN_BG$4};
-                color: ${ACCENT$4};
-                border: 1px solid ${ACCENT_BTN_BORDER$4};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;">Simulate</button>
-        `;
-
-            // All Zones controls row
-            const allZonesRow = document.createElement('div');
-            allZonesRow.id = 'mwi-csim-allzones-row';
-            allZonesRow.style.cssText = `
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 6px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-            font-size: 12px;
-        `;
-            const checkboxStyle = 'margin:0; cursor:pointer;';
-            const labelStyle = 'display:flex; align-items:center; gap:4px; color:#888; cursor:pointer;';
-            allZonesRow.innerHTML = `
-            <label style="${labelStyle}">
-                <input type="checkbox" id="mwi-csim-allzones-group" style="${checkboxStyle}">
-                Sim All Zones
-            </label>
-            <label style="${labelStyle}">
-                <input type="checkbox" id="mwi-csim-allzones-solo" style="${checkboxStyle}">
-                Sim All Solo
-            </label>
-            <label id="mwi-csim-allzones-hours-label" style="color:#888; font-size:12px; display:none;">Hours</label>
-            <input id="mwi-csim-allzones-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_allZonesDefaultHours', 10)}" style="display:none; width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;">
-            <label id="mwi-csim-earlyexit-label" style="${labelStyle} display:none;" title="Stop simming higher tiers for a zone if both XP/hr and profit/hr declined vs the previous tier">
-                <input type="checkbox" id="mwi-csim-earlyexit" style="${checkboxStyle}" checked>
-                Skip Worse Tiers
-            </label>
-        `;
-
-            // Zone checklist (hidden by default)
-            const zoneChecklist = document.createElement('div');
-            zoneChecklist.id = 'mwi-csim-zone-checklist';
-            zoneChecklist.style.cssText = `
-            display: none;
-            max-height: 150px;
-            overflow-y: auto;
-            padding: 6px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-
-            // Loadout editor area (scrollable)
-            const editorArea = document.createElement('div');
-            editorArea.id = 'mwi-csim-editor';
-            editorArea.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-            editorArea.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Loading loadout...</div>`;
-
-            this._editor = new SimEditor({ editorEl: editorArea, labMode: false });
-
-            configureContent.appendChild(controls);
-            configureContent.appendChild(allZonesRow);
-            configureContent.appendChild(zoneChecklist);
-            configureContent.appendChild(editorArea);
-
-            // Results tab content (hidden by default)
-            const resultsContent = document.createElement('div');
-            resultsContent.id = 'mwi-csim-results-content';
-            resultsContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
-
-            // Progress bar container (hidden by default)
-            const progressContainer = document.createElement('div');
-            progressContainer.id = 'mwi-csim-progress-container';
-            progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            progressContainer.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div style="
-                    flex:1;
-                    background:#1a1a2e;
-                    border-radius:4px;
-                    height:18px;
-                    overflow:hidden;
-                    position:relative;
-                    border:1px solid #333;">
-                    <div id="mwi-csim-progress-fill" style="
-                        height:100%;
-                        width:0%;
-                        background:linear-gradient(90deg, ${ACCENT_BTN_BG$4}, ${ACCENT$4});
-                        border-radius:3px;
-                        transition:width 0.2s ease;"></div>
-                    <span id="mwi-csim-progress-text" style="
-                        position:absolute;
-                        top:0; left:0; right:0;
-                        text-align:center;
-                        font-size:11px;
-                        line-height:18px;
-                        color:#e0e0e0;
-                        font-weight:600;">0%</span>
-                </div>
-                <button id="mwi-csim-stop" style="
-                    background:rgba(244, 67, 54, 0.2);
-                    border:1px solid rgba(244, 67, 54, 0.4);
-                    color:#f44336;
-                    border-radius:4px;
-                    padding:2px 10px;
-                    font-size:11px;
-                    font-weight:600;
-                    cursor:pointer;
-                    font-family:inherit;
-                    flex-shrink:0;">Stop</button>
-            </div>
-        `;
-
-            // Results container
-            const resultsContainer = document.createElement('div');
-            resultsContainer.id = 'mwi-csim-results';
-            resultsContainer.style.cssText = 'display:none; overflow-y:auto; flex:1; padding:10px 14px;';
-
-            resultsContent.appendChild(progressContainer);
-            resultsContent.appendChild(resultsContainer);
-
-            // Seek tab content (hidden by default)
-            const seekContent = document.createElement('div');
-            seekContent.id = 'mwi-csim-seek-content';
-            seekContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
-
-            const seekControls = document.createElement('div');
-            seekControls.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-            seekControls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Item</label>
-            <input id="mwi-csim-seek-input" type="text" placeholder="Search item..." style="
-                flex:1; min-width:0;
-                background:#1a1a2e; color:#e0e0e0;
-                border:1px solid #444; border-radius:4px;
-                padding:3px 6px; font-size:12px; font-family:inherit;">
-            <label style="color:#888; font-size:12px;">Hours</label>
-            <input id="mwi-csim-seek-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_seekDefaultHours', 10)}" style="
-                width:60px; background:#1a1a2e; color:#e0e0e0;
-                border:1px solid #444; border-radius:4px;
-                padding:3px 6px; font-size:12px; text-align:center;">
-            <button id="mwi-csim-seek-run" style="
-                background: ${ACCENT_BTN_BG$4};
-                color: ${ACCENT$4};
-                border: 1px solid ${ACCENT_BTN_BORDER$4};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                font-family: inherit;">Seek</button>
-            <button id="mwi-csim-seek-stop" style="
-                display:none;
-                background:rgba(244, 67, 54, 0.2);
-                border:1px solid rgba(244, 67, 54, 0.4);
-                color:#f44336;
-                border-radius:4px;
-                padding:5px 10px;
-                font-size:12px;
-                font-weight:600;
-                cursor:pointer;
-                font-family:inherit;">Stop</button>
-        `;
-
-            const seekSuggestions = document.createElement('div');
-            seekSuggestions.id = 'mwi-csim-seek-suggestions';
-            seekSuggestions.style.cssText = `
-            display: none;
-            max-height: 140px;
-            overflow-y: auto;
-            padding: 4px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-
-            const seekProgress = document.createElement('div');
-            seekProgress.id = 'mwi-csim-seek-progress';
-            seekProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            seekProgress.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
-                    <div id="mwi-csim-seek-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$4}, ${ACCENT$4}); border-radius:3px; transition:width 0.2s ease;"></div>
-                    <span id="mwi-csim-seek-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0%</span>
-                </div>
-            </div>
-        `;
-
-            const seekResults = document.createElement('div');
-            seekResults.id = 'mwi-csim-seek-results';
-            seekResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-
-            seekContent.appendChild(seekControls);
-            seekContent.appendChild(seekSuggestions);
-            seekContent.appendChild(seekProgress);
-            seekContent.appendChild(seekResults);
-
-            // Upgrade tab content (hidden by default)
-            const upgradeContent = document.createElement('div');
-            upgradeContent.id = 'mwi-csim-upgrade-content';
-            upgradeContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
-
-            const upgradeControls = document.createElement('div');
-            upgradeControls.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-            upgradeControls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Player</label>
-            <select id="mwi-csim-upgrade-player" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Mode</label>
-            <select id="mwi-csim-upgrade-mode" style="${selectStyle}">
-                <option value="equipment">Equipment</option>
-                <option value="ability_level">Ability Levels</option>
-                <option value="ability_swap">Ability Swaps</option>
-            </select>
-            <span id="mwi-csim-upgrade-level-group" style="display:none; align-items:center; gap:4px;">
-                <select id="mwi-csim-upgrade-level-type" style="
-                    background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
-                    border-radius:3px; padding:3px 5px; font-size:12px;">
-                    <option value="increment">+Levels</option>
-                    <option value="target">Target Lv</option>
-                    <option value="budget">Budget (M)</option>
-                </select>
-                <input id="mwi-csim-upgrade-target-level" type="number" min="1" max="200" step="1" value="5" placeholder="+5" style="
-                    width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
-                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
-                    title="Number of levels to add to each ability">
-            </span>
-            <span id="mwi-csim-upgrade-budget-group" style="display:inline-flex; align-items:center; gap:4px;">
-                <label id="mwi-csim-upgrade-budget-label" style="color:#888; font-size:12px;">Max Cost (M coins)</label>
-                <input id="mwi-csim-upgrade-swap-budget" type="number" min="0" step="0.01" placeholder="e.g. 1" style="
-                    width:70px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
-                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
-                    title="Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.">
-            </span>
-            <span id="mwi-csim-upgrade-level-boost-group" style="display:none; align-items:center; gap:4px;">
-                <label style="color:#888; font-size:12px;">+Levels</label>
-                <input id="mwi-csim-upgrade-level-boost" type="number" min="0" step="1" placeholder="0" style="
-                    width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
-                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
-                    title="Check equip requirements against all your skills at their current level plus this many levels, to plan future upgrades. Leave blank for 0 (current levels).">
-            </span>
-            <label style="display:flex; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;">
-                <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
-                Skip Back
-            </label>
-            <button id="mwi-csim-upgrade-run" style="
-                background: ${ACCENT_BTN_BG$4};
-                color: ${ACCENT$4};
-                border: 1px solid ${ACCENT_BTN_BORDER$4};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                font-family: inherit;">Analyze</button>
-            <button id="mwi-csim-upgrade-stop" style="
-                display:none;
-                background:rgba(244, 67, 54, 0.2);
-                border:1px solid rgba(244, 67, 54, 0.4);
-                color:#f44336;
-                border-radius:4px;
-                padding:5px 10px;
-                font-size:12px;
-                font-weight:600;
-                cursor:pointer;
-                font-family:inherit;">Stop</button>
-        `;
-
-            const upgradeProgress = document.createElement('div');
-            upgradeProgress.id = 'mwi-csim-upgrade-progress';
-            upgradeProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            upgradeProgress.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
-                    <div id="mwi-csim-upgrade-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$4}, ${ACCENT$4}); border-radius:3px; transition:width 0.2s ease;"></div>
-                    <span id="mwi-csim-upgrade-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
-                </div>
-            </div>
-        `;
-
-            const upgradeResults = document.createElement('div');
-            upgradeResults.id = 'mwi-csim-upgrade-results';
-            upgradeResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-
-            upgradeContent.appendChild(upgradeControls);
-            upgradeContent.appendChild(upgradeProgress);
-            upgradeContent.appendChild(upgradeResults);
-
-            // Status bar
-            const status = document.createElement('div');
-            status.id = 'mwi-csim-status';
-            status.style.cssText =
-                'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-            status.textContent = 'Select a zone and click Simulate.';
-
-            this.panel.appendChild(header);
-            this.panel.appendChild(tabBar);
-            this.panel.appendChild(configureContent);
-            this.panel.appendChild(resultsContent);
-            this.panel.appendChild(seekContent);
-            this.panel.appendChild(upgradeContent);
-            this.panel.appendChild(status);
-
-            const resizeHandle = document.createElement('div');
-            resizeHandle.style.cssText = `
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            width: 16px;
-            height: 16px;
-            cursor: nwse-resize;
-            background: linear-gradient(135deg, transparent 50%, rgba(74, 158, 255, 0.4) 50%);
-            border-radius: 0 0 8px 0;
-            z-index: 1;
-        `;
-            this.panel.appendChild(resizeHandle);
-            this._setupResize(resizeHandle);
-
-            document.body.appendChild(this.panel);
-            registerFloatingPanel(this.panel);
-
-            // Event listeners
-            this.panel.querySelector('#mwi-csim-close').addEventListener('click', () => {
-                this.panel.style.display = 'none';
-            });
-            this.panel.querySelector('#mwi-csim-run').addEventListener('click', () => this._onSimulate());
-            this.panel.querySelector('#mwi-csim-stop').addEventListener('click', () => this._onSimulate());
-            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
-
-            // Tab switching
-            this.panel
-                .querySelector('#mwi-csim-tab-configure')
-                .addEventListener('click', () => this._switchTab('configure'));
-            this.panel.querySelector('#mwi-csim-tab-results').addEventListener('click', () => this._switchTab('results'));
-            this.panel.querySelector('#mwi-csim-tab-seek').addEventListener('click', () => this._switchTab('seek'));
-            this.panel.querySelector('#mwi-csim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
-            this.panel.querySelector('#mwi-csim-upgrade-run').addEventListener('click', () => this._onUpgradeAnalyze());
-            this.panel.querySelector('#mwi-csim-upgrade-stop').addEventListener('click', () => {
-                this._upgradeAborted = true;
-            });
-            this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
-                const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
-                const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
-                const budgetLabel = this.panel.querySelector('#mwi-csim-upgrade-budget-label');
-                const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
-                const levelBoostGroup = this.panel.querySelector('#mwi-csim-upgrade-level-boost-group');
-                const isEquipmentMode = e.target.value === 'equipment';
-                const isLevelMode = e.target.value === 'ability_level';
-                const isSwapMode = e.target.value === 'ability_swap';
-                levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
-                budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
-                levelBoostGroup.style.display = isEquipmentMode ? 'inline-flex' : 'none';
-                if (isEquipmentMode) {
-                    budgetLabel.textContent = 'Max Cost (M coins)';
-                    budgetInput.title =
-                        'Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.';
-                } else if (isSwapMode) {
-                    budgetLabel.textContent = 'Budget (M coins)';
-                    budgetInput.title =
-                        'Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.';
-                }
-                if (isLevelMode) {
-                    this._setDefaultAbilityTargetLevel();
-                }
-            });
-            this.panel.querySelector('#mwi-csim-upgrade-level-type').addEventListener('change', (e) => {
-                const input = this.panel.querySelector('#mwi-csim-upgrade-target-level');
-                if (e.target.value === 'increment') {
-                    input.value = '5';
-                    input.placeholder = '+5';
-                    input.title = 'Number of levels to add to each ability';
-                    input.step = '1';
-                } else if (e.target.value === 'target') {
-                    input.value = '';
-                    input.placeholder = 'e.g. 80';
-                    input.title = 'Absolute target level for all abilities';
-                    input.step = '1';
-                } else {
-                    // budget
-                    input.value = '';
-                    input.placeholder = 'e.g. 1.5';
-                    input.title =
-                        'Coin budget (in millions, decimals allowed) to level each equipped ability up to. ' +
-                        'Cost shown is the total value of the ability including XP already invested.';
-                    input.step = '0.01';
-                }
-            });
-            this.panel.querySelector('#mwi-csim-upgrade-target-level').addEventListener('change', (e) => {
-                const levelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value;
-                if (levelType === 'budget') return;
-                // Increment/target modes are integer levels — floor any decimal input.
-                const val = Math.floor(parseFloat(e.target.value));
-                if (Number.isNaN(val)) return;
-                e.target.value = Math.min(200, Math.max(1, val));
-            });
-
-            // Zone change → update tier dropdown
-            this.panel.querySelector('#mwi-csim-zone').addEventListener('change', () => this._updateTierDropdown());
-
-            // All Zones toggles
-            this.panel.querySelector('#mwi-csim-allzones-group').addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    this.panel.querySelector('#mwi-csim-allzones-solo').checked = false;
-                    this._allZonesMode = 'group';
-                } else {
-                    this._allZonesMode = null;
-                }
-                this._updateAllZonesUI();
-            });
-            this.panel.querySelector('#mwi-csim-allzones-solo').addEventListener('change', (e) => {
-                if (e.target.checked) {
-                    this.panel.querySelector('#mwi-csim-allzones-group').checked = false;
-                    this._allZonesMode = 'solo';
-                } else {
-                    this._allZonesMode = null;
-                }
-                this._updateAllZonesUI();
-            });
-
-            // Early exit toggle
-            this.panel.querySelector('#mwi-csim-earlyexit').addEventListener('change', (e) => {
-                this._earlyExitEnabled = e.target.checked;
-            });
-
-            // Seek: item search input
-            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('input', (e) => {
-                this._updateSeekSuggestions(e.target.value);
-            });
-            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('focus', (e) => {
-                this._updateSeekSuggestions(e.target.value);
-            });
-            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('blur', () => {
-                // Delay hide to allow click on suggestion
-                setTimeout(() => {
-                    const sug = this.panel.querySelector('#mwi-csim-seek-suggestions');
-                    if (sug) sug.style.display = 'none';
-                }, 150);
-            });
-            this.panel.querySelector('#mwi-csim-seek-run').addEventListener('click', () => this._onSeek());
-            this.panel.querySelector('#mwi-csim-seek-stop').addEventListener('click', () => {
-                cancelAllZonesSimulation();
-            });
-
-            this.populateZones();
-        }
-
-        /**
-         * Fill the zone dropdown from getCombatZones() and select the current zone.
-         */
-        populateZones() {
-            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
-            if (!zoneSelect) return;
-
-            const zones = getCombatZones();
-            zoneSelect.innerHTML = '';
-
-            for (const zone of zones) {
-                const option = document.createElement('option');
-                option.value = zone.hrid;
-                option.textContent = zone.isDungeon ? `[D] ${zone.name}` : zone.name;
-                zoneSelect.appendChild(option);
-            }
-
-            // Select current zone and tier if available
-            const current = getCurrentCombatZone();
-            if (current) {
-                zoneSelect.value = current.zoneHrid;
-            }
-
-            this._updateTierDropdown();
-
-            // Restore current tier after dropdown is rebuilt
-            if (current) {
-                const tierSelect = this.panel.querySelector('#mwi-csim-tier');
-                if (tierSelect) {
-                    tierSelect.value = String(current.difficultyTier);
-                }
-            }
-        }
-
-        /**
-         * Update the tier dropdown based on the currently selected zone.
-         * Regular zones: T0-T5, Dungeons: T0-T2.
-         * @private
-         */
-        _updateTierDropdown() {
-            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-csim-tier');
-            if (!zoneSelect || !tierSelect) return;
-
-            const selectedHrid = zoneSelect.value;
-            const zones = getCombatZones();
-            const zone = zones.find((z) => z.hrid === selectedHrid);
-            const maxTier = zone?.isDungeon ? 2 : 5;
-
-            const currentTier = parseInt(tierSelect.value) || 0;
-            tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
-                ''
-            );
-            tierSelect.value = String(Math.min(currentTier, maxTier));
-        }
-
-        /**
-         * Update UI visibility when All Zones mode changes.
-         * Shows/hides zone checklist, hides single-zone controls.
-         * @private
-         */
-        _updateAllZonesUI() {
-            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
-            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-csim-tier');
-            const zoneLabel = zoneSelect?.previousElementSibling;
-            const tierLabel = tierSelect?.previousElementSibling;
-            const earlyExitLabel = this.panel?.querySelector('#mwi-csim-earlyexit-label');
-            const allZonesHoursInput = this.panel?.querySelector('#mwi-csim-allzones-hours');
-            const allZonesHoursLabel = this.panel?.querySelector('#mwi-csim-allzones-hours-label');
-            const mainHoursInput = this.panel?.querySelector('#mwi-csim-hours');
-            const mainHoursLabel = mainHoursInput?.previousElementSibling;
-
-            if (!checklist) return;
-
-            if (this._allZonesMode) {
-                // Hide single-zone controls
-                if (zoneSelect) zoneSelect.style.display = 'none';
-                if (tierSelect) tierSelect.style.display = 'none';
-                if (zoneLabel) zoneLabel.style.display = 'none';
-                if (tierLabel) tierLabel.style.display = 'none';
-                if (mainHoursInput) mainHoursInput.style.display = 'none';
-                if (mainHoursLabel) mainHoursLabel.style.display = 'none';
-                if (earlyExitLabel) earlyExitLabel.style.display = 'flex';
-                if (allZonesHoursInput) allZonesHoursInput.style.display = '';
-                if (allZonesHoursLabel) allZonesHoursLabel.style.display = '';
-
-                // Show checklist with zones
-                checklist.style.display = 'block';
-                this._populateZoneChecklist();
-            } else {
-                // Show single-zone controls
-                if (zoneSelect) zoneSelect.style.display = '';
-                if (tierSelect) tierSelect.style.display = '';
-                if (zoneLabel) zoneLabel.style.display = '';
-                if (tierLabel) tierLabel.style.display = '';
-                if (mainHoursInput) mainHoursInput.style.display = '';
-                if (mainHoursLabel) mainHoursLabel.style.display = '';
-                if (earlyExitLabel) earlyExitLabel.style.display = 'none';
-                if (allZonesHoursInput) allZonesHoursInput.style.display = 'none';
-                if (allZonesHoursLabel) allZonesHoursLabel.style.display = 'none';
-
-                // Hide checklist
-                checklist.style.display = 'none';
-            }
-        }
-
-        /**
-         * Populate the zone checklist based on current all-zones mode.
-         * @private
-         */
-        _populateZoneChecklist() {
-            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
-            if (!checklist) return;
-
-            const zones = getCombatZones().filter((z) => {
-                if (z.isDungeon) return false;
-                if (this._allZonesMode === 'group') return z.maxSpawnCount > 1;
-                if (this._allZonesMode === 'solo') return z.maxSpawnCount === 1;
-                return false;
-            });
-
-            const checkAllId = 'mwi-csim-checkall';
-            checklist.innerHTML = `
-            <label style="display:flex; align-items:center; gap:4px; color:${ACCENT$4}; font-size:11px; font-weight:600; margin-bottom:4px; cursor:pointer;">
-                <input type="checkbox" id="${checkAllId}" checked style="margin:0; cursor:pointer;">
-                Check All
-            </label>
-        `;
-
-            for (const zone of zones) {
-                const label = document.createElement('label');
-                label.style.cssText =
-                    'display:flex; align-items:center; gap:4px; color:#ccc; font-size:11px; padding:1px 0; cursor:pointer;';
-                label.innerHTML = `<input type="checkbox" class="mwi-csim-zone-cb" data-hrid="${zone.hrid}" checked style="margin:0; cursor:pointer;"> ${zone.name}`;
-                checklist.appendChild(label);
-            }
-
-            // Check All toggle
-            checklist.querySelector(`#${checkAllId}`).addEventListener('change', (e) => {
-                checklist.querySelectorAll('.mwi-csim-zone-cb').forEach((cb) => {
-                    cb.checked = e.target.checked;
-                });
-            });
-        }
-
-        /**
-         * Get selected zones expanded into all difficulty tiers.
-         * @returns {Array<{zoneHrid: string, difficultyTier: number, name: string}>}
-         * @private
-         */
-        _getSelectedAllZones() {
-            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
-            if (!checklist) return [];
-
-            const allZones = getCombatZones();
-            const selected = [];
-
-            checklist.querySelectorAll('.mwi-csim-zone-cb:checked').forEach((cb) => {
-                const hrid = cb.dataset.hrid;
-                const zone = allZones.find((z) => z.hrid === hrid);
-                if (!zone) return;
-
-                for (let t = 0; t <= zone.maxDifficulty; t++) {
-                    selected.push({ zoneHrid: zone.hrid, difficultyTier: t, name: zone.name });
-                }
-            });
-
-            return selected;
-        }
-
-        /**
-         * Display all-zones comparison results in a sortable table.
-         * @param {Array<Object>} zoneResults - Array of {zone, simResult, revenue}
-         * @param {number} hours - Simulation hours
-         * @param {Object} gameData - Game data maps
-         * @private
-         */
-        _displayAllZonesResults(zoneResults, hours, gameData) {
-            const container = this.panel?.querySelector('#mwi-csim-results');
-            if (!container) return;
-
-            this._allZonesResults = zoneResults;
-            container.style.display = 'block';
-
-            const skillCols = [
-                { key: 'totalXP', label: 'Total XP/hr' },
-                { key: 'profitDay', label: 'Profit/day' },
-                { key: 'stamina', label: 'Stam' },
-                { key: 'intelligence', label: 'Int' },
-                { key: 'attack', label: 'Atk' },
-                { key: 'melee', label: 'Melee' },
-                { key: 'defense', label: 'Def' },
-                { key: 'ranged', label: 'Ranged' },
-                { key: 'magic', label: 'Magic' },
-            ];
-
-            const cols = [
-                { key: 'zone', label: 'Zone' },
-                { key: 'tier', label: 'T' },
-                { key: 'encounters', label: 'Enc/hr' },
-                { key: 'deaths', label: 'Deaths/hr' },
-                { key: 'oom', label: 'Mana OOM' },
-                ...skillCols,
-                { key: 'revenue', label: 'Rev/hr' },
-                { key: 'expenses', label: 'Cost/hr' },
-                { key: 'profit', label: 'Profit/hr' },
-            ];
-
-            // Build row data
-            const playerHrid = this._activePlayerTab || 'player1';
-            const rows = zoneResults
-                .filter((r) => r && r.simResult)
-                .map((r) => {
-                    const sim = r.simResult;
-                    const simHours = (sim.simulatedTime || 0) / (3600 * 1e9) || hours;
-                    const xp = sim.experienceGained?.[playerHrid] || {};
-
-                    const totalXP = Object.values(xp).reduce((s, v) => s + v, 0) / simHours;
-                    const playerDeaths = (sim.deaths?.[playerHrid] || 0) / simHours;
-                    const encounters = (sim.encounters || 0) / simHours;
-                    const oom = sim.playerRanOutOfMana?.[playerHrid] ?? false;
-
-                    return {
-                        zone: r.zone.name,
-                        tier: r.zone.difficultyTier,
-                        encounters,
-                        deaths: playerDeaths,
-                        oom,
-                        totalXP,
-                        stamina: (xp.stamina || 0) / simHours,
-                        intelligence: (xp.intelligence || 0) / simHours,
-                        attack: (xp.attack || 0) / simHours,
-                        melee: (xp.melee || 0) / simHours,
-                        defense: (xp.defense || 0) / simHours,
-                        ranged: (xp.ranged || 0) / simHours,
-                        magic: (xp.magic || 0) / simHours,
-                        revenue: r.revenue?.revenuePerHour || 0,
-                        expenses: r.revenue?.costPerHour || 0,
-                        profit: r.revenue?.netPerHour || 0,
-                        profitDay: (r.revenue?.netPerHour || 0) * 24,
-                    };
-                });
-
-            // Sort
-            if (this._allZonesSortCol) {
-                const col = this._allZonesSortCol;
-                const asc = this._allZonesSortAsc;
-                rows.sort((a, b) => {
-                    const va = a[col] ?? 0;
-                    const vb = b[col] ?? 0;
-                    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                    return asc ? va - vb : vb - va;
-                });
-            }
-
-            // Find max values per numeric column for highlighting
-            const maxVals = {};
-            const minVals = {};
-            for (const col of cols) {
-                if (col.key === 'zone' || col.key === 'tier' || col.key === 'oom') continue;
-                const values = rows.map((r) => r[col.key] || 0);
-                maxVals[col.key] = Math.max(...values);
-                minVals[col.key] = Math.min(...values);
-            }
-
-            // Render table
-            const headerCells = cols
-                .map((col) => {
-                    const arrow = this._allZonesSortCol === col.key ? (this._allZonesSortAsc ? ' ▲' : ' ▼') : '';
-                    return `<th data-col="${col.key}" style="padding:3px 4px; cursor:pointer; white-space:nowrap; font-size:10px; font-weight:600; color:#888; border-bottom:1px solid #333; user-select:none;">${col.label}${arrow}</th>`;
-                })
-                .join('');
-
-            const bodyRows = rows
-                .map((row) => {
-                    const cells = cols
-                        .map((col) => {
-                            const val = row[col.key];
-                            let display;
-                            let style = 'padding:2px 4px; font-size:10px; white-space:nowrap;';
-
-                            if (col.key === 'zone') {
-                                display = val;
-                                style += ' color:#e0e0e0;';
-                            } else if (col.key === 'tier') {
-                                display = `T${val}`;
-                                style += ' color:#888; text-align:center;';
-                            } else if (col.key === 'deaths') {
-                                display = val.toFixed(2);
-                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
-
-                                const bestVal = minVals[col.key];
-                                const isBest = bestVal !== undefined && val === bestVal && rows.length > 1;
-                                if (isBest) {
-                                    style += ' color:#4caf50; font-weight:600;';
-                                } else if (val > 0) {
-                                    style += ' color:#f44336;';
-                                } else {
-                                    style += ' color:#e0e0e0;';
-                                }
-                            } else if (col.key === 'oom') {
-                                display = val ? 'Yes' : 'No';
-                                style += ' text-align:center;';
-                                style += val ? ' color:#f44336; font-weight:600;' : ' color:#4caf50;';
-                            } else {
-                                display = formatters_js.formatKMB(Math.round(val));
-                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
-
-                                // Highlight best value per column in green
-                                const isLowerBetter = col.key === 'expenses';
-                                const bestVal = isLowerBetter ? minVals[col.key] : maxVals[col.key];
-                                const isBest = bestVal !== undefined && val === bestVal && rows.length > 1;
-
-                                if (isBest) {
-                                    style += ' color:#4caf50; font-weight:600;';
-                                } else if ((col.key === 'profit' || col.key === 'profitDay') && val < 0) {
-                                    style += ' color:#f44336;';
-                                } else {
-                                    style += ' color:#e0e0e0;';
-                                }
-                            }
-
-                            return `<td style="${style}">${display}</td>`;
-                        })
-                        .join('');
-                    return `<tr style="border-bottom:1px solid #1a1a1a;">${cells}</tr>`;
-                })
-                .join('');
-
-            container.innerHTML = `
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; min-width:800px;">
-                    <thead><tr>${headerCells}</tr></thead>
-                    <tbody>${bodyRows}</tbody>
-                </table>
-            </div>
-        `;
-
-            // Add sort listeners
-            container.querySelectorAll('th[data-col]').forEach((th) => {
-                th.addEventListener('click', () => {
-                    const col = th.dataset.col;
-                    if (this._allZonesSortCol === col) {
-                        this._allZonesSortAsc = !this._allZonesSortAsc;
-                    } else {
-                        this._allZonesSortCol = col;
-                        this._allZonesSortAsc = col === 'zone'; // Ascending for zone name, descending for numbers
-                    }
-                    this._displayAllZonesResults(zoneResults, hours, gameData);
-                });
-            });
-        }
-
-        /**
-         * Populate (or refresh) the seekable item list from all combat zone drop tables.
-         * Only called once per game data session; subsequent calls are no-ops if list is cached.
-         * @private
-         */
-        _populateSeekItems() {
-            if (this._seekItems.length > 0) return;
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) return;
-
-            const { actionDetailMap, combatMonsterDetailMap } = gameData;
-            if (!actionDetailMap || !combatMonsterDetailMap) return;
-
-            const itemHridSet = new Set();
-
-            for (const action of Object.values(actionDetailMap)) {
-                if (action.type !== '/action_types/combat') continue;
-                const isDungeon = action.combatZoneInfo?.isDungeon || false;
-
-                if (isDungeon) {
-                    for (const drop of action.combatZoneInfo?.dungeonInfo?.rewardDropTable || []) {
-                        if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
-                    }
-                } else {
-                    const spawns = action.combatZoneInfo?.fightInfo?.randomSpawnInfo?.spawns || [];
-                    const bossSpawns = action.combatZoneInfo?.fightInfo?.bossSpawns || [];
-                    for (const spawn of [...spawns, ...bossSpawns]) {
-                        const monster = combatMonsterDetailMap[spawn.combatMonsterHrid];
-                        if (!monster) continue;
-                        for (const drop of monster.dropTable || []) {
-                            if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
-                        }
-                        for (const drop of monster.rareDropTable || []) {
-                            if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
-                        }
-                    }
-                }
-            }
-
-            const clientData = dataManager.getInitClientData();
-            const itemDetailMap = clientData?.itemDetailMap || {};
-
-            this._seekItems = Array.from(itemHridSet)
-                .map((hrid) => ({ itemHrid: hrid, name: itemDetailMap[hrid]?.name || hrid.split('/').pop() }))
-                .sort((a, b) => a.name.localeCompare(b.name));
-        }
-
-        /**
-         * Update the seek suggestion list based on the current search text.
-         * @param {string} query
-         * @private
-         */
-        _updateSeekSuggestions(query) {
-            const container = this.panel?.querySelector('#mwi-csim-seek-suggestions');
-            if (!container) return;
-
-            this._populateSeekItems();
-
-            const q = (query || '').toLowerCase().trim();
-            if (!q) {
-                container.style.display = 'none';
-                return;
-            }
-
-            const matches = this._seekItems.filter((item) => item.name.toLowerCase().includes(q)).slice(0, 20);
-
-            if (!matches.length) {
-                container.style.display = 'none';
-                return;
-            }
-
-            container.innerHTML = '';
-            for (const item of matches) {
-                const el = document.createElement('div');
-                el.style.cssText =
-                    'padding:3px 0; font-size:12px; color:#ccc; cursor:pointer; border-bottom:1px solid #1a1a2e;';
-                el.textContent = item.name;
-                el.addEventListener('mousedown', () => {
-                    this._seekSelectedItem = item;
-                    const input = this.panel.querySelector('#mwi-csim-seek-input');
-                    if (input) input.value = item.name;
-                    container.style.display = 'none';
-                });
-                container.appendChild(el);
-            }
-            container.style.display = 'block';
-        }
-
-        /**
-         * Run the Seek simulation: find all zones that drop the selected item and rank by items/hr.
-         * @private
-         */
-        async _onSeek() {
-            const input = this.panel?.querySelector('#mwi-csim-seek-input');
-            const queryText = input?.value?.trim() || '';
-
-            // Resolve selected item — either from prior click or by exact name match
-            if (!this._seekSelectedItem || this._seekSelectedItem.name !== queryText) {
-                const match = this._seekItems.find((i) => i.name.toLowerCase() === queryText.toLowerCase());
-                if (match) {
-                    this._seekSelectedItem = match;
-                } else {
-                    this._setStatus('No item selected. Type a name and pick from the list.');
-                    return;
-                }
-            }
-
-            const { itemHrid, name: itemName } = this._seekSelectedItem;
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            const zones = getZonesThatDropItem(itemHrid, gameData);
-            if (!zones.length) {
-                const resultsEl = this.panel?.querySelector('#mwi-csim-seek-results');
-                if (resultsEl)
-                    resultsEl.innerHTML =
-                        '<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No zones drop this item.</div>';
-                return;
-            }
-
-            const hoursEl = this.panel?.querySelector('#mwi-csim-seek-hours');
-            const hours = Math.min(
-                10000,
-                Math.max(1, parseInt(hoursEl?.value) || config.getSettingValue('combatSim_seekDefaultHours', 10))
-            );
-
-            let playerDTOs;
-            const editedDTOs = this._editor?.getEditedDTOs();
-            if (editedDTOs) {
-                playerDTOs = Object.values(editedDTOs);
-            } else {
-                const result = await buildAllPlayerDTOs();
-                playerDTOs = result.players;
-                this._playerInfo = result.playerInfo;
-                this._activePlayerTab = result.selfHrid;
-            }
-
-            if (!playerDTOs.length) {
-                this._setStatus('No character data available.');
-                return;
-            }
-
-            const communityBuffs = getCommunityBuffs();
-
-            // UI setup
-            this.isRunning = true;
-            const runBtn = this.panel.querySelector('#mwi-csim-seek-run');
-            const stopBtn = this.panel.querySelector('#mwi-csim-seek-stop');
-            const progressEl = this.panel.querySelector('#mwi-csim-seek-progress');
-            const progressFill = this.panel.querySelector('#mwi-csim-seek-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-csim-seek-progress-text');
-            const resultsEl = this.panel.querySelector('#mwi-csim-seek-results');
-
-            runBtn.disabled = true;
-            runBtn.style.opacity = '0.5';
-            runBtn.style.cursor = 'not-allowed';
-            stopBtn.style.display = '';
-            progressEl.style.display = 'block';
-            progressFill.style.width = '0%';
-            progressText.textContent = '0%';
-            resultsEl.innerHTML = '';
-
-            const simStartTime = Date.now();
-            const zoneCount = zones.length;
-            this.elapsedTimer = setInterval(() => {
-                const elapsed = (Date.now() - simStartTime) / 1000;
-                this._setStatus(`Seeking ${itemName} in ${zoneCount} zone/tiers... ${formatElapsed$1(elapsed)}`);
-            }, 100);
-
-            try {
-                const simZones = zones.map((z) => ({ zoneHrid: z.zoneHrid, difficultyTier: z.difficultyTier }));
-
-                const simResults = await runAllZonesSimulation(
-                    { gameData, playerDTOs, zones: simZones, hours, communityBuffs, useEarlyExit: false },
-                    (percent) => {
-                        progressFill.style.width = `${percent}%`;
-                        progressText.textContent = `${percent}%`;
-                    }
-                );
-
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
-
-                const playerHrid = this._activePlayerTab || 'player1';
-
-                const seekRows = simResults
-                    .map((simResult, i) => {
-                        if (!simResult) return null;
-                        const zone = zones[i];
-                        const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
-
-                        const dropMap = calculateExpectedDrops(simResult, gameData, playerHrid);
-                        const itemCount = dropMap.get(itemHrid) || 0;
-                        const itemsPerHour = itemCount / simHours;
-                        if (itemsPerHour <= 0) return null;
-
-                        let profitPerHour = 0;
-                        let costPerHour = 0;
-                        try {
-                            const revenue = calculateSimRevenue(simResult, gameData, playerHrid, simHours);
-                            profitPerHour = revenue.netPerHour;
-                            costPerHour = revenue.costPerHour;
-                        } catch {
-                            // Revenue may not be available
-                        }
-
-                        const costPerDrop = itemsPerHour > 0 ? costPerHour / itemsPerHour : 0;
-
-                        return { zone, itemsPerHour, profitPerHour, costPerHour, costPerDrop };
-                    })
-                    .filter(Boolean);
-
-                this._seekResults = seekRows;
-                this._seekSortCol = 'itemsPerHour';
-                this._seekSortAsc = false;
-                this._displaySeekResults(seekRows, itemName);
-                this._setStatus(`Seek complete in ${totalElapsed}: ${seekRows.length} sources found for ${itemName}`);
-            } catch (error) {
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                if (error.message === 'Cancelled') {
-                    this._setStatus('Seek cancelled.');
-                } else {
-                    console.error('[CombatSimUI] Seek simulation failed:', error);
-                    this._setStatus(`Seek error: ${error.message || 'Unknown error'}`);
-                }
-            } finally {
-                this.isRunning = false;
-                runBtn.disabled = false;
-                runBtn.style.opacity = '1';
-                runBtn.style.cursor = 'pointer';
-                stopBtn.style.display = 'none';
-                progressEl.style.display = 'none';
-            }
-        }
-
-        /**
-         * Render seek results in a sortable table.
-         * @param {Array<Object>} rows - seek result rows
-         * @param {string} itemName - display name of the sought item
-         * @private
-         */
-        _displaySeekResults(rows, itemName) {
-            const container = this.panel?.querySelector('#mwi-csim-seek-results');
-            if (!container) return;
-
-            if (!rows.length) {
-                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No zones drop ${itemName}.</div>`;
-                return;
-            }
-
-            const cols = [
-                { key: 'zone', label: 'Zone' },
-                { key: 'tier', label: 'T' },
-                { key: 'itemsPerHour', label: 'Items/hr' },
-                { key: 'profitPerHour', label: 'Profit/hr' },
-                { key: 'costPerHour', label: 'Cost/hr' },
-                { key: 'costPerDrop', label: 'Cost/Drop' },
-            ];
-
-            // Sort
-            const sortCol = this._seekSortCol || 'itemsPerHour';
-            const sortAsc = this._seekSortAsc;
-            const sorted = [...rows].sort((a, b) => {
-                const va =
-                    sortCol === 'zone' ? a.zone.name : sortCol === 'tier' ? a.zone.difficultyTier : (a[sortCol] ?? 0);
-                const vb =
-                    sortCol === 'zone' ? b.zone.name : sortCol === 'tier' ? b.zone.difficultyTier : (b[sortCol] ?? 0);
-                if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
-                return sortAsc ? va - vb : vb - va;
-            });
-
-            // Best per numeric column (for green highlight)
-            const bestItemsPerHour = Math.max(...rows.map((r) => r.itemsPerHour));
-            const bestProfitPerHour = Math.max(...rows.map((r) => r.profitPerHour));
-            const lowestCostPerHour =
-                rows.filter((r) => r.costPerHour > 0).length > 0
-                    ? Math.min(...rows.filter((r) => r.costPerHour > 0).map((r) => r.costPerHour))
-                    : null;
-            const lowestCostPerDrop =
-                rows.filter((r) => r.costPerDrop > 0).length > 0
-                    ? Math.min(...rows.filter((r) => r.costPerDrop > 0).map((r) => r.costPerDrop))
-                    : null;
-
-            const arrow = (col) => (this._seekSortCol === col ? (this._seekSortAsc ? ' ▲' : ' ▼') : '');
-
-            const headerCells = cols
-                .map(
-                    (col) =>
-                        `<th data-col="${col.key}" style="padding:3px 4px; cursor:pointer; white-space:nowrap; font-size:10px; font-weight:600; color:#888; border-bottom:1px solid #333; user-select:none;">${col.label}${arrow(col.key)}</th>`
-                )
-                .join('');
-
-            const bodyRows = sorted
-                .map((row) => {
-                    const cells = cols
-                        .map((col) => {
-                            let display = '';
-                            let highlight = false;
-                            const cellStyle = 'padding:2px 4px; font-size:10px; white-space:nowrap;';
-
-                            if (col.key === 'zone') {
-                                display = row.zone.name;
-                            } else if (col.key === 'tier') {
-                                display = String(row.zone.difficultyTier);
-                            } else if (col.key === 'itemsPerHour') {
-                                display = row.itemsPerHour.toFixed(3);
-                                highlight = row.itemsPerHour === bestItemsPerHour;
-                            } else if (col.key === 'profitPerHour') {
-                                display = formatters_js.formatKMB(row.profitPerHour);
-                                highlight = row.profitPerHour === bestProfitPerHour && row.profitPerHour > 0;
-                            } else if (col.key === 'costPerHour') {
-                                display = row.costPerHour > 0 ? formatters_js.formatKMB(row.costPerHour) : '—';
-                                highlight = lowestCostPerHour !== null && row.costPerHour === lowestCostPerHour;
-                            } else if (col.key === 'costPerDrop') {
-                                display = row.costPerDrop > 0 ? formatters_js.formatKMB(row.costPerDrop) : '—';
-                                highlight = lowestCostPerDrop !== null && row.costPerDrop === lowestCostPerDrop;
-                            }
-
-                            const color = highlight ? '#4caf50' : '#ccc';
-                            return `<td style="${cellStyle} color:${color};">${display}</td>`;
-                        })
-                        .join('');
-                    return `<tr style="border-bottom:1px solid #1a1a2e;">${cells}</tr>`;
-                })
-                .join('');
-
-            container.innerHTML = `
-            <div style="font-size:11px; color:#888; margin-bottom:8px;">Best sources for <strong style="color:${ACCENT$4};">${itemName}</strong></div>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; min-width:400px;">
-                    <thead><tr>${headerCells}</tr></thead>
-                    <tbody>${bodyRows}</tbody>
-                </table>
-            </div>
-        `;
-
-            container.querySelectorAll('th[data-col]').forEach((th) => {
-                th.addEventListener('click', () => {
-                    const col = th.dataset.col;
-                    if (this._seekSortCol === col) {
-                        this._seekSortAsc = !this._seekSortAsc;
-                    } else {
-                        this._seekSortCol = col;
-                        this._seekSortAsc = col === 'zone' || col === 'tier';
-                    }
-                    this._displaySeekResults(rows, itemName);
-                });
-            });
-        }
-
-        /**
-         * Reset the Simulate button to its default state.
-         * @param {HTMLElement} btn
-         * @private
-         */
-        _resetRunButton(btn) {
-            btn.disabled = false;
-            btn.style.opacity = '1';
-            btn.style.cursor = 'pointer';
-        }
-
-        /**
-         * Switch between Configure and Results tabs.
-         * @param {string} tab - 'configure' or 'results'
-         * @private
-         */
-        _switchTab(tab) {
-            this._activeMainTab = tab;
-            const configureContent = this.panel.querySelector('#mwi-csim-configure-content');
-            const resultsContent = this.panel.querySelector('#mwi-csim-results-content');
-            const seekContent = this.panel.querySelector('#mwi-csim-seek-content');
-            const upgradeContent = this.panel.querySelector('#mwi-csim-upgrade-content');
-            const tabConfigure = this.panel.querySelector('#mwi-csim-tab-configure');
-            const tabResults = this.panel.querySelector('#mwi-csim-tab-results');
-            const tabSeek = this.panel.querySelector('#mwi-csim-tab-seek');
-            const tabUpgrade = this.panel.querySelector('#mwi-csim-tab-upgrade');
-
-            const activeStyle = `flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:${ACCENT_BG$4}; color:${ACCENT$4}; border-bottom:2px solid ${ACCENT$4};`;
-            const inactiveStyle =
-                'flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:transparent; color:#888; border-bottom:2px solid transparent;';
-
-            configureContent.style.display = 'none';
-            resultsContent.style.display = 'none';
-            if (seekContent) seekContent.style.display = 'none';
-            if (upgradeContent) upgradeContent.style.display = 'none';
-            tabConfigure.style.cssText = inactiveStyle;
-            tabResults.style.cssText = inactiveStyle;
-            if (tabSeek) tabSeek.style.cssText = inactiveStyle;
-            if (tabUpgrade) tabUpgrade.style.cssText = inactiveStyle;
-
-            if (tab === 'configure') {
-                configureContent.style.display = 'flex';
-                tabConfigure.style.cssText = activeStyle;
-                this._setStatus('Select a zone and click Simulate.');
-            } else if (tab === 'seek') {
-                if (seekContent) seekContent.style.display = 'flex';
-                if (tabSeek) tabSeek.style.cssText = activeStyle;
-                this._populateSeekItems();
-                this._setStatus('Search for a combat drop item, then click Seek.');
-            } else if (tab === 'upgrade') {
-                if (upgradeContent) upgradeContent.style.display = 'flex';
-                if (tabUpgrade) tabUpgrade.style.cssText = activeStyle;
-                this._populateUpgradePlayerSelector();
-                this._setStatus('Select a player and click Analyze.');
-            } else {
-                resultsContent.style.display = 'flex';
-                tabResults.style.cssText = activeStyle;
-                if (!this.isRunning && !this._lastSimResult && !this._allZonesResults) {
-                    this._setStatus('No results yet. Run a simulation first.');
-                }
-            }
-        }
-
-        /**
-         * Handle the Simulate button click.
-         * @private
-         */
-        async _onSimulate() {
-            if (this.isRunning) {
-                // Stop the running simulation
-                cancelSimulation();
-                cancelAllZonesSimulation();
-                this._setStatus('Simulation cancelled.');
-                this._switchTab('configure');
-                return;
-            }
-
-            // Route to all-zones simulation if active
-            if (this._allZonesMode) {
-                return this._onSimulateAllZones();
-            }
-
-            const zoneHrid = this.panel.querySelector('#mwi-csim-zone')?.value;
-            const difficultyTier = parseInt(this.panel.querySelector('#mwi-csim-tier')?.value) || 0;
-            const hours = Math.min(
-                10000,
-                Math.max(
-                    1,
-                    parseInt(this.panel.querySelector('#mwi-csim-hours')?.value) ||
-                        config.getSettingValue('combatSim_defaultHours', 100)
-                )
-            );
-
-            if (!zoneHrid) {
-                this._setStatus('No zone selected.');
-                return;
-            }
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            // Use edited DTOs if available, otherwise auto-fill
-            let playerDTOs;
-            let playerInfo;
-            let selfHrid;
-            let missingMembers;
-
-            const editedDTOs = this._editor?.getEditedDTOs();
-            if (editedDTOs) {
-                playerDTOs = Object.values(editedDTOs);
-                playerInfo = this._editor?.getPlayerInfo() || [];
-                selfHrid = this._editor?.getSelfHrid() || playerDTOs[0]?.hrid || 'player1';
-                missingMembers = this._editor?.getMissingMembers() || [];
-            } else {
-                const result = await buildAllPlayerDTOs();
-                playerDTOs = result.players;
-                playerInfo = result.playerInfo;
-                selfHrid = result.selfHrid;
-                missingMembers = result.missingMembers;
-            }
-
-            if (!playerDTOs.length) {
-                this._setStatus('No character data available.');
-                return;
-            }
-
-            // Enforce 3-player max for non-dungeon zones
-            const zones = getCombatZones();
-            const selectedZone = zones.find((z) => z.hrid === zoneHrid);
-            if (selectedZone && !selectedZone.isDungeon && playerDTOs.length > 3) {
-                this._showWarning(
-                    `Non-dungeon zones support max 3 players (you have ${playerDTOs.length}). Remove players to continue.`
-                );
-                return;
-            }
-
-            this._playerInfo = playerInfo;
-            this._activePlayerTab = selfHrid;
-
-            const communityBuffs = getCommunityBuffs();
-
-            // Show party info
-            const partyInfo =
-                playerDTOs.length > 1
-                    ? `Party (${playerDTOs.length} loaded${missingMembers.length ? ', ' + missingMembers.length + ' missing' : ''})`
-                    : 'Solo';
-
-            // Disable Simulate button during run
-            this.isRunning = true;
-            const runBtn = this.panel.querySelector('#mwi-csim-run');
-            runBtn.disabled = true;
-            runBtn.style.opacity = '0.5';
-            runBtn.style.cursor = 'not-allowed';
-
-            const progressContainer = this.panel.querySelector('#mwi-csim-progress-container');
-            const progressFill = this.panel.querySelector('#mwi-csim-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-csim-progress-text');
-            const resultsContainer = this.panel.querySelector('#mwi-csim-results');
-
-            progressContainer.style.display = 'block';
-            progressFill.style.width = '0%';
-            progressText.textContent = '0%';
-            resultsContainer.style.display = 'none';
-
-            // Switch to results tab to show progress
-            this._switchTab('results');
-
-            const simStartTime = Date.now();
-            this.elapsedTimer = setInterval(() => {
-                const elapsed = (Date.now() - simStartTime) / 1000;
-                this._setStatus(`Simulating (${partyInfo})... ${formatElapsed$1(elapsed)}`);
-            }, 100);
-
-            try {
-                const simResult = await runSimulation(
-                    { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs },
-                    (percent) => {
-                        progressFill.style.width = `${percent}%`;
-                        progressText.textContent = `${percent}%`;
-                    }
-                );
-
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
-
-                this._lastSimResult = simResult;
-                this._lastSimHours = hours;
-                this._lastGameData = gameData;
-
-                // Generate label before displaying (display may re-render)
-                const historyLabel = this._editor?.generateSimLabel() || 'Current Gear';
-
-                // Add history entry (metrics filled after _displayResults computes them)
-                const historyEntry = {
-                    label: historyLabel,
-                    simResult,
-                    hours,
-                    gameData,
-                    metrics: null, // Filled by _displayResults
-                    timestamp: Date.now(),
-                };
-
-                // Auto-set comparison baseline to first entry when adding second+ result
-                if (this._simHistory.length > 0 && this._comparisonBaseline === null) {
-                    this._comparisonBaseline = 0;
-                }
-                if (this._simHistory.length > 0 && this._comparisonIndex === null) {
-                    this._comparisonIndex = 0;
-                }
-
-                this._simHistory.push(historyEntry);
-                if (this._simHistory.length > 10) {
-                    this._simHistory.shift();
-                    // Adjust comparison indices
-                    if (this._comparisonIndex !== null) {
-                        this._comparisonIndex = Math.max(0, this._comparisonIndex - 1);
-                    }
-                    if (this._comparisonBaseline !== null) {
-                        this._comparisonBaseline = Math.max(0, this._comparisonBaseline - 1);
-                    }
-                    this._comparisonSlots = this._comparisonSlots.map((i) => i - 1).filter((i) => i >= 0);
-                    if (this._activeDetailIndex !== null) {
-                        this._activeDetailIndex = Math.max(0, this._activeDetailIndex - 1);
-                    }
-                }
-
-                // Show the newly run sim's details
-                this._activeDetailIndex = this._simHistory.length - 1;
-                this._displayResults(simResult, hours, gameData);
-                this._switchTab('results');
-                const modeLabels = {
-                    conservative: 'Buy: Ask / Sell: Bid',
-                    hybrid: 'Buy: Ask / Sell: Ask',
-                    optimistic: 'Buy: Bid / Sell: Ask',
-                    patientBuy: 'Buy: Bid / Sell: Bid',
-                };
-                const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
-                const modeLabel = modeLabels[mode] || mode;
-                const missingNote = missingMembers.length
-                    ? ` | Missing: ${missingMembers.join(', ')} (open their profiles)`
-                    : '';
-                this._setStatus(
-                    `Simulation complete in ${totalElapsed}: ${formatters_js.formatWithSeparator(hours)} hours · ${partyInfo} · Pricing: ${modeLabel}${missingNote}`
-                );
-            } catch (error) {
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                if (error.message === 'Cancelled') {
-                    this._setStatus('Simulation cancelled.');
-                } else {
-                    console.error('[CombatSimUI] Simulation failed:', error);
-                    this._setStatus(`Simulation error: ${error.message || 'Unknown error'}`);
-                }
-            } finally {
-                this.isRunning = false;
-                this._resetRunButton(runBtn);
-                progressContainer.style.display = 'none';
-            }
-        }
-
-        /**
-         * Run simulations for all selected zones.
-         * @private
-         */
-        async _onSimulateAllZones() {
-            const selectedZones = this._getSelectedAllZones();
-            if (!selectedZones.length) {
-                this._setStatus('No zones selected.');
-                return;
-            }
-
-            const hours = Math.min(
-                10000,
-                Math.max(
-                    1,
-                    parseInt(this.panel.querySelector('#mwi-csim-allzones-hours')?.value) ||
-                        config.getSettingValue('combatSim_allZonesDefaultHours', 10)
-                )
-            );
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            // Use edited DTOs if available, otherwise auto-fill
-            let playerDTOs;
-            const editedDTOs = this._editor?.getEditedDTOs();
-            if (editedDTOs) {
-                playerDTOs = Object.values(editedDTOs);
-            } else {
-                const result = await buildAllPlayerDTOs();
-                playerDTOs = result.players;
-                this._playerInfo = result.playerInfo;
-                this._activePlayerTab = result.selfHrid;
-            }
-
-            if (!playerDTOs.length) {
-                this._setStatus('No character data available.');
-                return;
-            }
-
-            // All-zones is always non-dungeon — enforce 3-player max
-            if (playerDTOs.length > 3) {
-                this._showWarning(
-                    `Non-dungeon zones support max 3 players (you have ${playerDTOs.length}). Remove players to continue.`
-                );
-                return;
-            }
-
-            const communityBuffs = getCommunityBuffs();
-
-            // UI: disable Simulate button, show progress
-            this.isRunning = true;
-            const runBtn = this.panel.querySelector('#mwi-csim-run');
-            runBtn.disabled = true;
-            runBtn.style.opacity = '0.5';
-            runBtn.style.cursor = 'not-allowed';
-
-            const progressContainer = this.panel.querySelector('#mwi-csim-progress-container');
-            const progressFill = this.panel.querySelector('#mwi-csim-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-csim-progress-text');
-            const resultsContainer = this.panel.querySelector('#mwi-csim-results');
-
-            progressContainer.style.display = 'block';
-            progressFill.style.width = '0%';
-            progressText.textContent = '0%';
-            resultsContainer.style.display = 'none';
-
-            this._switchTab('results');
-
-            const simStartTime = Date.now();
-            const zoneCount = selectedZones.length;
-            this.elapsedTimer = setInterval(() => {
-                const elapsed = (Date.now() - simStartTime) / 1000;
-                this._setStatus(`Simulating ${zoneCount} zones... ${formatElapsed$1(elapsed)}`);
-            }, 100);
-
-            try {
-                const zones = selectedZones.map((z) => ({ zoneHrid: z.zoneHrid, difficultyTier: z.difficultyTier }));
-
-                const simResults = await runAllZonesSimulation(
-                    { gameData, playerDTOs, zones, hours, communityBuffs, useEarlyExit: this._earlyExitEnabled },
-                    (percent) => {
-                        progressFill.style.width = `${percent}%`;
-                        progressText.textContent = `${percent}%`;
-                    }
-                );
-
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
-
-                // Build zone results with revenue calculations
-                const playerHrid = this._activePlayerTab || 'player1';
-                const zoneResults = simResults
-                    .map((simResult, i) => {
-                        if (!simResult) return null;
-
-                        let revenue = null;
-                        try {
-                            revenue = calculateSimRevenue(simResult, gameData, playerHrid, hours);
-                        } catch {
-                            // Revenue calculation may not be available
-                        }
-
-                        return {
-                            zone: selectedZones[i],
-                            simResult,
-                            revenue,
-                        };
-                    })
-                    .filter(Boolean);
-
-                this._allZonesSortCol = 'profit';
-                this._allZonesSortAsc = false;
-                this._displayAllZonesResults(zoneResults, hours, gameData);
-                this._switchTab('results');
-                this._setStatus(
-                    `All zones complete in ${totalElapsed}: ${zoneCount} zones · ${formatters_js.formatWithSeparator(hours)} hours each`
-                );
-            } catch (error) {
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-                if (error.message === 'Cancelled') {
-                    this._setStatus('Simulation cancelled.');
-                } else {
-                    console.error('[CombatSimUI] All zones simulation failed:', error);
-                    this._setStatus(`Simulation error: ${error.message || 'Unknown error'}`);
-                }
-            } finally {
-                this.isRunning = false;
-                this._resetRunButton(runBtn);
-                progressContainer.style.display = 'none';
-            }
-        }
-
-        /**
-         * Format and display simulation results.
-         * @param {Object} simResult - SimResult from the combat simulator engine
-         * @param {number} hours - Number of hours simulated
-         * @param {Object} gameData - Game data maps for drop calculation
-         * @private
-         */
-        _displayResults(simResult, hours, gameData) {
-            // If an active detail index is set, show that history entry's details instead
-            if (this._activeDetailIndex !== null && this._simHistory[this._activeDetailIndex]) {
-                const entry = this._simHistory[this._activeDetailIndex];
-                simResult = entry.simResult;
-                hours = entry.hours;
-                gameData = entry.gameData;
-            }
-
-            const container = this.panel.querySelector('#mwi-csim-results');
-            if (!container) return;
-
-            const activeTab = this._activePlayerTab;
-            const playerInfo = this._playerInfo;
-            const numberOfPlayers = simResult.numberOfPlayers || 1;
-
-            const sectionStyle = 'margin-bottom:12px;';
-            const headingStyle = `color:${ACCENT$4}; font-weight:700; font-size:12px; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;`;
-            const rowStyle = 'display:flex; justify-content:space-between; padding:2px 0; font-size:12px;';
-            const labelStyle = 'color:#aaa;';
-            const valueStyle = 'color:#e0e0e0; font-weight:600;';
-
-            let html = '';
-
-            // Pre-compute metrics for the latest history entry if not yet populated
-            this._ensureHistoryMetrics(simResult, hours, gameData, activeTab);
-
-            // History panel (above everything)
-            if (this._simHistory.length > 0) {
-                html += this._renderHistoryPanel();
-            }
-
-            // Player tabs (only shown for party sims)
-            if (numberOfPlayers > 1) {
-                html += `<div style="display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap;">`;
-                for (const { hrid, name } of playerInfo) {
-                    const isActive = hrid === activeTab;
-                    const tabStyle = isActive
-                        ? `background:${ACCENT_BG$4}; border:1px solid ${ACCENT_BORDER$4}; color:${ACCENT$4}; font-weight:700;`
-                        : 'background:rgba(255,255,255,0.04); border:1px solid #333; color:#aaa;';
-                    html += `<button data-tab="${hrid}" style="
-                    ${tabStyle}
-                    padding:3px 10px; border-radius:5px; font-size:12px; cursor:pointer;
-                    font-family:inherit; transition:all 0.1s;
-                ">${name}</button>`;
-                }
-                html += '</div>';
-            }
-
-            // Compute previous values for delta comparison (from history)
-            // Use baseline for deltas (comparison table baseline, not the old comparisonIndex)
-            const compIdx = this._comparisonBaseline ?? this._comparisonIndex;
-            const compEntry = compIdx !== null ? this._simHistory[compIdx] : null;
-            const compResult = compEntry?.simResult;
-            const compHours = compEntry?.hours;
-            const compMetrics = compEntry?.metrics;
-            const hasPrev = compResult && compHours;
-            const prevEncPerHr = hasPrev ? compResult.encounters / compHours : null;
-            const prevDeathsPerHr = hasPrev ? (compResult.deaths?.[activeTab] || 0) / compHours : null;
-
-            // Overview: encounters/hr (party-wide) + deaths/hr (per active player)
-            const encountersPerHr = simResult.encounters / hours;
-            const playerDeaths = simResult.deaths?.[activeTab] || 0;
-            const deathsPerHr = playerDeaths / hours;
-
-            html += `<div style="${sectionStyle}">`;
-            html += `<div style="${headingStyle}">Overview</div>`;
-            html += `<div style="${rowStyle}">`;
-            html += `<span style="${labelStyle}">Encounters/hr</span>`;
-            html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(encountersPerHr))}${this._formatDelta(encountersPerHr, prevEncPerHr)}</span>`;
-            html += '</div>';
-            html += `<div style="${rowStyle}">`;
-            html += `<span style="${labelStyle}">Deaths/hr</span>`;
-            html += `<span style="${valueStyle}">${this._formatDeaths(deathsPerHr)}${this._formatDelta(deathsPerHr, prevDeathsPerHr, false)}</span>`;
-            html += '</div>';
-
-            // Mana Run Out
-            const ranOutOfMana = simResult.playerRanOutOfMana?.[activeTab] ?? false;
-            const oomColor = ranOutOfMana ? '#ff6b6b' : '#4ade80';
-            html += `<div style="${rowStyle}">`;
-            html += `<span style="${labelStyle}">Mana Run Out</span>`;
-            html += `<span style="color:${oomColor}; font-weight:600;">${ranOutOfMana ? 'Yes' : 'No'}</span>`;
-            html += '</div>';
-            if (ranOutOfMana && simResult.playerRanOutOfManaTime?.[activeTab] && simResult.simulatedTime) {
-                const stat = simResult.playerRanOutOfManaTime[activeTab];
-                const openWindow = stat.isOutOfMana ? simResult.simulatedTime - stat.startTimeForOutOfMana : 0;
-                const totalOomTime = stat.totalTimeForOutOfMana + openWindow;
-                const oomRatio = ((totalOomTime / simResult.simulatedTime) * 100).toFixed(2);
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Run Out Ratio</span>`;
-                html += `<span style="color:#ff6b6b; font-weight:600;">${oomRatio}%</span>`;
-                html += '</div>';
-            }
-
-            // Debuff on level gap — only shown when non-zero
-            const debuff = simResult.debuffOnLevelGap?.[activeTab] ?? 0;
-            if (debuff !== 0) {
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Debuff on Level Gap</span>`;
-                html += `<span style="color:#ff6b6b; font-weight:600;">${Math.round(Math.abs(debuff) * 100)}%</span>`;
-                html += '</div>';
-            }
-
-            // DPS — from actual damage dealt per player
-            if (simResult.totalDamageDealt && simResult.simulatedTime > 0) {
-                const simSeconds = simResult.simulatedTime / 1e9;
-                let partyDamage = 0;
-                for (const { hrid } of playerInfo) {
-                    partyDamage += simResult.totalDamageDealt[hrid] || 0;
-                }
-                const partyDps = partyDamage / simSeconds;
-                this._lastComputedDps = partyDps;
-
-                let prevPartyDps = null;
-                if (hasPrev && compResult.totalDamageDealt && compResult.simulatedTime > 0) {
-                    const compSimSeconds = compResult.simulatedTime / 1e9;
-                    let prevDamage = 0;
-                    for (const { hrid } of playerInfo) {
-                        prevDamage += compResult.totalDamageDealt[hrid] || 0;
-                    }
-                    prevPartyDps = prevDamage / compSimSeconds;
-                }
-
-                const dpsLabel = numberOfPlayers > 1 ? 'Party DPS' : 'DPS';
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">${dpsLabel}</span>`;
-                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(partyDps))}${this._formatDelta(partyDps, prevPartyDps)}</span>`;
-                html += '</div>';
-
-                if (numberOfPlayers > 1) {
-                    for (const { hrid, name } of playerInfo) {
-                        const playerDps = (simResult.totalDamageDealt[hrid] || 0) / simSeconds;
-                        let prevPlayerDps = null;
-                        if (hasPrev && compResult.totalDamageDealt && compResult.simulatedTime > 0) {
-                            prevPlayerDps = (compResult.totalDamageDealt[hrid] || 0) / (compResult.simulatedTime / 1e9);
-                        }
-                        html += `<div style="${rowStyle}">`;
-                        html += `<span style="color:#888; padding-left:12px;">${name}</span>`;
-                        html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(playerDps))}${this._formatDelta(playerDps, prevPlayerDps)}</span>`;
-                        html += '</div>';
-                    }
-                }
-            }
-
-            // Dungeon stats if applicable
-            if (simResult.isDungeon) {
-                const completedPerHr = simResult.dungeonsCompleted / hours;
-                const failedPerHr = simResult.dungeonsFailed / hours;
-
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Dungeons completed/hr</span>`;
-                html += `<span style="${valueStyle}">${this._formatRate(completedPerHr)}</span>`;
-                html += '</div>';
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Dungeons failed/hr</span>`;
-                html += `<span style="${valueStyle}">${this._formatRate(failedPerHr)}</span>`;
-                html += '</div>';
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Total completed / failed</span>`;
-                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(simResult.dungeonsCompleted)} / ${formatters_js.formatWithSeparator(simResult.dungeonsFailed)}</span>`;
-                html += '</div>';
-                if (simResult.dungeonsCompleted > 0) {
-                    const avgTimeNs = simResult.simulatedTime / simResult.dungeonsCompleted;
-                    const avgTimeSec = avgTimeNs / 1e9;
-                    let avgTimeStr;
-                    if (config.getSettingValue('combatSim_decimalMinutes', false)) {
-                        avgTimeStr = `${(avgTimeSec / 60).toFixed(2)} min`;
-                    } else {
-                        const avgMin = Math.floor(avgTimeSec / 60);
-                        const avgSec = Math.round(avgTimeSec % 60);
-                        avgTimeStr = `${avgMin}m ${avgSec}s`;
-                    }
-                    html += `<div style="${rowStyle}">`;
-                    html += `<span style="${labelStyle}">Avg completion time</span>`;
-                    html += `<span style="${valueStyle}">${avgTimeStr}</span>`;
-                    html += '</div>';
-                }
-                html += `<div style="${rowStyle}">`;
-                html += `<span style="${labelStyle}">Max wave reached</span>`;
-                html += `<span style="${valueStyle}">${simResult.maxWaveReached}</span>`;
-                html += '</div>';
-            }
-            html += '</div>';
-
-            // XP/hr by skill — per active tab player
-            const xpTotals = {};
-            if (simResult.experienceGained[activeTab]) {
-                for (const [skill, amount] of Object.entries(simResult.experienceGained[activeTab])) {
-                    xpTotals[skill] = (xpTotals[skill] || 0) + amount;
-                }
-            }
-
-            // Build previous XP map for delta comparison
-            const prevXpPerHr = {};
-            if (hasPrev && compResult.experienceGained?.[activeTab]) {
-                for (const [skill, amount] of Object.entries(compResult.experienceGained[activeTab])) {
-                    prevXpPerHr[skill] = Math.round(amount / compHours);
-                }
-            }
-
-            const xpEntries = Object.entries(xpTotals).filter(([, total]) => total > 0);
-            if (xpEntries.length > 0) {
-                html += `<div style="${sectionStyle}">`;
-                html += `<div style="${headingStyle}">XP/hr</div>`;
-                for (const [skill, total] of xpEntries) {
-                    const perHr = Math.round(total / hours);
-                    const prevVal = hasPrev ? prevXpPerHr[skill] || null : null;
-                    const skillLabel = skill.charAt(0).toUpperCase() + skill.slice(1);
-                    html += `<div style="${rowStyle}">`;
-                    html += `<span style="${labelStyle}">${skillLabel}</span>`;
-                    html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(perHr)}${this._formatDelta(perHr, prevVal)}</span>`;
-                    html += '</div>';
-                }
-                // Total XP/hr row
-                const totalXpPerHr = xpEntries.reduce((sum, [, total]) => sum + Math.round(total / hours), 0);
-                const prevTotalXpPerHr = hasPrev ? Object.values(prevXpPerHr).reduce((sum, v) => sum + v, 0) : null;
-                html += `<div style="display:flex; justify-content:space-between; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px;">`;
-                html += `<span style="color:#aaa; font-weight:700;">Total</span>`;
-                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(totalXpPerHr)}${this._formatDelta(totalXpPerHr, prevTotalXpPerHr)}</span>`;
-                html += '</div>';
-                html += '</div>';
-            }
-
-            // Consumable costs — per active tab player
-            const consumableTotals = {};
-            const selfConsumables = simResult.consumablesUsed?.[activeTab] || {};
-            for (const [itemHrid, count] of Object.entries(selfConsumables)) {
-                consumableTotals[itemHrid] = (consumableTotals[itemHrid] || 0) + count;
-            }
-
-            // Track totals for net profit calculation
-            let dropGoldPerHr = 0;
-            let dropGoldTotal = 0;
-            let consumableGoldPerHr = 0;
-            let consumableGoldTotal = 0;
-            let keyCostPerHr = 0;
-            let keyCostTotal = 0;
-            let dungeonKeyCosts = [];
-
-            // Drops — calculated from kill counts × drop tables × multipliers
-            if (gameData) {
-                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
-
-                // Pre-compute gold values for sorting
-                const dropData = [...dropMap.entries()]
-                    .filter(([, total]) => total > 0)
-                    .map(([itemHrid, total]) => {
-                        const price = marketAPI.getPrice(itemHrid);
-                        // Revenue: use sell price based on pricing mode
-                        let unitValue = this._getSellPrice(price);
-                        if (unitValue === 0 && itemHrid === '/items/coin') {
-                            unitValue = 1;
-                        }
-                        if (unitValue === 0) {
-                            // Use cached EV or calculate directly (matches combat stats approach)
-                            const ev =
-                                expectedValueCalculator.getCachedValue(itemHrid) ||
-                                expectedValueCalculator.calculateSingleContainer(itemHrid);
-                            if (ev !== null && ev > 0) unitValue = ev;
-                        }
-                        return { itemHrid, total, unitValue, totalGold: total * unitValue };
-                    })
-                    .sort((a, b) => b.totalGold - a.totalGold); // Sort by gold value descending
-
-                if (dropData.length > 0) {
-                    const dropRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
-                    const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
-                    const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
-
-                    html += `<div style="${sectionStyle}">`;
-                    html += `<div style="${headingStyle}">Drops</div>`;
-                    // Column headers
-                    html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
-                    html += `<span style="flex:1;">Item</span>`;
-                    html += `<span style="${colNum}">/hr</span>`;
-                    html += `<span style="${colNum}">/day</span>`;
-                    html += `<span style="${colGold}">Gold/hr</span>`;
-                    html += `<span style="${colGold}">Gold/day</span>`;
-                    html += `<span style="${colNum}">Total</span>`;
-                    html += `<span style="${colGold}">Total Gold</span>`;
-                    html += '</div>';
-
-                    for (const drop of dropData) {
-                        const perHr = drop.total / hours;
-                        const itemDetails = dataManager.getItemDetails(drop.itemHrid);
-                        const name = itemDetails?.name || drop.itemHrid.split('/').pop();
-
-                        const perHrStr = perHr >= 1 ? formatters_js.formatWithSeparator(Math.round(perHr)) : perHr.toFixed(2);
-                        const perDay = perHr * 24;
-                        const perDayStr = perDay >= 1 ? formatters_js.formatWithSeparator(Math.round(perDay)) : perDay.toFixed(2);
-                        const totalStr =
-                            drop.total >= 1 ? formatters_js.formatWithSeparator(Math.round(drop.total)) : drop.total.toFixed(2);
-
-                        const goldPerHr = perHr * drop.unitValue;
-                        dropGoldPerHr += goldPerHr;
-                        dropGoldTotal += drop.totalGold;
-
-                        const goldHrStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(goldPerHr)) : '—';
-                        const goldDayStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(goldPerHr * 24)) : '—';
-                        const goldTotalStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(drop.totalGold)) : '—';
-                        const goldColor = drop.unitValue > 0 ? '#e8a87c' : '#444';
-
-                        html += `<div style="${dropRowStyle}">`;
-                        html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>`;
-                        html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
-                        html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
-                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldHrStr}</span>`;
-                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldDayStr}</span>`;
-                        html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
-                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldTotalStr}</span>`;
-                        html += '</div>';
-                    }
-                    // Totals row
-                    const prevRevPerHr = compMetrics?.revenuePerHr ?? null;
-                    const revDelta =
-                        prevRevPerHr !== null && prevRevPerHr !== undefined
-                            ? this._formatDelta(dropGoldPerHr, prevRevPerHr, true, true)
-                            : '';
-                    html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
-                    html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Revenue</span>`;
-                    const revDayDelta =
-                        prevRevPerHr !== null && prevRevPerHr !== undefined
-                            ? this._formatDelta(dropGoldPerHr * 24, prevRevPerHr * 24, true, true)
-                            : '';
-                    html += `<span style="${colNum}"></span>`;
-                    html += `<span style="${colNum}"></span>`;
-                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldPerHr))}<br>${revDelta}</span>`;
-                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldPerHr * 24))}<br>${revDayDelta}</span>`;
-                    html += `<span style="${colNum}"></span>`;
-                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldTotal))}</span>`;
-                    html += '</div>';
-                    html += '</div>';
-                }
-
-                // Compute dungeon key costs from drop map
-                if (simResult.isDungeon) {
-                    const getBuyPriceForKey = (keyHrid) => {
-                        const price = marketAPI.getPrice(keyHrid);
-                        return this._getBuyPrice(price);
-                    };
-                    dungeonKeyCosts = calculateDungeonKeyCosts(dropMap, getBuyPriceForKey);
-                    for (const key of dungeonKeyCosts) {
-                        keyCostPerHr += (key.count / hours) * key.unitCost;
-                        keyCostTotal += key.totalCost;
-                    }
-                }
-            }
-
-            // Consumable costs — same column layout as drops
-            const consumableEntries = Object.entries(consumableTotals)
-                .map(([itemHrid, total]) => {
-                    const price = marketAPI.getPrice(itemHrid);
-                    const unitCost = this._getBuyPrice(price);
-                    return { itemHrid, total, unitCost, totalCost: total * unitCost };
-                })
-                .sort((a, b) => b.totalCost - a.totalCost);
-
-            if (consumableEntries.length > 0) {
-                const costRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
-                const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
-                const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
-                const costColor = '#ff6b6b';
-
-                html += `<div style="${sectionStyle}">`;
-                html += `<div style="${headingStyle}">Consumable Costs</div>`;
-                // Column headers
-                html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
-                html += `<span style="flex:1;">Item</span>`;
-                html += `<span style="${colNum}">/hr</span>`;
-                html += `<span style="${colNum}">/day</span>`;
-                html += `<span style="${colGold}">Cost/hr</span>`;
-                html += `<span style="${colGold}">Cost/day</span>`;
-                html += `<span style="${colNum}">Total</span>`;
-                html += `<span style="${colGold}">Total Cost</span>`;
-                html += '</div>';
-
-                for (const cons of consumableEntries) {
-                    const perHr = cons.total / hours;
-                    const itemDetails = dataManager.getItemDetails(cons.itemHrid);
-                    const name = itemDetails?.name || cons.itemHrid.split('/').pop();
-
-                    const perHrStr = formatters_js.formatWithSeparator(Math.round(perHr));
-                    const perDayStr = formatters_js.formatWithSeparator(Math.round(perHr * 24));
-                    const totalStr = formatters_js.formatWithSeparator(Math.round(cons.total));
-
-                    const costPerHr = perHr * cons.unitCost;
-                    consumableGoldPerHr += costPerHr;
-                    consumableGoldTotal += cons.totalCost;
-
-                    const costHrStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr)) : '—';
-                    const costDayStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr * 24)) : '—';
-                    const costTotalStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(cons.totalCost)) : '—';
-                    const cColor = cons.unitCost > 0 ? costColor : '#444';
-
-                    html += `<div style="${costRowStyle}">`;
-                    html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costHrStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costDayStr}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costTotalStr}</span>`;
-                    html += '</div>';
-                }
-                // Totals row
-                const prevConsumableCostPerHr = compMetrics?.consumableCostPerHr ?? null;
-                const expDelta =
-                    prevConsumableCostPerHr !== null && prevConsumableCostPerHr !== undefined
-                        ? this._formatDelta(consumableGoldPerHr, prevConsumableCostPerHr, false, true)
-                        : '';
-                const expDayDelta =
-                    prevConsumableCostPerHr !== null && prevConsumableCostPerHr !== undefined
-                        ? this._formatDelta(consumableGoldPerHr * 24, prevConsumableCostPerHr * 24, false, true)
-                        : '';
-                html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
-                html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Expenses</span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldPerHr))}<br>${expDelta}</span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldPerHr * 24))}<br>${expDayDelta}</span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldTotal))}</span>`;
-                html += '</div>';
-                html += '</div>';
-            }
-
-            // Dungeon key costs
-            if (dungeonKeyCosts.length > 0) {
-                const costRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
-                const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
-                const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
-                const costColor = '#ff6b6b';
-
-                html += `<div style="${sectionStyle}">`;
-                html += `<div style="${headingStyle}">Key Costs</div>`;
-                html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
-                html += `<span style="flex:1;">Item</span>`;
-                html += `<span style="${colNum}">/hr</span>`;
-                html += `<span style="${colNum}">/day</span>`;
-                html += `<span style="${colGold}">Cost/hr</span>`;
-                html += `<span style="${colGold}">Cost/day</span>`;
-                html += `<span style="${colNum}">Total</span>`;
-                html += `<span style="${colGold}">Total Cost</span>`;
-                html += '</div>';
-
-                for (const key of dungeonKeyCosts) {
-                    const perHr = key.count / hours;
-                    const perHrStr = perHr >= 1 ? formatters_js.formatWithSeparator(Math.round(perHr)) : perHr.toFixed(2);
-                    const perDayStr = formatters_js.formatWithSeparator(Math.round(perHr * 24));
-                    const totalStr = key.count >= 1 ? formatters_js.formatWithSeparator(Math.round(key.count)) : key.count.toFixed(2);
-
-                    const costPerHr = perHr * key.unitCost;
-                    const costHrStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr)) : '—';
-                    const costDayStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr * 24)) : '—';
-                    const costTotalStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(key.totalCost)) : '—';
-                    const cColor = key.unitCost > 0 ? costColor : '#444';
-
-                    html += `<div style="${costRowStyle}">`;
-                    html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${key.name}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costHrStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costDayStr}</span>`;
-                    html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
-                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costTotalStr}</span>`;
-                    html += '</div>';
-                }
-
-                // Totals row
-                html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
-                html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Key Costs</span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostPerHr))}</span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostPerHr * 24))}</span>`;
-                html += `<span style="${colNum}"></span>`;
-                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostTotal))}</span>`;
-                html += '</div>';
-                html += '</div>';
-            }
-
-            // Net Profit (includes consumable costs + key costs)
-            const totalExpensesPerHr = consumableGoldPerHr + keyCostPerHr;
-            const totalExpensesTotal = consumableGoldTotal + keyCostTotal;
-            const netProfitPerHr = dropGoldPerHr - totalExpensesPerHr;
-            const netProfitTotal = dropGoldTotal - totalExpensesTotal;
-            const profitColor = netProfitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
-            const profitSign = netProfitPerHr >= 0 ? '' : '-';
-            const totalProfitSign = netProfitTotal >= 0 ? '' : '-';
-
-            // Metrics already pre-computed by _ensureHistoryMetrics
-
-            // Compute delta from comparison entry
-            const prevProfit = compMetrics?.profitPerHr ?? null;
-            const profitDelta =
-                prevProfit !== null && prevProfit !== undefined
-                    ? this._formatDelta(netProfitPerHr, prevProfit, true, true)
-                    : '';
-
-            const netProfitPerDay = netProfitPerHr * 24;
-            const profitDaySign = netProfitPerDay >= 0 ? '' : '-';
-
-            html += `<div style="${sectionStyle}">`;
-            html += `<div style="${headingStyle}">Net Profit</div>`;
-            const netColGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
-            const netColNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
-            // Column headers
-            html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
-            html += `<span style="flex:1;"></span>`;
-            html += `<span style="${netColNum}"></span>`;
-            html += `<span style="${netColNum}"></span>`;
-            html += `<span style="${netColGold}">/hr</span>`;
-            html += `<span style="${netColGold}">/day</span>`;
-            html += `<span style="${netColNum}"></span>`;
-            html += `<span style="${netColGold}">Total</span>`;
-            html += '</div>';
-            html += `<div style="display:flex; align-items:center; padding:2px 0; font-size:13px; gap:6px;">`;
-            html += `<span style="color:#aaa; font-weight:700; flex:1;">Profit</span>`;
-            html += `<span style="${netColNum}"></span>`;
-            html += `<span style="${netColNum}"></span>`;
-            const profitDayDelta =
-                prevProfit !== null && prevProfit !== undefined
-                    ? this._formatDelta(netProfitPerDay, prevProfit * 24, true, true)
-                    : '';
-            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${profitSign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitPerHr)))}<br>${profitDelta}</span>`;
-            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${profitDaySign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitPerDay)))}<br>${profitDayDelta}</span>`;
-            html += `<span style="${netColNum}"></span>`;
-            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${totalProfitSign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitTotal)))}</span>`;
-            html += '</div>';
-            html += '</div>';
-
-            // Wipe Events
-            const wipeEvents = simResult.wipeEvents;
-            if (wipeEvents && wipeEvents.length > 0) {
-                html += `<div style="${sectionStyle}">`;
-                html += `<div style="${headingStyle}">Wipe Events (${wipeEvents.length})</div>`;
-                for (let wi = 0; wi < wipeEvents.length; wi++) {
-                    const event = wipeEvents[wi];
-                    const wave = event.wave ?? '?';
-                    const timeSec = ((event.simulationTime || 0) / 1e9).toFixed(2);
-                    const eventId = `mwi-wipe-${wi}`;
-                    html += `<div style="margin-bottom:6px; border:1px solid #333; border-radius:4px; overflow:hidden;">`;
-                    html += `<div id="${eventId}-header" data-wipe-toggle="${wi}" style="
-                    display:flex; justify-content:space-between; align-items:center;
-                    padding:4px 8px; background:#1a1a1a; cursor:pointer; font-size:12px;
-                ">`;
-                    html += `<span style="color:#aaa;">Wipe #${wi + 1} — Wave ${wave} @ ${timeSec}s</span>`;
-                    html += `<span style="color:#666; font-size:10px;">▶</span>`;
-                    html += `</div>`;
-                    html += `<div id="${eventId}-body" style="display:none; padding:6px 8px; font-size:11px; font-family:monospace; background:#111; max-height:300px; overflow-y:auto;">`;
-
-                    // Group logs by time
-                    const logs = event.logs || [];
-                    const groups = [];
-                    for (const log of logs) {
-                        if (log?.error) continue;
-                        const last = groups[groups.length - 1];
-                        if (last && last.time === log.time) {
-                            last.logs.push(log);
-                        } else {
-                            groups.push({ time: log.time, wave: log.wave, logs: [log] });
-                        }
-                    }
-
-                    const baseTime = groups.length > 0 ? groups[0].time : 0;
-                    for (const group of groups) {
-                        const rel = ((group.time - baseTime) / 1e9).toFixed(2);
-                        html += `<div style="margin-top:6px; color:#666; border-top:1px solid #222; padding-top:4px;">[+${rel}s] Wave ${group.wave ?? '?'}</div>`;
-                        const damagedPlayers = new Set(group.logs.map((l) => l.target));
-                        for (const log of group.logs) {
-                            const abilityLabel =
-                                log.ability === 'autoAttack'
-                                    ? 'Auto Attack'
-                                    : log.ability === 'damageOverTime'
-                                      ? 'DoT'
-                                      : log.ability === 'physicalThorns'
-                                        ? 'Physical Thorns'
-                                        : log.ability === 'elementalThorns'
-                                          ? 'Elemental Thorns'
-                                          : log.ability === 'retaliation'
-                                            ? 'Retaliation'
-                                            : log.ability;
-                            const critMark = log.isCrit ? '!!!' : '';
-                            html += `<div style="padding:1px 0; color:#ccc;">`;
-                            html += `<span style="color:#9ca3af;">${log.source}</span>`;
-                            html += ` cast <span style="color:#c4b5fd;">${abilityLabel}</span>`;
-                            html += ` → <span style="color:#93c5fd;">${log.target}</span>`;
-                            html += ` <span style="color:#ff6b6b;">${log.damage}${critMark}</span>`;
-                            html += ` <span style="color:#666;">HP ${log.beforeHp}→${log.afterHp}</span>`;
-                            html += `</div>`;
-                        }
-                        // Players HP summary at end of each time group
-                        if (group.logs.length > 0 && group.logs[group.logs.length - 1].playersHp) {
-                            const playersHp = group.logs[group.logs.length - 1].playersHp;
-                            const hpParts = playersHp.map((p) => {
-                                const color = p.current <= 0 ? '#ff6b6b' : damagedPlayers.has(p.hrid) ? '#93c5fd' : '#666';
-                                return `<span style="color:${color};">${p.hrid}: ${p.current}/${p.max}</span>`;
+    /**
+     * Optimize Food Core
+     * Headless (DOM-free) food/mana-food combo search, shared by the Optimize Food panel and
+     * Ultimate Sim. Minimizes deaths/hr first, then time spent out of mana, then cost/hr.
+     */
+
+
+    const MAX_FOOD_SLOTS = 3;
+    const TOP_CHEAP_PER_CATEGORY = 3;
+    // Food only comes in 4 mutually-exclusive categories — you can't equip two of the same category
+    // at once (e.g. two donuts), but different categories stack fine (donut + cake, gummy + yogurt).
+    const FOOD_CATEGORIES = ['hp_instant', 'hp_over_time', 'mp_instant', 'mp_over_time'];
+    // Combos are considered "tied" on deaths/hr or OOM% if within this margin, to absorb sim noise
+    // (finite test hours) rather than treating a fractional difference as a real survivability gap.
+    const TIE_EPSILON = 1e-6;
+    // After ranking food combos, this many of the cheapest/best combos get their trigger thresholds
+    // refined (rather than just the single best), since a slightly pricier combo can end up winning
+    // once its triggers are tuned.
+    const COMBOS_TO_REFINE = 10;
+    const ONE_HOUR_NS$2 = 3600 * 1e9;
+    // Trigger threshold candidates, expressed as a multiple of the food's own HP/MP restore amount,
+    // ordered from most aggressive/safest (triggers earliest) to most lenient/cheapest (triggers
+    // latest). Small fractions are included since a mana food may need to trigger well before it's
+    // "efficient" (early/often) to fully prevent OOM. The item's own default in-game trigger is
+    // always tested too, separately, as a baseline candidate.
+    const TRIGGER_MULTIPLIERS = [0.1, 0.25, 0.5, 1, 1.5, 2, 3];
+    // After the binary search locates the cheapest combo that reaches the 0-death/0-OOM floor, this
+    // many additional (pricier) combos are also tested so there's a real pool to rank/refine from —
+    // otherwise only the single boundary combo would ever be known to reach the floor.
+    const FILL_WINDOW = COMBOS_TO_REFINE * 3;
+
+    let simTaskIdCounter$1 = 0;
+
+    /**
+     * Tiny counting semaphore so we can cap total concurrent sim Workers across both the food-combo
+     * search and the (per-combo) trigger-threshold refinement, no matter how those calls are nested.
+     * @param {number} max
+     */
+    function createSemaphore$1(max) {
+        let active = 0;
+        const queue = [];
+        return {
+            acquire() {
+                return new Promise((resolve) => {
+                    const tryAcquire = () => {
+                        if (active < max) {
+                            active++;
+                            resolve(() => {
+                                active--;
+                                const next = queue.shift();
+                                if (next) next();
                             });
-                            html += `<div style="padding:2px 0; font-size:10px;">Players HP: ${hpParts.join(' | ')}</div>`;
+                        } else {
+                            queue.push(tryAcquire);
                         }
-                    }
-
-                    html += `</div>`; // body
-                    html += `</div>`; // card
-                }
-                html += `</div>`;
-            }
-
-            container.innerHTML = html;
-            container.style.display = 'block';
-
-            // Tab click handler — re-render with new active player
-            container.querySelectorAll('[data-tab]').forEach((btn) => {
-                btn.addEventListener('click', () => {
-                    this._activePlayerTab = btn.dataset.tab;
-                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                    };
+                    tryAcquire();
                 });
-            });
-
-            // History row click handler — show detail view for that scenario
-            container.querySelectorAll('[data-history-idx]').forEach((row) => {
-                const idx = parseInt(row.dataset.historyIdx, 10);
-                row.addEventListener('click', () => {
-                    this._activeDetailIndex = idx;
-                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
-                });
-            });
-
-            // Comparison: baseline selector
-            const baselineSelect = container.querySelector('#mwi-csim-baseline-select');
-            if (baselineSelect) {
-                baselineSelect.addEventListener('change', () => {
-                    const newBase = parseInt(baselineSelect.value, 10);
-                    this._comparisonBaseline = newBase;
-                    // Remove the new baseline from comparison slots if present
-                    this._comparisonSlots = this._comparisonSlots.filter((i) => i !== newBase);
-                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
-                });
-            }
-
-            // Comparison: add sim dropdown
-            const addCompSelect = container.querySelector('#mwi-csim-add-comparison');
-            if (addCompSelect) {
-                addCompSelect.addEventListener('change', () => {
-                    const idx = parseInt(addCompSelect.value, 10);
-                    if (!isNaN(idx) && !this._comparisonSlots.includes(idx)) {
-                        this._comparisonSlots.push(idx);
-                        this._activeDetailIndex = idx;
-                        this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
-                    }
-                });
-            }
-
-            // Comparison: remove × buttons
-            container.querySelectorAll('[data-remove-comparison]').forEach((btn) => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.dataset.removeComparison, 10);
-                    this._comparisonSlots = this._comparisonSlots.filter((i) => i !== idx);
-                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
-                });
-            });
-
-            // History: delete result buttons
-            container.querySelectorAll('[data-delete-history]').forEach((btn) => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const idx = parseInt(btn.dataset.deleteHistory, 10);
-                    this._deleteHistoryEntry(idx);
-                });
-            });
-
-            // Wipe event collapsible toggles
-            container.querySelectorAll('[data-wipe-toggle]').forEach((header) => {
-                header.addEventListener('click', () => {
-                    const wi = header.dataset.wipeToggle;
-                    const body = container.querySelector(`#mwi-wipe-${wi}-body`);
-                    const arrow = header.querySelector('span:last-child');
-                    if (body) {
-                        const isOpen = body.style.display !== 'none';
-                        body.style.display = isOpen ? 'none' : 'block';
-                        if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
-                    }
-                });
-            });
-
-            // History collapsible toggle
-            container.querySelectorAll('[data-toggle="history-section"]').forEach((el) => {
-                el.addEventListener('click', () => {
-                    const section = container.querySelector('#mwi-csim-history-section');
-                    const arrow = container.querySelector('[data-arrow="history-section"]');
-                    if (section) {
-                        const isOpen = section.style.display !== 'none';
-                        section.style.display = isOpen ? 'none' : 'block';
-                        if (arrow) arrow.innerHTML = isOpen ? '&#9654;' : '&#9660;';
-                    }
-                });
-            });
-        }
-
-        /**
-         * Pre-compute and store metrics for the latest history entry if not yet populated.
-         * Also ensures all history entries have metrics for comparison table.
-         * @private
-         */
-        _ensureHistoryMetrics(simResult, hours, gameData, activeTab) {
-            const latestEntry = this._simHistory[this._simHistory.length - 1];
-            if (latestEntry && !latestEntry.metrics) {
-                latestEntry.metrics = this._computeMetrics(simResult, hours, gameData, activeTab);
-            }
-
-            // Ensure all entries have metrics (for comparison table)
-            for (const entry of this._simHistory) {
-                if (!entry.metrics) {
-                    entry.metrics = this._computeMetrics(entry.simResult, entry.hours, entry.gameData, activeTab);
-                }
-            }
-        }
-
-        /**
-         * Compute metrics for a sim result.
-         * @private
-         */
-        _computeMetrics(simResult, hours, gameData, activeTab) {
-            // Encounters
-            const encountersPerHr = simResult.encounters / hours;
-
-            // DPS from actual damage dealt
-            const simSeconds = simResult.simulatedTime > 0 ? simResult.simulatedTime / 1e9 : hours * 3600;
-            let totalDamage = 0;
-            for (const [hrid, damage] of Object.entries(simResult.totalDamageDealt || {})) {
-                if (hrid.startsWith('player')) totalDamage += damage;
-            }
-            const dps = simSeconds > 0 ? totalDamage / simSeconds : 0;
-
-            // XP/hr for active player
-            let totalXpPerHr = 0;
-            if (simResult.experienceGained?.[activeTab]) {
-                for (const amount of Object.values(simResult.experienceGained[activeTab])) {
-                    totalXpPerHr += Math.round(amount / hours);
-                }
-            }
-
-            // Revenue from drops
-            let revenuePerHr = 0;
-            if (gameData) {
-                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
-                for (const [itemHrid, total] of dropMap.entries()) {
-                    if (total <= 0) continue;
-                    const price = marketAPI.getPrice(itemHrid);
-                    let unitValue = this._getSellPrice(price);
-                    if (unitValue === 0 && itemHrid === '/items/coin') unitValue = 1;
-                    if (unitValue === 0) {
-                        const evData = expectedValueCalculator.calculateExpectedValue(itemHrid);
-                        if (evData?.expectedValue > 0) unitValue = evData.expectedValue;
-                    }
-                    revenuePerHr += (total / hours) * unitValue;
-                }
-            }
-
-            // Expenses from consumables
-            let consumableCostPerHr = 0;
-            const selfConsumables = simResult.consumablesUsed?.[activeTab] || {};
-            for (const [itemHrid, count] of Object.entries(selfConsumables)) {
-                const price = marketAPI.getPrice(itemHrid);
-                const unitCost = this._getBuyPrice(price);
-                consumableCostPerHr += (count / hours) * unitCost;
-            }
-
-            // Dungeon key costs
-            let keyCostPerHrMetric = 0;
-            if (simResult.isDungeon && gameData) {
-                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
-                const getBuyPriceForKey = (keyHrid) => {
-                    const price = marketAPI.getPrice(keyHrid);
-                    return this._getBuyPrice(price);
-                };
-                const keyCosts = calculateDungeonKeyCosts(dropMap, getBuyPriceForKey);
-                for (const key of keyCosts) {
-                    keyCostPerHrMetric += (key.count / hours) * key.unitCost;
-                }
-            }
-
-            const expensesPerHr = consumableCostPerHr + keyCostPerHrMetric;
-
-            return {
-                encountersPerHr,
-                dps,
-                totalXpPerHr,
-                revenuePerHr,
-                expensesPerHr,
-                consumableCostPerHr,
-                keyCostPerHr: keyCostPerHrMetric,
-                profitPerHr: revenuePerHr - expensesPerHr,
-                successRate: simResult.isDungeon
-                    ? simResult.dungeonsCompleted / Math.max(1, simResult.dungeonsCompleted + simResult.dungeonsFailed)
-                    : null,
-            };
-        }
-
-        /**
-         * Render the comparison panel with baseline + selected comparison sims.
-         * @returns {string} HTML string
-         * @private
-         */
-        /**
-         * Delete a history entry by index and re-render results.
-         * @param {number} idx - Index in _simHistory to remove
-         * @private
-         */
-        _deleteHistoryEntry(idx) {
-            if (idx < 0 || idx >= this._simHistory.length) return;
-
-            this._simHistory.splice(idx, 1);
-
-            // If only one or zero results remain, clear all comparison state
-            if (this._simHistory.length <= 1) {
-                this._comparisonBaseline = null;
-                this._comparisonIndex = null;
-                this._comparisonSlots = [];
-            } else {
-                // Adjust comparisonBaseline
-                if (this._comparisonBaseline === idx) {
-                    this._comparisonBaseline = Math.max(0, this._simHistory.length - 1);
-                } else if (this._comparisonBaseline !== null && this._comparisonBaseline > idx) {
-                    this._comparisonBaseline--;
-                }
-
-                // Adjust comparisonSlots
-                this._comparisonSlots = this._comparisonSlots.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i));
-
-                // Adjust comparisonIndex
-                if (this._comparisonIndex === idx) {
-                    this._comparisonIndex = null;
-                } else if (this._comparisonIndex !== null && this._comparisonIndex > idx) {
-                    this._comparisonIndex--;
-                }
-            }
-
-            // Adjust activeDetailIndex
-            if (this._activeDetailIndex === idx) {
-                this._activeDetailIndex = this._simHistory.length > 0 ? this._simHistory.length - 1 : null;
-            } else if (this._activeDetailIndex !== null && this._activeDetailIndex > idx) {
-                this._activeDetailIndex--;
-            }
-
-            // If history is now empty, clear results display
-            if (this._simHistory.length === 0) {
-                this._lastSimResult = null;
-                this._lastSimHours = null;
-                this._lastGameData = null;
-                const container = this.panel?.querySelector('#mwi-csim-results');
-                if (container) container.style.display = 'none';
-                return;
-            }
-
-            // Re-render with the active entry
-            const activeEntry =
-                this._activeDetailIndex !== null
-                    ? this._simHistory[this._activeDetailIndex]
-                    : this._simHistory[this._simHistory.length - 1];
-            this._lastSimResult = activeEntry.simResult;
-            this._lastSimHours = activeEntry.hours;
-            this._lastGameData = activeEntry.gameData;
-            this._displayResults(activeEntry.simResult, activeEntry.hours, activeEntry.gameData);
-        }
-
-        _renderHistoryPanel() {
-            const history = this._simHistory;
-            if (history.length < 2) return '';
-
-            const baseIdx = this._comparisonBaseline ?? 0;
-            const baseEntry = history[baseIdx];
-            const baseM = baseEntry?.metrics;
-
-            // Check if any sim is a dungeon
-            const hasDungeon = history.some((e) => e.simResult?.isDungeon);
-
-            let html = '<div style="margin-bottom:12px;">';
-            html +=
-                '<div style="color:' +
-                ACCENT$4 +
-                '; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="history-section">';
-            html +=
-                '<span data-arrow="history-section" style="display:inline-block; width:14px; font-size:10px;">&#9660;</span> Comparison (' +
-                history.length +
-                ' runs)';
-            html += '</div>';
-            html += '<div id="mwi-csim-history-section" style="display:block;">';
-
-            // Baseline selector
-            html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:11px;">';
-            html += '<span style="color:#888;">Baseline:</span>';
-            html +=
-                '<select id="mwi-csim-baseline-select" style="flex:1; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:1px 4px; font-size:11px; font-family:inherit;">';
-            for (let i = 0; i < history.length; i++) {
-                const sel = i === baseIdx ? ' selected' : '';
-                html += '<option value="' + i + '"' + sel + '>' + history[i].label + '</option>';
-            }
-            html += '</select></div>';
-
-            // Table
-            html += '<table style="width:100%; font-size:11px; border-collapse:collapse;">';
-            html += '<tr style="border-bottom:1px solid #333; color:#666;">';
-            html += '<th style="text-align:left; padding:2px 4px;">Scenario</th>';
-            html += '<th style="text-align:right; padding:2px 4px;">EPH</th>';
-            html += '<th style="text-align:right; padding:2px 4px;">DPS</th>';
-            html += '<th style="text-align:right; padding:2px 4px;">Profit/hr</th>';
-            html += '<th style="text-align:right; padding:2px 4px;">XP/hr</th>';
-            if (hasDungeon) html += '<th style="text-align:right; padding:2px 4px;">Success</th>';
-            html += '<th style="width:20px;"></th>';
-            html += '<th style="width:20px;"></th>';
-            html += '</tr>';
-
-            // Baseline row
-            const baseProfitColor = baseM?.profitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
-            html += '<tr style="background:rgba(232,168,124,0.08); cursor:pointer;" data-history-idx="' + baseIdx + '">';
-            html +=
-                '<td style="padding:2px 4px; color:#e8a87c; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' +
-                baseEntry.label +
-                '">★ ' +
-                baseEntry.label +
-                '</td>';
-            html +=
-                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.encountersPerHr)) : '—') +
-                '</td>';
-            html +=
-                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.dps)) : '—') +
-                '</td>';
-            html +=
-                '<td style="text-align:right; padding:2px 4px; color:' +
-                baseProfitColor +
-                ';">' +
-                (baseM ? formatters_js.formatKMB(Math.round(baseM.profitPerHr)) : '—') +
-                '</td>';
-            html +=
-                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.totalXpPerHr)) : '—') +
-                '</td>';
-            if (hasDungeon) {
-                html +=
-                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                    (baseM?.successRate != null ? (baseM.successRate * 100).toFixed(1) + '%' : '—') +
-                    '</td>';
-            }
-            html += '<td></td>';
-            html +=
-                '<td style="text-align:center; padding:2px; cursor:pointer; color:#555;" data-delete-history="' +
-                baseIdx +
-                '" title="Delete result">✕</td>';
-            html += '</tr>';
-            for (const idx of this._comparisonSlots) {
-                if (idx === baseIdx || idx >= history.length) continue;
-                const entry = history[idx];
-                const m = entry.metrics;
-                const profitColor = m?.profitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
-
-                const ephDelta = baseM && m ? this._formatDelta(m.encountersPerHr, baseM.encountersPerHr, true) : '';
-                const dpsDelta = baseM && m ? this._formatDelta(m.dps, baseM.dps, true) : '';
-                const profitDelta = baseM && m ? this._formatDelta(m.profitPerHr, baseM.profitPerHr, true, true) : '';
-                const xpDelta = baseM && m ? this._formatDelta(m.totalXpPerHr, baseM.totalXpPerHr, true) : '';
-
-                html += '<tr style="cursor:pointer;" data-history-idx="' + idx + '">';
-                html +=
-                    '<td style="padding:2px 4px; color:#ccc; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' +
-                    entry.label +
-                    '">' +
-                    entry.label +
-                    '</td>';
-                html +=
-                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                    (m ? formatters_js.formatWithSeparator(Math.round(m.encountersPerHr)) : '—') +
-                    ephDelta +
-                    '</td>';
-                html +=
-                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                    (m ? formatters_js.formatWithSeparator(Math.round(m.dps)) : '—') +
-                    dpsDelta +
-                    '</td>';
-                html +=
-                    '<td style="text-align:right; padding:2px 4px; color:' +
-                    profitColor +
-                    ';">' +
-                    (m ? formatters_js.formatKMB(Math.round(m.profitPerHr)) : '—') +
-                    profitDelta +
-                    '</td>';
-                html +=
-                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                    (m ? formatters_js.formatWithSeparator(Math.round(m.totalXpPerHr)) : '—') +
-                    xpDelta +
-                    '</td>';
-                if (hasDungeon) {
-                    const successDelta =
-                        baseM?.successRate != null && m?.successRate != null
-                            ? this._formatDelta(m.successRate * 100, baseM.successRate * 100, true)
-                            : '';
-                    html +=
-                        '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
-                        (m?.successRate != null ? (m.successRate * 100).toFixed(1) + '%' : '—') +
-                        successDelta +
-                        '</td>';
-                }
-                html +=
-                    '<td style="text-align:center; padding:2px; cursor:pointer; color:#666;" data-remove-comparison="' +
-                    idx +
-                    '" title="Remove from comparison">×</td>';
-                html +=
-                    '<td style="text-align:center; padding:2px; cursor:pointer; color:#555;" data-delete-history="' +
-                    idx +
-                    '" title="Delete result">✕</td>';
-                html += '</tr>';
-            }
-
-            html += '</table>';
-
-            // Add to comparison dropdown
-            const available = [];
-            for (let i = 0; i < history.length; i++) {
-                if (i === baseIdx || this._comparisonSlots.includes(i)) continue;
-                available.push(i);
-            }
-            if (available.length > 0) {
-                html += '<div style="margin-top:6px;">';
-                html +=
-                    '<select id="mwi-csim-add-comparison" style="width:100%; background:#1a1a2e; color:#aaa; border:1px solid #444; border-radius:4px; padding:2px 4px; font-size:11px; font-family:inherit;">';
-                html += '<option value="">+ Add sim to comparison...</option>';
-                for (const i of available) {
-                    html += '<option value="' + i + '">' + history[i].label + '</option>';
-                }
-                html += '</select></div>';
-            }
-
-            html += '</div></div>';
-            return html;
-        }
-
-        /**
-         * Format a delta value as colored HTML span.
-         * Returns empty string if no previous value or delta is zero.
-         * @param {number} current - Current value
-         * @param {number|null} previous - Previous value (null if no comparison)
-         * @param {boolean} [higherIsBetter=true] - Whether higher values are positive
-         * @param {boolean} [useKMB=false] - Use KMB formatting for the delta
-         * @returns {string} HTML span or empty string
-         * @private
-         */
-        _formatDelta(current, previous, higherIsBetter = true, useKMB = false) {
-            if (previous === null || previous === undefined) return '';
-            const delta = current - previous;
-            if (Math.abs(delta) < 0.5) return '';
-            const isPositive = higherIsBetter ? delta > 0 : delta < 0;
-            const color = isPositive ? '#7ec87e' : '#ff6b6b';
-            const sign = delta > 0 ? '+' : '';
-            const formatted = useKMB ? formatters_js.formatKMB(Math.round(delta)) : formatters_js.formatWithSeparator(Math.round(delta));
-            return ` <span style="color:${color}; font-size:11px;">(${sign}${formatted})</span>`;
-        }
-
-        /**
-         * Format a deaths/hr value, showing decimals for low rates.
-         * @param {number} value
-         * @returns {string}
-         * @private
-         */
-        _formatDeaths(value) {
-            if (value === 0) return '0';
-            if (value < 0.1) return value.toFixed(2);
-            if (value < 1) return value.toFixed(1);
-            return formatters_js.formatWithSeparator(Math.round(value));
-        }
-
-        /**
-         * Format a rate value with one decimal place.
-         * @param {number} value
-         * @returns {string}
-         * @private
-         */
-        _formatRate(value) {
-            if (value === 0) return '0';
-            if (value < 0.1) return value.toFixed(2);
-            return (Math.round(value * 10) / 10).toString();
-        }
-
-        /**
-         * Set the status bar text.
-         * @param {string} text
-         * @private
-         */
-        _setStatus(text) {
-            const status = this.panel?.querySelector('#mwi-csim-status');
-            if (status) status.textContent = text;
-        }
-
-        /**
-         * Show a temporary warning toast overlaid on the panel.
-         * @param {string} text - Warning message
-         * @param {number} [duration=3000] - Duration in ms before auto-dismiss
-         * @private
-         */
-        _showWarning(text, duration = 3000) {
-            // Remove existing warning
-            this.panel?.querySelector('.mwi-csim-warning')?.remove();
-
-            const toast = document.createElement('div');
-            toast.className = 'mwi-csim-warning';
-            toast.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(30, 20, 10, 0.97);
-            border: 1px solid rgba(255, 152, 0, 0.6);
-            border-radius: 8px;
-            padding: 12px 20px;
-            color: #ffb74d;
-            font-size: 13px;
-            font-weight: 600;
-            text-align: center;
-            z-index: 10;
-            max-width: 80%;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-            animation: mwi-csim-fade-in 0.15s ease;
-        `;
-            toast.textContent = text;
-            this.panel.appendChild(toast);
-
-            setTimeout(() => {
-                toast.style.transition = 'opacity 0.3s ease';
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
-        }
-
-        /**
-         * Set up drag handling on the header element.
-         * @param {HTMLElement} header
-         * @private
-         */
-        _setupDrag(header) {
-            header.addEventListener('mousedown', (e) => {
-                if (e.target.id === 'mwi-csim-close') return;
-                this.isDragging = true;
-                header.style.cursor = 'grabbing';
-                const rect = this.panel.getBoundingClientRect();
-                this.dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-                bringPanelToFront(this.panel);
-
-                const onMove = (ev) => {
-                    if (!this.isDragging) return;
-                    this.panel.style.left = `${ev.clientX - this.dragOffset.x}px`;
-                    this.panel.style.top = `${ev.clientY - this.dragOffset.y}px`;
-                    this.panel.style.right = 'auto';
-                };
-                const onUp = () => {
-                    this.isDragging = false;
-                    header.style.cursor = 'grab';
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
-            });
-        }
-
-        /**
-         * @private
-         */
-        _setupResize(handle) {
-            handle.addEventListener('mousedown', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const startX = e.clientX;
-                const startY = e.clientY;
-                const startWidth = this.panel.offsetWidth;
-                const startHeight = this.panel.offsetHeight;
-                bringPanelToFront(this.panel);
-
-                const onMove = (ev) => {
-                    const newWidth = Math.max(400, startWidth + (ev.clientX - startX));
-                    const newHeight = Math.max(300, startHeight + (ev.clientY - startY));
-                    this.panel.style.width = `${newWidth}px`;
-                    this.panel.style.height = `${newHeight}px`;
-                };
-                const onUp = () => {
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                };
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
-            });
-        }
-
-        /**
-         * Open the sim panel pre-loaded with an external player DTO.
-         * Used by the profile page "Sim Character" button.
-         * @param {Object} dto - Player DTO in sim engine format
-         * @param {string} playerName - Display name for the player tab
-         */
-        openWithExternalDTO(dto, playerName) {
-            if (!this.panel) {
-                this.buildPanel();
-            }
-
-            this._editor.openWithExternalDTO(dto, playerName);
-
-            this.panel.style.display = 'flex';
-            bringPanelToFront(this.panel);
-            this.populateZones();
-            this._switchTab('configure');
-        }
-
-        /**
-         * Toggle panel visibility.
-         */
-        toggle() {
-            if (!this.panel) return;
-            const visible = this.panel.style.display !== 'none';
-            this.panel.style.display = visible ? 'none' : 'flex';
-            if (!visible) {
-                bringPanelToFront(this.panel);
-                this.populateZones();
-                if (!this._editor.isInitialized()) {
-                    this._editor.initEditor();
-                }
-            }
-        }
-
-        /**
-         * Remove the panel and clean up.
-         */
-        destroy() {
-            if (this.elapsedTimer) {
-                clearInterval(this.elapsedTimer);
-                this.elapsedTimer = null;
-            }
-            if (this.panel) {
-                unregisterFloatingPanel(this.panel);
-                this.panel.remove();
-                this.panel = null;
-            }
-            this.isRunning = false;
-
-            // Clear cached character data so next open loads fresh state
-            if (this._editor) this._editor.reset();
-            this._lastSimResult = null;
-            this._lastSimHours = null;
-            this._lastGameData = null;
-            this._simHistory = [];
-            this._comparisonIndex = null;
-            this._comparisonBaseline = null;
-            this._comparisonSlots = [];
-            this._activeDetailIndex = null;
-            this._allZonesResults = null;
-            this._seekResults = null;
-        }
-
-        /**
-         * Get the sell price for an item based on the global pricing mode.
-         * @param {Object} priceData - { bid, ask } from marketAPI
-         * @returns {number}
-         * @private
-         */
-        _getSellPrice(priceData) {
-            if (!priceData) return 0;
-            const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
-            // conservative/patientBuy → bid; hybrid/optimistic → ask
-            if (mode === 'conservative' || mode === 'patientBuy') {
-                return priceData.bid > 0 ? priceData.bid : 0;
-            }
-            return priceData.ask > 0 ? priceData.ask : 0;
-        }
-
-        /**
-         * Get the buy price for an item based on the global pricing mode.
-         * @param {Object} priceData - { bid, ask } from marketAPI
-         * @returns {number}
-         * @private
-         */
-        _getBuyPrice(priceData) {
-            if (!priceData) return 0;
-            const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
-            // optimistic/patientBuy → bid; conservative/hybrid → ask
-            if (mode === 'optimistic' || mode === 'patientBuy') {
-                return priceData.bid > 0 ? priceData.bid : 0;
-            }
-            return priceData.ask > 0 ? priceData.ask : 0;
-        }
-
-        /**
-         * Populate the player selector dropdown in the Upgrade tab.
-         * @private
-         */
-        _populateUpgradePlayerSelector() {
-            const select = this.panel?.querySelector('#mwi-csim-upgrade-player');
-            if (!select) return;
-
-            const playerInfo = this._editor?.getPlayerInfo() || [];
-            select.innerHTML = '';
-            playerInfo.forEach((p, i) => {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = p.name || `Player ${i + 1}`;
-                select.appendChild(option);
-            });
-
-            if (playerInfo.length === 0) {
-                const option = document.createElement('option');
-                option.value = 0;
-                option.textContent = 'Player 1';
-                select.appendChild(option);
-            }
-        }
-
-        /**
-         * Set default ability target level input to increment mode with value 5.
-         * @private
-         */
-        _setDefaultAbilityTargetLevel() {
-            const typeSelect = this.panel.querySelector('#mwi-csim-upgrade-level-type');
-            const input = this.panel.querySelector('#mwi-csim-upgrade-target-level');
-            if (!input) return;
-            if (typeSelect) typeSelect.value = 'increment';
-            input.value = '5';
-            input.placeholder = '+5';
-            input.title = 'Number of levels to add to each ability';
-        }
-
-        /**
-         * Run upgrade analysis when Analyze button is clicked.
-         * @private
-         */
-        async _onUpgradeAnalyze() {
-            const zoneHrid = this.panel.querySelector('#mwi-csim-zone')?.value;
-            const difficultyTier = parseInt(this.panel.querySelector('#mwi-csim-tier')?.value) || 0;
-            const hours = Math.min(
-                10000,
-                Math.max(
-                    1,
-                    parseInt(this.panel.querySelector('#mwi-csim-hours')?.value) ||
-                        config.getSettingValue('combatSim_defaultHours', 100)
-                )
-            );
-            const playerIndex = parseInt(this.panel.querySelector('#mwi-csim-upgrade-player')?.value) || 0;
-            const upgradeMode = this.panel.querySelector('#mwi-csim-upgrade-mode')?.value || 'equipment';
-            const abilityLevelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value || 'increment';
-            const targetLevelInput = this.panel.querySelector('#mwi-csim-upgrade-target-level')?.value;
-            // Budget mode takes millions with decimals; increment/target are integer levels
-            // (floor any decimal the user typed, e.g. via scroll-wheel on the number input).
-            const abilityTargetLevel =
-                abilityLevelType === 'budget' ? 0 : Math.min(200, Math.floor(parseFloat(targetLevelInput)) || 0);
-            const abilityLevelBudget =
-                abilityLevelType === 'budget' && targetLevelInput && parseFloat(targetLevelInput) > 0
-                    ? parseFloat(targetLevelInput) * 1_000_000
-                    : null;
-            const swapBudgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget')?.value;
-            const abilitySwapBudget =
-                swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : null;
-            const equipmentBudget =
-                swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : 1_000_000;
-            const levelBoostInput = this.panel.querySelector('#mwi-csim-upgrade-level-boost')?.value;
-            const equipmentLevelBoost = Math.max(0, Math.floor(parseFloat(levelBoostInput)) || 0);
-
-            if (!zoneHrid) {
-                this._setStatus('Select a zone in Configure tab first.');
-                return;
-            }
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            // Get player DTOs (edited or live)
-            let playerDTOs;
-            const editedDTOs = this._editor?.getEditedDTOs();
-            if (editedDTOs) {
-                playerDTOs = Object.values(editedDTOs);
-            } else {
-                const result = await buildAllPlayerDTOs();
-                playerDTOs = result.players;
-            }
-
-            if (!playerDTOs?.length || !playerDTOs[playerIndex]) {
-                this._setStatus('No player data available. Configure a simulation first.');
-                return;
-            }
-
-            // Show progress, hide results
-            const progressEl = this.panel.querySelector('#mwi-csim-upgrade-progress');
-            const resultsEl = this.panel.querySelector('#mwi-csim-upgrade-results');
-            const runBtn = this.panel.querySelector('#mwi-csim-upgrade-run');
-            const stopBtn = this.panel.querySelector('#mwi-csim-upgrade-stop');
-            progressEl.style.display = 'block';
-            resultsEl.innerHTML = '';
-            runBtn.style.display = 'none';
-            stopBtn.style.display = 'inline-block';
-            this._upgradeAborted = false;
-
-            const communityBuffs = getCommunityBuffs();
-
-            try {
-                const skipBackSlot = this.panel.querySelector('#mwi-csim-upgrade-skip-back')?.checked || false;
-                const results = await runUpgradeAnalysis(
-                    {
-                        playerDTOs,
-                        playerIndex,
-                        zoneHrid,
-                        difficultyTier,
-                        hours,
-                        communityBuffs,
-                        upgradeMode,
-                        abilityLevelType,
-                        abilityTargetLevel,
-                        abilityLevelBudget,
-                        abilitySwapBudget,
-                        equipmentBudget,
-                        equipmentLevelBoost,
-                        skipBackSlot,
-                    },
-                    ({ current, total, description }) => {
-                        if (this._upgradeAborted) return;
-                        const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');
-                        const text = this.panel.querySelector('#mwi-csim-upgrade-progress-text');
-                        const pct = Math.round((current / total) * 100);
-                        if (fill) fill.style.width = pct + '%';
-                        if (text) text.textContent = `${current} / ${total}`;
-                        this._setStatus(description);
-                    },
-                    { abortSignal: () => this._upgradeAborted }
-                );
-
-                if (this._upgradeAborted) {
-                    this._setStatus('Analysis cancelled.');
-                } else {
-                    this._renderUpgradeResults(results);
-                    this._setStatus(`Analysis complete. ${results.results.length} upgrades evaluated.`);
-                }
-            } catch (error) {
-                console.error('[CombatSimUI] Upgrade analysis failed:', error);
-                this._setStatus('Analysis failed: ' + error.message);
-            } finally {
-                progressEl.style.display = 'none';
-                runBtn.style.display = 'inline-block';
-                stopBtn.style.display = 'none';
-            }
-        }
-
-        /**
-         * Render upgrade analysis results as a flat, sortable table.
-         * @param {Object} results - { baseline, results: [{candidate, cost, metrics, deltas, goldPer}] }
-         * @private
-         */
-        _renderUpgradeResults(results) {
-            const container = this.panel.querySelector('#mwi-csim-upgrade-results');
-            if (!container) return;
-
-            if (!results.results.length) {
-                container.innerHTML =
-                    '<div style="color:#888; text-align:center; padding:20px;">No upgrade candidates found. Ensure equipment is configured.</div>';
-                return;
-            }
-
-            this._upgradeResults = results;
-            this._displayUpgradeResults();
-        }
-
-        /**
-         * @private
-         */
-        _displayUpgradeResults() {
-            const results = this._upgradeResults;
-            const container = this.panel.querySelector('#mwi-csim-upgrade-results');
-            if (!container || !results) return;
-
-            const baseline = results.baseline;
-
-            const cols = [
-                { key: 'description', label: 'Upgrade' },
-                { key: 'cost', label: 'Cost' },
-                { key: 'goldDps', label: 'Gold/0.1% DPS' },
-                { key: 'goldXp', label: 'Gold/0.1% EXP' },
-                { key: 'goldProfit', label: 'Gold/0.1% Profit' },
-                { key: 'dps', label: 'DPS' },
-                { key: 'dpsDeltaPct', label: 'DPS Δ%' },
-                { key: 'xpPerHour', label: 'XP/hr' },
-                { key: 'xpDeltaPct', label: 'XP/hr Δ%' },
-                { key: 'profitPerHour', label: 'Profit/hr' },
-                { key: 'profitDeltaPct', label: 'Profit/hr Δ%' },
-                { key: 'encountersPerHour', label: 'EPH' },
-                { key: 'deathsPerHour', label: 'DPH' },
-            ];
-
-            const rows = results.results.map((r) => ({
-                description: r.candidate.description,
-                cost: r.cost,
-                goldDps: r.goldPer.dps,
-                goldXp: r.goldPer.xp,
-                goldProfit: r.goldPer.profit,
-                dps: r.metrics.dps,
-                dpsDeltaPct: r.deltas.dps,
-                xpPerHour: r.metrics.xpPerHour,
-                xpDeltaPct: r.deltas.xp,
-                profitPerHour: r.metrics.profitPerHour,
-                profitDeltaPct: r.deltas.profit,
-                encountersPerHour: r.metrics.encountersPerHour,
-                deathsPerHour: r.metrics.deathsPerHour,
-            }));
-
-            // Sort
-            if (this._upgradeSortCol) {
-                const col = this._upgradeSortCol;
-                const asc = this._upgradeSortAsc;
-                rows.sort((a, b) => {
-                    const va = a[col] ?? 0;
-                    const vb = b[col] ?? 0;
-                    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                    if (va === Infinity && vb === Infinity) return 0;
-                    if (va === Infinity) return asc ? 1 : -1;
-                    if (vb === Infinity) return asc ? -1 : 1;
-                    return asc ? va - vb : vb - va;
-                });
-            }
-
-            // Best (lowest non-Infinity) value per gold/0.1% column, for highlighting
-            const bestVals = {};
-            for (const key of ['goldDps', 'goldXp', 'goldProfit']) {
-                let best = Infinity;
-                for (const row of rows) {
-                    if (row[key] < best) best = row[key];
-                }
-                bestVals[key] = best;
-            }
-
-            const thStyle =
-                'padding:4px 6px; text-align:left; cursor:pointer; white-space:nowrap; border-bottom:1px solid #333; color:#888; font-weight:600; user-select:none;';
-            const tdStyle = 'padding:4px 6px; border-bottom:1px solid #1a1a2e; white-space:nowrap;';
-            const bestColor = '#4caf50';
-
-            const headerCells = cols
-                .map((col) => {
-                    const arrow = this._upgradeSortCol === col.key ? (this._upgradeSortAsc ? ' ▲' : ' ▼') : '';
-                    return `<th data-col="${col.key}" style="${thStyle}">${col.label}${arrow}</th>`;
-                })
-                .join('');
-
-            const fmtGoldPer = (val) => (val === Infinity ? '—' : formatters_js.formatKMB(val));
-            const fmtPct = (val) => (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
-            const deltaColor = (val) => (val > 0.05 ? '#4caf50' : val < -0.05 ? '#f44336' : '#888');
-
-            const bodyRows = rows
-                .map((row) => {
-                    const rowColor = row.dpsDeltaPct > 0 || row.profitDeltaPct > 0 ? '#e0e0e0' : '#888';
-                    const cells = cols
-                        .map((col) => {
-                            let display;
-                            let style = tdStyle;
-                            switch (col.key) {
-                                case 'description':
-                                    display = row.description;
-                                    break;
-                                case 'cost':
-                                    display = formatters_js.formatKMB(row.cost);
-                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
-                                    break;
-                                case 'goldDps':
-                                case 'goldXp':
-                                case 'goldProfit':
-                                    display = fmtGoldPer(row[col.key]);
-                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
-                                    if (row[col.key] === bestVals[col.key] && bestVals[col.key] !== Infinity) {
-                                        style += ` color:${bestColor}; font-weight:700;`;
-                                    }
-                                    break;
-                                case 'dpsDeltaPct':
-                                case 'xpDeltaPct':
-                                case 'profitDeltaPct':
-                                    display = fmtPct(row[col.key]);
-                                    style += ` text-align:right; font-variant-numeric:tabular-nums; color:${deltaColor(row[col.key])};`;
-                                    break;
-                                case 'encountersPerHour':
-                                case 'deathsPerHour':
-                                    display = row[col.key].toFixed(1);
-                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
-                                    break;
-                                default:
-                                    display = formatters_js.formatKMB(row[col.key]);
-                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
-                            }
-                            return `<td style="${style}">${display}</td>`;
-                        })
-                        .join('');
-                    return `<tr style="color:${rowColor};">${cells}</tr>`;
-                })
-                .join('');
-
-            container.innerHTML = `
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; font-size:11px; min-width:900px;">
-                    <thead><tr>${headerCells}</tr></thead>
-                    <tbody>${bodyRows}</tbody>
-                </table>
-            </div>
-            <div style="margin-top:6px; color:#666; font-size:10px;">
-                Baseline: DPS ${formatters_js.formatKMB(baseline.dps)} | EXP ${formatters_js.formatKMB(baseline.xpPerHour)} | Profit ${formatters_js.formatKMB(baseline.profitPerHour)} | EPH ${baseline.encountersPerHour.toFixed(1)} | DPH ${baseline.deathsPerHour.toFixed(1)}
-            </div>
-        `;
-
-            container.querySelectorAll('th[data-col]').forEach((th) => {
-                th.addEventListener('click', () => {
-                    const col = th.dataset.col;
-                    if (this._upgradeSortCol === col) {
-                        this._upgradeSortAsc = !this._upgradeSortAsc;
-                    } else {
-                        this._upgradeSortCol = col;
-                        this._upgradeSortAsc = col === 'description';
-                    }
-                    this._displayUpgradeResults();
-                });
-            });
-        }
+            },
+        };
     }
-
-    const combatSimUI = new CombatSimUI();
 
     /**
-     * Combat Simulator Feature Module
-     * Integrates the combat simulator engine into the Cheezasha UI
+     * Lexicographic comparator matching the panel's ranking rules: fewest deaths/hr, then least
+     * mana-OOM time, then cheapest.
+     * @param {Object} a
+     * @param {Object} b
+     * @returns {number}
      */
-
-
-    const BUTTON_CLASS$4 = 'cheezasha-combat-sim-btn';
-
-    class CombatSim {
-        constructor() {
-            this.isInitialized = false;
-            this.unregisterHandlers = [];
-        }
-
-        /**
-         * Initialize the combat simulator feature
-         */
-        initialize() {
-            if (this.isInitialized) {
-                return;
-            }
-
-            if (!config.getSetting('combatSim')) {
-                return;
-            }
-
-            this.isInitialized = true;
-
-            combatSimUI.buildPanel();
-
-            // Watch for the combat panel appearing and inject the button
-            const unregister = domObserver.onClass('CombatSimButton', 'CombatPanel_combatPanel', (node) => {
-                this._injectButton(node);
-            });
-            this.unregisterHandlers.push(unregister);
-
-            // Try to inject into an already-visible combat panel
-            const existingPanel = document.querySelector('[class*="CombatPanel_combatPanel"]');
-            if (existingPanel) {
-                this._injectButton(existingPanel);
-            }
-        }
-
-        /**
-         * Inject the Combat Sim toggle button into a combat panel
-         * @param {HTMLElement} combatPanel - The combat panel element
-         */
-        _injectButton(combatPanel) {
-            if (!combatPanel || combatPanel.querySelector(`.${BUTTON_CLASS$4}`)) {
-                return;
-            }
-
-            // Find the tabs container within the combat panel
-            const tabsContainer = combatPanel.querySelector('[class*="TabsComponent_tabsContainer"] > div > div > div');
-
-            if (!tabsContainer) {
-                return;
-            }
-
-            const button = document.createElement('div');
-            button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 ' + BUTTON_CLASS$4;
-            button.textContent = 'Combat Sim';
-            button.style.cssText =
-                'cursor: pointer; background: linear-gradient(135deg, #3a7bd5, #5f3dc4); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
-
-            button.addEventListener('click', () => {
-                combatSimUI.toggle();
-            });
-
-            tabsContainer.appendChild(button);
-        }
-
-        /**
-         * Disable the combat simulator feature and clean up
-         */
-        disable() {
-            for (const unregister of this.unregisterHandlers) {
-                unregister();
-            }
-            this.unregisterHandlers = [];
-
-            cancelSimulation();
-            cancelAllZonesSimulation();
-            combatSimUI.destroy();
-
-            // Remove all injected buttons
-            document.querySelectorAll(`.${BUTTON_CLASS$4}`).forEach((btn) => btn.remove());
-
-            this.isInitialized = false;
-        }
+    function compareMetrics(a, b) {
+        if (Math.abs(a.deathsPerHour - b.deathsPerHour) > TIE_EPSILON) return a.deathsPerHour - b.deathsPerHour;
+        if (Math.abs(a.oomPercent - b.oomPercent) > TIE_EPSILON) return a.oomPercent - b.oomPercent;
+        return a.costPerHour - b.costPerHour;
     }
 
-    const combatSim = new CombatSim();
+    /**
+     * @param {{deathsPerHour: number, oomPercent: number}} metrics
+     * @returns {boolean} True if this hits the absolute floor: 0 deaths/hr and 0% mana-OOM time.
+     */
+    function passesFloor(metrics) {
+        return metrics.deathsPerHour <= TIE_EPSILON && metrics.oomPercent <= TIE_EPSILON;
+    }
+
+    /**
+     * Categorize a food item the same way the sim editor's conflict picker does: instant vs
+     * over-time HP/MP restore. Two items in the same category can't be equipped simultaneously.
+     * @param {Object} detail - item.consumableDetail
+     * @returns {string|null}
+     */
+    function getFoodCategory(detail) {
+        const hp = detail.hitpointRestore || 0;
+        const mp = detail.manapointRestore || 0;
+        const dur = detail.recoveryDuration || 0;
+        if (hp > 0) return dur > 0 ? 'hp_over_time' : 'hp_instant';
+        if (mp > 0) return dur > 0 ? 'mp_over_time' : 'mp_instant';
+        return null;
+    }
+
+    /**
+     * Pick the cheapest N candidates of a category, plus the single strongest (highest restore)
+     * in case cheap food alone can't prevent deaths/OOM.
+     * @param {Array<Object>} list - candidates sorted ascending by price
+     * @param {string} restoreKey - 'hp' or 'mp'
+     * @returns {Array<Object>}
+     */
+    function selectCandidates(list, restoreKey) {
+        const picked = new Map();
+        for (const item of list.slice(0, TOP_CHEAP_PER_CATEGORY)) picked.set(item.hrid, item);
+        const strongest = [...list].sort((a, b) => b[restoreKey] - a[restoreKey])[0];
+        if (strongest) picked.set(strongest.hrid, strongest);
+
+        // Also test the most cost-efficient food (restore per coin) plus the next pricier item past
+        // it. A stronger, pricier food that only needs to trigger occasionally can beat a cheap food
+        // that has to fire constantly, so it's worth checking one tier above the raw efficiency
+        // optimum rather than assuming cheapest-per-restore always wins once triggers are tuned.
+        const byEfficiency = [...list]
+            .filter((item) => item.price > 0)
+            .sort((a, b) => b[restoreKey] / b.price - a[restoreKey] / a.price);
+        if (byEfficiency.length) {
+            const mostEfficient = byEfficiency[0];
+            picked.set(mostEfficient.hrid, mostEfficient);
+
+            const nextTier = [...list]
+                .filter((item) => item.price > mostEfficient.price)
+                .sort((a, b) => a.price - b.price)[0];
+            if (nextTier) picked.set(nextTier.hrid, nextTier);
+        }
+
+        return Array.from(picked.values());
+    }
+
+    /**
+     * Build candidate food items grouped by category, priced via the market.
+     * @returns {Object<string, Array<{hrid: string, name: string, hp: number, mp: number, price: number}>>}
+     */
+    function getCandidateFoodGroups() {
+        const clientData = dataManager.getInitClientData();
+        const itemDetailMap = clientData?.itemDetailMap || {};
+
+        const byCategory = { hp_instant: [], hp_over_time: [], mp_instant: [], mp_over_time: [] };
+        for (const [hrid, item] of Object.entries(itemDetailMap)) {
+            const detail = item.consumableDetail;
+            if (!detail) continue;
+            const cat = item.categoryHrid || '';
+            if (!cat.includes('food')) continue;
+
+            const category = getFoodCategory(detail);
+            if (!category) continue;
+
+            const price = getBuyPrice(marketAPI.getPrice(hrid));
+            byCategory[category].push({
+                hrid,
+                name: item.name || hrid.split('/').pop(),
+                hp: detail.hitpointRestore || 0,
+                mp: detail.manapointRestore || 0,
+                price,
+            });
+        }
+
+        const groups = {};
+        for (const category of FOOD_CATEGORIES) {
+            const list = byCategory[category].sort((a, b) => a.price - b.price);
+            const restoreKey = category.startsWith('hp') ? 'hp' : 'mp';
+            groups[category] = selectCandidates(list, restoreKey);
+        }
+        return groups;
+    }
+
+    /**
+     * Generate all food combos of up to maxSlots items that respect the one-item-per-category rule:
+     * pick a subset of categories (up to maxSlots of them), then the cartesian product of each
+     * chosen category's candidates.
+     * @param {Object<string, Array<Object>>} groups - category → candidate items
+     * @param {number} maxSlots
+     * @returns {Array<Array<Object>>}
+     */
+    function generateFoodCombos(groups, maxSlots) {
+        const categories = FOOD_CATEGORIES.filter((c) => groups[c].length > 0);
+        const categorySubsets = generateCombos(categories, maxSlots);
+
+        const combos = [];
+        for (const subset of categorySubsets) {
+            let partials = [[]];
+            for (const category of subset) {
+                const next = [];
+                for (const partial of partials) {
+                    for (const item of groups[category]) {
+                        next.push([...partial, item]);
+                    }
+                }
+                partials = next;
+            }
+            combos.push(...partials);
+        }
+        return combos;
+    }
+
+    /**
+     * Build a MAX_FOOD_SLOTS-padded food DTO array for a combo, given a per-slot trigger override
+     * (null → use the item's default in-game triggers).
+     * @param {Array<Object>} combo
+     * @param {Array<Array<Object>|null>} slotTriggers
+     * @returns {Array<Object|null>}
+     */
+    function buildFoodDTO(combo, slotTriggers) {
+        const food = [];
+        for (let s = 0; s < MAX_FOOD_SLOTS; s++) {
+            if (!combo[s]) {
+                food.push(null);
+                continue;
+            }
+            food.push({ hrid: combo[s].hrid, triggers: slotTriggers[s] || [] });
+        }
+        return food;
+    }
+
+    /**
+     * Run one simulation for a given food loadout and extract the metrics Optimize Food ranks on.
+     * @param {Object} ctx - Shared run context (semaphore, gameData, playerDTOs, baseIndex, zoneHrid,
+     *   difficultyTier, hours, extraBuffs, selfHrid)
+     * @param {Array<Object|null>} food - Food DTO for the base player's food slots
+     * @param {Set<string>} comboHrids - Item hrids in this combo, to isolate their cost from other
+     *   already-equipped consumables (coffee/drinks) that stay constant across every test.
+     * @returns {Promise<{deathsPerHour: number, oomPercent: number, costPerHour: number}>}
+     */
+    async function evaluateFood(ctx, food, comboHrids) {
+        const { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid } = ctx;
+        const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, food } : p));
+
+        const message = {
+            type: 'start_simulation',
+            taskId: ++simTaskIdCounter$1,
+            gameData,
+            playerDTOs: modifiedDTOs,
+            zoneHrid,
+            difficultyTier,
+            simulationTimeLimit: hours * ONE_HOUR_NS$2,
+            extraBuffs,
+        };
+
+        const release = await semaphore.acquire();
+        let simResult;
+        try {
+            simResult = await runWorkerChunk(message);
+        } finally {
+            release();
+        }
+
+        const simHours = (simResult.simulatedTime || 0) / ONE_HOUR_NS$2 || hours;
+        const deathsPerHour = (simResult.deaths?.[selfHrid] || 0) / simHours;
+
+        const oomStat = simResult.playerRanOutOfManaTime?.[selfHrid];
+        const oomPercent = oomStat ? Math.min(100, (oomStat.totalTimeForOutOfMana / simResult.simulatedTime) * 100) : 0;
+
+        const consumablesUsed = simResult.consumablesUsed?.[selfHrid] || {};
+        let costPerHour = 0;
+        for (const [itemHrid, count] of Object.entries(consumablesUsed)) {
+            if (!comboHrids.has(itemHrid)) continue;
+            const price = getBuyPrice(marketAPI.getPrice(itemHrid));
+            costPerHour += (count / simHours) * price;
+        }
+
+        return { deathsPerHour, oomPercent, costPerHour };
+    }
+
+    /**
+     * Per food slot, binary search TRIGGER_MULTIPLIERS (ordered most-aggressive/safest to
+     * most-lenient/cheapest) for the loosest threshold that still reaches the 0-death/0-OOM floor,
+     * instead of testing every candidate. Assumes safety is monotonic in aggressiveness (triggering
+     * earlier/more often can't hurt survival, only cost) — same shortcut the combo search uses, just
+     * applied per-slot. Falls back to testing every candidate only if even the most aggressive
+     * threshold can't reach the floor (the monotonic shortcut no longer applies). The item's default
+     * in-game trigger is always tested too, in case it's already at or near optimal.
+     * One slot at a time, holding the other (already-decided) slots fixed — coordinate descent
+     * across slots, binary search within each slot.
+     * @param {Object} entry - A ranked combo result from the initial (default-trigger) search
+     * @param {Object} ctx - Shared run context, see evaluateFood
+     * @returns {Promise<Object>} entry with refined metrics + slotTriggers
+     */
+    async function refineTriggers(entry, ctx) {
+        const { combo } = entry;
+        const comboHrids = new Set(combo.map((c) => c.hrid));
+        const slotTriggers = combo.map(() => null);
+        let bestMetrics = {
+            deathsPerHour: entry.deathsPerHour,
+            oomPercent: entry.oomPercent,
+            costPerHour: entry.costPerHour,
+        };
+
+        for (let s = 0; s < combo.length; s++) {
+            if (ctx.isAborted()) break;
+
+            const item = combo[s];
+            const restoreAmount = item.hp > 0 ? item.hp : item.mp;
+            if (!restoreAmount) continue;
+            const conditionHrid =
+                item.hp > 0 ? '/combat_trigger_conditions/missing_hp' : '/combat_trigger_conditions/missing_mp';
+
+            const buildTriggers = (multiplier) => [
+                {
+                    dependencyHrid: '/combat_trigger_dependencies/self',
+                    conditionHrid,
+                    comparatorHrid: '/combat_trigger_comparators/greater_than_equal',
+                    value: Math.max(1, Math.round(restoreAmount * multiplier)),
+                },
+            ];
+
+            const testCandidate = async (triggers) => {
+                const testTriggers = [...slotTriggers];
+                testTriggers[s] = triggers;
+                const food = buildFoodDTO(combo, testTriggers);
+                const metrics = await evaluateFood(ctx, food, comboHrids);
+                return { triggers, metrics };
+            };
+
+            const cache = new Map();
+            const testMultiplierAt = async (i) => {
+                if (cache.has(i)) return cache.get(i);
+                const result = await testCandidate(buildTriggers(TRIGGER_MULTIPLIERS[i]));
+                cache.set(i, result);
+                return result;
+            };
+
+            const mostAggressive = await testMultiplierAt(0);
+            if (passesFloor(mostAggressive.metrics)) {
+                // Find the rightmost (loosest/cheapest) multiplier that still passes the floor.
+                let lo = 0;
+                let hi = TRIGGER_MULTIPLIERS.length - 1;
+                while (lo < hi) {
+                    const mid = Math.ceil((lo + hi) / 2);
+                    const result = await testMultiplierAt(mid);
+                    if (passesFloor(result.metrics)) {
+                        lo = mid;
+                    } else {
+                        hi = mid - 1;
+                    }
+                }
+            } else {
+                // Even the most aggressive threshold can't reach the floor for this slot — the
+                // monotonic-safety shortcut doesn't apply, so test the rest to find the best
+                // achievable result instead of just the boundary.
+                for (let i = 1; i < TRIGGER_MULTIPLIERS.length; i++) {
+                    await testMultiplierAt(i);
+                }
+            }
+
+            const defaultCandidate = await testCandidate(null);
+
+            const candidates = [...cache.values(), defaultCandidate];
+            candidates.sort((a, b) => compareMetrics(a.metrics, b.metrics));
+            const winner = candidates[0];
+            slotTriggers[s] = winner.triggers;
+            bestMetrics = winner.metrics;
+        }
+
+        return { ...entry, ...bestMetrics, slotTriggers };
+    }
+
+    /**
+     * Rank combos by restricting to the best survival/mana tier first — fewest deaths/hr, then
+     * least OOM time (0% whenever any combo achieves it) — and only *then* sorting what's left
+     * by cost/hr. A cheaper combo with worse deaths/OOM must never outrank a pricier one that
+     * actually survives better; cost only breaks ties within the same deaths/OOM tier.
+     * @param {Array<Object>} results
+     * @param {number} [limit]
+     * @returns {Array<Object>}
+     */
+    function rankFoodResults(results, limit = 5) {
+        if (!results.length) return [];
+
+        const minDeaths = Math.min(...results.map((r) => r.deathsPerHour));
+        const survivalTier = results.filter((r) => r.deathsPerHour <= minDeaths + TIE_EPSILON);
+
+        const minOOM = Math.min(...survivalTier.map((r) => r.oomPercent));
+        const manaTier = survivalTier.filter((r) => r.oomPercent <= minOOM + TIE_EPSILON);
+
+        return [...manaTier].sort((a, b) => a.costPerHour - b.costPerHour).slice(0, limit);
+    }
+
+    /**
+     * Describe a combo's per-slot trigger thresholds, e.g. "Cake (missing HP ≥ 320) + Coffee
+     * (default)". Omitted (undefined slotTriggers) means the combo wasn't refined.
+     * @param {Object} entry
+     * @returns {string|null}
+     */
+    function describeFoodTriggers(entry) {
+        if (!entry.slotTriggers) return null;
+        return entry.combo
+            .map((item, i) => {
+                const triggers = entry.slotTriggers[i];
+                if (!triggers || !triggers.length) return `${item.name}: default`;
+                const t = triggers[0];
+                const stat = t.conditionHrid.endsWith('missing_hp') ? 'HP' : 'MP';
+                return `${item.name}: missing ${stat} ≥ ${t.value}`;
+            })
+            .join(', ');
+    }
+
+    /**
+     * Search food/mana-food combos for the given combat context, headless (no DOM). Binary-searches
+     * the cheapest combo reaching a 0-death/0-OOM floor, then refines trigger thresholds on the
+     * top candidates.
+     * @param {Object} params
+     * @param {Object} params.gameData
+     * @param {Array<Object>} params.playerDTOs
+     * @param {number} params.baseIndex - Index of the player whose food loadout is being searched
+     * @param {string} params.zoneHrid
+     * @param {number} params.difficultyTier
+     * @param {number} params.hours - Test hours per combo
+     * @param {Array<Object>} params.extraBuffs
+     * @param {string} params.selfHrid
+     * @param {Function} [params.isAborted] - () => boolean
+     * @param {Function} [params.onProgress] - ({completed, total, phase}) => void
+     * @returns {Promise<{results: Array<Object>, refined: Array<Object>, reachedFloor: boolean}>}
+     */
+    async function runFoodOptimization(params) {
+        const {
+            gameData,
+            playerDTOs,
+            baseIndex,
+            zoneHrid,
+            difficultyTier,
+            hours,
+            extraBuffs,
+            selfHrid,
+            isAborted = () => false,
+            onProgress = () => {},
+        } = params;
+
+        const groups = getCandidateFoodGroups();
+        // Cheapest-first order. Combined with the floor early-exit below: once a combo hits the
+        // absolute floor (0 deaths, 0% OOM) nothing can beat it — everything already tested was
+        // cheaper, and everything still untested is guaranteed pricier by this ordering. Short of
+        // that floor we can't prove a cheaper-but-untested combo won't do better without running
+        // it, so no combo is ever skipped unless that guarantee actually holds.
+        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS).sort(
+            (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
+        );
+
+        const semaphore = createSemaphore$1(Math.max(1, getMaxWorkers()));
+        const ctx = {
+            semaphore,
+            gameData,
+            playerDTOs,
+            baseIndex,
+            zoneHrid,
+            difficultyTier,
+            hours,
+            extraBuffs,
+            selfHrid,
+            isAborted,
+        };
+
+        const results = [];
+        const tested = new Map();
+        let completed = 0;
+
+        const testIndex = async (i) => {
+            if (tested.has(i)) return tested.get(i);
+            const combo = combos[i];
+            const food = buildFoodDTO(
+                combo,
+                combo.map(() => null)
+            );
+            const comboHrids = new Set(combo.map((c) => c.hrid));
+
+            let metrics;
+            try {
+                metrics = await evaluateFood(ctx, food, comboHrids);
+            } catch (err) {
+                if (err.message === 'Cancelled') return null;
+                console.error('[OptimizeFoodCore] Simulation failed for combo', combo, err);
+                return null;
+            }
+
+            completed++;
+            onProgress({ completed, total: combos.length, phase: 'search' });
+
+            const entry = { combo, label: combo.map((c) => c.name).join(' + ') || 'No food', ...metrics };
+            tested.set(i, entry);
+            results.push(entry);
+            return entry;
+        };
+
+        const testIndicesInParallel = async (indices) => {
+            let cursor = 0;
+            const workerCount = Math.max(1, Math.min(getMaxWorkers(), indices.length));
+            await Promise.all(
+                Array.from({ length: workerCount }, async () => {
+                    while (cursor < indices.length && !isAborted()) {
+                        await testIndex(indices[cursor++]);
+                    }
+                })
+            );
+        };
+
+        // Binary search the price-sorted combo list for the cheapest one that reaches the
+        // 0-death/0-OOM floor, rather than scanning cheapest-first.
+        let lo = 0;
+        let hi = combos.length;
+        let boundaryIndex = combos.length;
+        while (lo < hi && !isAborted()) {
+            const mid = (lo + hi) >> 1;
+            const entry = await testIndex(mid);
+            if (entry && passesFloor(entry)) {
+                boundaryIndex = mid;
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+
+        const reachedFloor = boundaryIndex < combos.length;
+
+        if (!isAborted()) {
+            if (reachedFloor) {
+                onProgress({ completed, total: combos.length, phase: 'gathering' });
+                const windowEnd = Math.min(combos.length, boundaryIndex + FILL_WINDOW);
+                const fillIndices = [];
+                for (let i = boundaryIndex; i < windowEnd; i++) {
+                    if (!tested.has(i)) fillIndices.push(i);
+                }
+                await testIndicesInParallel(fillIndices);
+            } else {
+                onProgress({ completed, total: combos.length, phase: 'exhaustive' });
+                const remaining = [];
+                for (let i = 0; i < combos.length; i++) {
+                    if (!tested.has(i)) remaining.push(i);
+                }
+                await testIndicesInParallel(remaining);
+            }
+        }
+
+        if (isAborted()) {
+            return { results, refined: results, reachedFloor };
+        }
+
+        onProgress({ completed, total: combos.length, phase: 'refining' });
+
+        // Refine trigger thresholds on the best few combos rather than just the single best — a
+        // slightly pricier combo can end up winning once its food's triggers are tuned.
+        const toRefine = [...results].sort(compareMetrics).slice(0, COMBOS_TO_REFINE);
+        const refined = isAborted() ? toRefine : await Promise.all(toRefine.map((entry) => refineTriggers(entry, ctx)));
+
+        return { results, refined, reachedFloor };
+    }
 
     /**
      * Tea Optimizer Utility
@@ -22239,31 +19337,6 @@
     }
 
     /**
-     * Combinatorics helper shared by the coffee and food optimizers.
-     */
-
-    /**
-     * Generate all combinations of up to maxSlots items (including the empty combo), no repetition.
-     * @param {Array} items
-     * @param {number} maxSlots
-     * @returns {Array<Array>}
-     */
-    function generateCombos(items, maxSlots) {
-        const combos = [[]];
-        const recurse = (start, current) => {
-            if (current.length > 0) combos.push([...current]);
-            if (current.length >= maxSlots) return;
-            for (let i = start; i < items.length; i++) {
-                current.push(items[i]);
-                recurse(i + 1, current);
-                current.pop();
-            }
-        };
-        recurse(0, []);
-        return combos;
-    }
-
-    /**
      * Optimize Coffee Core
      * Headless (DOM-free) combat drink (coffee) combo search, shared by the Optimize Coffee panel
      * and Ultimate Sim. Ranks combos by XP/hr, coins/hr, and a mixed (effective XP/hr) metric.
@@ -22271,15 +19344,15 @@
 
 
     const MAX_DRINK_SLOTS$1 = 3;
-    const ONE_HOUR_NS$2 = 3600 * 1e9;
+    const ONE_HOUR_NS$1 = 3600 * 1e9;
 
-    let simTaskIdCounter$1 = 0;
+    let simTaskIdCounter = 0;
 
     /**
      * Tiny counting semaphore so total concurrent sim Workers never exceeds the configured max.
      * @param {number} max
      */
-    function createSemaphore$1(max) {
+    function createSemaphore(max) {
         let active = 0;
         const queue = [];
         return {
@@ -22399,12 +19472,12 @@
 
         const message = {
             type: 'start_simulation',
-            taskId: ++simTaskIdCounter$1,
+            taskId: ++simTaskIdCounter,
             gameData,
             playerDTOs: modifiedDTOs,
             zoneHrid,
             difficultyTier,
-            simulationTimeLimit: hours * ONE_HOUR_NS$2,
+            simulationTimeLimit: hours * ONE_HOUR_NS$1,
             extraBuffs,
         };
 
@@ -22416,7 +19489,7 @@
             release();
         }
 
-        const simHours = (simResult.simulatedTime || 0) / ONE_HOUR_NS$2 || hours;
+        const simHours = (simResult.simulatedTime || 0) / ONE_HOUR_NS$1 || hours;
         const xpMap = simResult.experienceGained?.[selfHrid] || {};
         const xpPerHour = Object.values(xpMap).reduce((s, v) => s + v, 0) / simHours;
 
@@ -22487,7 +19560,7 @@
         const groups = getCandidateDrinkGroups(attackStyle);
         const combos = generateCombos(groups, MAX_DRINK_SLOTS$1);
 
-        const semaphore = createSemaphore$1(Math.max(1, getMaxWorkers()));
+        const semaphore = createSemaphore(Math.max(1, getMaxWorkers()));
         const ctx = { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid };
 
         const results = [];
@@ -22528,1547 +19601,6 @@
         scoreCoffeeMixed(results);
         return results;
     }
-
-    /**
-     * Optimize Coffee UI
-     * Floating panel that searches combat drink (coffee) combinations for the
-     * currently equipped gear and ranks them by XP/hr, coins/hr, and a mixed metric.
-     */
-
-
-    const PANEL_ID$3 = 'mwi-optimize-coffee-panel';
-    const ACCENT$3 = '#c58b3f';
-    const ACCENT_BORDER$3 = 'rgba(197, 139, 63, 0.5)';
-    const ACCENT_BG$3 = 'rgba(197, 139, 63, 0.12)';
-    const ACCENT_BTN_BG$3 = 'rgba(197, 139, 63, 0.2)';
-    const ACCENT_BTN_BORDER$3 = 'rgba(197, 139, 63, 0.4)';
-
-    class OptimizeCoffeeUI {
-        constructor() {
-            this.panel = null;
-            this.isRunning = false;
-            this._aborted = false;
-            this.isDragging = false;
-            this.dragOffset = { x: 0, y: 0 };
-        }
-
-        buildPanel() {
-            if (this.panel) return;
-
-            this.panel = document.createElement('div');
-            this.panel.id = PANEL_ID$3;
-            this.panel.style.cssText = `
-            position: fixed;
-            top: 60px;
-            right: 60px;
-            z-index: ${config.Z_FLOATING_PANEL};
-            background: rgba(10, 10, 20, 0.97);
-            border: 2px solid ${ACCENT_BORDER$3};
-            border-radius: 10px;
-            width: 720px;
-            height: 520px;
-            min-width: 480px;
-            min-height: 300px;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: none;
-            flex-direction: column;
-            font-family: 'Segoe UI', sans-serif;
-            color: #e0e0e0;
-            font-size: 13px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-        `;
-
-            const header = document.createElement('div');
-            header.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            cursor: grab;
-            background: ${ACCENT_BG$3};
-            border-bottom: 1px solid ${ACCENT_BORDER$3};
-            border-radius: 8px 8px 0 0;
-            flex-shrink: 0;
-        `;
-            header.innerHTML = `
-            <span style="font-weight:700; font-size:14px; color:${ACCENT$3};">Optimize Coffee</span>
-            <button id="mwi-ocof-close" style="
-                background:none; border:none; color:#aaa; font-size:22px;
-                cursor:pointer; padding:0; line-height:1;">×</button>
-        `;
-            this._setupDrag(header);
-
-            const selectStyle =
-                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
-            const inputStyle =
-                'width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
-
-            const controls = document.createElement('div');
-            controls.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-            controls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Zone</label>
-            <select id="mwi-ocof-zone" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Tier</label>
-            <select id="mwi-ocof-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
-            <label style="color:#888; font-size:12px;">Test Hours</label>
-            <input id="mwi-ocof-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeCoffeeHours', 2)}" style="${inputStyle}">
-            <button id="mwi-ocof-run" style="
-                margin-left: auto;
-                background: ${ACCENT_BTN_BG$3};
-                color: ${ACCENT$3};
-                border: 1px solid ${ACCENT_BTN_BORDER$3};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                font-family: inherit;">Optimize</button>
-            <button id="mwi-ocof-stop" style="
-                display:none;
-                background:rgba(244, 67, 54, 0.2);
-                border:1px solid rgba(244, 67, 54, 0.4);
-                color:#f44336;
-                border-radius:4px;
-                padding:5px 10px;
-                font-size:12px;
-                font-weight:600;
-                cursor:pointer;
-                font-family:inherit;">Stop</button>
-        `;
-
-            const progressContainer = document.createElement('div');
-            progressContainer.id = 'mwi-ocof-progress-container';
-            progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            progressContainer.innerHTML = `
-            <div style="
-                background:#1a1a2e;
-                border-radius:4px;
-                height:18px;
-                overflow:hidden;
-                position:relative;
-                border:1px solid #333;">
-                <div id="mwi-ocof-progress-fill" style="
-                    height:100%;
-                    width:0%;
-                    background:linear-gradient(90deg, ${ACCENT_BTN_BG$3}, ${ACCENT$3});
-                    border-radius:3px;
-                    transition:width 0.2s ease;"></div>
-                <span id="mwi-ocof-progress-text" style="
-                    position:absolute;
-                    top:0; left:0; right:0;
-                    text-align:center;
-                    font-size:11px;
-                    line-height:18px;
-                    color:#e0e0e0;
-                    font-weight:600;">0 / 0</span>
-            </div>
-        `;
-
-            const resultsContainer = document.createElement('div');
-            resultsContainer.id = 'mwi-ocof-results';
-            resultsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-            resultsContainer.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
-
-            const status = document.createElement('div');
-            status.id = 'mwi-ocof-status';
-            status.style.cssText =
-                'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-            status.textContent = 'Ready.';
-
-            this.panel.appendChild(header);
-            this.panel.appendChild(controls);
-            this.panel.appendChild(progressContainer);
-            this.panel.appendChild(resultsContainer);
-            this.panel.appendChild(status);
-
-            document.body.appendChild(this.panel);
-            registerFloatingPanel(this.panel);
-
-            this.panel.querySelector('#mwi-ocof-close').addEventListener('click', () => {
-                this.panel.style.display = 'none';
-            });
-            this.panel.querySelector('#mwi-ocof-run').addEventListener('click', () => this._onRun());
-            this.panel.querySelector('#mwi-ocof-stop').addEventListener('click', () => {
-                this._aborted = true;
-                cancelSimulation();
-            });
-            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
-            this.panel.querySelector('#mwi-ocof-zone').addEventListener('change', () => this._updateTierDropdown());
-
-            this._populateZones();
-        }
-
-        _setupDrag(header) {
-            header.addEventListener('mousedown', (e) => {
-                this.isDragging = true;
-                const rect = this.panel.getBoundingClientRect();
-                this.dragOffset.x = e.clientX - rect.left;
-                this.dragOffset.y = e.clientY - rect.top;
-                e.preventDefault();
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (!this.isDragging) return;
-                this.panel.style.left = `${e.clientX - this.dragOffset.x}px`;
-                this.panel.style.top = `${e.clientY - this.dragOffset.y}px`;
-                this.panel.style.right = 'auto';
-            });
-            document.addEventListener('mouseup', () => {
-                this.isDragging = false;
-            });
-        }
-
-        _populateZones() {
-            const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
-            if (!zoneSelect) return;
-
-            const zones = getCombatZones();
-            zoneSelect.innerHTML = '';
-            for (const zone of zones) {
-                const option = document.createElement('option');
-                option.value = zone.hrid;
-                option.textContent = zone.isDungeon ? `[D] ${zone.name}` : zone.name;
-                zoneSelect.appendChild(option);
-            }
-
-            const current = getCurrentCombatZone();
-            if (current) zoneSelect.value = current.zoneHrid;
-
-            this._updateTierDropdown();
-
-            if (current) {
-                const tierSelect = this.panel.querySelector('#mwi-ocof-tier');
-                if (tierSelect) tierSelect.value = String(current.difficultyTier);
-            }
-        }
-
-        _updateTierDropdown() {
-            const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-ocof-tier');
-            if (!zoneSelect || !tierSelect) return;
-
-            const zones = getCombatZones();
-            const zone = zones.find((z) => z.hrid === zoneSelect.value);
-            const maxTier = zone?.isDungeon ? 2 : 5;
-
-            const currentTier = parseInt(tierSelect.value) || 0;
-            tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
-                ''
-            );
-            tierSelect.value = String(Math.min(currentTier, maxTier));
-        }
-
-        _setStatus(text) {
-            const status = this.panel?.querySelector('#mwi-ocof-status');
-            if (status) status.textContent = text;
-        }
-
-        async _onRun() {
-            if (this.isRunning) return;
-
-            const zoneSelect = this.panel?.querySelector('#mwi-ocof-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-ocof-tier');
-            const hoursEl = this.panel?.querySelector('#mwi-ocof-hours');
-            const zoneHrid = zoneSelect?.value;
-            const difficultyTier = parseInt(tierSelect?.value) || 0;
-            const hours = Math.min(1000, Math.max(1, parseInt(hoursEl?.value) || 2));
-
-            if (!zoneHrid) {
-                this._setStatus('Select a zone first.');
-                return;
-            }
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            const { players: playerDTOs, selfHrid } = await buildAllPlayerDTOs();
-            if (!playerDTOs.length) {
-                this._setStatus('No character data available.');
-                return;
-            }
-
-            const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
-            const baseIndex = selfIndex >= 0 ? selfIndex : 0;
-            applyLiveSelfOverrides(playerDTOs[baseIndex]);
-
-            const communityBuffs = getCommunityBuffs();
-            const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
-            const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
-
-            this.isRunning = true;
-            this._aborted = false;
-            const runBtn = this.panel.querySelector('#mwi-ocof-run');
-            const stopBtn = this.panel.querySelector('#mwi-ocof-stop');
-            const progressContainer = this.panel.querySelector('#mwi-ocof-progress-container');
-            const progressFill = this.panel.querySelector('#mwi-ocof-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-ocof-progress-text');
-            const resultsEl = this.panel.querySelector('#mwi-ocof-results');
-
-            runBtn.disabled = true;
-            runBtn.style.opacity = '0.5';
-            runBtn.style.cursor = 'not-allowed';
-            stopBtn.style.display = '';
-            progressContainer.style.display = 'block';
-            resultsEl.innerHTML = '';
-
-            try {
-                const results = await runCoffeeOptimization({
-                    gameData,
-                    playerDTOs,
-                    baseIndex,
-                    zoneHrid,
-                    difficultyTier,
-                    hours,
-                    extraBuffs,
-                    selfHrid,
-                    isAborted: () => this._aborted,
-                    onProgress: ({ completed, total }) => {
-                        progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
-                        progressText.textContent = `${completed} / ${total}`;
-                        this._setStatus(`Tested ${completed}/${total} coffee combos...`);
-                    },
-                });
-
-                progressFill.style.width = '100%';
-
-                if (this._aborted) {
-                    this._setStatus(`Stopped after ${results.length} combos.`);
-                } else {
-                    this._setStatus(`Done: tested ${results.length} coffee combos.`);
-                }
-
-                this._displayResults(results);
-            } finally {
-                this.isRunning = false;
-                runBtn.disabled = false;
-                runBtn.style.opacity = '1';
-                runBtn.style.cursor = 'pointer';
-                stopBtn.style.display = 'none';
-                progressContainer.style.display = 'none';
-            }
-        }
-
-        _displayResults(results) {
-            const container = this.panel?.querySelector('#mwi-ocof-results');
-            if (!container) return;
-
-            if (!results.length) {
-                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
-                return;
-            }
-
-            // mixedScore ("Eff. XP/hr") is already computed by runCoffeeOptimization.
-            const byXP = [...results].sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, 8);
-            const byProfit = [...results].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, 8);
-            const byMixed = [...results].sort((a, b) => b.mixedScore - a.mixedScore).slice(0, 8);
-
-            const fmtXP = (v) => formatters_js.formatKMB(Math.round(v));
-            const fmtCoins = (v) => formatters_js.formatKMB(Math.round(v));
-
-            // valueKey/valueFmt describe the primary (sort) metric. Mixed columns show both XP/hr and
-            // Coins/hr; XP/hr and Coins/hr columns show their own metric plus the other one (2 cols total).
-            const renderColumn = (title, rows, valueKey, valueFmt) => {
-                const primaryLabel =
-                    valueKey === 'xpPerHour' ? 'XP/hr' : valueKey === 'profitPerHour' ? 'Coins/hr' : 'Eff. XP/hr';
-                const showXP = valueKey !== 'xpPerHour';
-                const showCoins = valueKey !== 'profitPerHour';
-
-                const headerCells = [
-                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Coffee</th>`,
-                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">${primaryLabel}</th>`,
-                ];
-                if (showXP)
-                    headerCells.push(
-                        `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">XP/hr</th>`
-                    );
-                if (showCoins)
-                    headerCells.push(
-                        `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">Coins/hr</th>`
-                    );
-
-                const bodyRows = rows
-                    .map((r, i) => {
-                        const rowColor = i === 0 ? '#4caf50' : '#ccc';
-                        const rowWeight = i === 0 ? '700' : '400';
-                        const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
-                        const cells = [
-                            `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
-                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
-                        ];
-                        if (showXP)
-                            cells.push(
-                                `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtXP(r.xpPerHour)}</td>`
-                            );
-                        if (showCoins)
-                            cells.push(
-                                `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtCoins(r.profitPerHour)}</td>`
-                            );
-                        return `<tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">${cells.join('')}</tr>`;
-                    })
-                    .join('');
-
-                return `
-                <div style="flex:1; min-width:0;">
-                    <div style="font-weight:700; font-size:12px; color:${ACCENT$3}; margin-bottom:6px; text-align:center;">${title}</div>
-                    <table style="width:100%; border-collapse:collapse;">
-                        <thead><tr>${headerCells.join('')}</tr></thead>
-                        <tbody>${bodyRows}</tbody>
-                    </table>
-                </div>
-            `;
-            };
-
-            container.innerHTML = `
-            <div style="display:flex; gap:14px; align-items:flex-start;">
-                ${renderColumn('Best XP/hr', byXP, 'xpPerHour', fmtXP)}
-                ${renderColumn('Best Coins/hr', byProfit, 'profitPerHour', fmtCoins)}
-                ${renderColumn('Best Mixed (Eff. XP/hr)', byMixed, 'mixedScore', fmtXP)}
-            </div>
-        `;
-        }
-
-        toggle() {
-            if (!this.panel) this.buildPanel();
-            this.panel.style.display = this.panel.style.display === 'none' ? 'flex' : 'none';
-            if (this.panel.style.display === 'flex') {
-                bringPanelToFront(this.panel);
-                this._populateZones();
-            }
-        }
-
-        destroy() {
-            cancelSimulation();
-            if (this.panel) {
-                unregisterFloatingPanel(this.panel);
-                this.panel.remove();
-                this.panel = null;
-            }
-        }
-    }
-
-    const optimizeCoffeeUI = new OptimizeCoffeeUI();
-
-    /**
-     * Optimize Coffee Feature Module
-     * Injects an "Optimize Coffee" button next to the Combat Sim button that
-     * searches combat drink combinations for best XP/hr, coins/hr, and a mixed metric.
-     */
-
-
-    const BUTTON_CLASS$3 = 'cheezasha-optimize-coffee-btn';
-
-    class OptimizeCoffee {
-        constructor() {
-            this.isInitialized = false;
-            this.unregisterHandlers = [];
-        }
-
-        initialize() {
-            if (this.isInitialized) return;
-            if (!config.getSetting('combatSim')) return;
-
-            this.isInitialized = true;
-
-            optimizeCoffeeUI.buildPanel();
-
-            const unregister = domObserver.onClass('OptimizeCoffeeButton', 'CombatPanel_combatPanel', (node) => {
-                this._injectButton(node);
-            });
-            this.unregisterHandlers.push(unregister);
-
-            const existingPanel = document.querySelector('[class*="CombatPanel_combatPanel"]');
-            if (existingPanel) {
-                this._injectButton(existingPanel);
-            }
-        }
-
-        /**
-         * Inject the Optimize Coffee toggle button into a combat panel, next to the Combat Sim button.
-         * @param {HTMLElement} combatPanel - The combat panel element
-         */
-        _injectButton(combatPanel) {
-            if (!combatPanel || combatPanel.querySelector(`.${BUTTON_CLASS$3}`)) {
-                return;
-            }
-
-            const tabsContainer = combatPanel.querySelector('[class*="TabsComponent_tabsContainer"] > div > div > div');
-            if (!tabsContainer) return;
-
-            const button = document.createElement('div');
-            button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 ' + BUTTON_CLASS$3;
-            button.textContent = 'Optimize Coffee';
-            button.style.cssText =
-                'cursor: pointer; background: linear-gradient(135deg, #c58b3f, #8a5a1f); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
-
-            button.addEventListener('click', () => {
-                optimizeCoffeeUI.toggle();
-            });
-
-            tabsContainer.appendChild(button);
-        }
-
-        disable() {
-            for (const unregister of this.unregisterHandlers) {
-                unregister();
-            }
-            this.unregisterHandlers = [];
-
-            optimizeCoffeeUI.destroy();
-
-            document.querySelectorAll(`.${BUTTON_CLASS$3}`).forEach((btn) => btn.remove());
-
-            this.isInitialized = false;
-        }
-    }
-
-    const optimizeCoffee = new OptimizeCoffee();
-
-    /**
-     * Optimize Food Core
-     * Headless (DOM-free) food/mana-food combo search, shared by the Optimize Food panel and
-     * Ultimate Sim. Minimizes deaths/hr first, then time spent out of mana, then cost/hr.
-     */
-
-
-    const MAX_FOOD_SLOTS = 3;
-    const TOP_CHEAP_PER_CATEGORY = 3;
-    // Food only comes in 4 mutually-exclusive categories — you can't equip two of the same category
-    // at once (e.g. two donuts), but different categories stack fine (donut + cake, gummy + yogurt).
-    const FOOD_CATEGORIES = ['hp_instant', 'hp_over_time', 'mp_instant', 'mp_over_time'];
-    // Combos are considered "tied" on deaths/hr or OOM% if within this margin, to absorb sim noise
-    // (finite test hours) rather than treating a fractional difference as a real survivability gap.
-    const TIE_EPSILON = 1e-6;
-    // After ranking food combos, this many of the cheapest/best combos get their trigger thresholds
-    // refined (rather than just the single best), since a slightly pricier combo can end up winning
-    // once its triggers are tuned.
-    const COMBOS_TO_REFINE$1 = 10;
-    const ONE_HOUR_NS$1 = 3600 * 1e9;
-    // Trigger threshold candidates, expressed as a multiple of the food's own HP/MP restore amount,
-    // ordered from most aggressive/safest (triggers earliest) to most lenient/cheapest (triggers
-    // latest). Small fractions are included since a mana food may need to trigger well before it's
-    // "efficient" (early/often) to fully prevent OOM. The item's own default in-game trigger is
-    // always tested too, separately, as a baseline candidate.
-    const TRIGGER_MULTIPLIERS = [0.1, 0.25, 0.5, 1, 1.5, 2, 3];
-    // After the binary search locates the cheapest combo that reaches the 0-death/0-OOM floor, this
-    // many additional (pricier) combos are also tested so there's a real pool to rank/refine from —
-    // otherwise only the single boundary combo would ever be known to reach the floor.
-    const FILL_WINDOW = COMBOS_TO_REFINE$1 * 3;
-
-    let simTaskIdCounter = 0;
-
-    /**
-     * Tiny counting semaphore so we can cap total concurrent sim Workers across both the food-combo
-     * search and the (per-combo) trigger-threshold refinement, no matter how those calls are nested.
-     * @param {number} max
-     */
-    function createSemaphore(max) {
-        let active = 0;
-        const queue = [];
-        return {
-            acquire() {
-                return new Promise((resolve) => {
-                    const tryAcquire = () => {
-                        if (active < max) {
-                            active++;
-                            resolve(() => {
-                                active--;
-                                const next = queue.shift();
-                                if (next) next();
-                            });
-                        } else {
-                            queue.push(tryAcquire);
-                        }
-                    };
-                    tryAcquire();
-                });
-            },
-        };
-    }
-
-    /**
-     * Lexicographic comparator matching the panel's ranking rules: fewest deaths/hr, then least
-     * mana-OOM time, then cheapest.
-     * @param {Object} a
-     * @param {Object} b
-     * @returns {number}
-     */
-    function compareMetrics(a, b) {
-        if (Math.abs(a.deathsPerHour - b.deathsPerHour) > TIE_EPSILON) return a.deathsPerHour - b.deathsPerHour;
-        if (Math.abs(a.oomPercent - b.oomPercent) > TIE_EPSILON) return a.oomPercent - b.oomPercent;
-        return a.costPerHour - b.costPerHour;
-    }
-
-    /**
-     * @param {{deathsPerHour: number, oomPercent: number}} metrics
-     * @returns {boolean} True if this hits the absolute floor: 0 deaths/hr and 0% mana-OOM time.
-     */
-    function passesFloor(metrics) {
-        return metrics.deathsPerHour <= TIE_EPSILON && metrics.oomPercent <= TIE_EPSILON;
-    }
-
-    /**
-     * Categorize a food item the same way the sim editor's conflict picker does: instant vs
-     * over-time HP/MP restore. Two items in the same category can't be equipped simultaneously.
-     * @param {Object} detail - item.consumableDetail
-     * @returns {string|null}
-     */
-    function getFoodCategory(detail) {
-        const hp = detail.hitpointRestore || 0;
-        const mp = detail.manapointRestore || 0;
-        const dur = detail.recoveryDuration || 0;
-        if (hp > 0) return dur > 0 ? 'hp_over_time' : 'hp_instant';
-        if (mp > 0) return dur > 0 ? 'mp_over_time' : 'mp_instant';
-        return null;
-    }
-
-    /**
-     * Pick the cheapest N candidates of a category, plus the single strongest (highest restore)
-     * in case cheap food alone can't prevent deaths/OOM.
-     * @param {Array<Object>} list - candidates sorted ascending by price
-     * @param {string} restoreKey - 'hp' or 'mp'
-     * @returns {Array<Object>}
-     */
-    function selectCandidates(list, restoreKey) {
-        const picked = new Map();
-        for (const item of list.slice(0, TOP_CHEAP_PER_CATEGORY)) picked.set(item.hrid, item);
-        const strongest = [...list].sort((a, b) => b[restoreKey] - a[restoreKey])[0];
-        if (strongest) picked.set(strongest.hrid, strongest);
-
-        // Also test the most cost-efficient food (restore per coin) plus the next pricier item past
-        // it. A stronger, pricier food that only needs to trigger occasionally can beat a cheap food
-        // that has to fire constantly, so it's worth checking one tier above the raw efficiency
-        // optimum rather than assuming cheapest-per-restore always wins once triggers are tuned.
-        const byEfficiency = [...list]
-            .filter((item) => item.price > 0)
-            .sort((a, b) => b[restoreKey] / b.price - a[restoreKey] / a.price);
-        if (byEfficiency.length) {
-            const mostEfficient = byEfficiency[0];
-            picked.set(mostEfficient.hrid, mostEfficient);
-
-            const nextTier = [...list]
-                .filter((item) => item.price > mostEfficient.price)
-                .sort((a, b) => a.price - b.price)[0];
-            if (nextTier) picked.set(nextTier.hrid, nextTier);
-        }
-
-        return Array.from(picked.values());
-    }
-
-    /**
-     * Build candidate food items grouped by category, priced via the market.
-     * @returns {Object<string, Array<{hrid: string, name: string, hp: number, mp: number, price: number}>>}
-     */
-    function getCandidateFoodGroups() {
-        const clientData = dataManager.getInitClientData();
-        const itemDetailMap = clientData?.itemDetailMap || {};
-
-        const byCategory = { hp_instant: [], hp_over_time: [], mp_instant: [], mp_over_time: [] };
-        for (const [hrid, item] of Object.entries(itemDetailMap)) {
-            const detail = item.consumableDetail;
-            if (!detail) continue;
-            const cat = item.categoryHrid || '';
-            if (!cat.includes('food')) continue;
-
-            const category = getFoodCategory(detail);
-            if (!category) continue;
-
-            const price = getBuyPrice(marketAPI.getPrice(hrid));
-            byCategory[category].push({
-                hrid,
-                name: item.name || hrid.split('/').pop(),
-                hp: detail.hitpointRestore || 0,
-                mp: detail.manapointRestore || 0,
-                price,
-            });
-        }
-
-        const groups = {};
-        for (const category of FOOD_CATEGORIES) {
-            const list = byCategory[category].sort((a, b) => a.price - b.price);
-            const restoreKey = category.startsWith('hp') ? 'hp' : 'mp';
-            groups[category] = selectCandidates(list, restoreKey);
-        }
-        return groups;
-    }
-
-    /**
-     * Generate all food combos of up to maxSlots items that respect the one-item-per-category rule:
-     * pick a subset of categories (up to maxSlots of them), then the cartesian product of each
-     * chosen category's candidates.
-     * @param {Object<string, Array<Object>>} groups - category → candidate items
-     * @param {number} maxSlots
-     * @returns {Array<Array<Object>>}
-     */
-    function generateFoodCombos(groups, maxSlots) {
-        const categories = FOOD_CATEGORIES.filter((c) => groups[c].length > 0);
-        const categorySubsets = generateCombos(categories, maxSlots);
-
-        const combos = [];
-        for (const subset of categorySubsets) {
-            let partials = [[]];
-            for (const category of subset) {
-                const next = [];
-                for (const partial of partials) {
-                    for (const item of groups[category]) {
-                        next.push([...partial, item]);
-                    }
-                }
-                partials = next;
-            }
-            combos.push(...partials);
-        }
-        return combos;
-    }
-
-    /**
-     * Build a MAX_FOOD_SLOTS-padded food DTO array for a combo, given a per-slot trigger override
-     * (null → use the item's default in-game triggers).
-     * @param {Array<Object>} combo
-     * @param {Array<Array<Object>|null>} slotTriggers
-     * @returns {Array<Object|null>}
-     */
-    function buildFoodDTO(combo, slotTriggers) {
-        const food = [];
-        for (let s = 0; s < MAX_FOOD_SLOTS; s++) {
-            if (!combo[s]) {
-                food.push(null);
-                continue;
-            }
-            food.push({ hrid: combo[s].hrid, triggers: slotTriggers[s] || [] });
-        }
-        return food;
-    }
-
-    /**
-     * Run one simulation for a given food loadout and extract the metrics Optimize Food ranks on.
-     * @param {Object} ctx - Shared run context (semaphore, gameData, playerDTOs, baseIndex, zoneHrid,
-     *   difficultyTier, hours, extraBuffs, selfHrid)
-     * @param {Array<Object|null>} food - Food DTO for the base player's food slots
-     * @param {Set<string>} comboHrids - Item hrids in this combo, to isolate their cost from other
-     *   already-equipped consumables (coffee/drinks) that stay constant across every test.
-     * @returns {Promise<{deathsPerHour: number, oomPercent: number, costPerHour: number}>}
-     */
-    async function evaluateFood(ctx, food, comboHrids) {
-        const { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid } = ctx;
-        const modifiedDTOs = playerDTOs.map((p, idx) => (idx === baseIndex ? { ...p, food } : p));
-
-        const message = {
-            type: 'start_simulation',
-            taskId: ++simTaskIdCounter,
-            gameData,
-            playerDTOs: modifiedDTOs,
-            zoneHrid,
-            difficultyTier,
-            simulationTimeLimit: hours * ONE_HOUR_NS$1,
-            extraBuffs,
-        };
-
-        const release = await semaphore.acquire();
-        let simResult;
-        try {
-            simResult = await runWorkerChunk(message);
-        } finally {
-            release();
-        }
-
-        const simHours = (simResult.simulatedTime || 0) / ONE_HOUR_NS$1 || hours;
-        const deathsPerHour = (simResult.deaths?.[selfHrid] || 0) / simHours;
-
-        const oomStat = simResult.playerRanOutOfManaTime?.[selfHrid];
-        const oomPercent = oomStat ? Math.min(100, (oomStat.totalTimeForOutOfMana / simResult.simulatedTime) * 100) : 0;
-
-        const consumablesUsed = simResult.consumablesUsed?.[selfHrid] || {};
-        let costPerHour = 0;
-        for (const [itemHrid, count] of Object.entries(consumablesUsed)) {
-            if (!comboHrids.has(itemHrid)) continue;
-            const price = getBuyPrice(marketAPI.getPrice(itemHrid));
-            costPerHour += (count / simHours) * price;
-        }
-
-        return { deathsPerHour, oomPercent, costPerHour };
-    }
-
-    /**
-     * Per food slot, binary search TRIGGER_MULTIPLIERS (ordered most-aggressive/safest to
-     * most-lenient/cheapest) for the loosest threshold that still reaches the 0-death/0-OOM floor,
-     * instead of testing every candidate. Assumes safety is monotonic in aggressiveness (triggering
-     * earlier/more often can't hurt survival, only cost) — same shortcut the combo search uses, just
-     * applied per-slot. Falls back to testing every candidate only if even the most aggressive
-     * threshold can't reach the floor (the monotonic shortcut no longer applies). The item's default
-     * in-game trigger is always tested too, in case it's already at or near optimal.
-     * One slot at a time, holding the other (already-decided) slots fixed — coordinate descent
-     * across slots, binary search within each slot.
-     * @param {Object} entry - A ranked combo result from the initial (default-trigger) search
-     * @param {Object} ctx - Shared run context, see evaluateFood
-     * @returns {Promise<Object>} entry with refined metrics + slotTriggers
-     */
-    async function refineTriggers(entry, ctx) {
-        const { combo } = entry;
-        const comboHrids = new Set(combo.map((c) => c.hrid));
-        const slotTriggers = combo.map(() => null);
-        let bestMetrics = {
-            deathsPerHour: entry.deathsPerHour,
-            oomPercent: entry.oomPercent,
-            costPerHour: entry.costPerHour,
-        };
-
-        for (let s = 0; s < combo.length; s++) {
-            if (ctx.isAborted()) break;
-
-            const item = combo[s];
-            const restoreAmount = item.hp > 0 ? item.hp : item.mp;
-            if (!restoreAmount) continue;
-            const conditionHrid =
-                item.hp > 0 ? '/combat_trigger_conditions/missing_hp' : '/combat_trigger_conditions/missing_mp';
-
-            const buildTriggers = (multiplier) => [
-                {
-                    dependencyHrid: '/combat_trigger_dependencies/self',
-                    conditionHrid,
-                    comparatorHrid: '/combat_trigger_comparators/greater_than_equal',
-                    value: Math.max(1, Math.round(restoreAmount * multiplier)),
-                },
-            ];
-
-            const testCandidate = async (triggers) => {
-                const testTriggers = [...slotTriggers];
-                testTriggers[s] = triggers;
-                const food = buildFoodDTO(combo, testTriggers);
-                const metrics = await evaluateFood(ctx, food, comboHrids);
-                return { triggers, metrics };
-            };
-
-            const cache = new Map();
-            const testMultiplierAt = async (i) => {
-                if (cache.has(i)) return cache.get(i);
-                const result = await testCandidate(buildTriggers(TRIGGER_MULTIPLIERS[i]));
-                cache.set(i, result);
-                return result;
-            };
-
-            const mostAggressive = await testMultiplierAt(0);
-            if (passesFloor(mostAggressive.metrics)) {
-                // Find the rightmost (loosest/cheapest) multiplier that still passes the floor.
-                let lo = 0;
-                let hi = TRIGGER_MULTIPLIERS.length - 1;
-                while (lo < hi) {
-                    const mid = Math.ceil((lo + hi) / 2);
-                    const result = await testMultiplierAt(mid);
-                    if (passesFloor(result.metrics)) {
-                        lo = mid;
-                    } else {
-                        hi = mid - 1;
-                    }
-                }
-            } else {
-                // Even the most aggressive threshold can't reach the floor for this slot — the
-                // monotonic-safety shortcut doesn't apply, so test the rest to find the best
-                // achievable result instead of just the boundary.
-                for (let i = 1; i < TRIGGER_MULTIPLIERS.length; i++) {
-                    await testMultiplierAt(i);
-                }
-            }
-
-            const defaultCandidate = await testCandidate(null);
-
-            const candidates = [...cache.values(), defaultCandidate];
-            candidates.sort((a, b) => compareMetrics(a.metrics, b.metrics));
-            const winner = candidates[0];
-            slotTriggers[s] = winner.triggers;
-            bestMetrics = winner.metrics;
-        }
-
-        return { ...entry, ...bestMetrics, slotTriggers };
-    }
-
-    /**
-     * Rank combos by restricting to the best survival/mana tier first — fewest deaths/hr, then
-     * least OOM time (0% whenever any combo achieves it) — and only *then* sorting what's left
-     * by cost/hr. A cheaper combo with worse deaths/OOM must never outrank a pricier one that
-     * actually survives better; cost only breaks ties within the same deaths/OOM tier.
-     * @param {Array<Object>} results
-     * @param {number} [limit]
-     * @returns {Array<Object>}
-     */
-    function rankFoodResults(results, limit = 5) {
-        if (!results.length) return [];
-
-        const minDeaths = Math.min(...results.map((r) => r.deathsPerHour));
-        const survivalTier = results.filter((r) => r.deathsPerHour <= minDeaths + TIE_EPSILON);
-
-        const minOOM = Math.min(...survivalTier.map((r) => r.oomPercent));
-        const manaTier = survivalTier.filter((r) => r.oomPercent <= minOOM + TIE_EPSILON);
-
-        return [...manaTier].sort((a, b) => a.costPerHour - b.costPerHour).slice(0, limit);
-    }
-
-    /**
-     * Describe a combo's per-slot trigger thresholds, e.g. "Cake (missing HP ≥ 320) + Coffee
-     * (default)". Omitted (undefined slotTriggers) means the combo wasn't refined.
-     * @param {Object} entry
-     * @returns {string|null}
-     */
-    function describeFoodTriggers(entry) {
-        if (!entry.slotTriggers) return null;
-        return entry.combo
-            .map((item, i) => {
-                const triggers = entry.slotTriggers[i];
-                if (!triggers || !triggers.length) return `${item.name}: default`;
-                const t = triggers[0];
-                const stat = t.conditionHrid.endsWith('missing_hp') ? 'HP' : 'MP';
-                return `${item.name}: missing ${stat} ≥ ${t.value}`;
-            })
-            .join(', ');
-    }
-
-    /**
-     * Search food/mana-food combos for the given combat context, headless (no DOM). Binary-searches
-     * the cheapest combo reaching a 0-death/0-OOM floor, then refines trigger thresholds on the
-     * top candidates.
-     * @param {Object} params
-     * @param {Object} params.gameData
-     * @param {Array<Object>} params.playerDTOs
-     * @param {number} params.baseIndex - Index of the player whose food loadout is being searched
-     * @param {string} params.zoneHrid
-     * @param {number} params.difficultyTier
-     * @param {number} params.hours - Test hours per combo
-     * @param {Array<Object>} params.extraBuffs
-     * @param {string} params.selfHrid
-     * @param {Function} [params.isAborted] - () => boolean
-     * @param {Function} [params.onProgress] - ({completed, total, phase}) => void
-     * @returns {Promise<{results: Array<Object>, refined: Array<Object>, reachedFloor: boolean}>}
-     */
-    async function runFoodOptimization(params) {
-        const {
-            gameData,
-            playerDTOs,
-            baseIndex,
-            zoneHrid,
-            difficultyTier,
-            hours,
-            extraBuffs,
-            selfHrid,
-            isAborted = () => false,
-            onProgress = () => {},
-        } = params;
-
-        const groups = getCandidateFoodGroups();
-        // Cheapest-first order. Combined with the floor early-exit below: once a combo hits the
-        // absolute floor (0 deaths, 0% OOM) nothing can beat it — everything already tested was
-        // cheaper, and everything still untested is guaranteed pricier by this ordering. Short of
-        // that floor we can't prove a cheaper-but-untested combo won't do better without running
-        // it, so no combo is ever skipped unless that guarantee actually holds.
-        const combos = generateFoodCombos(groups, MAX_FOOD_SLOTS).sort(
-            (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
-        );
-
-        const semaphore = createSemaphore(Math.max(1, getMaxWorkers()));
-        const ctx = {
-            semaphore,
-            gameData,
-            playerDTOs,
-            baseIndex,
-            zoneHrid,
-            difficultyTier,
-            hours,
-            extraBuffs,
-            selfHrid,
-            isAborted,
-        };
-
-        const results = [];
-        const tested = new Map();
-        let completed = 0;
-
-        const testIndex = async (i) => {
-            if (tested.has(i)) return tested.get(i);
-            const combo = combos[i];
-            const food = buildFoodDTO(
-                combo,
-                combo.map(() => null)
-            );
-            const comboHrids = new Set(combo.map((c) => c.hrid));
-
-            let metrics;
-            try {
-                metrics = await evaluateFood(ctx, food, comboHrids);
-            } catch (err) {
-                if (err.message === 'Cancelled') return null;
-                console.error('[OptimizeFoodCore] Simulation failed for combo', combo, err);
-                return null;
-            }
-
-            completed++;
-            onProgress({ completed, total: combos.length, phase: 'search' });
-
-            const entry = { combo, label: combo.map((c) => c.name).join(' + ') || 'No food', ...metrics };
-            tested.set(i, entry);
-            results.push(entry);
-            return entry;
-        };
-
-        const testIndicesInParallel = async (indices) => {
-            let cursor = 0;
-            const workerCount = Math.max(1, Math.min(getMaxWorkers(), indices.length));
-            await Promise.all(
-                Array.from({ length: workerCount }, async () => {
-                    while (cursor < indices.length && !isAborted()) {
-                        await testIndex(indices[cursor++]);
-                    }
-                })
-            );
-        };
-
-        // Binary search the price-sorted combo list for the cheapest one that reaches the
-        // 0-death/0-OOM floor, rather than scanning cheapest-first.
-        let lo = 0;
-        let hi = combos.length;
-        let boundaryIndex = combos.length;
-        while (lo < hi && !isAborted()) {
-            const mid = (lo + hi) >> 1;
-            const entry = await testIndex(mid);
-            if (entry && passesFloor(entry)) {
-                boundaryIndex = mid;
-                hi = mid;
-            } else {
-                lo = mid + 1;
-            }
-        }
-
-        const reachedFloor = boundaryIndex < combos.length;
-
-        if (!isAborted()) {
-            if (reachedFloor) {
-                onProgress({ completed, total: combos.length, phase: 'gathering' });
-                const windowEnd = Math.min(combos.length, boundaryIndex + FILL_WINDOW);
-                const fillIndices = [];
-                for (let i = boundaryIndex; i < windowEnd; i++) {
-                    if (!tested.has(i)) fillIndices.push(i);
-                }
-                await testIndicesInParallel(fillIndices);
-            } else {
-                onProgress({ completed, total: combos.length, phase: 'exhaustive' });
-                const remaining = [];
-                for (let i = 0; i < combos.length; i++) {
-                    if (!tested.has(i)) remaining.push(i);
-                }
-                await testIndicesInParallel(remaining);
-            }
-        }
-
-        if (isAborted()) {
-            return { results, refined: results, reachedFloor };
-        }
-
-        onProgress({ completed, total: combos.length, phase: 'refining' });
-
-        // Refine trigger thresholds on the best few combos rather than just the single best — a
-        // slightly pricier combo can end up winning once its food's triggers are tuned.
-        const toRefine = [...results].sort(compareMetrics).slice(0, COMBOS_TO_REFINE$1);
-        const refined = isAborted() ? toRefine : await Promise.all(toRefine.map((entry) => refineTriggers(entry, ctx)));
-
-        return { results, refined, reachedFloor };
-    }
-
-    /**
-     * Optimize Food UI
-     * Floating panel that searches food/mana-food combinations for the currently equipped gear,
-     * minimizing deaths/hr first, then time spent out of mana, then cost/hr.
-     */
-
-
-    const PANEL_ID$2 = 'mwi-optimize-food-panel';
-    const ACCENT$2 = '#4ade80';
-    const ACCENT_BORDER$2 = 'rgba(74, 222, 128, 0.5)';
-    const ACCENT_BG$2 = 'rgba(74, 222, 128, 0.12)';
-    const ACCENT_BTN_BORDER$2 = 'rgba(74, 222, 128, 0.4)';
-    const ACCENT_BTN_BG$2 = 'rgba(74, 222, 128, 0.2)';
-    // Combos are considered "tied" on deaths/hr or OOM% if within this margin (matches optimize-food-core).
-    const COMBOS_TO_REFINE = 10;
-
-    class OptimizeFoodUI {
-        constructor() {
-            this.panel = null;
-            this.isRunning = false;
-            this._aborted = false;
-            this.isDragging = false;
-            this.dragOffset = { x: 0, y: 0 };
-        }
-
-        buildPanel() {
-            if (this.panel) return;
-
-            this.panel = document.createElement('div');
-            this.panel.id = PANEL_ID$2;
-            this.panel.style.cssText = `
-            position: fixed;
-            top: 60px;
-            right: 60px;
-            z-index: ${config.Z_FLOATING_PANEL};
-            background: rgba(10, 10, 20, 0.97);
-            border: 2px solid ${ACCENT_BORDER$2};
-            border-radius: 10px;
-            width: 620px;
-            height: 480px;
-            min-width: 460px;
-            min-height: 300px;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: none;
-            flex-direction: column;
-            font-family: 'Segoe UI', sans-serif;
-            color: #e0e0e0;
-            font-size: 13px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-        `;
-
-            const header = document.createElement('div');
-            header.style.cssText = `
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 14px;
-            cursor: grab;
-            background: ${ACCENT_BG$2};
-            border-bottom: 1px solid ${ACCENT_BORDER$2};
-            border-radius: 8px 8px 0 0;
-            flex-shrink: 0;
-        `;
-            header.innerHTML = `
-            <span style="font-weight:700; font-size:14px; color:${ACCENT$2};">Optimize Food</span>
-            <button id="mwi-ofood-close" style="
-                background:none; border:none; color:#aaa; font-size:22px;
-                cursor:pointer; padding:0; line-height:1;">×</button>
-        `;
-            this._setupDrag(header);
-
-            const selectStyle =
-                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
-            const inputStyle =
-                'width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
-
-            const controls = document.createElement('div');
-            controls.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-            controls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Zone</label>
-            <select id="mwi-ofood-zone" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Tier</label>
-            <select id="mwi-ofood-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
-            <label style="color:#888; font-size:12px;">Test Hours</label>
-            <input id="mwi-ofood-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeFoodHours', 2)}" style="${inputStyle}">
-            <button id="mwi-ofood-run" style="
-                margin-left: auto;
-                background: ${ACCENT_BTN_BG$2};
-                color: ${ACCENT$2};
-                border: 1px solid ${ACCENT_BTN_BORDER$2};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                font-family: inherit;">Optimize</button>
-            <button id="mwi-ofood-stop" style="
-                display:none;
-                background:rgba(244, 67, 54, 0.2);
-                border:1px solid rgba(244, 67, 54, 0.4);
-                color:#f44336;
-                border-radius:4px;
-                padding:5px 10px;
-                font-size:12px;
-                font-weight:600;
-                cursor:pointer;
-                font-family:inherit;">Stop</button>
-        `;
-
-            const progressContainer = document.createElement('div');
-            progressContainer.id = 'mwi-ofood-progress-container';
-            progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            progressContainer.innerHTML = `
-            <div style="
-                background:#1a1a2e;
-                border-radius:4px;
-                height:18px;
-                overflow:hidden;
-                position:relative;
-                border:1px solid #333;">
-                <div id="mwi-ofood-progress-fill" style="
-                    height:100%;
-                    width:0%;
-                    background:linear-gradient(90deg, ${ACCENT_BTN_BG$2}, ${ACCENT$2});
-                    border-radius:3px;
-                    transition:width 0.2s ease;"></div>
-                <span id="mwi-ofood-progress-text" style="
-                    position:absolute;
-                    top:0; left:0; right:0;
-                    text-align:center;
-                    font-size:11px;
-                    line-height:18px;
-                    color:#e0e0e0;
-                    font-weight:600;">0 / 0</span>
-            </div>
-        `;
-
-            const resultsContainer = document.createElement('div');
-            resultsContainer.id = 'mwi-ofood-results';
-            resultsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-            resultsContainer.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
-
-            const status = document.createElement('div');
-            status.id = 'mwi-ofood-status';
-            status.style.cssText =
-                'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-            status.textContent = 'Ready.';
-
-            this.panel.appendChild(header);
-            this.panel.appendChild(controls);
-            this.panel.appendChild(progressContainer);
-            this.panel.appendChild(resultsContainer);
-            this.panel.appendChild(status);
-
-            document.body.appendChild(this.panel);
-            registerFloatingPanel(this.panel);
-
-            this.panel.querySelector('#mwi-ofood-close').addEventListener('click', () => {
-                this.panel.style.display = 'none';
-            });
-            this.panel.querySelector('#mwi-ofood-run').addEventListener('click', () => this._onRun());
-            this.panel.querySelector('#mwi-ofood-stop').addEventListener('click', () => {
-                this._aborted = true;
-                cancelSimulation();
-            });
-            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
-            this.panel.querySelector('#mwi-ofood-zone').addEventListener('change', () => this._updateTierDropdown());
-
-            this._populateZones();
-        }
-
-        _setupDrag(header) {
-            header.addEventListener('mousedown', (e) => {
-                this.isDragging = true;
-                const rect = this.panel.getBoundingClientRect();
-                this.dragOffset.x = e.clientX - rect.left;
-                this.dragOffset.y = e.clientY - rect.top;
-                e.preventDefault();
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (!this.isDragging) return;
-                this.panel.style.left = `${e.clientX - this.dragOffset.x}px`;
-                this.panel.style.top = `${e.clientY - this.dragOffset.y}px`;
-                this.panel.style.right = 'auto';
-            });
-            document.addEventListener('mouseup', () => {
-                this.isDragging = false;
-            });
-        }
-
-        _populateZones() {
-            const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
-            if (!zoneSelect) return;
-
-            const zones = getCombatZones();
-            zoneSelect.innerHTML = '';
-            for (const zone of zones) {
-                const option = document.createElement('option');
-                option.value = zone.hrid;
-                option.textContent = zone.isDungeon ? `[D] ${zone.name}` : zone.name;
-                zoneSelect.appendChild(option);
-            }
-
-            const current = getCurrentCombatZone();
-            if (current) zoneSelect.value = current.zoneHrid;
-
-            this._updateTierDropdown();
-
-            if (current) {
-                const tierSelect = this.panel.querySelector('#mwi-ofood-tier');
-                if (tierSelect) tierSelect.value = String(current.difficultyTier);
-            }
-        }
-
-        _updateTierDropdown() {
-            const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-ofood-tier');
-            if (!zoneSelect || !tierSelect) return;
-
-            const zones = getCombatZones();
-            const zone = zones.find((z) => z.hrid === zoneSelect.value);
-            const maxTier = zone?.isDungeon ? 2 : 5;
-
-            const currentTier = parseInt(tierSelect.value) || 0;
-            tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
-                ''
-            );
-            tierSelect.value = String(Math.min(currentTier, maxTier));
-        }
-
-        _setStatus(text) {
-            const status = this.panel?.querySelector('#mwi-ofood-status');
-            if (status) status.textContent = text;
-        }
-
-        async _onRun() {
-            if (this.isRunning) return;
-
-            const zoneSelect = this.panel?.querySelector('#mwi-ofood-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-ofood-tier');
-            const hoursEl = this.panel?.querySelector('#mwi-ofood-hours');
-            const zoneHrid = zoneSelect?.value;
-            const difficultyTier = parseInt(tierSelect?.value) || 0;
-            const hours = Math.min(1000, Math.max(1, parseInt(hoursEl?.value) || 2));
-
-            if (!zoneHrid) {
-                this._setStatus('Select a zone first.');
-                return;
-            }
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            const { players: playerDTOs, selfHrid } = await buildAllPlayerDTOs();
-            if (!playerDTOs.length) {
-                this._setStatus('No character data available.');
-                return;
-            }
-
-            const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
-            const baseIndex = selfIndex >= 0 ? selfIndex : 0;
-            applyLiveSelfOverrides(playerDTOs[baseIndex]);
-
-            const communityBuffs = getCommunityBuffs();
-            const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
-            const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
-
-            this.isRunning = true;
-            this._aborted = false;
-            const runBtn = this.panel.querySelector('#mwi-ofood-run');
-            const stopBtn = this.panel.querySelector('#mwi-ofood-stop');
-            const progressContainer = this.panel.querySelector('#mwi-ofood-progress-container');
-            const progressFill = this.panel.querySelector('#mwi-ofood-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-ofood-progress-text');
-            const resultsEl = this.panel.querySelector('#mwi-ofood-results');
-
-            runBtn.disabled = true;
-            runBtn.style.opacity = '0.5';
-            runBtn.style.cursor = 'not-allowed';
-            stopBtn.style.display = '';
-            progressContainer.style.display = 'block';
-            resultsEl.innerHTML = '';
-
-            try {
-                const { results, refined } = await runFoodOptimization({
-                    gameData,
-                    playerDTOs,
-                    baseIndex,
-                    zoneHrid,
-                    difficultyTier,
-                    hours,
-                    extraBuffs,
-                    selfHrid,
-                    isAborted: () => this._aborted,
-                    onProgress: ({ completed, total, phase }) => {
-                        progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
-                        progressText.textContent = `${completed} / ${total}`;
-                        if (phase === 'search') this._setStatus(`Tested ${completed} food combos (binary search)...`);
-                        else if (phase === 'gathering')
-                            this._setStatus(`Found a 0-death, 0% OOM combo. Gathering more candidates...`);
-                        else if (phase === 'exhaustive')
-                            this._setStatus(`No combo reaches 0 deaths/0% OOM — testing all combos...`);
-                        else if (phase === 'refining')
-                            this._setStatus(`Tested ${completed}/${total} food combos. Refining trigger thresholds...`);
-                    },
-                });
-
-                if (this._aborted) {
-                    this._setStatus(`Stopped after ${results.length} combos.`);
-                    this._displayResults(results);
-                    return;
-                }
-
-                this._setStatus(`Done: tested ${results.length} food combos, refined triggers for top ${refined.length}.`);
-                this._displayResults(refined, { refined: true });
-            } finally {
-                this.isRunning = false;
-                runBtn.disabled = false;
-                runBtn.style.opacity = '1';
-                runBtn.style.cursor = 'pointer';
-                stopBtn.style.display = 'none';
-                progressContainer.style.display = 'none';
-            }
-        }
-
-        _displayResults(results, options = {}) {
-            const container = this.panel?.querySelector('#mwi-ofood-results');
-            if (!container) return;
-
-            if (!results.length) {
-                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
-                return;
-            }
-
-            // Results passed in are already the refined top-N candidates (or, on abort, the raw
-            // per-combo results before refinement). Re-rank rather than plain-sort so a cheaper
-            // combo with worse deaths/OOM can never displace a pricier one that survives better.
-            const ranked = rankFoodResults(results, 5);
-
-            const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
-                .map(
-                    (label, i) =>
-                        `<th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${i === 0 ? 'left' : 'right'}; border-bottom:1px solid #333;">${label}</th>`
-                )
-                .join('');
-
-            const bodyRows = ranked
-                .map((r, i) => {
-                    const rowColor = i === 0 ? '#4caf50' : '#ccc';
-                    const rowWeight = i === 0 ? '700' : '400';
-                    const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
-                    const triggerDesc = describeFoodTriggers(r);
-                    return `
-                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
-                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
-                            ${r.label}
-                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
-                        </td>
-                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
-                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
-                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.costPerHour))}</td>
-                    </tr>
-                `;
-                })
-                .join('');
-
-            const note = options.refined
-                ? `${ranked.length} combo${ranked.length === 1 ? '' : 's'} tied for the lowest deaths/hr and lowest mana-OOM% (of the best ${COMBOS_TO_REFINE} tested), after refining each food's trigger threshold, sorted by cost/hr.`
-                : `${ranked.length} cheapest combo${ranked.length === 1 ? '' : 's'} that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.`;
-
-            container.innerHTML = `
-            <div style="color:#888; font-size:11px; margin-bottom:8px;">
-                ${note}
-            </div>
-            <table style="width:100%; border-collapse:collapse;">
-                <thead><tr>${headerCells}</tr></thead>
-                <tbody>${bodyRows}</tbody>
-            </table>
-        `;
-        }
-
-        toggle() {
-            if (!this.panel) this.buildPanel();
-            this.panel.style.display = this.panel.style.display === 'none' ? 'flex' : 'none';
-            if (this.panel.style.display === 'flex') {
-                bringPanelToFront(this.panel);
-                this._populateZones();
-            }
-        }
-
-        destroy() {
-            cancelSimulation();
-            if (this.panel) {
-                unregisterFloatingPanel(this.panel);
-                this.panel.remove();
-                this.panel = null;
-            }
-        }
-    }
-
-    const optimizeFoodUI = new OptimizeFoodUI();
-
-    /**
-     * Optimize Food Feature Module
-     * Injects an "Optimize Food" button next to the Combat Sim button that searches food/mana-food
-     * combinations for minimum deaths/hr, minimum mana-OOM time, and lowest cost among those.
-     */
-
-
-    const BUTTON_CLASS$2 = 'cheezasha-optimize-food-btn';
-
-    class OptimizeFood {
-        constructor() {
-            this.isInitialized = false;
-            this.unregisterHandlers = [];
-        }
-
-        initialize() {
-            if (this.isInitialized) return;
-            if (!config.getSetting('combatSim')) return;
-
-            this.isInitialized = true;
-
-            optimizeFoodUI.buildPanel();
-
-            const unregister = domObserver.onClass('OptimizeFoodButton', 'CombatPanel_combatPanel', (node) => {
-                this._injectButton(node);
-            });
-            this.unregisterHandlers.push(unregister);
-
-            const existingPanel = document.querySelector('[class*="CombatPanel_combatPanel"]');
-            if (existingPanel) {
-                this._injectButton(existingPanel);
-            }
-        }
-
-        /**
-         * Inject the Optimize Food toggle button into a combat panel, next to the other Cheezasha tabs.
-         * @param {HTMLElement} combatPanel - The combat panel element
-         */
-        _injectButton(combatPanel) {
-            if (!combatPanel || combatPanel.querySelector(`.${BUTTON_CLASS$2}`)) {
-                return;
-            }
-
-            const tabsContainer = combatPanel.querySelector('[class*="TabsComponent_tabsContainer"] > div > div > div');
-            if (!tabsContainer) return;
-
-            const button = document.createElement('div');
-            button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 ' + BUTTON_CLASS$2;
-            button.textContent = 'Optimize Food';
-            button.style.cssText =
-                'cursor: pointer; background: linear-gradient(135deg, #4ade80, #16803f); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
-
-            button.addEventListener('click', () => {
-                optimizeFoodUI.toggle();
-            });
-
-            tabsContainer.appendChild(button);
-        }
-
-        disable() {
-            for (const unregister of this.unregisterHandlers) {
-                unregister();
-            }
-            this.unregisterHandlers = [];
-
-            optimizeFoodUI.destroy();
-
-            document.querySelectorAll(`.${BUTTON_CLASS$2}`).forEach((btn) => btn.remove());
-
-            this.isInitialized = false;
-        }
-    }
-
-    const optimizeFood = new OptimizeFood();
 
     /**
      * Ultimate Sim Runner
@@ -24157,6 +19689,9 @@
      * @param {boolean} [params.includeSoloMobs] - Include individual-monster encounters (maxSpawnCount === 1)
      * @param {Function} [params.onProgress] - ({iteration, phase, zoneHrid, difficultyTier, percent}) => void
      * @param {Function} [params.isAborted] - () => boolean
+     * @param {Array<Object>} [params.playerDTOs] - Pre-built player DTOs (e.g. from an edited loadout). If
+     *   omitted, DTOs are built from live game state instead.
+     * @param {string} [params.selfHrid] - Required alongside params.playerDTOs.
      * @returns {Promise<{converged: boolean, reason: string, history: Array<Object>, finalZone: Object|null}>}
      */
     async function runUltimateSim(params) {
@@ -24178,12 +19713,21 @@
         const gameData = buildGameDataPayload();
         if (!gameData) throw new Error('No game data available.');
 
-        const { players: playerDTOs, selfHrid } = await buildAllPlayerDTOs();
+        let playerDTOs;
+        let selfHrid;
+        if (params.playerDTOs) {
+            playerDTOs = [...params.playerDTOs];
+            selfHrid = params.selfHrid;
+        } else {
+            const result = await buildAllPlayerDTOs();
+            playerDTOs = result.players;
+            selfHrid = result.selfHrid;
+        }
         if (!playerDTOs.length) throw new Error('No character data available.');
 
         const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
-        applyLiveSelfOverrides(playerDTOs[baseIndex]);
+        if (!params.playerDTOs) applyLiveSelfOverrides(playerDTOs[baseIndex]);
 
         // Non-dungeon zones support at most 3 players; drop dungeons from the all-zones pool if the
         // party is too large for them to be simulated honestly, rather than fail the whole run.
@@ -24307,40 +19851,87 @@
     }
 
     /**
-     * Ultimate Sim UI
-     * Floating panel that loops food optimization → coffee optimization → all-zones simulation,
-     * moving to whichever zone comes out best each pass, until the best zone stabilizes or repeats.
+     * Combat Simulator UI
+     * Floating panel for configuring and running combat simulations.
      */
 
 
-    const PANEL_ID$1 = 'mwi-ultimate-sim-panel';
-    const ACCENT$1 = '#a78bfa';
-    const ACCENT_BORDER$1 = 'rgba(167, 139, 250, 0.5)';
-    const ACCENT_BG$1 = 'rgba(167, 139, 250, 0.12)';
-    const ACCENT_BTN_BG$1 = 'rgba(167, 139, 250, 0.2)';
-    const ACCENT_BTN_BORDER$1 = 'rgba(167, 139, 250, 0.4)';
+    const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
+    // Combos are considered "tied" on deaths/hr or OOM% within this margin (matches optimize-food-core).
+    const FOOD_COMBOS_TO_REFINE = 10;
 
-    const PHASE_LABELS = {
-        food: 'Optimizing food',
-        coffee: 'Optimizing coffee',
-        zones: 'Simulating all zones',
-    };
+    const PANEL_ID$1 = 'mwi-combat-sim-panel';
+    const ACCENT$1 = '#4a9eff';
+    const ACCENT_BORDER$1 = 'rgba(74, 158, 255, 0.5)';
+    const ACCENT_BG$1 = 'rgba(74, 158, 255, 0.12)';
+    const ACCENT_BTN_BG$1 = 'rgba(74, 158, 255, 0.2)';
+    const ACCENT_BTN_BORDER$1 = 'rgba(74, 158, 255, 0.4)';
 
-    class UltimateSimUI {
+    /**
+     * Format elapsed seconds as "Xs" or "Xm Ys".
+     * @param {number} seconds
+     * @returns {string}
+     */
+    function formatElapsed$1(seconds) {
+        if (seconds < 60) return `${seconds.toFixed(1)}s`;
+        const m = Math.floor(seconds / 60);
+        const s = (seconds % 60).toFixed(0);
+        return `${m}m ${s}s`;
+    }
+
+    class CombatSimUI {
         constructor() {
             this.panel = null;
+            this._editor = null;
             this.isRunning = false;
-            this._aborted = false;
             this.isDragging = false;
             this.dragOffset = { x: 0, y: 0 };
-            this._lastTopZones = [];
-            this._topSortCol = 'score';
-            this._topSortAsc = false;
-            this._lastTopCoffees = [];
-            this._coffeeSortCol = 'score';
-            this._coffeeSortAsc = false;
+            this.elapsedTimer = null;
+            this._activePlayerTab = 'player1';
+            this._playerInfo = [];
+            this._lastSimResult = null;
+            this._lastSimHours = null;
+            this._lastGameData = null;
+            // Session history for multi-scenario comparison
+            this._simHistory = [];
+            this._comparisonIndex = null;
+            // Comparison table state
+            this._comparisonBaseline = null; // index into _simHistory
+            this._comparisonSlots = []; // array of _simHistory indices to compare
+            this._activeDetailIndex = null; // which history entry's details are shown
+            this._activeMainTab = 'configure';
+            // All Zones state
+            this._allZonesMode = null; // null = off, 'group' or 'solo'
+            this._allZonesResults = null; // Array of {zone, simResult, revenue}
+            this._allZonesSortCol = null;
+            this._allZonesSortAsc = true;
+            this._earlyExitEnabled = true; // default on
+            // Seek state
+            this._seekItems = []; // [{itemHrid, name}] — droppable items across all combat zones
+            this._seekSelectedItem = null;
+            this._seekResults = null;
+            this._seekSortCol = null;
+            this._seekSortAsc = true;
+            // Optimize Food tab state
+            this._foodRunning = false;
+            this._foodAborted = false;
+            // Optimize Coffee tab state
+            this._coffeeRunning = false;
+            this._coffeeAborted = false;
+            // Ultimate Sim tab state
+            this._usimRunning = false;
+            this._usimAborted = false;
+            this._usimLastTopZones = [];
+            this._usimTopSortCol = 'score';
+            this._usimTopSortAsc = false;
+            this._usimLastTopCoffees = [];
+            this._usimCoffeeSortCol = 'score';
+            this._usimCoffeeSortAsc = false;
         }
 
+        /**
+         * Build and append the floating panel to the document body.
+         */
         buildPanel() {
             if (this.panel) return;
 
@@ -24354,10 +19945,10 @@
             background: rgba(10, 10, 20, 0.97);
             border: 2px solid ${ACCENT_BORDER$1};
             border-radius: 10px;
-            width: 720px;
-            height: 560px;
-            min-width: 520px;
-            min-height: 340px;
+            width: 600px;
+            height: 600px;
+            min-width: 400px;
+            min-height: 300px;
             max-width: 90vw;
             max-height: 90vh;
             display: none;
@@ -24368,6 +19959,7 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.6);
         `;
 
+            // Header
             const header = document.createElement('div');
             header.style.cssText = `
             display: flex;
@@ -24381,18 +19973,53 @@
             flex-shrink: 0;
         `;
             header.innerHTML = `
-            <span style="font-weight:700; font-size:14px; color:${ACCENT$1};">Ultimate Sim</span>
-            <button id="mwi-usim-close" style="
+            <span style="font-weight:700; font-size:14px; color:${ACCENT$1};">Combat Simulator</span>
+            <button id="mwi-csim-close" style="
                 background:none; border:none; color:#aaa; font-size:22px;
                 cursor:pointer; padding:0; line-height:1;">×</button>
         `;
             this._setupDrag(header);
 
-            const selectStyle =
-                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
-            const inputStyle =
-                'width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
+            // Tab bar (Configure | Results)
+            const tabBar = document.createElement('div');
+            tabBar.id = 'mwi-csim-tabbar';
+            tabBar.style.cssText = `
+            display: flex;
+            gap: 0;
+            padding: 0;
+            flex-shrink: 0;
+            border-bottom: 1px solid #222;
+        `;
+            const tabStyle = (active) => `
+            flex: 1;
+            padding: 7px 0;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-family: inherit;
+            transition: all 0.1s;
+            background: ${active ? ACCENT_BG$1 : 'transparent'};
+            color: ${active ? ACCENT$1 : '#888'};
+            border-bottom: 2px solid ${active ? ACCENT$1 : 'transparent'};
+        `;
+            tabBar.innerHTML = `
+            <button id="mwi-csim-tab-configure" style="${tabStyle(true)}">Configure</button>
+            <button id="mwi-csim-tab-results" style="${tabStyle(false)}">Results</button>
+            <button id="mwi-csim-tab-seek" style="${tabStyle(false)}">Seek</button>
+            <button id="mwi-csim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
+            <button id="mwi-csim-tab-optfood" style="${tabStyle(false)}">Optimize Food</button>
+            <button id="mwi-csim-tab-optcoffee" style="${tabStyle(false)}">Optimize Coffee</button>
+            <button id="mwi-csim-tab-optultimate" style="${tabStyle(false)}">Ultimate Sim</button>
+        `;
 
+            // Configure tab content
+            const configureContent = document.createElement('div');
+            configureContent.id = 'mwi-csim-configure-content';
+            configureContent.style.cssText = 'display:flex; flex-direction:column; flex:1; overflow:hidden;';
+
+            // Controls (zone, tier, hours, simulate)
             const controls = document.createElement('div');
             controls.style.cssText = `
             display: flex;
@@ -24403,48 +20030,21 @@
             border-bottom: 1px solid #222;
             flex-shrink: 0;
         `;
-            controls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Start Zone</label>
-            <select id="mwi-usim-zone" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Tier</label>
-            <select id="mwi-usim-tier" style="${selectStyle} flex:0; width:56px; min-width:56px;"></select>
-            <label style="color:#888; font-size:12px;">Optimize for</label>
-            <select id="mwi-usim-metric" style="${selectStyle} flex:0; width:110px; min-width:110px;">
-                <option value="xp">XP/hr</option>
-                <option value="mixed">Best Mixed</option>
-                <option value="profit">Profit/hr</option>
-            </select>
-        `;
 
-            const controls2 = document.createElement('div');
-            controls2.style.cssText = `
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 8px;
-            padding: 0 14px 10px 14px;
-            border-bottom: 1px solid #222;
-            flex-shrink: 0;
-        `;
-            controls2.innerHTML = `
-            <label style="color:#888; font-size:12px;">Food hrs</label>
-            <input id="mwi-usim-food-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimFoodHours', 2)}" style="${inputStyle}">
-            <label style="color:#888; font-size:12px;">Coffee hrs</label>
-            <input id="mwi-usim-coffee-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimCoffeeHours', 2)}" style="${inputStyle}">
-            <label style="color:#888; font-size:12px;">All-zones hrs</label>
-            <input id="mwi-usim-zones-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_ultimateSimZonesHours', 10)}" style="${inputStyle}">
-            <label style="color:#888; font-size:12px;">Max iterations</label>
-            <input id="mwi-usim-max-iter" type="number" min="1" max="50" value="${config.getSettingValue('combatSim_ultimateSimMaxIterations', 10)}" style="${inputStyle}">
-            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                <input id="mwi-usim-exclude-dungeons" type="checkbox">Exclude dungeons
-            </label>
-            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                <input id="mwi-usim-include-zones" type="checkbox" checked>Zones
-            </label>
-            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                <input id="mwi-usim-include-solo" type="checkbox" checked>Individual Mobs
-            </label>
-            <button id="mwi-usim-run" style="
+            const selectStyle =
+                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
+            const inputStyle =
+                'width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
+
+            controls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Zone</label>
+            <select id="mwi-csim-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;">
+            </select>
+            <label style="color:#888; font-size:12px;">Hours</label>
+            <input id="mwi-csim-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_defaultHours', 100)}" style="${inputStyle}">
+            <button id="mwi-csim-run" style="
                 margin-left: auto;
                 background: ${ACCENT_BTN_BG$1};
                 color: ${ACCENT$1};
@@ -24453,9 +20053,159 @@
                 padding: 5px 14px;
                 font-size: 12px;
                 font-weight: 600;
+                cursor: pointer;">Simulate</button>
+        `;
+
+            // All Zones controls row
+            const allZonesRow = document.createElement('div');
+            allZonesRow.id = 'mwi-csim-allzones-row';
+            allZonesRow.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+            font-size: 12px;
+        `;
+            const checkboxStyle = 'margin:0; cursor:pointer;';
+            const labelStyle = 'display:flex; align-items:center; gap:4px; color:#888; cursor:pointer;';
+            allZonesRow.innerHTML = `
+            <label style="${labelStyle}">
+                <input type="checkbox" id="mwi-csim-allzones-group" style="${checkboxStyle}">
+                Sim All Zones
+            </label>
+            <label style="${labelStyle}">
+                <input type="checkbox" id="mwi-csim-allzones-solo" style="${checkboxStyle}">
+                Sim All Solo
+            </label>
+            <label id="mwi-csim-allzones-hours-label" style="color:#888; font-size:12px; display:none;">Hours</label>
+            <input id="mwi-csim-allzones-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_allZonesDefaultHours', 10)}" style="display:none; width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;">
+            <label id="mwi-csim-earlyexit-label" style="${labelStyle} display:none;" title="Stop simming higher tiers for a zone if both XP/hr and profit/hr declined vs the previous tier">
+                <input type="checkbox" id="mwi-csim-earlyexit" style="${checkboxStyle}" checked>
+                Skip Worse Tiers
+            </label>
+        `;
+
+            // Zone checklist (hidden by default)
+            const zoneChecklist = document.createElement('div');
+            zoneChecklist.id = 'mwi-csim-zone-checklist';
+            zoneChecklist.style.cssText = `
+            display: none;
+            max-height: 150px;
+            overflow-y: auto;
+            padding: 6px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+
+            // Loadout editor area (scrollable)
+            const editorArea = document.createElement('div');
+            editorArea.id = 'mwi-csim-editor';
+            editorArea.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+            editorArea.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Loading loadout...</div>`;
+
+            this._editor = new SimEditor({ editorEl: editorArea, labMode: false });
+
+            configureContent.appendChild(controls);
+            configureContent.appendChild(allZonesRow);
+            configureContent.appendChild(zoneChecklist);
+            configureContent.appendChild(editorArea);
+
+            // Results tab content (hidden by default)
+            const resultsContent = document.createElement('div');
+            resultsContent.id = 'mwi-csim-results-content';
+            resultsContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            // Progress bar container (hidden by default)
+            const progressContainer = document.createElement('div');
+            progressContainer.id = 'mwi-csim-progress-container';
+            progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            progressContainer.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div style="
+                    flex:1;
+                    background:#1a1a2e;
+                    border-radius:4px;
+                    height:18px;
+                    overflow:hidden;
+                    position:relative;
+                    border:1px solid #333;">
+                    <div id="mwi-csim-progress-fill" style="
+                        height:100%;
+                        width:0%;
+                        background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1});
+                        border-radius:3px;
+                        transition:width 0.2s ease;"></div>
+                    <span id="mwi-csim-progress-text" style="
+                        position:absolute;
+                        top:0; left:0; right:0;
+                        text-align:center;
+                        font-size:11px;
+                        line-height:18px;
+                        color:#e0e0e0;
+                        font-weight:600;">0%</span>
+                </div>
+                <button id="mwi-csim-stop" style="
+                    background:rgba(244, 67, 54, 0.2);
+                    border:1px solid rgba(244, 67, 54, 0.4);
+                    color:#f44336;
+                    border-radius:4px;
+                    padding:2px 10px;
+                    font-size:11px;
+                    font-weight:600;
+                    cursor:pointer;
+                    font-family:inherit;
+                    flex-shrink:0;">Stop</button>
+            </div>
+        `;
+
+            // Results container
+            const resultsContainer = document.createElement('div');
+            resultsContainer.id = 'mwi-csim-results';
+            resultsContainer.style.cssText = 'display:none; overflow-y:auto; flex:1; padding:10px 14px;';
+
+            resultsContent.appendChild(progressContainer);
+            resultsContent.appendChild(resultsContainer);
+
+            // Seek tab content (hidden by default)
+            const seekContent = document.createElement('div');
+            seekContent.id = 'mwi-csim-seek-content';
+            seekContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            const seekControls = document.createElement('div');
+            seekControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            seekControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Item</label>
+            <input id="mwi-csim-seek-input" type="text" placeholder="Search item..." style="
+                flex:1; min-width:0;
+                background:#1a1a2e; color:#e0e0e0;
+                border:1px solid #444; border-radius:4px;
+                padding:3px 6px; font-size:12px; font-family:inherit;">
+            <label style="color:#888; font-size:12px;">Hours</label>
+            <input id="mwi-csim-seek-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_seekDefaultHours', 10)}" style="
+                width:60px; background:#1a1a2e; color:#e0e0e0;
+                border:1px solid #444; border-radius:4px;
+                padding:3px 6px; font-size:12px; text-align:center;">
+            <button id="mwi-csim-seek-run" style="
+                background: ${ACCENT_BTN_BG$1};
+                color: ${ACCENT$1};
+                border: 1px solid ${ACCENT_BTN_BORDER$1};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
                 cursor: pointer;
-                font-family: inherit;">Start</button>
-            <button id="mwi-usim-stop" style="
+                font-family: inherit;">Seek</button>
+            <button id="mwi-csim-seek-stop" style="
                 display:none;
                 background:rgba(244, 67, 54, 0.2);
                 border:1px solid rgba(244, 67, 54, 0.4);
@@ -24468,91 +20218,581 @@
                 font-family:inherit;">Stop</button>
         `;
 
-            const progressContainer = document.createElement('div');
-            progressContainer.id = 'mwi-usim-progress-container';
-            progressContainer.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            progressContainer.innerHTML = `
-            <div style="
-                background:#1a1a2e;
-                border-radius:4px;
-                height:18px;
-                overflow:hidden;
-                position:relative;
-                border:1px solid #333;">
-                <div id="mwi-usim-progress-fill" style="
-                    height:100%;
-                    width:0%;
-                    background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1});
-                    border-radius:3px;
-                    transition:width 0.2s ease;"></div>
-                <span id="mwi-usim-progress-text" style="
-                    position:absolute;
-                    top:0; left:0; right:0;
-                    text-align:center;
-                    font-size:11px;
-                    line-height:18px;
-                    color:#e0e0e0;
-                    font-weight:600;">Ready</span>
+            const seekSuggestions = document.createElement('div');
+            seekSuggestions.id = 'mwi-csim-seek-suggestions';
+            seekSuggestions.style.cssText = `
+            display: none;
+            max-height: 140px;
+            overflow-y: auto;
+            padding: 4px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+
+            const seekProgress = document.createElement('div');
+            seekProgress.id = 'mwi-csim-seek-progress';
+            seekProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            seekProgress.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                    <div id="mwi-csim-seek-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1}); border-radius:3px; transition:width 0.2s ease;"></div>
+                    <span id="mwi-csim-seek-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0%</span>
+                </div>
             </div>
         `;
 
-            const resultsContainer = document.createElement('div');
-            resultsContainer.id = 'mwi-usim-results';
-            resultsContainer.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-            resultsContainer.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a start zone and click Start.</div>`;
+            const seekResults = document.createElement('div');
+            seekResults.id = 'mwi-csim-seek-results';
+            seekResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
 
+            seekContent.appendChild(seekControls);
+            seekContent.appendChild(seekSuggestions);
+            seekContent.appendChild(seekProgress);
+            seekContent.appendChild(seekResults);
+
+            // Upgrade tab content (hidden by default)
+            const upgradeContent = document.createElement('div');
+            upgradeContent.id = 'mwi-csim-upgrade-content';
+            upgradeContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            const upgradeControls = document.createElement('div');
+            upgradeControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            upgradeControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Player</label>
+            <select id="mwi-csim-upgrade-player" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Mode</label>
+            <select id="mwi-csim-upgrade-mode" style="${selectStyle}">
+                <option value="equipment">Equipment</option>
+                <option value="ability_level">Ability Levels</option>
+                <option value="ability_swap">Ability Swaps</option>
+            </select>
+            <span id="mwi-csim-upgrade-level-group" style="display:none; align-items:center; gap:4px;">
+                <select id="mwi-csim-upgrade-level-type" style="
+                    background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px;">
+                    <option value="increment">+Levels</option>
+                    <option value="target">Target Lv</option>
+                    <option value="budget">Budget (M)</option>
+                </select>
+                <input id="mwi-csim-upgrade-target-level" type="number" min="1" max="200" step="1" value="5" placeholder="+5" style="
+                    width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                    title="Number of levels to add to each ability">
+            </span>
+            <span id="mwi-csim-upgrade-budget-group" style="display:inline-flex; align-items:center; gap:4px;">
+                <label id="mwi-csim-upgrade-budget-label" style="color:#888; font-size:12px;">Max Cost (M coins)</label>
+                <input id="mwi-csim-upgrade-swap-budget" type="number" min="0" step="0.01" placeholder="e.g. 1" style="
+                    width:70px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                    title="Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.">
+            </span>
+            <span id="mwi-csim-upgrade-level-boost-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;">+Levels</label>
+                <input id="mwi-csim-upgrade-level-boost" type="number" min="0" step="1" placeholder="0" style="
+                    width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                    title="Check equip requirements against all your skills at their current level plus this many levels, to plan future upgrades. Leave blank for 0 (current levels).">
+            </span>
+            <label style="display:flex; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;">
+                <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
+                Skip Back
+            </label>
+            <button id="mwi-csim-upgrade-run" style="
+                background: ${ACCENT_BTN_BG$1};
+                color: ${ACCENT$1};
+                border: 1px solid ${ACCENT_BTN_BORDER$1};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Analyze</button>
+            <button id="mwi-csim-upgrade-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+            const upgradeProgress = document.createElement('div');
+            upgradeProgress.id = 'mwi-csim-upgrade-progress';
+            upgradeProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            upgradeProgress.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                    <div id="mwi-csim-upgrade-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1}); border-radius:3px; transition:width 0.2s ease;"></div>
+                    <span id="mwi-csim-upgrade-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
+                </div>
+            </div>
+        `;
+
+            const upgradeResults = document.createElement('div');
+            upgradeResults.id = 'mwi-csim-upgrade-results';
+            upgradeResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+
+            upgradeContent.appendChild(upgradeControls);
+            upgradeContent.appendChild(upgradeProgress);
+            upgradeContent.appendChild(upgradeResults);
+
+            // Optimize Food tab content
+            const optFoodContent = document.createElement('div');
+            optFoodContent.id = 'mwi-csim-optfood-content';
+            optFoodContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            const optFoodControls = document.createElement('div');
+            optFoodControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            optFoodControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Zone</label>
+            <select id="mwi-csim-optfood-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-optfood-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
+            <label style="color:#888; font-size:12px;">Test Hours</label>
+            <input id="mwi-csim-optfood-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeFoodHours', 2)}" style="${inputStyle}">
+            <button id="mwi-csim-optfood-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG$1};
+                color: ${ACCENT$1};
+                border: 1px solid ${ACCENT_BTN_BORDER$1};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Optimize</button>
+            <button id="mwi-csim-optfood-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+            const optFoodProgress = document.createElement('div');
+            optFoodProgress.id = 'mwi-csim-optfood-progress-container';
+            optFoodProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            optFoodProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-optfood-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-optfood-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
+            </div>
+        `;
+
+            const optFoodResults = document.createElement('div');
+            optFoodResults.id = 'mwi-csim-optfood-results';
+            optFoodResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+            optFoodResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
+
+            optFoodContent.appendChild(optFoodControls);
+            optFoodContent.appendChild(optFoodProgress);
+            optFoodContent.appendChild(optFoodResults);
+
+            // Optimize Coffee tab content
+            const optCoffeeContent = document.createElement('div');
+            optCoffeeContent.id = 'mwi-csim-optcoffee-content';
+            optCoffeeContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            const optCoffeeControls = document.createElement('div');
+            optCoffeeControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            optCoffeeControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Zone</label>
+            <select id="mwi-csim-optcoffee-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-optcoffee-tier" style="${selectStyle} flex:0; width:64px; min-width:64px;"></select>
+            <label style="color:#888; font-size:12px;">Test Hours</label>
+            <input id="mwi-csim-optcoffee-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_optimizeCoffeeHours', 2)}" style="${inputStyle}">
+            <button id="mwi-csim-optcoffee-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG$1};
+                color: ${ACCENT$1};
+                border: 1px solid ${ACCENT_BTN_BORDER$1};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Optimize</button>
+            <button id="mwi-csim-optcoffee-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+            const optCoffeeProgress = document.createElement('div');
+            optCoffeeProgress.id = 'mwi-csim-optcoffee-progress-container';
+            optCoffeeProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            optCoffeeProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-optcoffee-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-optcoffee-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
+            </div>
+        `;
+
+            const optCoffeeResults = document.createElement('div');
+            optCoffeeResults.id = 'mwi-csim-optcoffee-results';
+            optCoffeeResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+            optCoffeeResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a zone and click Optimize.</div>`;
+
+            optCoffeeContent.appendChild(optCoffeeControls);
+            optCoffeeContent.appendChild(optCoffeeProgress);
+            optCoffeeContent.appendChild(optCoffeeResults);
+
+            // Ultimate Sim tab content
+            const optUltimateContent = document.createElement('div');
+            optUltimateContent.id = 'mwi-csim-optultimate-content';
+            optUltimateContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+            const usimControls = document.createElement('div');
+            usimControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            usimControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Start Zone</label>
+            <select id="mwi-csim-usim-zone" style="${selectStyle}"></select>
+            <label style="color:#888; font-size:12px;">Tier</label>
+            <select id="mwi-csim-usim-tier" style="${selectStyle} flex:0; width:56px; min-width:56px;"></select>
+            <label style="color:#888; font-size:12px;">Optimize for</label>
+            <select id="mwi-csim-usim-metric" style="${selectStyle} flex:0; width:110px; min-width:110px;">
+                <option value="xp">XP/hr</option>
+                <option value="mixed">Best Mixed</option>
+                <option value="profit">Profit/hr</option>
+            </select>
+        `;
+
+            const usimControls2 = document.createElement('div');
+            usimControls2.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+            usimControls2.innerHTML = `
+            <label style="color:#888; font-size:12px;">Food hrs</label>
+            <input id="mwi-csim-usim-food-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimFoodHours', 2)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Coffee hrs</label>
+            <input id="mwi-csim-usim-coffee-hours" type="number" min="1" max="1000" value="${config.getSettingValue('combatSim_ultimateSimCoffeeHours', 2)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">All-zones hrs</label>
+            <input id="mwi-csim-usim-zones-hours" type="number" min="1" max="10000" value="${config.getSettingValue('combatSim_ultimateSimZonesHours', 10)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Max iterations</label>
+            <input id="mwi-csim-usim-max-iter" type="number" min="1" max="50" value="${config.getSettingValue('combatSim_ultimateSimMaxIterations', 10)}" style="${inputStyle}">
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-exclude-dungeons" type="checkbox">Exclude dungeons
+            </label>
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-include-zones" type="checkbox" checked>Zones
+            </label>
+            <label style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-usim-include-solo" type="checkbox" checked>Individual Mobs
+            </label>
+            <button id="mwi-csim-usim-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG$1};
+                color: ${ACCENT$1};
+                border: 1px solid ${ACCENT_BTN_BORDER$1};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Start</button>
+            <button id="mwi-csim-usim-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+            const usimProgress = document.createElement('div');
+            usimProgress.id = 'mwi-csim-usim-progress-container';
+            usimProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            usimProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-usim-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG$1}, ${ACCENT$1}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-usim-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">Ready</span>
+            </div>
+        `;
+
+            const usimResults = document.createElement('div');
+            usimResults.id = 'mwi-csim-usim-results';
+            usimResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+            usimResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Select a start zone and click Start.</div>`;
+
+            optUltimateContent.appendChild(usimControls);
+            optUltimateContent.appendChild(usimControls2);
+            optUltimateContent.appendChild(usimProgress);
+            optUltimateContent.appendChild(usimResults);
+
+            // Status bar
             const status = document.createElement('div');
-            status.id = 'mwi-usim-status';
+            status.id = 'mwi-csim-status';
             status.style.cssText =
                 'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-            status.textContent = 'Ready.';
+            status.textContent = 'Select a zone and click Simulate.';
 
             this.panel.appendChild(header);
-            this.panel.appendChild(controls);
-            this.panel.appendChild(controls2);
-            this.panel.appendChild(progressContainer);
-            this.panel.appendChild(resultsContainer);
+            this.panel.appendChild(tabBar);
+            this.panel.appendChild(configureContent);
+            this.panel.appendChild(resultsContent);
+            this.panel.appendChild(seekContent);
+            this.panel.appendChild(upgradeContent);
+            this.panel.appendChild(optFoodContent);
+            this.panel.appendChild(optCoffeeContent);
+            this.panel.appendChild(optUltimateContent);
             this.panel.appendChild(status);
+
+            const resizeHandle = document.createElement('div');
+            resizeHandle.style.cssText = `
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, rgba(74, 158, 255, 0.4) 50%);
+            border-radius: 0 0 8px 0;
+            z-index: 1;
+        `;
+            this.panel.appendChild(resizeHandle);
+            this._setupResize(resizeHandle);
 
             document.body.appendChild(this.panel);
             registerFloatingPanel(this.panel);
 
-            this.panel.querySelector('#mwi-usim-close').addEventListener('click', () => {
+            // Event listeners
+            this.panel.querySelector('#mwi-csim-close').addEventListener('click', () => {
                 this.panel.style.display = 'none';
             });
-            this.panel.querySelector('#mwi-usim-run').addEventListener('click', () => this._onRun());
-            this.panel.querySelector('#mwi-usim-stop').addEventListener('click', () => {
-                this._aborted = true;
+            this.panel.querySelector('#mwi-csim-run').addEventListener('click', () => this._onSimulate());
+            this.panel.querySelector('#mwi-csim-stop').addEventListener('click', () => this._onSimulate());
+            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
+
+            // Tab switching
+            this.panel
+                .querySelector('#mwi-csim-tab-configure')
+                .addEventListener('click', () => this._switchTab('configure'));
+            this.panel.querySelector('#mwi-csim-tab-results').addEventListener('click', () => this._switchTab('results'));
+            this.panel.querySelector('#mwi-csim-tab-seek').addEventListener('click', () => this._switchTab('seek'));
+            this.panel.querySelector('#mwi-csim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
+            this.panel.querySelector('#mwi-csim-tab-optfood').addEventListener('click', () => this._switchTab('optfood'));
+            this.panel
+                .querySelector('#mwi-csim-tab-optcoffee')
+                .addEventListener('click', () => this._switchTab('optcoffee'));
+            this.panel
+                .querySelector('#mwi-csim-tab-optultimate')
+                .addEventListener('click', () => this._switchTab('optultimate'));
+
+            this.panel
+                .querySelector('#mwi-csim-optfood-zone')
+                .addEventListener('change', () =>
+                    this._updateGenericTierDropdown('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier')
+                );
+            this.panel.querySelector('#mwi-csim-optfood-run').addEventListener('click', () => this._onOptimizeFood());
+            this.panel.querySelector('#mwi-csim-optfood-stop').addEventListener('click', () => {
+                this._foodAborted = true;
+                cancelSimulation();
+            });
+
+            this.panel
+                .querySelector('#mwi-csim-optcoffee-zone')
+                .addEventListener('change', () =>
+                    this._updateGenericTierDropdown('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier')
+                );
+            this.panel.querySelector('#mwi-csim-optcoffee-run').addEventListener('click', () => this._onOptimizeCoffee());
+            this.panel.querySelector('#mwi-csim-optcoffee-stop').addEventListener('click', () => {
+                this._coffeeAborted = true;
+                cancelSimulation();
+            });
+
+            this.panel
+                .querySelector('#mwi-csim-usim-zone')
+                .addEventListener('change', () =>
+                    this._updateGenericTierDropdown('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true)
+                );
+            this.panel.querySelector('#mwi-csim-usim-run').addEventListener('click', () => this._onUltimateSimRun());
+            this.panel.querySelector('#mwi-csim-usim-stop').addEventListener('click', () => {
+                this._usimAborted = true;
                 cancelSimulation();
                 cancelAllZonesSimulation();
             });
-            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
-            this.panel.querySelector('#mwi-usim-zone').addEventListener('change', () => this._updateTierDropdown());
+            this.panel.querySelector('#mwi-csim-upgrade-run').addEventListener('click', () => this._onUpgradeAnalyze());
+            this.panel.querySelector('#mwi-csim-upgrade-stop').addEventListener('click', () => {
+                this._upgradeAborted = true;
+            });
+            this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
+                const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
+                const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
+                const budgetLabel = this.panel.querySelector('#mwi-csim-upgrade-budget-label');
+                const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
+                const levelBoostGroup = this.panel.querySelector('#mwi-csim-upgrade-level-boost-group');
+                const isEquipmentMode = e.target.value === 'equipment';
+                const isLevelMode = e.target.value === 'ability_level';
+                const isSwapMode = e.target.value === 'ability_swap';
+                levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
+                budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
+                levelBoostGroup.style.display = isEquipmentMode ? 'inline-flex' : 'none';
+                if (isEquipmentMode) {
+                    budgetLabel.textContent = 'Max Cost (M coins)';
+                    budgetInput.title =
+                        'Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.';
+                } else if (isSwapMode) {
+                    budgetLabel.textContent = 'Budget (M coins)';
+                    budgetInput.title =
+                        'Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.';
+                }
+                if (isLevelMode) {
+                    this._setDefaultAbilityTargetLevel();
+                }
+            });
+            this.panel.querySelector('#mwi-csim-upgrade-level-type').addEventListener('change', (e) => {
+                const input = this.panel.querySelector('#mwi-csim-upgrade-target-level');
+                if (e.target.value === 'increment') {
+                    input.value = '5';
+                    input.placeholder = '+5';
+                    input.title = 'Number of levels to add to each ability';
+                    input.step = '1';
+                } else if (e.target.value === 'target') {
+                    input.value = '';
+                    input.placeholder = 'e.g. 80';
+                    input.title = 'Absolute target level for all abilities';
+                    input.step = '1';
+                } else {
+                    // budget
+                    input.value = '';
+                    input.placeholder = 'e.g. 1.5';
+                    input.title =
+                        'Coin budget (in millions, decimals allowed) to level each equipped ability up to. ' +
+                        'Cost shown is the total value of the ability including XP already invested.';
+                    input.step = '0.01';
+                }
+            });
+            this.panel.querySelector('#mwi-csim-upgrade-target-level').addEventListener('change', (e) => {
+                const levelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value;
+                if (levelType === 'budget') return;
+                // Increment/target modes are integer levels — floor any decimal input.
+                const val = Math.floor(parseFloat(e.target.value));
+                if (Number.isNaN(val)) return;
+                e.target.value = Math.min(200, Math.max(1, val));
+            });
 
-            this._populateZones();
+            // Zone change → update tier dropdown
+            this.panel.querySelector('#mwi-csim-zone').addEventListener('change', () => this._updateTierDropdown());
+
+            // All Zones toggles
+            this.panel.querySelector('#mwi-csim-allzones-group').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.panel.querySelector('#mwi-csim-allzones-solo').checked = false;
+                    this._allZonesMode = 'group';
+                } else {
+                    this._allZonesMode = null;
+                }
+                this._updateAllZonesUI();
+            });
+            this.panel.querySelector('#mwi-csim-allzones-solo').addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    this.panel.querySelector('#mwi-csim-allzones-group').checked = false;
+                    this._allZonesMode = 'solo';
+                } else {
+                    this._allZonesMode = null;
+                }
+                this._updateAllZonesUI();
+            });
+
+            // Early exit toggle
+            this.panel.querySelector('#mwi-csim-earlyexit').addEventListener('change', (e) => {
+                this._earlyExitEnabled = e.target.checked;
+            });
+
+            // Seek: item search input
+            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('input', (e) => {
+                this._updateSeekSuggestions(e.target.value);
+            });
+            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('focus', (e) => {
+                this._updateSeekSuggestions(e.target.value);
+            });
+            this.panel.querySelector('#mwi-csim-seek-input').addEventListener('blur', () => {
+                // Delay hide to allow click on suggestion
+                setTimeout(() => {
+                    const sug = this.panel.querySelector('#mwi-csim-seek-suggestions');
+                    if (sug) sug.style.display = 'none';
+                }, 150);
+            });
+            this.panel.querySelector('#mwi-csim-seek-run').addEventListener('click', () => this._onSeek());
+            this.panel.querySelector('#mwi-csim-seek-stop').addEventListener('click', () => {
+                cancelAllZonesSimulation();
+            });
+
+            this.populateZones();
+            this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
+            this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
+            this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
         }
 
-        _setupDrag(header) {
-            header.addEventListener('mousedown', (e) => {
-                this.isDragging = true;
-                const rect = this.panel.getBoundingClientRect();
-                this.dragOffset.x = e.clientX - rect.left;
-                this.dragOffset.y = e.clientY - rect.top;
-                e.preventDefault();
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (!this.isDragging) return;
-                this.panel.style.left = `${e.clientX - this.dragOffset.x}px`;
-                this.panel.style.top = `${e.clientY - this.dragOffset.y}px`;
-                this.panel.style.right = 'auto';
-            });
-            document.addEventListener('mouseup', () => {
-                this.isDragging = false;
-            });
-        }
-
-        _populateZones() {
-            const zoneSelect = this.panel?.querySelector('#mwi-usim-zone');
+        /**
+         * Fill a zone dropdown (by element id) from getCombatZones() and select the current zone,
+         * used by the Optimize Food / Optimize Coffee / Ultimate Sim tabs.
+         * @param {string} zoneSelectId
+         * @param {string} tierSelectId
+         * @param {boolean} [useMaxDifficulty] - Ultimate Sim uses zone.maxDifficulty for the tier cap
+         *   instead of the isDungeon-based 2/5 cap the other tabs use.
+         */
+        _populateGenericZoneSelect(zoneSelectId, tierSelectId, useMaxDifficulty = false) {
+            const zoneSelect = this.panel?.querySelector(`#${zoneSelectId}`);
             if (!zoneSelect) return;
 
             const zones = getCombatZones();
@@ -24567,22 +20807,28 @@
             const current = getCurrentCombatZone();
             if (current) zoneSelect.value = current.zoneHrid;
 
-            this._updateTierDropdown();
+            this._updateGenericTierDropdown(zoneSelectId, tierSelectId, useMaxDifficulty);
 
             if (current) {
-                const tierSelect = this.panel.querySelector('#mwi-usim-tier');
+                const tierSelect = this.panel.querySelector(`#${tierSelectId}`);
                 if (tierSelect) tierSelect.value = String(current.difficultyTier);
             }
         }
 
-        _updateTierDropdown() {
-            const zoneSelect = this.panel?.querySelector('#mwi-usim-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-usim-tier');
+        /**
+         * Update a tier dropdown (by element id) based on its paired zone select's current value.
+         * @param {string} zoneSelectId
+         * @param {string} tierSelectId
+         * @param {boolean} [useMaxDifficulty]
+         */
+        _updateGenericTierDropdown(zoneSelectId, tierSelectId, useMaxDifficulty = false) {
+            const zoneSelect = this.panel?.querySelector(`#${zoneSelectId}`);
+            const tierSelect = this.panel?.querySelector(`#${tierSelectId}`);
             if (!zoneSelect || !tierSelect) return;
 
             const zones = getCombatZones();
             const zone = zones.find((z) => z.hrid === zoneSelect.value);
-            const maxTier = zone?.maxDifficulty ?? 0;
+            const maxTier = useMaxDifficulty ? (zone?.maxDifficulty ?? 0) : zone?.isDungeon ? 2 : 5;
 
             const currentTier = parseInt(tierSelect.value) || 0;
             tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
@@ -24591,28 +20837,2729 @@
             tierSelect.value = String(Math.min(currentTier, maxTier));
         }
 
+        /**
+         * Build player DTOs from the shared Configure-tab loadout (SimEditor), if edited, falling back
+         * to live game state otherwise. Used by Optimize Food / Optimize Coffee / Ultimate Sim so all
+         * sims operate on the same configured loadout as the main Simulate tab.
+         * @returns {Promise<{playerDTOs: Array<Object>, selfHrid: string, baseIndex: number}>}
+         */
+        async _getConfiguredPlayerDTOs() {
+            let playerDTOs;
+            let selfHrid;
+
+            const editedDTOs = this._editor?.getEditedDTOs();
+            if (editedDTOs) {
+                playerDTOs = Object.values(editedDTOs);
+                selfHrid = this._editor?.getSelfHrid() || playerDTOs[0]?.hrid || 'player1';
+            } else {
+                const result = await buildAllPlayerDTOs();
+                playerDTOs = result.players;
+                selfHrid = result.selfHrid;
+            }
+
+            const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
+            const baseIndex = selfIndex >= 0 ? selfIndex : 0;
+            return { playerDTOs, selfHrid, baseIndex };
+        }
+
+        /**
+         * Fill the zone dropdown from getCombatZones() and select the current zone.
+         */
+        populateZones() {
+            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
+            if (!zoneSelect) return;
+
+            const zones = getCombatZones();
+            zoneSelect.innerHTML = '';
+
+            for (const zone of zones) {
+                const option = document.createElement('option');
+                option.value = zone.hrid;
+                option.textContent = zone.isDungeon ? `[D] ${zone.name}` : zone.name;
+                zoneSelect.appendChild(option);
+            }
+
+            // Select current zone and tier if available
+            const current = getCurrentCombatZone();
+            if (current) {
+                zoneSelect.value = current.zoneHrid;
+            }
+
+            this._updateTierDropdown();
+
+            // Restore current tier after dropdown is rebuilt
+            if (current) {
+                const tierSelect = this.panel.querySelector('#mwi-csim-tier');
+                if (tierSelect) {
+                    tierSelect.value = String(current.difficultyTier);
+                }
+            }
+        }
+
+        /**
+         * Update the tier dropdown based on the currently selected zone.
+         * Regular zones: T0-T5, Dungeons: T0-T2.
+         * @private
+         */
+        _updateTierDropdown() {
+            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
+            const tierSelect = this.panel?.querySelector('#mwi-csim-tier');
+            if (!zoneSelect || !tierSelect) return;
+
+            const selectedHrid = zoneSelect.value;
+            const zones = getCombatZones();
+            const zone = zones.find((z) => z.hrid === selectedHrid);
+            const maxTier = zone?.isDungeon ? 2 : 5;
+
+            const currentTier = parseInt(tierSelect.value) || 0;
+            tierSelect.innerHTML = Array.from({ length: maxTier + 1 }, (_, i) => `<option value="${i}">${i}</option>`).join(
+                ''
+            );
+            tierSelect.value = String(Math.min(currentTier, maxTier));
+        }
+
+        /**
+         * Update UI visibility when All Zones mode changes.
+         * Shows/hides zone checklist, hides single-zone controls.
+         * @private
+         */
+        _updateAllZonesUI() {
+            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
+            const zoneSelect = this.panel?.querySelector('#mwi-csim-zone');
+            const tierSelect = this.panel?.querySelector('#mwi-csim-tier');
+            const zoneLabel = zoneSelect?.previousElementSibling;
+            const tierLabel = tierSelect?.previousElementSibling;
+            const earlyExitLabel = this.panel?.querySelector('#mwi-csim-earlyexit-label');
+            const allZonesHoursInput = this.panel?.querySelector('#mwi-csim-allzones-hours');
+            const allZonesHoursLabel = this.panel?.querySelector('#mwi-csim-allzones-hours-label');
+            const mainHoursInput = this.panel?.querySelector('#mwi-csim-hours');
+            const mainHoursLabel = mainHoursInput?.previousElementSibling;
+
+            if (!checklist) return;
+
+            if (this._allZonesMode) {
+                // Hide single-zone controls
+                if (zoneSelect) zoneSelect.style.display = 'none';
+                if (tierSelect) tierSelect.style.display = 'none';
+                if (zoneLabel) zoneLabel.style.display = 'none';
+                if (tierLabel) tierLabel.style.display = 'none';
+                if (mainHoursInput) mainHoursInput.style.display = 'none';
+                if (mainHoursLabel) mainHoursLabel.style.display = 'none';
+                if (earlyExitLabel) earlyExitLabel.style.display = 'flex';
+                if (allZonesHoursInput) allZonesHoursInput.style.display = '';
+                if (allZonesHoursLabel) allZonesHoursLabel.style.display = '';
+
+                // Show checklist with zones
+                checklist.style.display = 'block';
+                this._populateZoneChecklist();
+            } else {
+                // Show single-zone controls
+                if (zoneSelect) zoneSelect.style.display = '';
+                if (tierSelect) tierSelect.style.display = '';
+                if (zoneLabel) zoneLabel.style.display = '';
+                if (tierLabel) tierLabel.style.display = '';
+                if (mainHoursInput) mainHoursInput.style.display = '';
+                if (mainHoursLabel) mainHoursLabel.style.display = '';
+                if (earlyExitLabel) earlyExitLabel.style.display = 'none';
+                if (allZonesHoursInput) allZonesHoursInput.style.display = 'none';
+                if (allZonesHoursLabel) allZonesHoursLabel.style.display = 'none';
+
+                // Hide checklist
+                checklist.style.display = 'none';
+            }
+        }
+
+        /**
+         * Populate the zone checklist based on current all-zones mode.
+         * @private
+         */
+        _populateZoneChecklist() {
+            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
+            if (!checklist) return;
+
+            const zones = getCombatZones().filter((z) => {
+                if (z.isDungeon) return false;
+                if (this._allZonesMode === 'group') return z.maxSpawnCount > 1;
+                if (this._allZonesMode === 'solo') return z.maxSpawnCount === 1;
+                return false;
+            });
+
+            const checkAllId = 'mwi-csim-checkall';
+            checklist.innerHTML = `
+            <label style="display:flex; align-items:center; gap:4px; color:${ACCENT$1}; font-size:11px; font-weight:600; margin-bottom:4px; cursor:pointer;">
+                <input type="checkbox" id="${checkAllId}" checked style="margin:0; cursor:pointer;">
+                Check All
+            </label>
+        `;
+
+            for (const zone of zones) {
+                const label = document.createElement('label');
+                label.style.cssText =
+                    'display:flex; align-items:center; gap:4px; color:#ccc; font-size:11px; padding:1px 0; cursor:pointer;';
+                label.innerHTML = `<input type="checkbox" class="mwi-csim-zone-cb" data-hrid="${zone.hrid}" checked style="margin:0; cursor:pointer;"> ${zone.name}`;
+                checklist.appendChild(label);
+            }
+
+            // Check All toggle
+            checklist.querySelector(`#${checkAllId}`).addEventListener('change', (e) => {
+                checklist.querySelectorAll('.mwi-csim-zone-cb').forEach((cb) => {
+                    cb.checked = e.target.checked;
+                });
+            });
+        }
+
+        /**
+         * Get selected zones expanded into all difficulty tiers.
+         * @returns {Array<{zoneHrid: string, difficultyTier: number, name: string}>}
+         * @private
+         */
+        _getSelectedAllZones() {
+            const checklist = this.panel?.querySelector('#mwi-csim-zone-checklist');
+            if (!checklist) return [];
+
+            const allZones = getCombatZones();
+            const selected = [];
+
+            checklist.querySelectorAll('.mwi-csim-zone-cb:checked').forEach((cb) => {
+                const hrid = cb.dataset.hrid;
+                const zone = allZones.find((z) => z.hrid === hrid);
+                if (!zone) return;
+
+                for (let t = 0; t <= zone.maxDifficulty; t++) {
+                    selected.push({ zoneHrid: zone.hrid, difficultyTier: t, name: zone.name });
+                }
+            });
+
+            return selected;
+        }
+
+        /**
+         * Display all-zones comparison results in a sortable table.
+         * @param {Array<Object>} zoneResults - Array of {zone, simResult, revenue}
+         * @param {number} hours - Simulation hours
+         * @param {Object} gameData - Game data maps
+         * @private
+         */
+        _displayAllZonesResults(zoneResults, hours, gameData) {
+            const container = this.panel?.querySelector('#mwi-csim-results');
+            if (!container) return;
+
+            this._allZonesResults = zoneResults;
+            container.style.display = 'block';
+
+            const skillCols = [
+                { key: 'totalXP', label: 'Total XP/hr' },
+                { key: 'profitDay', label: 'Profit/day' },
+                { key: 'stamina', label: 'Stam' },
+                { key: 'intelligence', label: 'Int' },
+                { key: 'attack', label: 'Atk' },
+                { key: 'melee', label: 'Melee' },
+                { key: 'defense', label: 'Def' },
+                { key: 'ranged', label: 'Ranged' },
+                { key: 'magic', label: 'Magic' },
+            ];
+
+            const cols = [
+                { key: 'zone', label: 'Zone' },
+                { key: 'tier', label: 'T' },
+                { key: 'encounters', label: 'Enc/hr' },
+                { key: 'deaths', label: 'Deaths/hr' },
+                { key: 'oom', label: 'Mana OOM' },
+                ...skillCols,
+                { key: 'revenue', label: 'Rev/hr' },
+                { key: 'expenses', label: 'Cost/hr' },
+                { key: 'profit', label: 'Profit/hr' },
+            ];
+
+            // Build row data
+            const playerHrid = this._activePlayerTab || 'player1';
+            const rows = zoneResults
+                .filter((r) => r && r.simResult)
+                .map((r) => {
+                    const sim = r.simResult;
+                    const simHours = (sim.simulatedTime || 0) / (3600 * 1e9) || hours;
+                    const xp = sim.experienceGained?.[playerHrid] || {};
+
+                    const totalXP = Object.values(xp).reduce((s, v) => s + v, 0) / simHours;
+                    const playerDeaths = (sim.deaths?.[playerHrid] || 0) / simHours;
+                    const encounters = (sim.encounters || 0) / simHours;
+                    const oom = sim.playerRanOutOfMana?.[playerHrid] ?? false;
+
+                    return {
+                        zone: r.zone.name,
+                        tier: r.zone.difficultyTier,
+                        encounters,
+                        deaths: playerDeaths,
+                        oom,
+                        totalXP,
+                        stamina: (xp.stamina || 0) / simHours,
+                        intelligence: (xp.intelligence || 0) / simHours,
+                        attack: (xp.attack || 0) / simHours,
+                        melee: (xp.melee || 0) / simHours,
+                        defense: (xp.defense || 0) / simHours,
+                        ranged: (xp.ranged || 0) / simHours,
+                        magic: (xp.magic || 0) / simHours,
+                        revenue: r.revenue?.revenuePerHour || 0,
+                        expenses: r.revenue?.costPerHour || 0,
+                        profit: r.revenue?.netPerHour || 0,
+                        profitDay: (r.revenue?.netPerHour || 0) * 24,
+                    };
+                });
+
+            // Sort
+            if (this._allZonesSortCol) {
+                const col = this._allZonesSortCol;
+                const asc = this._allZonesSortAsc;
+                rows.sort((a, b) => {
+                    const va = a[col] ?? 0;
+                    const vb = b[col] ?? 0;
+                    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                    return asc ? va - vb : vb - va;
+                });
+            }
+
+            // Find max values per numeric column for highlighting
+            const maxVals = {};
+            const minVals = {};
+            for (const col of cols) {
+                if (col.key === 'zone' || col.key === 'tier' || col.key === 'oom') continue;
+                const values = rows.map((r) => r[col.key] || 0);
+                maxVals[col.key] = Math.max(...values);
+                minVals[col.key] = Math.min(...values);
+            }
+
+            // Render table
+            const headerCells = cols
+                .map((col) => {
+                    const arrow = this._allZonesSortCol === col.key ? (this._allZonesSortAsc ? ' ▲' : ' ▼') : '';
+                    return `<th data-col="${col.key}" style="padding:3px 4px; cursor:pointer; white-space:nowrap; font-size:10px; font-weight:600; color:#888; border-bottom:1px solid #333; user-select:none;">${col.label}${arrow}</th>`;
+                })
+                .join('');
+
+            const bodyRows = rows
+                .map((row) => {
+                    const cells = cols
+                        .map((col) => {
+                            const val = row[col.key];
+                            let display;
+                            let style = 'padding:2px 4px; font-size:10px; white-space:nowrap;';
+
+                            if (col.key === 'zone') {
+                                display = val;
+                                style += ' color:#e0e0e0;';
+                            } else if (col.key === 'tier') {
+                                display = `T${val}`;
+                                style += ' color:#888; text-align:center;';
+                            } else if (col.key === 'deaths') {
+                                display = val.toFixed(2);
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+
+                                const bestVal = minVals[col.key];
+                                const isBest = bestVal !== undefined && val === bestVal && rows.length > 1;
+                                if (isBest) {
+                                    style += ' color:#4caf50; font-weight:600;';
+                                } else if (val > 0) {
+                                    style += ' color:#f44336;';
+                                } else {
+                                    style += ' color:#e0e0e0;';
+                                }
+                            } else if (col.key === 'oom') {
+                                display = val ? 'Yes' : 'No';
+                                style += ' text-align:center;';
+                                style += val ? ' color:#f44336; font-weight:600;' : ' color:#4caf50;';
+                            } else {
+                                display = formatters_js.formatKMB(Math.round(val));
+                                style += ' text-align:right; font-variant-numeric:tabular-nums;';
+
+                                // Highlight best value per column in green
+                                const isLowerBetter = col.key === 'expenses';
+                                const bestVal = isLowerBetter ? minVals[col.key] : maxVals[col.key];
+                                const isBest = bestVal !== undefined && val === bestVal && rows.length > 1;
+
+                                if (isBest) {
+                                    style += ' color:#4caf50; font-weight:600;';
+                                } else if ((col.key === 'profit' || col.key === 'profitDay') && val < 0) {
+                                    style += ' color:#f44336;';
+                                } else {
+                                    style += ' color:#e0e0e0;';
+                                }
+                            }
+
+                            return `<td style="${style}">${display}</td>`;
+                        })
+                        .join('');
+                    return `<tr style="border-bottom:1px solid #1a1a1a;">${cells}</tr>`;
+                })
+                .join('');
+
+            container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; min-width:800px;">
+                    <thead><tr>${headerCells}</tr></thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+            </div>
+        `;
+
+            // Add sort listeners
+            container.querySelectorAll('th[data-col]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.col;
+                    if (this._allZonesSortCol === col) {
+                        this._allZonesSortAsc = !this._allZonesSortAsc;
+                    } else {
+                        this._allZonesSortCol = col;
+                        this._allZonesSortAsc = col === 'zone'; // Ascending for zone name, descending for numbers
+                    }
+                    this._displayAllZonesResults(zoneResults, hours, gameData);
+                });
+            });
+        }
+
+        /**
+         * Populate (or refresh) the seekable item list from all combat zone drop tables.
+         * Only called once per game data session; subsequent calls are no-ops if list is cached.
+         * @private
+         */
+        _populateSeekItems() {
+            if (this._seekItems.length > 0) return;
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) return;
+
+            const { actionDetailMap, combatMonsterDetailMap } = gameData;
+            if (!actionDetailMap || !combatMonsterDetailMap) return;
+
+            const itemHridSet = new Set();
+
+            for (const action of Object.values(actionDetailMap)) {
+                if (action.type !== '/action_types/combat') continue;
+                const isDungeon = action.combatZoneInfo?.isDungeon || false;
+
+                if (isDungeon) {
+                    for (const drop of action.combatZoneInfo?.dungeonInfo?.rewardDropTable || []) {
+                        if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
+                    }
+                } else {
+                    const spawns = action.combatZoneInfo?.fightInfo?.randomSpawnInfo?.spawns || [];
+                    const bossSpawns = action.combatZoneInfo?.fightInfo?.bossSpawns || [];
+                    for (const spawn of [...spawns, ...bossSpawns]) {
+                        const monster = combatMonsterDetailMap[spawn.combatMonsterHrid];
+                        if (!monster) continue;
+                        for (const drop of monster.dropTable || []) {
+                            if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
+                        }
+                        for (const drop of monster.rareDropTable || []) {
+                            if (drop.itemHrid) itemHridSet.add(drop.itemHrid);
+                        }
+                    }
+                }
+            }
+
+            const clientData = dataManager.getInitClientData();
+            const itemDetailMap = clientData?.itemDetailMap || {};
+
+            this._seekItems = Array.from(itemHridSet)
+                .map((hrid) => ({ itemHrid: hrid, name: itemDetailMap[hrid]?.name || hrid.split('/').pop() }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        /**
+         * Update the seek suggestion list based on the current search text.
+         * @param {string} query
+         * @private
+         */
+        _updateSeekSuggestions(query) {
+            const container = this.panel?.querySelector('#mwi-csim-seek-suggestions');
+            if (!container) return;
+
+            this._populateSeekItems();
+
+            const q = (query || '').toLowerCase().trim();
+            if (!q) {
+                container.style.display = 'none';
+                return;
+            }
+
+            const matches = this._seekItems.filter((item) => item.name.toLowerCase().includes(q)).slice(0, 20);
+
+            if (!matches.length) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.innerHTML = '';
+            for (const item of matches) {
+                const el = document.createElement('div');
+                el.style.cssText =
+                    'padding:3px 0; font-size:12px; color:#ccc; cursor:pointer; border-bottom:1px solid #1a1a2e;';
+                el.textContent = item.name;
+                el.addEventListener('mousedown', () => {
+                    this._seekSelectedItem = item;
+                    const input = this.panel.querySelector('#mwi-csim-seek-input');
+                    if (input) input.value = item.name;
+                    container.style.display = 'none';
+                });
+                container.appendChild(el);
+            }
+            container.style.display = 'block';
+        }
+
+        /**
+         * Run the Seek simulation: find all zones that drop the selected item and rank by items/hr.
+         * @private
+         */
+        async _onSeek() {
+            const input = this.panel?.querySelector('#mwi-csim-seek-input');
+            const queryText = input?.value?.trim() || '';
+
+            // Resolve selected item — either from prior click or by exact name match
+            if (!this._seekSelectedItem || this._seekSelectedItem.name !== queryText) {
+                const match = this._seekItems.find((i) => i.name.toLowerCase() === queryText.toLowerCase());
+                if (match) {
+                    this._seekSelectedItem = match;
+                } else {
+                    this._setStatus('No item selected. Type a name and pick from the list.');
+                    return;
+                }
+            }
+
+            const { itemHrid, name: itemName } = this._seekSelectedItem;
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                this._setStatus('No game data available.');
+                return;
+            }
+
+            const zones = getZonesThatDropItem(itemHrid, gameData);
+            if (!zones.length) {
+                const resultsEl = this.panel?.querySelector('#mwi-csim-seek-results');
+                if (resultsEl)
+                    resultsEl.innerHTML =
+                        '<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No zones drop this item.</div>';
+                return;
+            }
+
+            const hoursEl = this.panel?.querySelector('#mwi-csim-seek-hours');
+            const hours = Math.min(
+                10000,
+                Math.max(1, parseInt(hoursEl?.value) || config.getSettingValue('combatSim_seekDefaultHours', 10))
+            );
+
+            let playerDTOs;
+            const editedDTOs = this._editor?.getEditedDTOs();
+            if (editedDTOs) {
+                playerDTOs = Object.values(editedDTOs);
+            } else {
+                const result = await buildAllPlayerDTOs();
+                playerDTOs = result.players;
+                this._playerInfo = result.playerInfo;
+                this._activePlayerTab = result.selfHrid;
+            }
+
+            if (!playerDTOs.length) {
+                this._setStatus('No character data available.');
+                return;
+            }
+
+            const communityBuffs = getCommunityBuffs();
+
+            // UI setup
+            this.isRunning = true;
+            const runBtn = this.panel.querySelector('#mwi-csim-seek-run');
+            const stopBtn = this.panel.querySelector('#mwi-csim-seek-stop');
+            const progressEl = this.panel.querySelector('#mwi-csim-seek-progress');
+            const progressFill = this.panel.querySelector('#mwi-csim-seek-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-seek-progress-text');
+            const resultsEl = this.panel.querySelector('#mwi-csim-seek-results');
+
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+            stopBtn.style.display = '';
+            progressEl.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            resultsEl.innerHTML = '';
+
+            const simStartTime = Date.now();
+            const zoneCount = zones.length;
+            this.elapsedTimer = setInterval(() => {
+                const elapsed = (Date.now() - simStartTime) / 1000;
+                this._setStatus(`Seeking ${itemName} in ${zoneCount} zone/tiers... ${formatElapsed$1(elapsed)}`);
+            }, 100);
+
+            try {
+                const simZones = zones.map((z) => ({ zoneHrid: z.zoneHrid, difficultyTier: z.difficultyTier }));
+
+                const simResults = await runAllZonesSimulation(
+                    { gameData, playerDTOs, zones: simZones, hours, communityBuffs, useEarlyExit: false },
+                    (percent) => {
+                        progressFill.style.width = `${percent}%`;
+                        progressText.textContent = `${percent}%`;
+                    }
+                );
+
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
+
+                const playerHrid = this._activePlayerTab || 'player1';
+
+                const seekRows = simResults
+                    .map((simResult, i) => {
+                        if (!simResult) return null;
+                        const zone = zones[i];
+                        const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
+
+                        const dropMap = calculateExpectedDrops(simResult, gameData, playerHrid);
+                        const itemCount = dropMap.get(itemHrid) || 0;
+                        const itemsPerHour = itemCount / simHours;
+                        if (itemsPerHour <= 0) return null;
+
+                        let profitPerHour = 0;
+                        let costPerHour = 0;
+                        try {
+                            const revenue = calculateSimRevenue(simResult, gameData, playerHrid, simHours);
+                            profitPerHour = revenue.netPerHour;
+                            costPerHour = revenue.costPerHour;
+                        } catch {
+                            // Revenue may not be available
+                        }
+
+                        const costPerDrop = itemsPerHour > 0 ? costPerHour / itemsPerHour : 0;
+
+                        return { zone, itemsPerHour, profitPerHour, costPerHour, costPerDrop };
+                    })
+                    .filter(Boolean);
+
+                this._seekResults = seekRows;
+                this._seekSortCol = 'itemsPerHour';
+                this._seekSortAsc = false;
+                this._displaySeekResults(seekRows, itemName);
+                this._setStatus(`Seek complete in ${totalElapsed}: ${seekRows.length} sources found for ${itemName}`);
+            } catch (error) {
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                if (error.message === 'Cancelled') {
+                    this._setStatus('Seek cancelled.');
+                } else {
+                    console.error('[CombatSimUI] Seek simulation failed:', error);
+                    this._setStatus(`Seek error: ${error.message || 'Unknown error'}`);
+                }
+            } finally {
+                this.isRunning = false;
+                runBtn.disabled = false;
+                runBtn.style.opacity = '1';
+                runBtn.style.cursor = 'pointer';
+                stopBtn.style.display = 'none';
+                progressEl.style.display = 'none';
+            }
+        }
+
+        /**
+         * Render seek results in a sortable table.
+         * @param {Array<Object>} rows - seek result rows
+         * @param {string} itemName - display name of the sought item
+         * @private
+         */
+        _displaySeekResults(rows, itemName) {
+            const container = this.panel?.querySelector('#mwi-csim-seek-results');
+            if (!container) return;
+
+            if (!rows.length) {
+                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No zones drop ${itemName}.</div>`;
+                return;
+            }
+
+            const cols = [
+                { key: 'zone', label: 'Zone' },
+                { key: 'tier', label: 'T' },
+                { key: 'itemsPerHour', label: 'Items/hr' },
+                { key: 'profitPerHour', label: 'Profit/hr' },
+                { key: 'costPerHour', label: 'Cost/hr' },
+                { key: 'costPerDrop', label: 'Cost/Drop' },
+            ];
+
+            // Sort
+            const sortCol = this._seekSortCol || 'itemsPerHour';
+            const sortAsc = this._seekSortAsc;
+            const sorted = [...rows].sort((a, b) => {
+                const va =
+                    sortCol === 'zone' ? a.zone.name : sortCol === 'tier' ? a.zone.difficultyTier : (a[sortCol] ?? 0);
+                const vb =
+                    sortCol === 'zone' ? b.zone.name : sortCol === 'tier' ? b.zone.difficultyTier : (b[sortCol] ?? 0);
+                if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                return sortAsc ? va - vb : vb - va;
+            });
+
+            // Best per numeric column (for green highlight)
+            const bestItemsPerHour = Math.max(...rows.map((r) => r.itemsPerHour));
+            const bestProfitPerHour = Math.max(...rows.map((r) => r.profitPerHour));
+            const lowestCostPerHour =
+                rows.filter((r) => r.costPerHour > 0).length > 0
+                    ? Math.min(...rows.filter((r) => r.costPerHour > 0).map((r) => r.costPerHour))
+                    : null;
+            const lowestCostPerDrop =
+                rows.filter((r) => r.costPerDrop > 0).length > 0
+                    ? Math.min(...rows.filter((r) => r.costPerDrop > 0).map((r) => r.costPerDrop))
+                    : null;
+
+            const arrow = (col) => (this._seekSortCol === col ? (this._seekSortAsc ? ' ▲' : ' ▼') : '');
+
+            const headerCells = cols
+                .map(
+                    (col) =>
+                        `<th data-col="${col.key}" style="padding:3px 4px; cursor:pointer; white-space:nowrap; font-size:10px; font-weight:600; color:#888; border-bottom:1px solid #333; user-select:none;">${col.label}${arrow(col.key)}</th>`
+                )
+                .join('');
+
+            const bodyRows = sorted
+                .map((row) => {
+                    const cells = cols
+                        .map((col) => {
+                            let display = '';
+                            let highlight = false;
+                            const cellStyle = 'padding:2px 4px; font-size:10px; white-space:nowrap;';
+
+                            if (col.key === 'zone') {
+                                display = row.zone.name;
+                            } else if (col.key === 'tier') {
+                                display = String(row.zone.difficultyTier);
+                            } else if (col.key === 'itemsPerHour') {
+                                display = row.itemsPerHour.toFixed(3);
+                                highlight = row.itemsPerHour === bestItemsPerHour;
+                            } else if (col.key === 'profitPerHour') {
+                                display = formatters_js.formatKMB(row.profitPerHour);
+                                highlight = row.profitPerHour === bestProfitPerHour && row.profitPerHour > 0;
+                            } else if (col.key === 'costPerHour') {
+                                display = row.costPerHour > 0 ? formatters_js.formatKMB(row.costPerHour) : '—';
+                                highlight = lowestCostPerHour !== null && row.costPerHour === lowestCostPerHour;
+                            } else if (col.key === 'costPerDrop') {
+                                display = row.costPerDrop > 0 ? formatters_js.formatKMB(row.costPerDrop) : '—';
+                                highlight = lowestCostPerDrop !== null && row.costPerDrop === lowestCostPerDrop;
+                            }
+
+                            const color = highlight ? '#4caf50' : '#ccc';
+                            return `<td style="${cellStyle} color:${color};">${display}</td>`;
+                        })
+                        .join('');
+                    return `<tr style="border-bottom:1px solid #1a1a2e;">${cells}</tr>`;
+                })
+                .join('');
+
+            container.innerHTML = `
+            <div style="font-size:11px; color:#888; margin-bottom:8px;">Best sources for <strong style="color:${ACCENT$1};">${itemName}</strong></div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; min-width:400px;">
+                    <thead><tr>${headerCells}</tr></thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+            </div>
+        `;
+
+            container.querySelectorAll('th[data-col]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.col;
+                    if (this._seekSortCol === col) {
+                        this._seekSortAsc = !this._seekSortAsc;
+                    } else {
+                        this._seekSortCol = col;
+                        this._seekSortAsc = col === 'zone' || col === 'tier';
+                    }
+                    this._displaySeekResults(rows, itemName);
+                });
+            });
+        }
+
+        /**
+         * Reset the Simulate button to its default state.
+         * @param {HTMLElement} btn
+         * @private
+         */
+        _resetRunButton(btn) {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.style.cursor = 'pointer';
+        }
+
+        /**
+         * Switch between Configure and Results tabs.
+         * @param {string} tab - 'configure' or 'results'
+         * @private
+         */
+        _switchTab(tab) {
+            this._activeMainTab = tab;
+            const configureContent = this.panel.querySelector('#mwi-csim-configure-content');
+            const resultsContent = this.panel.querySelector('#mwi-csim-results-content');
+            const seekContent = this.panel.querySelector('#mwi-csim-seek-content');
+            const upgradeContent = this.panel.querySelector('#mwi-csim-upgrade-content');
+            const optFoodContent = this.panel.querySelector('#mwi-csim-optfood-content');
+            const optCoffeeContent = this.panel.querySelector('#mwi-csim-optcoffee-content');
+            const optUltimateContent = this.panel.querySelector('#mwi-csim-optultimate-content');
+            const tabConfigure = this.panel.querySelector('#mwi-csim-tab-configure');
+            const tabResults = this.panel.querySelector('#mwi-csim-tab-results');
+            const tabSeek = this.panel.querySelector('#mwi-csim-tab-seek');
+            const tabUpgrade = this.panel.querySelector('#mwi-csim-tab-upgrade');
+            const tabOptFood = this.panel.querySelector('#mwi-csim-tab-optfood');
+            const tabOptCoffee = this.panel.querySelector('#mwi-csim-tab-optcoffee');
+            const tabOptUltimate = this.panel.querySelector('#mwi-csim-tab-optultimate');
+
+            const activeStyle = `flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:${ACCENT_BG$1}; color:${ACCENT$1}; border-bottom:2px solid ${ACCENT$1};`;
+            const inactiveStyle =
+                'flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:transparent; color:#888; border-bottom:2px solid transparent;';
+
+            configureContent.style.display = 'none';
+            resultsContent.style.display = 'none';
+            if (seekContent) seekContent.style.display = 'none';
+            if (upgradeContent) upgradeContent.style.display = 'none';
+            if (optFoodContent) optFoodContent.style.display = 'none';
+            if (optCoffeeContent) optCoffeeContent.style.display = 'none';
+            if (optUltimateContent) optUltimateContent.style.display = 'none';
+            tabConfigure.style.cssText = inactiveStyle;
+            tabResults.style.cssText = inactiveStyle;
+            if (tabSeek) tabSeek.style.cssText = inactiveStyle;
+            if (tabUpgrade) tabUpgrade.style.cssText = inactiveStyle;
+            if (tabOptFood) tabOptFood.style.cssText = inactiveStyle;
+            if (tabOptCoffee) tabOptCoffee.style.cssText = inactiveStyle;
+            if (tabOptUltimate) tabOptUltimate.style.cssText = inactiveStyle;
+
+            if (tab === 'configure') {
+                configureContent.style.display = 'flex';
+                tabConfigure.style.cssText = activeStyle;
+                this._setStatus('Select a zone and click Simulate.');
+            } else if (tab === 'seek') {
+                if (seekContent) seekContent.style.display = 'flex';
+                if (tabSeek) tabSeek.style.cssText = activeStyle;
+                this._populateSeekItems();
+                this._setStatus('Search for a combat drop item, then click Seek.');
+            } else if (tab === 'upgrade') {
+                if (upgradeContent) upgradeContent.style.display = 'flex';
+                if (tabUpgrade) tabUpgrade.style.cssText = activeStyle;
+                this._populateUpgradePlayerSelector();
+                this._setStatus('Select a player and click Analyze.');
+            } else if (tab === 'optfood') {
+                if (optFoodContent) optFoodContent.style.display = 'flex';
+                if (tabOptFood) tabOptFood.style.cssText = activeStyle;
+                this._setStatus('Select a zone and click Optimize. Uses the loadout from Configure.');
+            } else if (tab === 'optcoffee') {
+                if (optCoffeeContent) optCoffeeContent.style.display = 'flex';
+                if (tabOptCoffee) tabOptCoffee.style.cssText = activeStyle;
+                this._setStatus('Select a zone and click Optimize. Uses the loadout from Configure.');
+            } else if (tab === 'optultimate') {
+                if (optUltimateContent) optUltimateContent.style.display = 'flex';
+                if (tabOptUltimate) tabOptUltimate.style.cssText = activeStyle;
+                this._setStatus('Select a start zone and click Start. Uses the loadout from Configure.');
+            } else {
+                resultsContent.style.display = 'flex';
+                tabResults.style.cssText = activeStyle;
+                if (!this.isRunning && !this._lastSimResult && !this._allZonesResults) {
+                    this._setStatus('No results yet. Run a simulation first.');
+                }
+            }
+        }
+
+        /**
+         * Handle the Simulate button click.
+         * @private
+         */
+        async _onSimulate() {
+            if (this.isRunning) {
+                // Stop the running simulation
+                cancelSimulation();
+                cancelAllZonesSimulation();
+                this._setStatus('Simulation cancelled.');
+                this._switchTab('configure');
+                return;
+            }
+
+            // Route to all-zones simulation if active
+            if (this._allZonesMode) {
+                return this._onSimulateAllZones();
+            }
+
+            const zoneHrid = this.panel.querySelector('#mwi-csim-zone')?.value;
+            const difficultyTier = parseInt(this.panel.querySelector('#mwi-csim-tier')?.value) || 0;
+            const hours = Math.min(
+                10000,
+                Math.max(
+                    1,
+                    parseInt(this.panel.querySelector('#mwi-csim-hours')?.value) ||
+                        config.getSettingValue('combatSim_defaultHours', 100)
+                )
+            );
+
+            if (!zoneHrid) {
+                this._setStatus('No zone selected.');
+                return;
+            }
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                this._setStatus('No game data available.');
+                return;
+            }
+
+            // Use edited DTOs if available, otherwise auto-fill
+            let playerDTOs;
+            let playerInfo;
+            let selfHrid;
+            let missingMembers;
+
+            const editedDTOs = this._editor?.getEditedDTOs();
+            if (editedDTOs) {
+                playerDTOs = Object.values(editedDTOs);
+                playerInfo = this._editor?.getPlayerInfo() || [];
+                selfHrid = this._editor?.getSelfHrid() || playerDTOs[0]?.hrid || 'player1';
+                missingMembers = this._editor?.getMissingMembers() || [];
+            } else {
+                const result = await buildAllPlayerDTOs();
+                playerDTOs = result.players;
+                playerInfo = result.playerInfo;
+                selfHrid = result.selfHrid;
+                missingMembers = result.missingMembers;
+            }
+
+            if (!playerDTOs.length) {
+                this._setStatus('No character data available.');
+                return;
+            }
+
+            // Enforce 3-player max for non-dungeon zones
+            const zones = getCombatZones();
+            const selectedZone = zones.find((z) => z.hrid === zoneHrid);
+            if (selectedZone && !selectedZone.isDungeon && playerDTOs.length > 3) {
+                this._showWarning(
+                    `Non-dungeon zones support max 3 players (you have ${playerDTOs.length}). Remove players to continue.`
+                );
+                return;
+            }
+
+            this._playerInfo = playerInfo;
+            this._activePlayerTab = selfHrid;
+
+            const communityBuffs = getCommunityBuffs();
+
+            // Show party info
+            const partyInfo =
+                playerDTOs.length > 1
+                    ? `Party (${playerDTOs.length} loaded${missingMembers.length ? ', ' + missingMembers.length + ' missing' : ''})`
+                    : 'Solo';
+
+            // Disable Simulate button during run
+            this.isRunning = true;
+            const runBtn = this.panel.querySelector('#mwi-csim-run');
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+
+            const progressContainer = this.panel.querySelector('#mwi-csim-progress-container');
+            const progressFill = this.panel.querySelector('#mwi-csim-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-progress-text');
+            const resultsContainer = this.panel.querySelector('#mwi-csim-results');
+
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            resultsContainer.style.display = 'none';
+
+            // Switch to results tab to show progress
+            this._switchTab('results');
+
+            const simStartTime = Date.now();
+            this.elapsedTimer = setInterval(() => {
+                const elapsed = (Date.now() - simStartTime) / 1000;
+                this._setStatus(`Simulating (${partyInfo})... ${formatElapsed$1(elapsed)}`);
+            }, 100);
+
+            try {
+                const simResult = await runSimulation(
+                    { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs },
+                    (percent) => {
+                        progressFill.style.width = `${percent}%`;
+                        progressText.textContent = `${percent}%`;
+                    }
+                );
+
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
+
+                this._lastSimResult = simResult;
+                this._lastSimHours = hours;
+                this._lastGameData = gameData;
+
+                // Generate label before displaying (display may re-render)
+                const historyLabel = this._editor?.generateSimLabel() || 'Current Gear';
+
+                // Add history entry (metrics filled after _displayResults computes them)
+                const historyEntry = {
+                    label: historyLabel,
+                    simResult,
+                    hours,
+                    gameData,
+                    metrics: null, // Filled by _displayResults
+                    timestamp: Date.now(),
+                };
+
+                // Auto-set comparison baseline to first entry when adding second+ result
+                if (this._simHistory.length > 0 && this._comparisonBaseline === null) {
+                    this._comparisonBaseline = 0;
+                }
+                if (this._simHistory.length > 0 && this._comparisonIndex === null) {
+                    this._comparisonIndex = 0;
+                }
+
+                this._simHistory.push(historyEntry);
+                if (this._simHistory.length > 10) {
+                    this._simHistory.shift();
+                    // Adjust comparison indices
+                    if (this._comparisonIndex !== null) {
+                        this._comparisonIndex = Math.max(0, this._comparisonIndex - 1);
+                    }
+                    if (this._comparisonBaseline !== null) {
+                        this._comparisonBaseline = Math.max(0, this._comparisonBaseline - 1);
+                    }
+                    this._comparisonSlots = this._comparisonSlots.map((i) => i - 1).filter((i) => i >= 0);
+                    if (this._activeDetailIndex !== null) {
+                        this._activeDetailIndex = Math.max(0, this._activeDetailIndex - 1);
+                    }
+                }
+
+                // Show the newly run sim's details
+                this._activeDetailIndex = this._simHistory.length - 1;
+                this._displayResults(simResult, hours, gameData);
+                this._switchTab('results');
+                const modeLabels = {
+                    conservative: 'Buy: Ask / Sell: Bid',
+                    hybrid: 'Buy: Ask / Sell: Ask',
+                    optimistic: 'Buy: Bid / Sell: Ask',
+                    patientBuy: 'Buy: Bid / Sell: Bid',
+                };
+                const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
+                const modeLabel = modeLabels[mode] || mode;
+                const missingNote = missingMembers.length
+                    ? ` | Missing: ${missingMembers.join(', ')} (open their profiles)`
+                    : '';
+                this._setStatus(
+                    `Simulation complete in ${totalElapsed}: ${formatters_js.formatWithSeparator(hours)} hours · ${partyInfo} · Pricing: ${modeLabel}${missingNote}`
+                );
+            } catch (error) {
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                if (error.message === 'Cancelled') {
+                    this._setStatus('Simulation cancelled.');
+                } else {
+                    console.error('[CombatSimUI] Simulation failed:', error);
+                    this._setStatus(`Simulation error: ${error.message || 'Unknown error'}`);
+                }
+            } finally {
+                this.isRunning = false;
+                this._resetRunButton(runBtn);
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Run simulations for all selected zones.
+         * @private
+         */
+        async _onSimulateAllZones() {
+            const selectedZones = this._getSelectedAllZones();
+            if (!selectedZones.length) {
+                this._setStatus('No zones selected.');
+                return;
+            }
+
+            const hours = Math.min(
+                10000,
+                Math.max(
+                    1,
+                    parseInt(this.panel.querySelector('#mwi-csim-allzones-hours')?.value) ||
+                        config.getSettingValue('combatSim_allZonesDefaultHours', 10)
+                )
+            );
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                this._setStatus('No game data available.');
+                return;
+            }
+
+            // Use edited DTOs if available, otherwise auto-fill
+            let playerDTOs;
+            const editedDTOs = this._editor?.getEditedDTOs();
+            if (editedDTOs) {
+                playerDTOs = Object.values(editedDTOs);
+            } else {
+                const result = await buildAllPlayerDTOs();
+                playerDTOs = result.players;
+                this._playerInfo = result.playerInfo;
+                this._activePlayerTab = result.selfHrid;
+            }
+
+            if (!playerDTOs.length) {
+                this._setStatus('No character data available.');
+                return;
+            }
+
+            // All-zones is always non-dungeon — enforce 3-player max
+            if (playerDTOs.length > 3) {
+                this._showWarning(
+                    `Non-dungeon zones support max 3 players (you have ${playerDTOs.length}). Remove players to continue.`
+                );
+                return;
+            }
+
+            const communityBuffs = getCommunityBuffs();
+
+            // UI: disable Simulate button, show progress
+            this.isRunning = true;
+            const runBtn = this.panel.querySelector('#mwi-csim-run');
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+
+            const progressContainer = this.panel.querySelector('#mwi-csim-progress-container');
+            const progressFill = this.panel.querySelector('#mwi-csim-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-progress-text');
+            const resultsContainer = this.panel.querySelector('#mwi-csim-results');
+
+            progressContainer.style.display = 'block';
+            progressFill.style.width = '0%';
+            progressText.textContent = '0%';
+            resultsContainer.style.display = 'none';
+
+            this._switchTab('results');
+
+            const simStartTime = Date.now();
+            const zoneCount = selectedZones.length;
+            this.elapsedTimer = setInterval(() => {
+                const elapsed = (Date.now() - simStartTime) / 1000;
+                this._setStatus(`Simulating ${zoneCount} zones... ${formatElapsed$1(elapsed)}`);
+            }, 100);
+
+            try {
+                const zones = selectedZones.map((z) => ({ zoneHrid: z.zoneHrid, difficultyTier: z.difficultyTier }));
+
+                const simResults = await runAllZonesSimulation(
+                    { gameData, playerDTOs, zones, hours, communityBuffs, useEarlyExit: this._earlyExitEnabled },
+                    (percent) => {
+                        progressFill.style.width = `${percent}%`;
+                        progressText.textContent = `${percent}%`;
+                    }
+                );
+
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                const totalElapsed = formatElapsed$1((Date.now() - simStartTime) / 1000);
+
+                // Build zone results with revenue calculations
+                const playerHrid = this._activePlayerTab || 'player1';
+                const zoneResults = simResults
+                    .map((simResult, i) => {
+                        if (!simResult) return null;
+
+                        let revenue = null;
+                        try {
+                            revenue = calculateSimRevenue(simResult, gameData, playerHrid, hours);
+                        } catch {
+                            // Revenue calculation may not be available
+                        }
+
+                        return {
+                            zone: selectedZones[i],
+                            simResult,
+                            revenue,
+                        };
+                    })
+                    .filter(Boolean);
+
+                this._allZonesSortCol = 'profit';
+                this._allZonesSortAsc = false;
+                this._displayAllZonesResults(zoneResults, hours, gameData);
+                this._switchTab('results');
+                this._setStatus(
+                    `All zones complete in ${totalElapsed}: ${zoneCount} zones · ${formatters_js.formatWithSeparator(hours)} hours each`
+                );
+            } catch (error) {
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+                if (error.message === 'Cancelled') {
+                    this._setStatus('Simulation cancelled.');
+                } else {
+                    console.error('[CombatSimUI] All zones simulation failed:', error);
+                    this._setStatus(`Simulation error: ${error.message || 'Unknown error'}`);
+                }
+            } finally {
+                this.isRunning = false;
+                this._resetRunButton(runBtn);
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Format and display simulation results.
+         * @param {Object} simResult - SimResult from the combat simulator engine
+         * @param {number} hours - Number of hours simulated
+         * @param {Object} gameData - Game data maps for drop calculation
+         * @private
+         */
+        _displayResults(simResult, hours, gameData) {
+            // If an active detail index is set, show that history entry's details instead
+            if (this._activeDetailIndex !== null && this._simHistory[this._activeDetailIndex]) {
+                const entry = this._simHistory[this._activeDetailIndex];
+                simResult = entry.simResult;
+                hours = entry.hours;
+                gameData = entry.gameData;
+            }
+
+            const container = this.panel.querySelector('#mwi-csim-results');
+            if (!container) return;
+
+            const activeTab = this._activePlayerTab;
+            const playerInfo = this._playerInfo;
+            const numberOfPlayers = simResult.numberOfPlayers || 1;
+
+            const sectionStyle = 'margin-bottom:12px;';
+            const headingStyle = `color:${ACCENT$1}; font-weight:700; font-size:12px; margin-bottom:6px; border-bottom:1px solid #222; padding-bottom:4px;`;
+            const rowStyle = 'display:flex; justify-content:space-between; padding:2px 0; font-size:12px;';
+            const labelStyle = 'color:#aaa;';
+            const valueStyle = 'color:#e0e0e0; font-weight:600;';
+
+            let html = '';
+
+            // Pre-compute metrics for the latest history entry if not yet populated
+            this._ensureHistoryMetrics(simResult, hours, gameData, activeTab);
+
+            // History panel (above everything)
+            if (this._simHistory.length > 0) {
+                html += this._renderHistoryPanel();
+            }
+
+            // Player tabs (only shown for party sims)
+            if (numberOfPlayers > 1) {
+                html += `<div style="display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap;">`;
+                for (const { hrid, name } of playerInfo) {
+                    const isActive = hrid === activeTab;
+                    const tabStyle = isActive
+                        ? `background:${ACCENT_BG$1}; border:1px solid ${ACCENT_BORDER$1}; color:${ACCENT$1}; font-weight:700;`
+                        : 'background:rgba(255,255,255,0.04); border:1px solid #333; color:#aaa;';
+                    html += `<button data-tab="${hrid}" style="
+                    ${tabStyle}
+                    padding:3px 10px; border-radius:5px; font-size:12px; cursor:pointer;
+                    font-family:inherit; transition:all 0.1s;
+                ">${name}</button>`;
+                }
+                html += '</div>';
+            }
+
+            // Compute previous values for delta comparison (from history)
+            // Use baseline for deltas (comparison table baseline, not the old comparisonIndex)
+            const compIdx = this._comparisonBaseline ?? this._comparisonIndex;
+            const compEntry = compIdx !== null ? this._simHistory[compIdx] : null;
+            const compResult = compEntry?.simResult;
+            const compHours = compEntry?.hours;
+            const compMetrics = compEntry?.metrics;
+            const hasPrev = compResult && compHours;
+            const prevEncPerHr = hasPrev ? compResult.encounters / compHours : null;
+            const prevDeathsPerHr = hasPrev ? (compResult.deaths?.[activeTab] || 0) / compHours : null;
+
+            // Overview: encounters/hr (party-wide) + deaths/hr (per active player)
+            const encountersPerHr = simResult.encounters / hours;
+            const playerDeaths = simResult.deaths?.[activeTab] || 0;
+            const deathsPerHr = playerDeaths / hours;
+
+            html += `<div style="${sectionStyle}">`;
+            html += `<div style="${headingStyle}">Overview</div>`;
+            html += `<div style="${rowStyle}">`;
+            html += `<span style="${labelStyle}">Encounters/hr</span>`;
+            html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(encountersPerHr))}${this._formatDelta(encountersPerHr, prevEncPerHr)}</span>`;
+            html += '</div>';
+            html += `<div style="${rowStyle}">`;
+            html += `<span style="${labelStyle}">Deaths/hr</span>`;
+            html += `<span style="${valueStyle}">${this._formatDeaths(deathsPerHr)}${this._formatDelta(deathsPerHr, prevDeathsPerHr, false)}</span>`;
+            html += '</div>';
+
+            // Mana Run Out
+            const ranOutOfMana = simResult.playerRanOutOfMana?.[activeTab] ?? false;
+            const oomColor = ranOutOfMana ? '#ff6b6b' : '#4ade80';
+            html += `<div style="${rowStyle}">`;
+            html += `<span style="${labelStyle}">Mana Run Out</span>`;
+            html += `<span style="color:${oomColor}; font-weight:600;">${ranOutOfMana ? 'Yes' : 'No'}</span>`;
+            html += '</div>';
+            if (ranOutOfMana && simResult.playerRanOutOfManaTime?.[activeTab] && simResult.simulatedTime) {
+                const stat = simResult.playerRanOutOfManaTime[activeTab];
+                const openWindow = stat.isOutOfMana ? simResult.simulatedTime - stat.startTimeForOutOfMana : 0;
+                const totalOomTime = stat.totalTimeForOutOfMana + openWindow;
+                const oomRatio = ((totalOomTime / simResult.simulatedTime) * 100).toFixed(2);
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Run Out Ratio</span>`;
+                html += `<span style="color:#ff6b6b; font-weight:600;">${oomRatio}%</span>`;
+                html += '</div>';
+            }
+
+            // Debuff on level gap — only shown when non-zero
+            const debuff = simResult.debuffOnLevelGap?.[activeTab] ?? 0;
+            if (debuff !== 0) {
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Debuff on Level Gap</span>`;
+                html += `<span style="color:#ff6b6b; font-weight:600;">${Math.round(Math.abs(debuff) * 100)}%</span>`;
+                html += '</div>';
+            }
+
+            // DPS — from actual damage dealt per player
+            if (simResult.totalDamageDealt && simResult.simulatedTime > 0) {
+                const simSeconds = simResult.simulatedTime / 1e9;
+                let partyDamage = 0;
+                for (const { hrid } of playerInfo) {
+                    partyDamage += simResult.totalDamageDealt[hrid] || 0;
+                }
+                const partyDps = partyDamage / simSeconds;
+                this._lastComputedDps = partyDps;
+
+                let prevPartyDps = null;
+                if (hasPrev && compResult.totalDamageDealt && compResult.simulatedTime > 0) {
+                    const compSimSeconds = compResult.simulatedTime / 1e9;
+                    let prevDamage = 0;
+                    for (const { hrid } of playerInfo) {
+                        prevDamage += compResult.totalDamageDealt[hrid] || 0;
+                    }
+                    prevPartyDps = prevDamage / compSimSeconds;
+                }
+
+                const dpsLabel = numberOfPlayers > 1 ? 'Party DPS' : 'DPS';
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">${dpsLabel}</span>`;
+                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(partyDps))}${this._formatDelta(partyDps, prevPartyDps)}</span>`;
+                html += '</div>';
+
+                if (numberOfPlayers > 1) {
+                    for (const { hrid, name } of playerInfo) {
+                        const playerDps = (simResult.totalDamageDealt[hrid] || 0) / simSeconds;
+                        let prevPlayerDps = null;
+                        if (hasPrev && compResult.totalDamageDealt && compResult.simulatedTime > 0) {
+                            prevPlayerDps = (compResult.totalDamageDealt[hrid] || 0) / (compResult.simulatedTime / 1e9);
+                        }
+                        html += `<div style="${rowStyle}">`;
+                        html += `<span style="color:#888; padding-left:12px;">${name}</span>`;
+                        html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(Math.round(playerDps))}${this._formatDelta(playerDps, prevPlayerDps)}</span>`;
+                        html += '</div>';
+                    }
+                }
+            }
+
+            // Dungeon stats if applicable
+            if (simResult.isDungeon) {
+                const completedPerHr = simResult.dungeonsCompleted / hours;
+                const failedPerHr = simResult.dungeonsFailed / hours;
+
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Dungeons completed/hr</span>`;
+                html += `<span style="${valueStyle}">${this._formatRate(completedPerHr)}</span>`;
+                html += '</div>';
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Dungeons failed/hr</span>`;
+                html += `<span style="${valueStyle}">${this._formatRate(failedPerHr)}</span>`;
+                html += '</div>';
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Total completed / failed</span>`;
+                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(simResult.dungeonsCompleted)} / ${formatters_js.formatWithSeparator(simResult.dungeonsFailed)}</span>`;
+                html += '</div>';
+                if (simResult.dungeonsCompleted > 0) {
+                    const avgTimeNs = simResult.simulatedTime / simResult.dungeonsCompleted;
+                    const avgTimeSec = avgTimeNs / 1e9;
+                    let avgTimeStr;
+                    if (config.getSettingValue('combatSim_decimalMinutes', false)) {
+                        avgTimeStr = `${(avgTimeSec / 60).toFixed(2)} min`;
+                    } else {
+                        const avgMin = Math.floor(avgTimeSec / 60);
+                        const avgSec = Math.round(avgTimeSec % 60);
+                        avgTimeStr = `${avgMin}m ${avgSec}s`;
+                    }
+                    html += `<div style="${rowStyle}">`;
+                    html += `<span style="${labelStyle}">Avg completion time</span>`;
+                    html += `<span style="${valueStyle}">${avgTimeStr}</span>`;
+                    html += '</div>';
+                }
+                html += `<div style="${rowStyle}">`;
+                html += `<span style="${labelStyle}">Max wave reached</span>`;
+                html += `<span style="${valueStyle}">${simResult.maxWaveReached}</span>`;
+                html += '</div>';
+            }
+            html += '</div>';
+
+            // XP/hr by skill — per active tab player
+            const xpTotals = {};
+            if (simResult.experienceGained[activeTab]) {
+                for (const [skill, amount] of Object.entries(simResult.experienceGained[activeTab])) {
+                    xpTotals[skill] = (xpTotals[skill] || 0) + amount;
+                }
+            }
+
+            // Build previous XP map for delta comparison
+            const prevXpPerHr = {};
+            if (hasPrev && compResult.experienceGained?.[activeTab]) {
+                for (const [skill, amount] of Object.entries(compResult.experienceGained[activeTab])) {
+                    prevXpPerHr[skill] = Math.round(amount / compHours);
+                }
+            }
+
+            const xpEntries = Object.entries(xpTotals).filter(([, total]) => total > 0);
+            if (xpEntries.length > 0) {
+                html += `<div style="${sectionStyle}">`;
+                html += `<div style="${headingStyle}">XP/hr</div>`;
+                for (const [skill, total] of xpEntries) {
+                    const perHr = Math.round(total / hours);
+                    const prevVal = hasPrev ? prevXpPerHr[skill] || null : null;
+                    const skillLabel = skill.charAt(0).toUpperCase() + skill.slice(1);
+                    html += `<div style="${rowStyle}">`;
+                    html += `<span style="${labelStyle}">${skillLabel}</span>`;
+                    html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(perHr)}${this._formatDelta(perHr, prevVal)}</span>`;
+                    html += '</div>';
+                }
+                // Total XP/hr row
+                const totalXpPerHr = xpEntries.reduce((sum, [, total]) => sum + Math.round(total / hours), 0);
+                const prevTotalXpPerHr = hasPrev ? Object.values(prevXpPerHr).reduce((sum, v) => sum + v, 0) : null;
+                html += `<div style="display:flex; justify-content:space-between; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px;">`;
+                html += `<span style="color:#aaa; font-weight:700;">Total</span>`;
+                html += `<span style="${valueStyle}">${formatters_js.formatWithSeparator(totalXpPerHr)}${this._formatDelta(totalXpPerHr, prevTotalXpPerHr)}</span>`;
+                html += '</div>';
+                html += '</div>';
+            }
+
+            // Consumable costs — per active tab player
+            const consumableTotals = {};
+            const selfConsumables = simResult.consumablesUsed?.[activeTab] || {};
+            for (const [itemHrid, count] of Object.entries(selfConsumables)) {
+                consumableTotals[itemHrid] = (consumableTotals[itemHrid] || 0) + count;
+            }
+
+            // Track totals for net profit calculation
+            let dropGoldPerHr = 0;
+            let dropGoldTotal = 0;
+            let consumableGoldPerHr = 0;
+            let consumableGoldTotal = 0;
+            let keyCostPerHr = 0;
+            let keyCostTotal = 0;
+            let dungeonKeyCosts = [];
+
+            // Drops — calculated from kill counts × drop tables × multipliers
+            if (gameData) {
+                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
+
+                // Pre-compute gold values for sorting
+                const dropData = [...dropMap.entries()]
+                    .filter(([, total]) => total > 0)
+                    .map(([itemHrid, total]) => {
+                        const price = marketAPI.getPrice(itemHrid);
+                        // Revenue: use sell price based on pricing mode
+                        let unitValue = this._getSellPrice(price);
+                        if (unitValue === 0 && itemHrid === '/items/coin') {
+                            unitValue = 1;
+                        }
+                        if (unitValue === 0) {
+                            // Use cached EV or calculate directly (matches combat stats approach)
+                            const ev =
+                                expectedValueCalculator.getCachedValue(itemHrid) ||
+                                expectedValueCalculator.calculateSingleContainer(itemHrid);
+                            if (ev !== null && ev > 0) unitValue = ev;
+                        }
+                        return { itemHrid, total, unitValue, totalGold: total * unitValue };
+                    })
+                    .sort((a, b) => b.totalGold - a.totalGold); // Sort by gold value descending
+
+                if (dropData.length > 0) {
+                    const dropRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
+                    const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
+                    const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
+
+                    html += `<div style="${sectionStyle}">`;
+                    html += `<div style="${headingStyle}">Drops</div>`;
+                    // Column headers
+                    html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
+                    html += `<span style="flex:1;">Item</span>`;
+                    html += `<span style="${colNum}">/hr</span>`;
+                    html += `<span style="${colNum}">/day</span>`;
+                    html += `<span style="${colGold}">Gold/hr</span>`;
+                    html += `<span style="${colGold}">Gold/day</span>`;
+                    html += `<span style="${colNum}">Total</span>`;
+                    html += `<span style="${colGold}">Total Gold</span>`;
+                    html += '</div>';
+
+                    for (const drop of dropData) {
+                        const perHr = drop.total / hours;
+                        const itemDetails = dataManager.getItemDetails(drop.itemHrid);
+                        const name = itemDetails?.name || drop.itemHrid.split('/').pop();
+
+                        const perHrStr = perHr >= 1 ? formatters_js.formatWithSeparator(Math.round(perHr)) : perHr.toFixed(2);
+                        const perDay = perHr * 24;
+                        const perDayStr = perDay >= 1 ? formatters_js.formatWithSeparator(Math.round(perDay)) : perDay.toFixed(2);
+                        const totalStr =
+                            drop.total >= 1 ? formatters_js.formatWithSeparator(Math.round(drop.total)) : drop.total.toFixed(2);
+
+                        const goldPerHr = perHr * drop.unitValue;
+                        dropGoldPerHr += goldPerHr;
+                        dropGoldTotal += drop.totalGold;
+
+                        const goldHrStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(goldPerHr)) : '—';
+                        const goldDayStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(goldPerHr * 24)) : '—';
+                        const goldTotalStr = drop.unitValue > 0 ? formatters_js.formatKMB(Math.round(drop.totalGold)) : '—';
+                        const goldColor = drop.unitValue > 0 ? '#e8a87c' : '#444';
+
+                        html += `<div style="${dropRowStyle}">`;
+                        html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>`;
+                        html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
+                        html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
+                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldHrStr}</span>`;
+                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldDayStr}</span>`;
+                        html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
+                        html += `<span style="color:${goldColor}; font-weight:600; ${colGold}">${goldTotalStr}</span>`;
+                        html += '</div>';
+                    }
+                    // Totals row
+                    const prevRevPerHr = compMetrics?.revenuePerHr ?? null;
+                    const revDelta =
+                        prevRevPerHr !== null && prevRevPerHr !== undefined
+                            ? this._formatDelta(dropGoldPerHr, prevRevPerHr, true, true)
+                            : '';
+                    html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
+                    html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Revenue</span>`;
+                    const revDayDelta =
+                        prevRevPerHr !== null && prevRevPerHr !== undefined
+                            ? this._formatDelta(dropGoldPerHr * 24, prevRevPerHr * 24, true, true)
+                            : '';
+                    html += `<span style="${colNum}"></span>`;
+                    html += `<span style="${colNum}"></span>`;
+                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldPerHr))}<br>${revDelta}</span>`;
+                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldPerHr * 24))}<br>${revDayDelta}</span>`;
+                    html += `<span style="${colNum}"></span>`;
+                    html += `<span style="color:#e8a87c; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(dropGoldTotal))}</span>`;
+                    html += '</div>';
+                    html += '</div>';
+                }
+
+                // Compute dungeon key costs from drop map
+                if (simResult.isDungeon) {
+                    const getBuyPriceForKey = (keyHrid) => {
+                        const price = marketAPI.getPrice(keyHrid);
+                        return this._getBuyPrice(price);
+                    };
+                    dungeonKeyCosts = calculateDungeonKeyCosts(dropMap, getBuyPriceForKey);
+                    for (const key of dungeonKeyCosts) {
+                        keyCostPerHr += (key.count / hours) * key.unitCost;
+                        keyCostTotal += key.totalCost;
+                    }
+                }
+            }
+
+            // Consumable costs — same column layout as drops
+            const consumableEntries = Object.entries(consumableTotals)
+                .map(([itemHrid, total]) => {
+                    const price = marketAPI.getPrice(itemHrid);
+                    const unitCost = this._getBuyPrice(price);
+                    return { itemHrid, total, unitCost, totalCost: total * unitCost };
+                })
+                .sort((a, b) => b.totalCost - a.totalCost);
+
+            if (consumableEntries.length > 0) {
+                const costRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
+                const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
+                const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
+                const costColor = '#ff6b6b';
+
+                html += `<div style="${sectionStyle}">`;
+                html += `<div style="${headingStyle}">Consumable Costs</div>`;
+                // Column headers
+                html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
+                html += `<span style="flex:1;">Item</span>`;
+                html += `<span style="${colNum}">/hr</span>`;
+                html += `<span style="${colNum}">/day</span>`;
+                html += `<span style="${colGold}">Cost/hr</span>`;
+                html += `<span style="${colGold}">Cost/day</span>`;
+                html += `<span style="${colNum}">Total</span>`;
+                html += `<span style="${colGold}">Total Cost</span>`;
+                html += '</div>';
+
+                for (const cons of consumableEntries) {
+                    const perHr = cons.total / hours;
+                    const itemDetails = dataManager.getItemDetails(cons.itemHrid);
+                    const name = itemDetails?.name || cons.itemHrid.split('/').pop();
+
+                    const perHrStr = formatters_js.formatWithSeparator(Math.round(perHr));
+                    const perDayStr = formatters_js.formatWithSeparator(Math.round(perHr * 24));
+                    const totalStr = formatters_js.formatWithSeparator(Math.round(cons.total));
+
+                    const costPerHr = perHr * cons.unitCost;
+                    consumableGoldPerHr += costPerHr;
+                    consumableGoldTotal += cons.totalCost;
+
+                    const costHrStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr)) : '—';
+                    const costDayStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr * 24)) : '—';
+                    const costTotalStr = cons.unitCost > 0 ? formatters_js.formatKMB(Math.round(cons.totalCost)) : '—';
+                    const cColor = cons.unitCost > 0 ? costColor : '#444';
+
+                    html += `<div style="${costRowStyle}">`;
+                    html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costHrStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costDayStr}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costTotalStr}</span>`;
+                    html += '</div>';
+                }
+                // Totals row
+                const prevConsumableCostPerHr = compMetrics?.consumableCostPerHr ?? null;
+                const expDelta =
+                    prevConsumableCostPerHr !== null && prevConsumableCostPerHr !== undefined
+                        ? this._formatDelta(consumableGoldPerHr, prevConsumableCostPerHr, false, true)
+                        : '';
+                const expDayDelta =
+                    prevConsumableCostPerHr !== null && prevConsumableCostPerHr !== undefined
+                        ? this._formatDelta(consumableGoldPerHr * 24, prevConsumableCostPerHr * 24, false, true)
+                        : '';
+                html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
+                html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Expenses</span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldPerHr))}<br>${expDelta}</span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldPerHr * 24))}<br>${expDayDelta}</span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(consumableGoldTotal))}</span>`;
+                html += '</div>';
+                html += '</div>';
+            }
+
+            // Dungeon key costs
+            if (dungeonKeyCosts.length > 0) {
+                const costRowStyle = 'display:flex; align-items:center; padding:2px 0; font-size:12px; gap:6px;';
+                const colNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
+                const colGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
+                const costColor = '#ff6b6b';
+
+                html += `<div style="${sectionStyle}">`;
+                html += `<div style="${headingStyle}">Key Costs</div>`;
+                html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
+                html += `<span style="flex:1;">Item</span>`;
+                html += `<span style="${colNum}">/hr</span>`;
+                html += `<span style="${colNum}">/day</span>`;
+                html += `<span style="${colGold}">Cost/hr</span>`;
+                html += `<span style="${colGold}">Cost/day</span>`;
+                html += `<span style="${colNum}">Total</span>`;
+                html += `<span style="${colGold}">Total Cost</span>`;
+                html += '</div>';
+
+                for (const key of dungeonKeyCosts) {
+                    const perHr = key.count / hours;
+                    const perHrStr = perHr >= 1 ? formatters_js.formatWithSeparator(Math.round(perHr)) : perHr.toFixed(2);
+                    const perDayStr = formatters_js.formatWithSeparator(Math.round(perHr * 24));
+                    const totalStr = key.count >= 1 ? formatters_js.formatWithSeparator(Math.round(key.count)) : key.count.toFixed(2);
+
+                    const costPerHr = perHr * key.unitCost;
+                    const costHrStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr)) : '—';
+                    const costDayStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(costPerHr * 24)) : '—';
+                    const costTotalStr = key.unitCost > 0 ? formatters_js.formatKMB(Math.round(key.totalCost)) : '—';
+                    const cColor = key.unitCost > 0 ? costColor : '#444';
+
+                    html += `<div style="${costRowStyle}">`;
+                    html += `<span style="${labelStyle} flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${key.name}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${perHrStr}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${perDayStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costHrStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costDayStr}</span>`;
+                    html += `<span style="${valueStyle} ${colNum}">${totalStr}</span>`;
+                    html += `<span style="color:${cColor}; font-weight:600; ${colGold}">${costTotalStr}</span>`;
+                    html += '</div>';
+                }
+
+                // Totals row
+                html += `<div style="display:flex; align-items:center; padding:4px 0 0; font-size:12px; border-top:1px solid #333; margin-top:4px; gap:6px;">`;
+                html += `<span style="color:#aaa; font-weight:700; flex:1;">Total Key Costs</span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostPerHr))}</span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostPerHr * 24))}</span>`;
+                html += `<span style="${colNum}"></span>`;
+                html += `<span style="color:${costColor}; font-weight:700; ${colGold}">${formatters_js.formatKMB(Math.round(keyCostTotal))}</span>`;
+                html += '</div>';
+                html += '</div>';
+            }
+
+            // Net Profit (includes consumable costs + key costs)
+            const totalExpensesPerHr = consumableGoldPerHr + keyCostPerHr;
+            const totalExpensesTotal = consumableGoldTotal + keyCostTotal;
+            const netProfitPerHr = dropGoldPerHr - totalExpensesPerHr;
+            const netProfitTotal = dropGoldTotal - totalExpensesTotal;
+            const profitColor = netProfitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
+            const profitSign = netProfitPerHr >= 0 ? '' : '-';
+            const totalProfitSign = netProfitTotal >= 0 ? '' : '-';
+
+            // Metrics already pre-computed by _ensureHistoryMetrics
+
+            // Compute delta from comparison entry
+            const prevProfit = compMetrics?.profitPerHr ?? null;
+            const profitDelta =
+                prevProfit !== null && prevProfit !== undefined
+                    ? this._formatDelta(netProfitPerHr, prevProfit, true, true)
+                    : '';
+
+            const netProfitPerDay = netProfitPerHr * 24;
+            const profitDaySign = netProfitPerDay >= 0 ? '' : '-';
+
+            html += `<div style="${sectionStyle}">`;
+            html += `<div style="${headingStyle}">Net Profit</div>`;
+            const netColGold = 'flex:0; white-space:nowrap; min-width:76px; text-align:right; white-space:normal;';
+            const netColNum = 'flex:0; white-space:nowrap; min-width:56px; text-align:right;';
+            // Column headers
+            html += `<div style="display:flex; align-items:center; padding:0 0 4px; font-size:10px; gap:6px; color:#666;">`;
+            html += `<span style="flex:1;"></span>`;
+            html += `<span style="${netColNum}"></span>`;
+            html += `<span style="${netColNum}"></span>`;
+            html += `<span style="${netColGold}">/hr</span>`;
+            html += `<span style="${netColGold}">/day</span>`;
+            html += `<span style="${netColNum}"></span>`;
+            html += `<span style="${netColGold}">Total</span>`;
+            html += '</div>';
+            html += `<div style="display:flex; align-items:center; padding:2px 0; font-size:13px; gap:6px;">`;
+            html += `<span style="color:#aaa; font-weight:700; flex:1;">Profit</span>`;
+            html += `<span style="${netColNum}"></span>`;
+            html += `<span style="${netColNum}"></span>`;
+            const profitDayDelta =
+                prevProfit !== null && prevProfit !== undefined
+                    ? this._formatDelta(netProfitPerDay, prevProfit * 24, true, true)
+                    : '';
+            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${profitSign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitPerHr)))}<br>${profitDelta}</span>`;
+            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${profitDaySign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitPerDay)))}<br>${profitDayDelta}</span>`;
+            html += `<span style="${netColNum}"></span>`;
+            html += `<span style="color:${profitColor}; font-weight:700; ${netColGold}">${totalProfitSign}${formatters_js.formatKMB(Math.abs(Math.round(netProfitTotal)))}</span>`;
+            html += '</div>';
+            html += '</div>';
+
+            // Wipe Events
+            const wipeEvents = simResult.wipeEvents;
+            if (wipeEvents && wipeEvents.length > 0) {
+                html += `<div style="${sectionStyle}">`;
+                html += `<div style="${headingStyle}">Wipe Events (${wipeEvents.length})</div>`;
+                for (let wi = 0; wi < wipeEvents.length; wi++) {
+                    const event = wipeEvents[wi];
+                    const wave = event.wave ?? '?';
+                    const timeSec = ((event.simulationTime || 0) / 1e9).toFixed(2);
+                    const eventId = `mwi-wipe-${wi}`;
+                    html += `<div style="margin-bottom:6px; border:1px solid #333; border-radius:4px; overflow:hidden;">`;
+                    html += `<div id="${eventId}-header" data-wipe-toggle="${wi}" style="
+                    display:flex; justify-content:space-between; align-items:center;
+                    padding:4px 8px; background:#1a1a1a; cursor:pointer; font-size:12px;
+                ">`;
+                    html += `<span style="color:#aaa;">Wipe #${wi + 1} — Wave ${wave} @ ${timeSec}s</span>`;
+                    html += `<span style="color:#666; font-size:10px;">▶</span>`;
+                    html += `</div>`;
+                    html += `<div id="${eventId}-body" style="display:none; padding:6px 8px; font-size:11px; font-family:monospace; background:#111; max-height:300px; overflow-y:auto;">`;
+
+                    // Group logs by time
+                    const logs = event.logs || [];
+                    const groups = [];
+                    for (const log of logs) {
+                        if (log?.error) continue;
+                        const last = groups[groups.length - 1];
+                        if (last && last.time === log.time) {
+                            last.logs.push(log);
+                        } else {
+                            groups.push({ time: log.time, wave: log.wave, logs: [log] });
+                        }
+                    }
+
+                    const baseTime = groups.length > 0 ? groups[0].time : 0;
+                    for (const group of groups) {
+                        const rel = ((group.time - baseTime) / 1e9).toFixed(2);
+                        html += `<div style="margin-top:6px; color:#666; border-top:1px solid #222; padding-top:4px;">[+${rel}s] Wave ${group.wave ?? '?'}</div>`;
+                        const damagedPlayers = new Set(group.logs.map((l) => l.target));
+                        for (const log of group.logs) {
+                            const abilityLabel =
+                                log.ability === 'autoAttack'
+                                    ? 'Auto Attack'
+                                    : log.ability === 'damageOverTime'
+                                      ? 'DoT'
+                                      : log.ability === 'physicalThorns'
+                                        ? 'Physical Thorns'
+                                        : log.ability === 'elementalThorns'
+                                          ? 'Elemental Thorns'
+                                          : log.ability === 'retaliation'
+                                            ? 'Retaliation'
+                                            : log.ability;
+                            const critMark = log.isCrit ? '!!!' : '';
+                            html += `<div style="padding:1px 0; color:#ccc;">`;
+                            html += `<span style="color:#9ca3af;">${log.source}</span>`;
+                            html += ` cast <span style="color:#c4b5fd;">${abilityLabel}</span>`;
+                            html += ` → <span style="color:#93c5fd;">${log.target}</span>`;
+                            html += ` <span style="color:#ff6b6b;">${log.damage}${critMark}</span>`;
+                            html += ` <span style="color:#666;">HP ${log.beforeHp}→${log.afterHp}</span>`;
+                            html += `</div>`;
+                        }
+                        // Players HP summary at end of each time group
+                        if (group.logs.length > 0 && group.logs[group.logs.length - 1].playersHp) {
+                            const playersHp = group.logs[group.logs.length - 1].playersHp;
+                            const hpParts = playersHp.map((p) => {
+                                const color = p.current <= 0 ? '#ff6b6b' : damagedPlayers.has(p.hrid) ? '#93c5fd' : '#666';
+                                return `<span style="color:${color};">${p.hrid}: ${p.current}/${p.max}</span>`;
+                            });
+                            html += `<div style="padding:2px 0; font-size:10px;">Players HP: ${hpParts.join(' | ')}</div>`;
+                        }
+                    }
+
+                    html += `</div>`; // body
+                    html += `</div>`; // card
+                }
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
+            container.style.display = 'block';
+
+            // Tab click handler — re-render with new active player
+            container.querySelectorAll('[data-tab]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    this._activePlayerTab = btn.dataset.tab;
+                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                });
+            });
+
+            // History row click handler — show detail view for that scenario
+            container.querySelectorAll('[data-history-idx]').forEach((row) => {
+                const idx = parseInt(row.dataset.historyIdx, 10);
+                row.addEventListener('click', () => {
+                    this._activeDetailIndex = idx;
+                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                });
+            });
+
+            // Comparison: baseline selector
+            const baselineSelect = container.querySelector('#mwi-csim-baseline-select');
+            if (baselineSelect) {
+                baselineSelect.addEventListener('change', () => {
+                    const newBase = parseInt(baselineSelect.value, 10);
+                    this._comparisonBaseline = newBase;
+                    // Remove the new baseline from comparison slots if present
+                    this._comparisonSlots = this._comparisonSlots.filter((i) => i !== newBase);
+                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                });
+            }
+
+            // Comparison: add sim dropdown
+            const addCompSelect = container.querySelector('#mwi-csim-add-comparison');
+            if (addCompSelect) {
+                addCompSelect.addEventListener('change', () => {
+                    const idx = parseInt(addCompSelect.value, 10);
+                    if (!isNaN(idx) && !this._comparisonSlots.includes(idx)) {
+                        this._comparisonSlots.push(idx);
+                        this._activeDetailIndex = idx;
+                        this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                    }
+                });
+            }
+
+            // Comparison: remove × buttons
+            container.querySelectorAll('[data-remove-comparison]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(btn.dataset.removeComparison, 10);
+                    this._comparisonSlots = this._comparisonSlots.filter((i) => i !== idx);
+                    this._displayResults(this._lastSimResult, this._lastSimHours, this._lastGameData);
+                });
+            });
+
+            // History: delete result buttons
+            container.querySelectorAll('[data-delete-history]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(btn.dataset.deleteHistory, 10);
+                    this._deleteHistoryEntry(idx);
+                });
+            });
+
+            // Wipe event collapsible toggles
+            container.querySelectorAll('[data-wipe-toggle]').forEach((header) => {
+                header.addEventListener('click', () => {
+                    const wi = header.dataset.wipeToggle;
+                    const body = container.querySelector(`#mwi-wipe-${wi}-body`);
+                    const arrow = header.querySelector('span:last-child');
+                    if (body) {
+                        const isOpen = body.style.display !== 'none';
+                        body.style.display = isOpen ? 'none' : 'block';
+                        if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+                    }
+                });
+            });
+
+            // History collapsible toggle
+            container.querySelectorAll('[data-toggle="history-section"]').forEach((el) => {
+                el.addEventListener('click', () => {
+                    const section = container.querySelector('#mwi-csim-history-section');
+                    const arrow = container.querySelector('[data-arrow="history-section"]');
+                    if (section) {
+                        const isOpen = section.style.display !== 'none';
+                        section.style.display = isOpen ? 'none' : 'block';
+                        if (arrow) arrow.innerHTML = isOpen ? '&#9654;' : '&#9660;';
+                    }
+                });
+            });
+        }
+
+        /**
+         * Pre-compute and store metrics for the latest history entry if not yet populated.
+         * Also ensures all history entries have metrics for comparison table.
+         * @private
+         */
+        _ensureHistoryMetrics(simResult, hours, gameData, activeTab) {
+            const latestEntry = this._simHistory[this._simHistory.length - 1];
+            if (latestEntry && !latestEntry.metrics) {
+                latestEntry.metrics = this._computeMetrics(simResult, hours, gameData, activeTab);
+            }
+
+            // Ensure all entries have metrics (for comparison table)
+            for (const entry of this._simHistory) {
+                if (!entry.metrics) {
+                    entry.metrics = this._computeMetrics(entry.simResult, entry.hours, entry.gameData, activeTab);
+                }
+            }
+        }
+
+        /**
+         * Compute metrics for a sim result.
+         * @private
+         */
+        _computeMetrics(simResult, hours, gameData, activeTab) {
+            // Encounters
+            const encountersPerHr = simResult.encounters / hours;
+
+            // DPS from actual damage dealt
+            const simSeconds = simResult.simulatedTime > 0 ? simResult.simulatedTime / 1e9 : hours * 3600;
+            let totalDamage = 0;
+            for (const [hrid, damage] of Object.entries(simResult.totalDamageDealt || {})) {
+                if (hrid.startsWith('player')) totalDamage += damage;
+            }
+            const dps = simSeconds > 0 ? totalDamage / simSeconds : 0;
+
+            // XP/hr for active player
+            let totalXpPerHr = 0;
+            if (simResult.experienceGained?.[activeTab]) {
+                for (const amount of Object.values(simResult.experienceGained[activeTab])) {
+                    totalXpPerHr += Math.round(amount / hours);
+                }
+            }
+
+            // Revenue from drops
+            let revenuePerHr = 0;
+            if (gameData) {
+                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
+                for (const [itemHrid, total] of dropMap.entries()) {
+                    if (total <= 0) continue;
+                    const price = marketAPI.getPrice(itemHrid);
+                    let unitValue = this._getSellPrice(price);
+                    if (unitValue === 0 && itemHrid === '/items/coin') unitValue = 1;
+                    if (unitValue === 0) {
+                        const evData = expectedValueCalculator.calculateExpectedValue(itemHrid);
+                        if (evData?.expectedValue > 0) unitValue = evData.expectedValue;
+                    }
+                    revenuePerHr += (total / hours) * unitValue;
+                }
+            }
+
+            // Expenses from consumables
+            let consumableCostPerHr = 0;
+            const selfConsumables = simResult.consumablesUsed?.[activeTab] || {};
+            for (const [itemHrid, count] of Object.entries(selfConsumables)) {
+                const price = marketAPI.getPrice(itemHrid);
+                const unitCost = this._getBuyPrice(price);
+                consumableCostPerHr += (count / hours) * unitCost;
+            }
+
+            // Dungeon key costs
+            let keyCostPerHrMetric = 0;
+            if (simResult.isDungeon && gameData) {
+                const dropMap = calculateExpectedDrops(simResult, gameData, activeTab);
+                const getBuyPriceForKey = (keyHrid) => {
+                    const price = marketAPI.getPrice(keyHrid);
+                    return this._getBuyPrice(price);
+                };
+                const keyCosts = calculateDungeonKeyCosts(dropMap, getBuyPriceForKey);
+                for (const key of keyCosts) {
+                    keyCostPerHrMetric += (key.count / hours) * key.unitCost;
+                }
+            }
+
+            const expensesPerHr = consumableCostPerHr + keyCostPerHrMetric;
+
+            return {
+                encountersPerHr,
+                dps,
+                totalXpPerHr,
+                revenuePerHr,
+                expensesPerHr,
+                consumableCostPerHr,
+                keyCostPerHr: keyCostPerHrMetric,
+                profitPerHr: revenuePerHr - expensesPerHr,
+                successRate: simResult.isDungeon
+                    ? simResult.dungeonsCompleted / Math.max(1, simResult.dungeonsCompleted + simResult.dungeonsFailed)
+                    : null,
+            };
+        }
+
+        /**
+         * Render the comparison panel with baseline + selected comparison sims.
+         * @returns {string} HTML string
+         * @private
+         */
+        /**
+         * Delete a history entry by index and re-render results.
+         * @param {number} idx - Index in _simHistory to remove
+         * @private
+         */
+        _deleteHistoryEntry(idx) {
+            if (idx < 0 || idx >= this._simHistory.length) return;
+
+            this._simHistory.splice(idx, 1);
+
+            // If only one or zero results remain, clear all comparison state
+            if (this._simHistory.length <= 1) {
+                this._comparisonBaseline = null;
+                this._comparisonIndex = null;
+                this._comparisonSlots = [];
+            } else {
+                // Adjust comparisonBaseline
+                if (this._comparisonBaseline === idx) {
+                    this._comparisonBaseline = Math.max(0, this._simHistory.length - 1);
+                } else if (this._comparisonBaseline !== null && this._comparisonBaseline > idx) {
+                    this._comparisonBaseline--;
+                }
+
+                // Adjust comparisonSlots
+                this._comparisonSlots = this._comparisonSlots.filter((i) => i !== idx).map((i) => (i > idx ? i - 1 : i));
+
+                // Adjust comparisonIndex
+                if (this._comparisonIndex === idx) {
+                    this._comparisonIndex = null;
+                } else if (this._comparisonIndex !== null && this._comparisonIndex > idx) {
+                    this._comparisonIndex--;
+                }
+            }
+
+            // Adjust activeDetailIndex
+            if (this._activeDetailIndex === idx) {
+                this._activeDetailIndex = this._simHistory.length > 0 ? this._simHistory.length - 1 : null;
+            } else if (this._activeDetailIndex !== null && this._activeDetailIndex > idx) {
+                this._activeDetailIndex--;
+            }
+
+            // If history is now empty, clear results display
+            if (this._simHistory.length === 0) {
+                this._lastSimResult = null;
+                this._lastSimHours = null;
+                this._lastGameData = null;
+                const container = this.panel?.querySelector('#mwi-csim-results');
+                if (container) container.style.display = 'none';
+                return;
+            }
+
+            // Re-render with the active entry
+            const activeEntry =
+                this._activeDetailIndex !== null
+                    ? this._simHistory[this._activeDetailIndex]
+                    : this._simHistory[this._simHistory.length - 1];
+            this._lastSimResult = activeEntry.simResult;
+            this._lastSimHours = activeEntry.hours;
+            this._lastGameData = activeEntry.gameData;
+            this._displayResults(activeEntry.simResult, activeEntry.hours, activeEntry.gameData);
+        }
+
+        _renderHistoryPanel() {
+            const history = this._simHistory;
+            if (history.length < 2) return '';
+
+            const baseIdx = this._comparisonBaseline ?? 0;
+            const baseEntry = history[baseIdx];
+            const baseM = baseEntry?.metrics;
+
+            // Check if any sim is a dungeon
+            const hasDungeon = history.some((e) => e.simResult?.isDungeon);
+
+            let html = '<div style="margin-bottom:12px;">';
+            html +=
+                '<div style="color:' +
+                ACCENT$1 +
+                '; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="history-section">';
+            html +=
+                '<span data-arrow="history-section" style="display:inline-block; width:14px; font-size:10px;">&#9660;</span> Comparison (' +
+                history.length +
+                ' runs)';
+            html += '</div>';
+            html += '<div id="mwi-csim-history-section" style="display:block;">';
+
+            // Baseline selector
+            html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:11px;">';
+            html += '<span style="color:#888;">Baseline:</span>';
+            html +=
+                '<select id="mwi-csim-baseline-select" style="flex:1; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:1px 4px; font-size:11px; font-family:inherit;">';
+            for (let i = 0; i < history.length; i++) {
+                const sel = i === baseIdx ? ' selected' : '';
+                html += '<option value="' + i + '"' + sel + '>' + history[i].label + '</option>';
+            }
+            html += '</select></div>';
+
+            // Table
+            html += '<table style="width:100%; font-size:11px; border-collapse:collapse;">';
+            html += '<tr style="border-bottom:1px solid #333; color:#666;">';
+            html += '<th style="text-align:left; padding:2px 4px;">Scenario</th>';
+            html += '<th style="text-align:right; padding:2px 4px;">EPH</th>';
+            html += '<th style="text-align:right; padding:2px 4px;">DPS</th>';
+            html += '<th style="text-align:right; padding:2px 4px;">Profit/hr</th>';
+            html += '<th style="text-align:right; padding:2px 4px;">XP/hr</th>';
+            if (hasDungeon) html += '<th style="text-align:right; padding:2px 4px;">Success</th>';
+            html += '<th style="width:20px;"></th>';
+            html += '<th style="width:20px;"></th>';
+            html += '</tr>';
+
+            // Baseline row
+            const baseProfitColor = baseM?.profitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
+            html += '<tr style="background:rgba(232,168,124,0.08); cursor:pointer;" data-history-idx="' + baseIdx + '">';
+            html +=
+                '<td style="padding:2px 4px; color:#e8a87c; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' +
+                baseEntry.label +
+                '">★ ' +
+                baseEntry.label +
+                '</td>';
+            html +=
+                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.encountersPerHr)) : '—') +
+                '</td>';
+            html +=
+                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.dps)) : '—') +
+                '</td>';
+            html +=
+                '<td style="text-align:right; padding:2px 4px; color:' +
+                baseProfitColor +
+                ';">' +
+                (baseM ? formatters_js.formatKMB(Math.round(baseM.profitPerHr)) : '—') +
+                '</td>';
+            html +=
+                '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                (baseM ? formatters_js.formatWithSeparator(Math.round(baseM.totalXpPerHr)) : '—') +
+                '</td>';
+            if (hasDungeon) {
+                html +=
+                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                    (baseM?.successRate != null ? (baseM.successRate * 100).toFixed(1) + '%' : '—') +
+                    '</td>';
+            }
+            html += '<td></td>';
+            html +=
+                '<td style="text-align:center; padding:2px; cursor:pointer; color:#555;" data-delete-history="' +
+                baseIdx +
+                '" title="Delete result">✕</td>';
+            html += '</tr>';
+            for (const idx of this._comparisonSlots) {
+                if (idx === baseIdx || idx >= history.length) continue;
+                const entry = history[idx];
+                const m = entry.metrics;
+                const profitColor = m?.profitPerHr >= 0 ? '#7ec87e' : '#ff6b6b';
+
+                const ephDelta = baseM && m ? this._formatDelta(m.encountersPerHr, baseM.encountersPerHr, true) : '';
+                const dpsDelta = baseM && m ? this._formatDelta(m.dps, baseM.dps, true) : '';
+                const profitDelta = baseM && m ? this._formatDelta(m.profitPerHr, baseM.profitPerHr, true, true) : '';
+                const xpDelta = baseM && m ? this._formatDelta(m.totalXpPerHr, baseM.totalXpPerHr, true) : '';
+
+                html += '<tr style="cursor:pointer;" data-history-idx="' + idx + '">';
+                html +=
+                    '<td style="padding:2px 4px; color:#ccc; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="' +
+                    entry.label +
+                    '">' +
+                    entry.label +
+                    '</td>';
+                html +=
+                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                    (m ? formatters_js.formatWithSeparator(Math.round(m.encountersPerHr)) : '—') +
+                    ephDelta +
+                    '</td>';
+                html +=
+                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                    (m ? formatters_js.formatWithSeparator(Math.round(m.dps)) : '—') +
+                    dpsDelta +
+                    '</td>';
+                html +=
+                    '<td style="text-align:right; padding:2px 4px; color:' +
+                    profitColor +
+                    ';">' +
+                    (m ? formatters_js.formatKMB(Math.round(m.profitPerHr)) : '—') +
+                    profitDelta +
+                    '</td>';
+                html +=
+                    '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                    (m ? formatters_js.formatWithSeparator(Math.round(m.totalXpPerHr)) : '—') +
+                    xpDelta +
+                    '</td>';
+                if (hasDungeon) {
+                    const successDelta =
+                        baseM?.successRate != null && m?.successRate != null
+                            ? this._formatDelta(m.successRate * 100, baseM.successRate * 100, true)
+                            : '';
+                    html +=
+                        '<td style="text-align:right; padding:2px 4px; color:#e0e0e0;">' +
+                        (m?.successRate != null ? (m.successRate * 100).toFixed(1) + '%' : '—') +
+                        successDelta +
+                        '</td>';
+                }
+                html +=
+                    '<td style="text-align:center; padding:2px; cursor:pointer; color:#666;" data-remove-comparison="' +
+                    idx +
+                    '" title="Remove from comparison">×</td>';
+                html +=
+                    '<td style="text-align:center; padding:2px; cursor:pointer; color:#555;" data-delete-history="' +
+                    idx +
+                    '" title="Delete result">✕</td>';
+                html += '</tr>';
+            }
+
+            html += '</table>';
+
+            // Add to comparison dropdown
+            const available = [];
+            for (let i = 0; i < history.length; i++) {
+                if (i === baseIdx || this._comparisonSlots.includes(i)) continue;
+                available.push(i);
+            }
+            if (available.length > 0) {
+                html += '<div style="margin-top:6px;">';
+                html +=
+                    '<select id="mwi-csim-add-comparison" style="width:100%; background:#1a1a2e; color:#aaa; border:1px solid #444; border-radius:4px; padding:2px 4px; font-size:11px; font-family:inherit;">';
+                html += '<option value="">+ Add sim to comparison...</option>';
+                for (const i of available) {
+                    html += '<option value="' + i + '">' + history[i].label + '</option>';
+                }
+                html += '</select></div>';
+            }
+
+            html += '</div></div>';
+            return html;
+        }
+
+        /**
+         * Format a delta value as colored HTML span.
+         * Returns empty string if no previous value or delta is zero.
+         * @param {number} current - Current value
+         * @param {number|null} previous - Previous value (null if no comparison)
+         * @param {boolean} [higherIsBetter=true] - Whether higher values are positive
+         * @param {boolean} [useKMB=false] - Use KMB formatting for the delta
+         * @returns {string} HTML span or empty string
+         * @private
+         */
+        _formatDelta(current, previous, higherIsBetter = true, useKMB = false) {
+            if (previous === null || previous === undefined) return '';
+            const delta = current - previous;
+            if (Math.abs(delta) < 0.5) return '';
+            const isPositive = higherIsBetter ? delta > 0 : delta < 0;
+            const color = isPositive ? '#7ec87e' : '#ff6b6b';
+            const sign = delta > 0 ? '+' : '';
+            const formatted = useKMB ? formatters_js.formatKMB(Math.round(delta)) : formatters_js.formatWithSeparator(Math.round(delta));
+            return ` <span style="color:${color}; font-size:11px;">(${sign}${formatted})</span>`;
+        }
+
+        /**
+         * Format a deaths/hr value, showing decimals for low rates.
+         * @param {number} value
+         * @returns {string}
+         * @private
+         */
+        _formatDeaths(value) {
+            if (value === 0) return '0';
+            if (value < 0.1) return value.toFixed(2);
+            if (value < 1) return value.toFixed(1);
+            return formatters_js.formatWithSeparator(Math.round(value));
+        }
+
+        /**
+         * Format a rate value with one decimal place.
+         * @param {number} value
+         * @returns {string}
+         * @private
+         */
+        _formatRate(value) {
+            if (value === 0) return '0';
+            if (value < 0.1) return value.toFixed(2);
+            return (Math.round(value * 10) / 10).toString();
+        }
+
+        /**
+         * Set the status bar text.
+         * @param {string} text
+         * @private
+         */
         _setStatus(text) {
-            const status = this.panel?.querySelector('#mwi-usim-status');
+            const status = this.panel?.querySelector('#mwi-csim-status');
             if (status) status.textContent = text;
         }
 
-        async _onRun() {
-            if (this.isRunning) return;
+        /**
+         * Show a temporary warning toast overlaid on the panel.
+         * @param {string} text - Warning message
+         * @param {number} [duration=3000] - Duration in ms before auto-dismiss
+         * @private
+         */
+        _showWarning(text, duration = 3000) {
+            // Remove existing warning
+            this.panel?.querySelector('.mwi-csim-warning')?.remove();
 
-            const zoneSelect = this.panel?.querySelector('#mwi-usim-zone');
-            const tierSelect = this.panel?.querySelector('#mwi-usim-tier');
-            const metricSelect = this.panel?.querySelector('#mwi-usim-metric');
-            const foodHoursEl = this.panel?.querySelector('#mwi-usim-food-hours');
-            const coffeeHoursEl = this.panel?.querySelector('#mwi-usim-coffee-hours');
-            const zonesHoursEl = this.panel?.querySelector('#mwi-usim-zones-hours');
-            const maxIterEl = this.panel?.querySelector('#mwi-usim-max-iter');
-            const excludeDungeonsEl = this.panel?.querySelector('#mwi-usim-exclude-dungeons');
-            const includeZonesEl = this.panel?.querySelector('#mwi-usim-include-zones');
-            const includeSoloEl = this.panel?.querySelector('#mwi-usim-include-solo');
+            const toast = document.createElement('div');
+            toast.className = 'mwi-csim-warning';
+            toast.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 20, 10, 0.97);
+            border: 1px solid rgba(255, 152, 0, 0.6);
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: #ffb74d;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            z-index: 10;
+            max-width: 80%;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            animation: mwi-csim-fade-in 0.15s ease;
+        `;
+            toast.textContent = text;
+            this.panel.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.transition = 'opacity 0.3s ease';
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        /**
+         * Set up drag handling on the header element.
+         * @param {HTMLElement} header
+         * @private
+         */
+        _setupDrag(header) {
+            header.addEventListener('mousedown', (e) => {
+                if (e.target.id === 'mwi-csim-close') return;
+                this.isDragging = true;
+                header.style.cursor = 'grabbing';
+                const rect = this.panel.getBoundingClientRect();
+                this.dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                bringPanelToFront(this.panel);
+
+                const onMove = (ev) => {
+                    if (!this.isDragging) return;
+                    this.panel.style.left = `${ev.clientX - this.dragOffset.x}px`;
+                    this.panel.style.top = `${ev.clientY - this.dragOffset.y}px`;
+                    this.panel.style.right = 'auto';
+                };
+                const onUp = () => {
+                    this.isDragging = false;
+                    header.style.cursor = 'grab';
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        /**
+         * @private
+         */
+        _setupResize(handle) {
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const startX = e.clientX;
+                const startY = e.clientY;
+                const startWidth = this.panel.offsetWidth;
+                const startHeight = this.panel.offsetHeight;
+                bringPanelToFront(this.panel);
+
+                const onMove = (ev) => {
+                    const newWidth = Math.max(400, startWidth + (ev.clientX - startX));
+                    const newHeight = Math.max(300, startHeight + (ev.clientY - startY));
+                    this.panel.style.width = `${newWidth}px`;
+                    this.panel.style.height = `${newHeight}px`;
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+
+        /**
+         * Open the sim panel pre-loaded with an external player DTO.
+         * Used by the profile page "Sim Character" button.
+         * @param {Object} dto - Player DTO in sim engine format
+         * @param {string} playerName - Display name for the player tab
+         */
+        openWithExternalDTO(dto, playerName) {
+            if (!this.panel) {
+                this.buildPanel();
+            }
+
+            this._editor.openWithExternalDTO(dto, playerName);
+
+            this.panel.style.display = 'flex';
+            bringPanelToFront(this.panel);
+            this.populateZones();
+            this._switchTab('configure');
+        }
+
+        /**
+         * Handle the Optimize Food tab's Optimize button. Uses the shared Configure-tab loadout.
+         * @private
+         */
+        async _onOptimizeFood() {
+            if (this._foodRunning) return;
+
+            const zoneHrid = this.panel?.querySelector('#mwi-csim-optfood-zone')?.value;
+            const difficultyTier = parseInt(this.panel?.querySelector('#mwi-csim-optfood-tier')?.value) || 0;
+            const hours = Math.min(
+                1000,
+                Math.max(1, parseInt(this.panel?.querySelector('#mwi-csim-optfood-hours')?.value) || 2)
+            );
+            const setStatus = (text) => this._setStatus(text);
+
+            if (!zoneHrid) {
+                setStatus('Select a zone first.');
+                return;
+            }
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                setStatus('No game data available.');
+                return;
+            }
+
+            const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
+            if (!playerDTOs.length) {
+                setStatus('No character data available.');
+                return;
+            }
+
+            const communityBuffs = getCommunityBuffs();
+            const extraBuffs = buildExtraBuffs(communityBuffs, playerDTOs[0]?.guildCombatBuffs);
+
+            this._foodRunning = true;
+            this._foodAborted = false;
+            const runBtn = this.panel.querySelector('#mwi-csim-optfood-run');
+            const stopBtn = this.panel.querySelector('#mwi-csim-optfood-stop');
+            const progressContainer = this.panel.querySelector('#mwi-csim-optfood-progress-container');
+            const progressFill = this.panel.querySelector('#mwi-csim-optfood-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-optfood-progress-text');
+            const resultsEl = this.panel.querySelector('#mwi-csim-optfood-results');
+
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+            stopBtn.style.display = '';
+            progressContainer.style.display = 'block';
+            resultsEl.innerHTML = '';
+
+            try {
+                const { results, refined } = await runFoodOptimization({
+                    gameData,
+                    playerDTOs,
+                    baseIndex,
+                    zoneHrid,
+                    difficultyTier,
+                    hours,
+                    extraBuffs,
+                    selfHrid,
+                    isAborted: () => this._foodAborted,
+                    onProgress: ({ completed, total, phase }) => {
+                        progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                        progressText.textContent = `${completed} / ${total}`;
+                        if (phase === 'search') setStatus(`Tested ${completed} food combos (binary search)...`);
+                        else if (phase === 'gathering')
+                            setStatus(`Found a 0-death, 0% OOM combo. Gathering more candidates...`);
+                        else if (phase === 'exhaustive')
+                            setStatus(`No combo reaches 0 deaths/0% OOM — testing all combos...`);
+                        else if (phase === 'refining')
+                            setStatus(`Tested ${completed}/${total} food combos. Refining trigger thresholds...`);
+                    },
+                });
+
+                if (this._foodAborted) {
+                    setStatus(`Stopped after ${results.length} combos.`);
+                    this._displayFoodResults(results);
+                    return;
+                }
+
+                setStatus(`Done: tested ${results.length} food combos, refined triggers for top ${refined.length}.`);
+                this._displayFoodResults(refined, { refined: true });
+            } finally {
+                this._foodRunning = false;
+                runBtn.disabled = false;
+                runBtn.style.opacity = '1';
+                runBtn.style.cursor = 'pointer';
+                stopBtn.style.display = 'none';
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Render Optimize Food results.
+         * @param {Array<Object>} results
+         * @param {{refined?: boolean}} [options]
+         * @private
+         */
+        _displayFoodResults(results, options = {}) {
+            const container = this.panel?.querySelector('#mwi-csim-optfood-results');
+            if (!container) return;
+
+            if (!results.length) {
+                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
+                return;
+            }
+
+            const ranked = rankFoodResults(results, 5);
+
+            const headerCells = ['Food Combination', 'Deaths/hr', 'Mana OOM %', 'Cost/hr']
+                .map(
+                    (label, i) =>
+                        `<th style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${i === 0 ? 'left' : 'right'}; border-bottom:1px solid #333;">${label}</th>`
+                )
+                .join('');
+
+            const bodyRows = ranked
+                .map((r, i) => {
+                    const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                    const rowWeight = i === 0 ? '700' : '400';
+                    const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                    const triggerDesc = describeFoodTriggers(r);
+                    return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${r.label}
+                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
+                        </td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.costPerHour))}</td>
+                    </tr>
+                `;
+                })
+                .join('');
+
+            const note = options.refined
+                ? `${ranked.length} combo${ranked.length === 1 ? '' : 's'} tied for the lowest deaths/hr and lowest mana-OOM% (of the best ${FOOD_COMBOS_TO_REFINE} tested), after refining each food's trigger threshold, sorted by cost/hr.`
+                : `${ranked.length} cheapest combo${ranked.length === 1 ? '' : 's'} that tie for the lowest deaths/hr and lowest mana-OOM% found across ${results.length} tested combos.`;
+
+            container.innerHTML = `
+            <div style="color:#888; font-size:11px; margin-bottom:8px;">${note}</div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+        }
+
+        /**
+         * Handle the Optimize Coffee tab's Optimize button. Uses the shared Configure-tab loadout.
+         * @private
+         */
+        async _onOptimizeCoffee() {
+            if (this._coffeeRunning) return;
+
+            const zoneHrid = this.panel?.querySelector('#mwi-csim-optcoffee-zone')?.value;
+            const difficultyTier = parseInt(this.panel?.querySelector('#mwi-csim-optcoffee-tier')?.value) || 0;
+            const hours = Math.min(
+                1000,
+                Math.max(1, parseInt(this.panel?.querySelector('#mwi-csim-optcoffee-hours')?.value) || 2)
+            );
+            const setStatus = (text) => this._setStatus(text);
+
+            if (!zoneHrid) {
+                setStatus('Select a zone first.');
+                return;
+            }
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                setStatus('No game data available.');
+                return;
+            }
+
+            const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
+            if (!playerDTOs.length) {
+                setStatus('No character data available.');
+                return;
+            }
+
+            const communityBuffs = getCommunityBuffs();
+            const extraBuffs = buildExtraBuffs(communityBuffs, playerDTOs[0]?.guildCombatBuffs);
+
+            this._coffeeRunning = true;
+            this._coffeeAborted = false;
+            const runBtn = this.panel.querySelector('#mwi-csim-optcoffee-run');
+            const stopBtn = this.panel.querySelector('#mwi-csim-optcoffee-stop');
+            const progressContainer = this.panel.querySelector('#mwi-csim-optcoffee-progress-container');
+            const progressFill = this.panel.querySelector('#mwi-csim-optcoffee-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-optcoffee-progress-text');
+            const resultsEl = this.panel.querySelector('#mwi-csim-optcoffee-results');
+
+            runBtn.disabled = true;
+            runBtn.style.opacity = '0.5';
+            runBtn.style.cursor = 'not-allowed';
+            stopBtn.style.display = '';
+            progressContainer.style.display = 'block';
+            resultsEl.innerHTML = '';
+
+            try {
+                const results = await runCoffeeOptimization({
+                    gameData,
+                    playerDTOs,
+                    baseIndex,
+                    zoneHrid,
+                    difficultyTier,
+                    hours,
+                    extraBuffs,
+                    selfHrid,
+                    isAborted: () => this._coffeeAborted,
+                    onProgress: ({ completed, total }) => {
+                        progressFill.style.width = `${Math.round((completed / total) * 100)}%`;
+                        progressText.textContent = `${completed} / ${total}`;
+                        setStatus(`Tested ${completed}/${total} coffee combos...`);
+                    },
+                });
+
+                progressFill.style.width = '100%';
+
+                if (this._coffeeAborted) {
+                    setStatus(`Stopped after ${results.length} combos.`);
+                } else {
+                    setStatus(`Done: tested ${results.length} coffee combos.`);
+                }
+
+                this._displayCoffeeResults(results);
+            } finally {
+                this._coffeeRunning = false;
+                runBtn.disabled = false;
+                runBtn.style.opacity = '1';
+                runBtn.style.cursor = 'pointer';
+                stopBtn.style.display = 'none';
+                progressContainer.style.display = 'none';
+            }
+        }
+
+        /**
+         * Render Optimize Coffee results (best XP/hr, best coins/hr, best mixed).
+         * @param {Array<Object>} results
+         * @private
+         */
+        _displayCoffeeResults(results) {
+            const container = this.panel?.querySelector('#mwi-csim-optcoffee-results');
+            if (!container) return;
+
+            if (!results.length) {
+                container.innerHTML = `<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No results.</div>`;
+                return;
+            }
+
+            const byXP = [...results].sort((a, b) => b.xpPerHour - a.xpPerHour).slice(0, 8);
+            const byProfit = [...results].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, 8);
+            const byMixed = [...results].sort((a, b) => b.mixedScore - a.mixedScore).slice(0, 8);
+
+            const fmtXP = (v) => formatters_js.formatKMB(Math.round(v));
+            const fmtCoins = (v) => formatters_js.formatKMB(Math.round(v));
+
+            const renderColumn = (title, rows, valueKey, valueFmt) => {
+                const primaryLabel =
+                    valueKey === 'xpPerHour' ? 'XP/hr' : valueKey === 'profitPerHour' ? 'Coins/hr' : 'Eff. XP/hr';
+                const showXP = valueKey !== 'xpPerHour';
+                const showCoins = valueKey !== 'profitPerHour';
+
+                const headerCells = [
+                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:left; border-bottom:1px solid #333;">Coffee</th>`,
+                    `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">${primaryLabel}</th>`,
+                ];
+                if (showXP)
+                    headerCells.push(
+                        `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">XP/hr</th>`
+                    );
+                if (showCoins)
+                    headerCells.push(
+                        `<th style="padding:2px 4px; font-size:10px; font-weight:600; color:#888; text-align:right; border-bottom:1px solid #333;">Coins/hr</th>`
+                    );
+
+                const bodyRows = rows
+                    .map((r, i) => {
+                        const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                        const rowWeight = i === 0 ? '700' : '400';
+                        const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                        const cells = [
+                            `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
+                            `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
+                        ];
+                        if (showXP)
+                            cells.push(
+                                `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtXP(r.xpPerHour)}</td>`
+                            );
+                        if (showCoins)
+                            cells.push(
+                                `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:#999;">${fmtCoins(r.profitPerHour)}</td>`
+                            );
+                        return `<tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">${cells.join('')}</tr>`;
+                    })
+                    .join('');
+
+                return `
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin-bottom:6px; text-align:center;">${title}</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr>${headerCells.join('')}</tr></thead>
+                        <tbody>${bodyRows}</tbody>
+                    </table>
+                </div>
+            `;
+            };
+
+            container.innerHTML = `
+            <div style="display:flex; gap:14px; align-items:flex-start;">
+                ${renderColumn('Best XP/hr', byXP, 'xpPerHour', fmtXP)}
+                ${renderColumn('Best Coins/hr', byProfit, 'profitPerHour', fmtCoins)}
+                ${renderColumn('Best Mixed (Eff. XP/hr)', byMixed, 'mixedScore', fmtXP)}
+            </div>
+        `;
+        }
+
+        /**
+         * Handle the Ultimate Sim tab's Start button. Uses the shared Configure-tab loadout as the
+         * starting point for its food/coffee/zone optimization loop.
+         * @private
+         */
+        async _onUltimateSimRun() {
+            if (this._usimRunning) return;
+
+            const zoneSelect = this.panel?.querySelector('#mwi-csim-usim-zone');
+            const tierSelect = this.panel?.querySelector('#mwi-csim-usim-tier');
+            const metricSelect = this.panel?.querySelector('#mwi-csim-usim-metric');
+            const foodHoursEl = this.panel?.querySelector('#mwi-csim-usim-food-hours');
+            const coffeeHoursEl = this.panel?.querySelector('#mwi-csim-usim-coffee-hours');
+            const zonesHoursEl = this.panel?.querySelector('#mwi-csim-usim-zones-hours');
+            const maxIterEl = this.panel?.querySelector('#mwi-csim-usim-max-iter');
+            const excludeDungeonsEl = this.panel?.querySelector('#mwi-csim-usim-exclude-dungeons');
+            const includeZonesEl = this.panel?.querySelector('#mwi-csim-usim-include-zones');
+            const includeSoloEl = this.panel?.querySelector('#mwi-csim-usim-include-solo');
+            const setStatus = (text) => this._setStatus(text);
 
             const startZoneHrid = zoneSelect?.value;
             if (!startZoneHrid) {
-                this._setStatus('Select a zone first.');
+                setStatus('Select a zone first.');
                 return;
             }
             const startTier = parseInt(tierSelect?.value) || 0;
@@ -24626,18 +23573,24 @@
             const includeSoloMobs = includeSoloEl ? includeSoloEl.checked : true;
 
             if (!includeZones && !includeSoloMobs) {
-                this._setStatus('Enable at least one of "Zones" or "Individual Mobs".');
+                setStatus('Enable at least one of "Zones" or "Individual Mobs".');
                 return;
             }
 
-            this.isRunning = true;
-            this._aborted = false;
-            const runBtn = this.panel.querySelector('#mwi-usim-run');
-            const stopBtn = this.panel.querySelector('#mwi-usim-stop');
-            const progressContainer = this.panel.querySelector('#mwi-usim-progress-container');
-            const progressFill = this.panel.querySelector('#mwi-usim-progress-fill');
-            const progressText = this.panel.querySelector('#mwi-usim-progress-text');
-            const resultsEl = this.panel.querySelector('#mwi-usim-results');
+            const { playerDTOs, selfHrid } = await this._getConfiguredPlayerDTOs();
+            if (!playerDTOs.length) {
+                setStatus('No character data available.');
+                return;
+            }
+
+            this._usimRunning = true;
+            this._usimAborted = false;
+            const runBtn = this.panel.querySelector('#mwi-csim-usim-run');
+            const stopBtn = this.panel.querySelector('#mwi-csim-usim-stop');
+            const progressContainer = this.panel.querySelector('#mwi-csim-usim-progress-container');
+            const progressFill = this.panel.querySelector('#mwi-csim-usim-progress-fill');
+            const progressText = this.panel.querySelector('#mwi-csim-usim-progress-text');
+            const resultsEl = this.panel.querySelector('#mwi-csim-usim-results');
 
             runBtn.disabled = true;
             runBtn.style.opacity = '0.5';
@@ -24645,7 +23598,7 @@
             stopBtn.style.display = '';
             progressContainer.style.display = 'block';
             resultsEl.innerHTML = '';
-            this._renderHistory([]);
+            this._renderUltimateHistory([]);
 
             try {
                 const result = await runUltimateSim({
@@ -24659,7 +23612,9 @@
                     excludeDungeons,
                     includeZones,
                     includeSoloMobs,
-                    isAborted: () => this._aborted,
+                    playerDTOs,
+                    selfHrid,
+                    isAborted: () => this._usimAborted,
                     onProgress: (p) => {
                         const phaseLabel = PHASE_LABELS[p.phase] || p.phase;
                         let percent = 0;
@@ -24672,30 +23627,30 @@
                         }
                         progressFill.style.width = `${percent}%`;
                         progressText.textContent = `${percent}%`;
-                        this._setStatus(`Iteration ${p.iteration + 1}: ${phaseLabel}${detail}...`);
+                        setStatus(`Iteration ${p.iteration + 1}: ${phaseLabel}${detail}...`);
                     },
                 });
 
-                this._lastTopZones = result.history[result.history.length - 1]?.topZones || [];
-                this._lastTopCoffees = result.history[result.history.length - 1]?.topCoffees || [];
-                this._renderHistory(result.history, result);
+                this._usimLastTopZones = result.history[result.history.length - 1]?.topZones || [];
+                this._usimLastTopCoffees = result.history[result.history.length - 1]?.topCoffees || [];
+                this._renderUltimateHistory(result.history, result);
 
                 if (result.reason === 'aborted') {
-                    this._setStatus(`Stopped after ${result.history.length} iteration(s).`);
+                    setStatus(`Stopped after ${result.history.length} iteration(s).`);
                 } else if (result.reason === 'stable') {
-                    this._setStatus(`Converged after ${result.history.length} iteration(s): best zone is stable.`);
+                    setStatus(`Converged after ${result.history.length} iteration(s): best zone is stable.`);
                 } else if (result.reason === 'repeat') {
-                    this._setStatus(`Converged after ${result.history.length} iteration(s): zone cycle detected.`);
+                    setStatus(`Converged after ${result.history.length} iteration(s): zone cycle detected.`);
                 } else if (result.reason === 'max_iterations') {
-                    this._setStatus(`Stopped after reaching the max of ${maxIterations} iterations.`);
+                    setStatus(`Stopped after reaching the max of ${maxIterations} iterations.`);
                 } else {
-                    this._setStatus(`Stopped: ${result.reason}.`);
+                    setStatus(`Stopped: ${result.reason}.`);
                 }
             } catch (error) {
-                console.error('[UltimateSimUI] Run failed:', error);
-                this._setStatus(`Error: ${error.message || 'Unknown error'}`);
+                console.error('[CombatSimUI] Ultimate Sim run failed:', error);
+                setStatus(`Error: ${error.message || 'Unknown error'}`);
             } finally {
-                this.isRunning = false;
+                this._usimRunning = false;
                 runBtn.disabled = false;
                 runBtn.style.opacity = '1';
                 runBtn.style.cursor = 'pointer';
@@ -24705,13 +23660,14 @@
         }
 
         /**
-         * Render the iteration history table (zone tested, food/coffee chosen, best zone found) plus
-         * a sortable top-5-zones table for the most recent iteration's all-zones pass.
+         * Render the Ultimate Sim iteration history table plus the top-5-zones and top-5-coffees
+         * sortable tables for the most recent iteration.
          * @param {Array<Object>} history
-         * @param {Object} [result] - Final result object, if the run has finished
+         * @param {Object} [result]
+         * @private
          */
-        _renderHistory(history, result) {
-            const container = this.panel?.querySelector('#mwi-usim-results');
+        _renderUltimateHistory(history, result) {
+            const container = this.panel?.querySelector('#mwi-csim-usim-results');
             if (!container) return;
 
             if (!history.length) {
@@ -24766,24 +23722,24 @@
             </table>
             ${finalNote}
             <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin:12px 0 6px 0;">Top Zones (latest all-zones pass)</div>
-            <div id="mwi-usim-top-zones"></div>
+            <div id="mwi-csim-usim-top-zones"></div>
             <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin:12px 0 6px 0;">Top Coffees (latest coffee pass)</div>
-            <div id="mwi-usim-top-coffees"></div>
+            <div id="mwi-csim-usim-top-coffees"></div>
         `;
 
-            this._renderTopZonesTable();
-            this._renderTopCoffeesTable();
+            this._renderUsimTopZonesTable();
+            this._renderUsimTopCoffeesTable();
         }
 
         /**
-         * Render the sortable top-5-zones table from the last completed all-zones pass. Re-rendered
-         * in place (without rebuilding the rest of the results panel) when a column header is clicked.
+         * Render the sortable top-5-zones table from the last completed all-zones pass.
+         * @private
          */
-        _renderTopZonesTable() {
-            const container = this.panel?.querySelector('#mwi-usim-top-zones');
+        _renderUsimTopZonesTable() {
+            const container = this.panel?.querySelector('#mwi-csim-usim-top-zones');
             if (!container) return;
 
-            const topZones = this._lastTopZones;
+            const topZones = this._usimLastTopZones;
             if (!topZones.length) {
                 container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No zone results yet.</div>`;
                 return;
@@ -24797,8 +23753,8 @@
                 { key: 'effXpPerHour', label: 'Eff. XP/hr' },
             ];
 
-            const sortCol = this._topSortCol;
-            const sortAsc = this._topSortAsc;
+            const sortCol = this._usimTopSortCol;
+            const sortAsc = this._usimTopSortAsc;
             const sorted = [...topZones].sort((a, b) => {
                 const va = sortCol === 'zone' ? a.zone.name : sortCol === 'tier' ? a.zone.difficultyTier : a[sortCol];
                 const vb = sortCol === 'zone' ? b.zone.name : sortCol === 'tier' ? b.zone.difficultyTier : b[sortCol];
@@ -24841,26 +23797,26 @@
             container.querySelectorAll('th[data-sort-col]').forEach((th) => {
                 th.addEventListener('click', () => {
                     const col = th.getAttribute('data-sort-col');
-                    if (this._topSortCol === col) {
-                        this._topSortAsc = !this._topSortAsc;
+                    if (this._usimTopSortCol === col) {
+                        this._usimTopSortAsc = !this._usimTopSortAsc;
                     } else {
-                        this._topSortCol = col;
-                        this._topSortAsc = col === 'zone';
+                        this._usimTopSortCol = col;
+                        this._usimTopSortAsc = col === 'zone';
                     }
-                    this._renderTopZonesTable();
+                    this._renderUsimTopZonesTable();
                 });
             });
         }
 
         /**
-         * Render the sortable top-5-coffee-combos table from the last completed coffee pass. Lets you
-         * see runner-up combos when the top "Best Mixed" pick isn't the one you actually want.
+         * Render the sortable top-5-coffee-combos table from the last completed coffee pass.
+         * @private
          */
-        _renderTopCoffeesTable() {
-            const container = this.panel?.querySelector('#mwi-usim-top-coffees');
+        _renderUsimTopCoffeesTable() {
+            const container = this.panel?.querySelector('#mwi-csim-usim-top-coffees');
             if (!container) return;
 
-            const topCoffees = this._lastTopCoffees;
+            const topCoffees = this._usimLastTopCoffees;
             if (!topCoffees.length) {
                 container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No coffee results yet.</div>`;
                 return;
@@ -24873,8 +23829,8 @@
                 { key: 'mixedScore', label: 'Eff. XP/hr' },
             ];
 
-            const sortCol = this._coffeeSortCol === 'score' ? 'score' : this._coffeeSortCol;
-            const sortAsc = this._coffeeSortAsc;
+            const sortCol = this._usimCoffeeSortCol === 'score' ? 'score' : this._usimCoffeeSortCol;
+            const sortAsc = this._usimCoffeeSortAsc;
             const sorted = [...topCoffees].sort((a, b) => {
                 const va = sortCol === 'label' ? a.label : a[sortCol];
                 const vb = sortCol === 'label' ? b.label : b[sortCol];
@@ -24884,7 +23840,7 @@
 
             const headerCells = cols
                 .map((col) => {
-                    const arrow = this._coffeeSortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+                    const arrow = this._usimCoffeeSortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
                     const align = col.key === 'label' ? 'left' : 'right';
                     return `<th data-sort-col="${col.key}" style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${align}; border-bottom:1px solid #333; cursor:pointer; user-select:none;">${col.label}${arrow}</th>`;
                 })
@@ -24916,67 +23872,476 @@
             container.querySelectorAll('th[data-sort-col]').forEach((th) => {
                 th.addEventListener('click', () => {
                     const col = th.getAttribute('data-sort-col');
-                    if (this._coffeeSortCol === col) {
-                        this._coffeeSortAsc = !this._coffeeSortAsc;
+                    if (this._usimCoffeeSortCol === col) {
+                        this._usimCoffeeSortAsc = !this._usimCoffeeSortAsc;
                     } else {
-                        this._coffeeSortCol = col;
-                        this._coffeeSortAsc = col === 'label';
+                        this._usimCoffeeSortCol = col;
+                        this._usimCoffeeSortAsc = col === 'label';
                     }
-                    this._renderTopCoffeesTable();
+                    this._renderUsimTopCoffeesTable();
                 });
             });
         }
 
+        /**
+         * Toggle panel visibility.
+         */
         toggle() {
-            if (!this.panel) this.buildPanel();
-            this.panel.style.display = this.panel.style.display === 'none' ? 'flex' : 'none';
-            if (this.panel.style.display === 'flex') {
+            if (!this.panel) return;
+            const visible = this.panel.style.display !== 'none';
+            this.panel.style.display = visible ? 'none' : 'flex';
+            if (!visible) {
                 bringPanelToFront(this.panel);
-                this._populateZones();
+                this.populateZones();
+                this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
+                this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
+                this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
+                if (!this._editor.isInitialized()) {
+                    this._editor.initEditor();
+                }
             }
         }
 
+        /**
+         * Remove the panel and clean up.
+         */
         destroy() {
+            if (this.elapsedTimer) {
+                clearInterval(this.elapsedTimer);
+                this.elapsedTimer = null;
+            }
             cancelSimulation();
             cancelAllZonesSimulation();
+            this._foodAborted = true;
+            this._coffeeAborted = true;
+            this._usimAborted = true;
             if (this.panel) {
                 unregisterFloatingPanel(this.panel);
                 this.panel.remove();
                 this.panel = null;
             }
+            this.isRunning = false;
+
+            // Clear cached character data so next open loads fresh state
+            if (this._editor) this._editor.reset();
+            this._lastSimResult = null;
+            this._lastSimHours = null;
+            this._lastGameData = null;
+            this._simHistory = [];
+            this._comparisonIndex = null;
+            this._comparisonBaseline = null;
+            this._comparisonSlots = [];
+            this._activeDetailIndex = null;
+            this._allZonesResults = null;
+            this._seekResults = null;
+        }
+
+        /**
+         * Get the sell price for an item based on the global pricing mode.
+         * @param {Object} priceData - { bid, ask } from marketAPI
+         * @returns {number}
+         * @private
+         */
+        _getSellPrice(priceData) {
+            if (!priceData) return 0;
+            const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
+            // conservative/patientBuy → bid; hybrid/optimistic → ask
+            if (mode === 'conservative' || mode === 'patientBuy') {
+                return priceData.bid > 0 ? priceData.bid : 0;
+            }
+            return priceData.ask > 0 ? priceData.ask : 0;
+        }
+
+        /**
+         * Get the buy price for an item based on the global pricing mode.
+         * @param {Object} priceData - { bid, ask } from marketAPI
+         * @returns {number}
+         * @private
+         */
+        _getBuyPrice(priceData) {
+            if (!priceData) return 0;
+            const mode = config.getSettingValue('profitCalc_pricingMode', 'hybrid');
+            // optimistic/patientBuy → bid; conservative/hybrid → ask
+            if (mode === 'optimistic' || mode === 'patientBuy') {
+                return priceData.bid > 0 ? priceData.bid : 0;
+            }
+            return priceData.ask > 0 ? priceData.ask : 0;
+        }
+
+        /**
+         * Populate the player selector dropdown in the Upgrade tab.
+         * @private
+         */
+        _populateUpgradePlayerSelector() {
+            const select = this.panel?.querySelector('#mwi-csim-upgrade-player');
+            if (!select) return;
+
+            const playerInfo = this._editor?.getPlayerInfo() || [];
+            select.innerHTML = '';
+            playerInfo.forEach((p, i) => {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = p.name || `Player ${i + 1}`;
+                select.appendChild(option);
+            });
+
+            if (playerInfo.length === 0) {
+                const option = document.createElement('option');
+                option.value = 0;
+                option.textContent = 'Player 1';
+                select.appendChild(option);
+            }
+        }
+
+        /**
+         * Set default ability target level input to increment mode with value 5.
+         * @private
+         */
+        _setDefaultAbilityTargetLevel() {
+            const typeSelect = this.panel.querySelector('#mwi-csim-upgrade-level-type');
+            const input = this.panel.querySelector('#mwi-csim-upgrade-target-level');
+            if (!input) return;
+            if (typeSelect) typeSelect.value = 'increment';
+            input.value = '5';
+            input.placeholder = '+5';
+            input.title = 'Number of levels to add to each ability';
+        }
+
+        /**
+         * Run upgrade analysis when Analyze button is clicked.
+         * @private
+         */
+        async _onUpgradeAnalyze() {
+            const zoneHrid = this.panel.querySelector('#mwi-csim-zone')?.value;
+            const difficultyTier = parseInt(this.panel.querySelector('#mwi-csim-tier')?.value) || 0;
+            const hours = Math.min(
+                10000,
+                Math.max(
+                    1,
+                    parseInt(this.panel.querySelector('#mwi-csim-hours')?.value) ||
+                        config.getSettingValue('combatSim_defaultHours', 100)
+                )
+            );
+            const playerIndex = parseInt(this.panel.querySelector('#mwi-csim-upgrade-player')?.value) || 0;
+            const upgradeMode = this.panel.querySelector('#mwi-csim-upgrade-mode')?.value || 'equipment';
+            const abilityLevelType = this.panel.querySelector('#mwi-csim-upgrade-level-type')?.value || 'increment';
+            const targetLevelInput = this.panel.querySelector('#mwi-csim-upgrade-target-level')?.value;
+            // Budget mode takes millions with decimals; increment/target are integer levels
+            // (floor any decimal the user typed, e.g. via scroll-wheel on the number input).
+            const abilityTargetLevel =
+                abilityLevelType === 'budget' ? 0 : Math.min(200, Math.floor(parseFloat(targetLevelInput)) || 0);
+            const abilityLevelBudget =
+                abilityLevelType === 'budget' && targetLevelInput && parseFloat(targetLevelInput) > 0
+                    ? parseFloat(targetLevelInput) * 1_000_000
+                    : null;
+            const swapBudgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget')?.value;
+            const abilitySwapBudget =
+                swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : null;
+            const equipmentBudget =
+                swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : 1_000_000;
+            const levelBoostInput = this.panel.querySelector('#mwi-csim-upgrade-level-boost')?.value;
+            const equipmentLevelBoost = Math.max(0, Math.floor(parseFloat(levelBoostInput)) || 0);
+
+            if (!zoneHrid) {
+                this._setStatus('Select a zone in Configure tab first.');
+                return;
+            }
+
+            const gameData = buildGameDataPayload();
+            if (!gameData) {
+                this._setStatus('No game data available.');
+                return;
+            }
+
+            // Get player DTOs (edited or live)
+            let playerDTOs;
+            const editedDTOs = this._editor?.getEditedDTOs();
+            if (editedDTOs) {
+                playerDTOs = Object.values(editedDTOs);
+            } else {
+                const result = await buildAllPlayerDTOs();
+                playerDTOs = result.players;
+            }
+
+            if (!playerDTOs?.length || !playerDTOs[playerIndex]) {
+                this._setStatus('No player data available. Configure a simulation first.');
+                return;
+            }
+
+            // Show progress, hide results
+            const progressEl = this.panel.querySelector('#mwi-csim-upgrade-progress');
+            const resultsEl = this.panel.querySelector('#mwi-csim-upgrade-results');
+            const runBtn = this.panel.querySelector('#mwi-csim-upgrade-run');
+            const stopBtn = this.panel.querySelector('#mwi-csim-upgrade-stop');
+            progressEl.style.display = 'block';
+            resultsEl.innerHTML = '';
+            runBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            this._upgradeAborted = false;
+
+            const communityBuffs = getCommunityBuffs();
+
+            try {
+                const skipBackSlot = this.panel.querySelector('#mwi-csim-upgrade-skip-back')?.checked || false;
+                const results = await runUpgradeAnalysis(
+                    {
+                        playerDTOs,
+                        playerIndex,
+                        zoneHrid,
+                        difficultyTier,
+                        hours,
+                        communityBuffs,
+                        upgradeMode,
+                        abilityLevelType,
+                        abilityTargetLevel,
+                        abilityLevelBudget,
+                        abilitySwapBudget,
+                        equipmentBudget,
+                        equipmentLevelBoost,
+                        skipBackSlot,
+                    },
+                    ({ current, total, description }) => {
+                        if (this._upgradeAborted) return;
+                        const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');
+                        const text = this.panel.querySelector('#mwi-csim-upgrade-progress-text');
+                        const pct = Math.round((current / total) * 100);
+                        if (fill) fill.style.width = pct + '%';
+                        if (text) text.textContent = `${current} / ${total}`;
+                        this._setStatus(description);
+                    },
+                    { abortSignal: () => this._upgradeAborted }
+                );
+
+                if (this._upgradeAborted) {
+                    this._setStatus('Analysis cancelled.');
+                } else {
+                    this._renderUpgradeResults(results);
+                    this._setStatus(`Analysis complete. ${results.results.length} upgrades evaluated.`);
+                }
+            } catch (error) {
+                console.error('[CombatSimUI] Upgrade analysis failed:', error);
+                this._setStatus('Analysis failed: ' + error.message);
+            } finally {
+                progressEl.style.display = 'none';
+                runBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+            }
+        }
+
+        /**
+         * Render upgrade analysis results as a flat, sortable table.
+         * @param {Object} results - { baseline, results: [{candidate, cost, metrics, deltas, goldPer}] }
+         * @private
+         */
+        _renderUpgradeResults(results) {
+            const container = this.panel.querySelector('#mwi-csim-upgrade-results');
+            if (!container) return;
+
+            if (!results.results.length) {
+                container.innerHTML =
+                    '<div style="color:#888; text-align:center; padding:20px;">No upgrade candidates found. Ensure equipment is configured.</div>';
+                return;
+            }
+
+            this._upgradeResults = results;
+            this._displayUpgradeResults();
+        }
+
+        /**
+         * @private
+         */
+        _displayUpgradeResults() {
+            const results = this._upgradeResults;
+            const container = this.panel.querySelector('#mwi-csim-upgrade-results');
+            if (!container || !results) return;
+
+            const baseline = results.baseline;
+
+            const cols = [
+                { key: 'description', label: 'Upgrade' },
+                { key: 'cost', label: 'Cost' },
+                { key: 'goldDps', label: 'Gold/0.1% DPS' },
+                { key: 'goldXp', label: 'Gold/0.1% EXP' },
+                { key: 'goldProfit', label: 'Gold/0.1% Profit' },
+                { key: 'dps', label: 'DPS' },
+                { key: 'dpsDeltaPct', label: 'DPS Δ%' },
+                { key: 'xpPerHour', label: 'XP/hr' },
+                { key: 'xpDeltaPct', label: 'XP/hr Δ%' },
+                { key: 'profitPerHour', label: 'Profit/hr' },
+                { key: 'profitDeltaPct', label: 'Profit/hr Δ%' },
+                { key: 'encountersPerHour', label: 'EPH' },
+                { key: 'deathsPerHour', label: 'DPH' },
+            ];
+
+            const rows = results.results.map((r) => ({
+                description: r.candidate.description,
+                cost: r.cost,
+                goldDps: r.goldPer.dps,
+                goldXp: r.goldPer.xp,
+                goldProfit: r.goldPer.profit,
+                dps: r.metrics.dps,
+                dpsDeltaPct: r.deltas.dps,
+                xpPerHour: r.metrics.xpPerHour,
+                xpDeltaPct: r.deltas.xp,
+                profitPerHour: r.metrics.profitPerHour,
+                profitDeltaPct: r.deltas.profit,
+                encountersPerHour: r.metrics.encountersPerHour,
+                deathsPerHour: r.metrics.deathsPerHour,
+            }));
+
+            // Sort
+            if (this._upgradeSortCol) {
+                const col = this._upgradeSortCol;
+                const asc = this._upgradeSortAsc;
+                rows.sort((a, b) => {
+                    const va = a[col] ?? 0;
+                    const vb = b[col] ?? 0;
+                    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+                    if (va === Infinity && vb === Infinity) return 0;
+                    if (va === Infinity) return asc ? 1 : -1;
+                    if (vb === Infinity) return asc ? -1 : 1;
+                    return asc ? va - vb : vb - va;
+                });
+            }
+
+            // Best (lowest non-Infinity) value per gold/0.1% column, for highlighting
+            const bestVals = {};
+            for (const key of ['goldDps', 'goldXp', 'goldProfit']) {
+                let best = Infinity;
+                for (const row of rows) {
+                    if (row[key] < best) best = row[key];
+                }
+                bestVals[key] = best;
+            }
+
+            const thStyle =
+                'padding:4px 6px; text-align:left; cursor:pointer; white-space:nowrap; border-bottom:1px solid #333; color:#888; font-weight:600; user-select:none;';
+            const tdStyle = 'padding:4px 6px; border-bottom:1px solid #1a1a2e; white-space:nowrap;';
+            const bestColor = '#4caf50';
+
+            const headerCells = cols
+                .map((col) => {
+                    const arrow = this._upgradeSortCol === col.key ? (this._upgradeSortAsc ? ' ▲' : ' ▼') : '';
+                    return `<th data-col="${col.key}" style="${thStyle}">${col.label}${arrow}</th>`;
+                })
+                .join('');
+
+            const fmtGoldPer = (val) => (val === Infinity ? '—' : formatters_js.formatKMB(val));
+            const fmtPct = (val) => (val >= 0 ? '+' : '') + val.toFixed(2) + '%';
+            const deltaColor = (val) => (val > 0.05 ? '#4caf50' : val < -0.05 ? '#f44336' : '#888');
+
+            const bodyRows = rows
+                .map((row) => {
+                    const rowColor = row.dpsDeltaPct > 0 || row.profitDeltaPct > 0 ? '#e0e0e0' : '#888';
+                    const cells = cols
+                        .map((col) => {
+                            let display;
+                            let style = tdStyle;
+                            switch (col.key) {
+                                case 'description':
+                                    display = row.description;
+                                    break;
+                                case 'cost':
+                                    display = formatters_js.formatKMB(row.cost);
+                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                    break;
+                                case 'goldDps':
+                                case 'goldXp':
+                                case 'goldProfit':
+                                    display = fmtGoldPer(row[col.key]);
+                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                    if (row[col.key] === bestVals[col.key] && bestVals[col.key] !== Infinity) {
+                                        style += ` color:${bestColor}; font-weight:700;`;
+                                    }
+                                    break;
+                                case 'dpsDeltaPct':
+                                case 'xpDeltaPct':
+                                case 'profitDeltaPct':
+                                    display = fmtPct(row[col.key]);
+                                    style += ` text-align:right; font-variant-numeric:tabular-nums; color:${deltaColor(row[col.key])};`;
+                                    break;
+                                case 'encountersPerHour':
+                                case 'deathsPerHour':
+                                    display = row[col.key].toFixed(1);
+                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                                    break;
+                                default:
+                                    display = formatters_js.formatKMB(row[col.key]);
+                                    style += ' text-align:right; font-variant-numeric:tabular-nums;';
+                            }
+                            return `<td style="${style}">${display}</td>`;
+                        })
+                        .join('');
+                    return `<tr style="color:${rowColor};">${cells}</tr>`;
+                })
+                .join('');
+
+            container.innerHTML = `
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; font-size:11px; min-width:900px;">
+                    <thead><tr>${headerCells}</tr></thead>
+                    <tbody>${bodyRows}</tbody>
+                </table>
+            </div>
+            <div style="margin-top:6px; color:#666; font-size:10px;">
+                Baseline: DPS ${formatters_js.formatKMB(baseline.dps)} | EXP ${formatters_js.formatKMB(baseline.xpPerHour)} | Profit ${formatters_js.formatKMB(baseline.profitPerHour)} | EPH ${baseline.encountersPerHour.toFixed(1)} | DPH ${baseline.deathsPerHour.toFixed(1)}
+            </div>
+        `;
+
+            container.querySelectorAll('th[data-col]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const col = th.dataset.col;
+                    if (this._upgradeSortCol === col) {
+                        this._upgradeSortAsc = !this._upgradeSortAsc;
+                    } else {
+                        this._upgradeSortCol = col;
+                        this._upgradeSortAsc = col === 'description';
+                    }
+                    this._displayUpgradeResults();
+                });
+            });
         }
     }
 
-    const ultimateSimUI = new UltimateSimUI();
+    const combatSimUI = new CombatSimUI();
 
     /**
-     * Ultimate Sim Feature Module
-     * Injects an "Ultimate Sim" button next to the Combat Sim button that loops food optimization,
-     * coffee optimization, and an all-zones simulation until the best zone stabilizes.
+     * Combat Simulator Feature Module
+     * Integrates the combat simulator engine into the Cheezasha UI
      */
 
 
-    const BUTTON_CLASS$1 = 'cheezasha-ultimate-sim-btn';
+    const BUTTON_CLASS$1 = 'cheezasha-combat-sim-btn';
 
-    class UltimateSim {
+    class CombatSim {
         constructor() {
             this.isInitialized = false;
             this.unregisterHandlers = [];
         }
 
+        /**
+         * Initialize the combat simulator feature
+         */
         initialize() {
-            if (this.isInitialized) return;
-            if (!config.getSetting('combatSim')) return;
+            if (this.isInitialized) {
+                return;
+            }
+
+            if (!config.getSetting('combatSim')) {
+                return;
+            }
 
             this.isInitialized = true;
 
-            ultimateSimUI.buildPanel();
+            combatSimUI.buildPanel();
 
-            const unregister = domObserver.onClass('UltimateSimButton', 'CombatPanel_combatPanel', (node) => {
+            // Watch for the combat panel appearing and inject the button
+            const unregister = domObserver.onClass('CombatSimButton', 'CombatPanel_combatPanel', (node) => {
                 this._injectButton(node);
             });
             this.unregisterHandlers.push(unregister);
 
+            // Try to inject into an already-visible combat panel
             const existingPanel = document.querySelector('[class*="CombatPanel_combatPanel"]');
             if (existingPanel) {
                 this._injectButton(existingPanel);
@@ -24984,7 +24349,7 @@
         }
 
         /**
-         * Inject the Ultimate Sim toggle button into a combat panel, next to the other Cheezasha tabs.
+         * Inject the Combat Sim toggle button into a combat panel
          * @param {HTMLElement} combatPanel - The combat panel element
          */
         _injectButton(combatPanel) {
@@ -24992,37 +24357,47 @@
                 return;
             }
 
+            // Find the tabs container within the combat panel
             const tabsContainer = combatPanel.querySelector('[class*="TabsComponent_tabsContainer"] > div > div > div');
-            if (!tabsContainer) return;
+
+            if (!tabsContainer) {
+                return;
+            }
 
             const button = document.createElement('div');
             button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 ' + BUTTON_CLASS$1;
-            button.textContent = 'Ultimate Sim';
+            button.textContent = 'Combat Sim';
             button.style.cssText =
-                'cursor: pointer; background: linear-gradient(135deg, #a78bfa, #6d28d9); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
+                'cursor: pointer; background: linear-gradient(135deg, #3a7bd5, #5f3dc4); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
 
             button.addEventListener('click', () => {
-                ultimateSimUI.toggle();
+                combatSimUI.toggle();
             });
 
             tabsContainer.appendChild(button);
         }
 
+        /**
+         * Disable the combat simulator feature and clean up
+         */
         disable() {
             for (const unregister of this.unregisterHandlers) {
                 unregister();
             }
             this.unregisterHandlers = [];
 
-            ultimateSimUI.destroy();
+            cancelSimulation();
+            cancelAllZonesSimulation();
+            combatSimUI.destroy();
 
+            // Remove all injected buttons
             document.querySelectorAll(`.${BUTTON_CLASS$1}`).forEach((btn) => btn.remove());
 
             this.isInitialized = false;
         }
     }
 
-    const ultimateSim = new UltimateSim();
+    const combatSim = new CombatSim();
 
     /**
      * Labyrinth Level Finder
@@ -33004,9 +32379,6 @@ self.onmessage = function (e) {
         combatScore,
         characterCardButton,
         combatSim,
-        optimizeCoffee,
-        optimizeFood,
-        ultimateSim,
         labSim,
     };
 
