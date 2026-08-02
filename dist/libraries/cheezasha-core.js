@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.2.0
+ * Version: 3.2.1
  * License: CC-BY-NC-SA-4.0
  */
 
