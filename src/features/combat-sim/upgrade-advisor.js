@@ -26,15 +26,6 @@ const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
 /**
- * Slots where damage-style role grouping (melee_stab/ranged/magic/etc.) actually
- * matters, since a stab weapon isn't a valid replacement for a ranged one. Armor
- * slots are NOT grouped by role — a defense-leaning boot and an accuracy-leaning
- * boot are both valid boots, and the sim (not a stat heuristic) should decide which
- * is actually better.
- */
-const WEAPON_SLOTS = new Set(['/equipment_types/main_hand', '/equipment_types/two_hand', '/equipment_types/off_hand']);
-
-/**
  * Get the next ability level target (next multiple of 10) above the current level.
  * Used as fallback when no explicit target level is provided.
  * @param {number} currentLevel - Current ability level
@@ -544,9 +535,56 @@ function getItemRole(combatStats) {
 }
 
 /**
- * Get equipment tier progression for a given slot, grouped by role.
+ * Sum damage + accuracy per combat style (melee merges stab/slash/smash, since those
+ * are all mutually valid comparisons for a melee player — only magic/ranged/melee are
+ * mutually exclusive combat styles).
+ * @param {Object} combatStats - equipmentDetail.combatStats
+ * @returns {{magic: number, ranged: number, melee: number}}
+ */
+function getStyleValues(combatStats) {
+    if (!combatStats) return { magic: 0, ranged: 0, melee: 0 };
+    const magic = (combatStats.magicDamage || 0) + (combatStats.magicAccuracy || 0);
+    const ranged = (combatStats.rangedDamage || 0) + (combatStats.rangedAccuracy || 0);
+    const melee =
+        (combatStats.stabDamage || 0) +
+        (combatStats.slashDamage || 0) +
+        (combatStats.smashDamage || 0) +
+        (combatStats.stabAccuracy || 0) +
+        (combatStats.slashAccuracy || 0) +
+        (combatStats.smashAccuracy || 0);
+    return { magic, ranged, melee };
+}
+
+/**
+ * Whether a candidate item is a valid style-compatible replacement for the currently
+ * equipped item. Neutral items (no damage/accuracy in any style — e.g. pure defensive
+ * gear) are always compatible. Otherwise the candidate must be positive on at least one
+ * of the player's currently-active styles and not negative on any of them, so e.g. a
+ * ranged player never sees magic/melee-only items, but hybrid items showing +accuracy
+ * to the player's style still surface even if they also carry stats for other styles.
+ * @param {Object} currentStats - equipmentDetail.combatStats of the currently equipped item
+ * @param {Object} candidateStats - equipmentDetail.combatStats of the candidate item
+ * @returns {boolean}
+ */
+function isStyleCompatible(currentStats, candidateStats) {
+    const cur = getStyleValues(currentStats);
+    const activeStyles = ['magic', 'ranged', 'melee'].filter((s) => cur[s] > 0);
+    if (activeStyles.length === 0) return true;
+
+    const cand = getStyleValues(candidateStats);
+    const candNeutral = cand.magic === 0 && cand.ranged === 0 && cand.melee === 0;
+    if (candNeutral) return true;
+
+    for (const s of activeStyles) {
+        if (cand[s] < 0) return false;
+    }
+    return activeStyles.some((s) => cand[s] > 0);
+}
+
+/**
+ * Get equipment tier progression for a given slot.
  * @param {Object} gameData - Game data from buildGameDataPayload()
- * @returns {Object} Map of "slot|role" → sorted item entries (weakest to strongest)
+ * @returns {Object} Map of slot → sorted item entries (weakest to strongest)
  */
 export function getEquipmentTierProgression(gameData) {
     const progression = {};
@@ -557,8 +595,7 @@ export function getEquipmentTierProgression(gameData) {
         if (!hasCombatStats(item)) continue;
 
         const slot = item.equipmentDetail.type;
-        const role = getItemRole(item.equipmentDetail.combatStats);
-        const key = WEAPON_SLOTS.has(slot) ? `${slot}|${role}` : slot;
+        const key = slot;
         if (!progression[key]) {
             progression[key] = [];
         }
@@ -767,6 +804,28 @@ function getSameLineAncestors(targetHrid, directUpgradeMap) {
 }
 
 /**
+ * Given a set of candidate items for the same slot, drop any item that has a direct
+ * single-item upgrade target also present in the set — keeping only the furthest tier
+ * reachable within each same-line chain. Without this, e.g. Cheese/Verdant/Azure Chest
+ * would all show up as separate candidates when only Azure (the best reachable one) is
+ * actually worth suggesting.
+ * @param {Array<{hrid: string}>} items
+ * @param {Map<string, Set<string>>} directUpgradeMap
+ * @returns {Array<{hrid: string}>}
+ */
+function filterToLatestInChain(items, directUpgradeMap) {
+    const hridSet = new Set(items.map((item) => item.hrid));
+    return items.filter((item) => {
+        const upgrades = directUpgradeMap.get(item.hrid);
+        if (!upgrades) return true;
+        for (const upgradeHrid of upgrades) {
+            if (hridSet.has(upgradeHrid)) return false;
+        }
+        return true;
+    });
+}
+
+/**
  * Get the primary damage style of an item's combat stats.
  * @param {Object} combatStats - Item combat stats
  * @returns {string} 'slash', 'stab', 'smash', 'ranged', 'magic', or 'unknown'
@@ -885,6 +944,13 @@ export function generateCandidates(
         const directUpgradeMap = buildDirectUpgradeMap(gameData);
         const skillLevelMap = getCharacterSkillLevelMap();
 
+        // Combat style is set by the equipped weapon, not by whatever's currently in
+        // each armor/off-hand slot — e.g. boots with +magic accuracy should be filtered
+        // out for a melee player even though the boots themselves aren't a "weapon".
+        const weaponEquip =
+            playerDTO.equipment['/equipment_types/two_hand'] || playerDTO.equipment['/equipment_types/main_hand'];
+        const weaponStats = weaponEquip ? gameData.itemDetailMap[weaponEquip.hrid]?.equipmentDetail?.combatStats : null;
+
         for (const [slot, equip] of Object.entries(playerDTO.equipment)) {
             if (!equip) continue;
 
@@ -912,73 +978,64 @@ export function generateCandidates(
                 });
             }
 
-            // Tier/replacement upgrades: every other item in the same slot (weapon slots
-            // are further split by damage-style role, since e.g. a stab weapon isn't a
-            // valid replacement for a ranged one — see WEAPON_SLOTS) that meets skill
+            // Tier/replacement upgrades: every other item in the same slot that meets skill
             // requirements. Not filtered by item level, since a lower-item-level item
-            // (e.g. Shoebill vs. Burble Boots) can still be a real upgrade. Only exclude
-            // items that are a strictly-inferior earlier tier of the SAME crafting line
-            // as the item currently equipped (e.g. Cheese Boots is objectively worse
-            // than Verdant Boots because it upgrades directly into it).
-            const role = getItemRole(itemDetails?.equipmentDetail?.combatStats);
-            const isWeaponSlot = WEAPON_SLOTS.has(slot);
-            const slotKey = isWeaponSlot ? `${slot}|${role}` : slot;
-            const slotItems = tierProgression[slotKey];
+            // (e.g. Shoebill vs. Burble Boots) can still be a real upgrade. Filtered for
+            // damage-style compatibility against the equipped weapon (see isStyleCompatible)
+            // so e.g. a melee player never sees magic/ranged-only items, and deduped so only
+            // the furthest-reachable tier of each same-line crafting chain is kept (e.g.
+            // Cheese → Verdant → Azure Chest only surfaces Azure, not all three).
+            const slotItems = tierProgression[slot];
             const currentName = itemDetails?.name || currentHrid.split('/').pop();
             const sameLineAncestors = getSameLineAncestors(currentHrid, directUpgradeMap);
-            const candidateHrids = new Set();
+            const seenHrids = new Set();
+            const rawCandidates = [];
 
             if (slotItems) {
                 for (const item of slotItems) {
                     if (item.hrid === currentHrid) continue;
                     if (sameLineAncestors.has(item.hrid)) continue;
                     if (!meetsItemLevelRequirements(item.hrid, skillLevelMap, gameData)) continue;
+                    const candidateStats = gameData.itemDetailMap[item.hrid]?.equipmentDetail?.combatStats;
+                    if (!isStyleCompatible(weaponStats, candidateStats)) continue;
 
-                    const upgradeName = item.name || item.hrid.split('/').pop();
-                    const upgradeLevel = getBudgetMatchedItemLevel(item.hrid, enhancementBudget);
-                    candidates.push({
-                        slot,
-                        currentHrid,
-                        currentLevel,
-                        upgradeHrid: item.hrid,
-                        upgradeLevel,
-                        description: `${currentName} → ${upgradeName} (+${upgradeLevel})`,
-                        type: 'tier',
-                    });
-                    candidateHrids.add(item.hrid);
+                    seenHrids.add(item.hrid);
+                    rawCandidates.push({ hrid: item.hrid, name: item.name });
                 }
             }
 
             // Also walk the crafting-chain upgradeMap for direct upgrade-action targets
-            // (e.g. refined/★ variants) at the same item level, which the role-grouped
+            // (e.g. refined/★ variants) at the same item level, which the tier
             // progression above (itemLevel-gated) wouldn't otherwise surface.
             const upgrades = upgradeMap.get(currentHrid);
             if (upgrades) {
                 for (const upgradeHrid of upgrades) {
-                    if (candidateHrids.has(upgradeHrid)) continue;
+                    if (seenHrids.has(upgradeHrid)) continue;
                     if (upgradeHrid === currentHrid) continue;
                     const upgradeItem = gameData.itemDetailMap[upgradeHrid];
                     if (!upgradeItem?.equipmentDetail) continue;
                     if (upgradeItem.equipmentDetail.type !== slot) continue;
-                    if (isWeaponSlot) {
-                        const upgradeRole = getItemRole(upgradeItem.equipmentDetail?.combatStats);
-                        if (upgradeRole !== role) continue;
-                    }
+                    if (!isStyleCompatible(weaponStats, upgradeItem.equipmentDetail?.combatStats)) continue;
                     if (!meetsItemLevelRequirements(upgradeHrid, skillLevelMap, gameData)) continue;
 
-                    const upgradeName = upgradeItem.name || upgradeHrid.split('/').pop();
-                    const upgradeLevel = getBudgetMatchedItemLevel(upgradeHrid, enhancementBudget);
-                    candidates.push({
-                        slot,
-                        currentHrid,
-                        currentLevel,
-                        upgradeHrid,
-                        upgradeLevel,
-                        description: `${currentName} → ${upgradeName} (+${upgradeLevel})`,
-                        type: 'tier',
-                    });
-                    candidateHrids.add(upgradeHrid);
+                    seenHrids.add(upgradeHrid);
+                    rawCandidates.push({ hrid: upgradeHrid, name: upgradeItem.name });
                 }
+            }
+
+            const finalCandidates = filterToLatestInChain(rawCandidates, directUpgradeMap);
+            for (const cand of finalCandidates) {
+                const upgradeName = cand.name || cand.hrid.split('/').pop();
+                const upgradeLevel = getBudgetMatchedItemLevel(cand.hrid, enhancementBudget);
+                candidates.push({
+                    slot,
+                    currentHrid,
+                    currentLevel,
+                    upgradeHrid: cand.hrid,
+                    upgradeLevel,
+                    description: `${currentName} → ${upgradeName} (+${upgradeLevel})`,
+                    type: 'tier',
+                });
             }
         }
 
