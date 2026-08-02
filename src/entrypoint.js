@@ -628,6 +628,13 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'skillOptimizerPopup',
+            name: 'Skill Optimizer Popup',
+            category: 'Skills',
+            module: UI.skillOptimizerPopup,
+            async: false,
+        },
+        {
             key: 'housePanelObserver',
             name: 'House Panel Observer',
             category: 'House',
@@ -702,6 +709,13 @@ function registerFeatures() {
             name: 'Enhancement XPH Calculator',
             category: 'Enhancement',
             module: UI.xphCalculator,
+            async: false,
+        },
+        {
+            key: 'enhancementProfitCalc',
+            name: 'Enhancement Optimizer',
+            category: 'Enhancement',
+            module: UI.profitCalculator,
             async: false,
         },
         {

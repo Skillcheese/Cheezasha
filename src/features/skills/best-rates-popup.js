@@ -77,16 +77,20 @@ function computeEffectiveXpRates(rates, globalBestProfit) {
 }
 
 /**
- * Score actions on both profit/hr and XP/hr at once, anchored to the best-profit action's own
- * numbers: an action's score is (its profit / best profit) + (its XP / best profit's XP). A
- * 5% profit loss paired with a 10% XP gain over the best-profit action nets a higher score and
- * wins. Evaluates each action under both the profit-optimal and XP-optimal tea combos and keeps
- * whichever combo scores higher per action, since a player could equip either.
+ * Score actions on both profit/hr and gold-neutral Eff. XP/hr at once, anchored to the
+ * best-profit action's own numbers: an action's score is (its profit / best profit) +
+ * (its Eff. XP / best profit's Eff. XP). Using Eff. XP/hr rather than raw XP/hr (see
+ * {@link computeEffectiveXpRates}) means an action that loses a huge amount of gold has its
+ * XP contribution properly diluted first, so it can no longer out-score genuinely profitable
+ * options just by having a large raw XP number. Evaluates each action under both the
+ * profit-optimal and XP-optimal tea combos and keeps whichever combo scores higher per action,
+ * since a player could equip either.
  * @param {Array} goldRates - getSkillActionRates(..., 'gold') result
  * @param {Array} xpRates - getSkillActionRates(..., 'xp') result
+ * @param {number} globalBestProfit - Best profit/hr across all skills, from getGlobalBestProfitPerHour()
  * @returns {Array} one best-scoring entry per action, with an added balancedScore field
  */
-function computeBalancedRates(goldRates, xpRates) {
+function computeBalancedRates(goldRates, xpRates, globalBestProfit) {
     const profitable = goldRates.filter((r) => r.profitPerHour > 0);
     if (profitable.length === 0) return [];
 
@@ -98,9 +102,9 @@ function computeBalancedRates(goldRates, xpRates) {
     const bestProfitExp = bestProfitEntry.xpPerHour;
 
     const variants = [...goldRates, ...xpRates].filter((r) => r.xpPerHour > 0);
-    const scored = variants.map((r) => ({
+    const scored = computeEffectiveXpRates(variants, globalBestProfit).map((r) => ({
         ...r,
-        balancedScore: r.profitPerHour / bestProfit + (bestProfitExp > 0 ? r.xpPerHour / bestProfitExp : 0),
+        balancedScore: r.profitPerHour / bestProfit + (bestProfitExp > 0 ? r.effectiveXpPerHour / bestProfitExp : 0),
     }));
 
     const bestByHrid = new Map();
@@ -306,7 +310,11 @@ class BestRatesPopup {
                 .sort((a, b) => b.profitPerHour - a.profitPerHour)
                 .slice(0, TOP_N);
 
-            body.appendChild(this.renderSkillSection(skill, top, (r) => `${formatKMB(r.profitPerHour, 1)}/hr`));
+            body.appendChild(
+                this.renderSkillSection(skill, top, (r) => `${formatKMB(r.profitPerHour, 1)}/hr`, {
+                    perEntryTeas: true,
+                })
+            );
         }
     }
 
@@ -320,11 +328,16 @@ class BestRatesPopup {
                 .slice(0, TOP_N);
 
             body.appendChild(
-                this.renderSkillSection(skill, top, (r) => {
-                    const costText =
-                        r.profitPerHour < 0 ? ` (-${formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
-                    return `${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
-                })
+                this.renderSkillSection(
+                    skill,
+                    top,
+                    (r) => {
+                        const costText =
+                            r.profitPerHour < 0 ? ` (-${formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
+                        return `${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
+                    },
+                    { perEntryTeas: true }
+                )
             );
         }
     }
@@ -335,7 +348,7 @@ class BestRatesPopup {
             const playerLevel = getPlayerLevel(skill);
             const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
             const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
-            const top = computeBalancedRates(goldRates, xpRates)
+            const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
                 .sort((a, b) => b.balancedScore - a.balancedScore)
                 .slice(0, TOP_N);
 
@@ -343,7 +356,7 @@ class BestRatesPopup {
                 this.renderSkillSection(
                     skill,
                     top,
-                    (r) => `${formatKMB(r.profitPerHour, 1)}/hr, ${formatKMB(r.xpPerHour, 1)} XP/hr`,
+                    (r) => `${formatKMB(r.profitPerHour, 1)}/hr, ${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`,
                     { perEntryTeas: true }
                 )
             );

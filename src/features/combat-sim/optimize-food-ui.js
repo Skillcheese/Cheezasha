@@ -9,6 +9,7 @@ import dataManager from '../../core/data-manager.js';
 import marketAPI from '../../api/marketplace.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatKMB } from '../../utils/formatters.js';
+import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
 import {
     buildGameDataPayload,
     buildAllPlayerDTOs,
@@ -388,6 +389,7 @@ class OptimizeFoodUI {
 
         const selfIndex = playerDTOs.findIndex((p) => p.hrid === selfHrid || p === playerDTOs[0]);
         const baseIndex = selfIndex >= 0 ? selfIndex : 0;
+        applyLiveSelfOverrides(playerDTOs[baseIndex]);
 
         const groups = getCandidateFoodGroups();
         console.log(

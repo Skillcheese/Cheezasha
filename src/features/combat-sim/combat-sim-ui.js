@@ -441,6 +441,13 @@ class CombatSimUI {
                     border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
                     title="Coin budget (in millions, decimals allowed) to filter equipment candidates by. Leave blank to default to 1M.">
             </span>
+            <span id="mwi-csim-upgrade-level-boost-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;">+Levels</label>
+                <input id="mwi-csim-upgrade-level-boost" type="number" min="0" step="1" placeholder="0" style="
+                    width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                    border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                    title="Check equip requirements against all your skills at their current level plus this many levels, to plan future upgrades. Leave blank for 0 (current levels).">
+            </span>
             <label style="display:flex; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;">
                 <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
                 Skip Back
@@ -545,11 +552,13 @@ class CombatSimUI {
             const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
             const budgetLabel = this.panel.querySelector('#mwi-csim-upgrade-budget-label');
             const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
+            const levelBoostGroup = this.panel.querySelector('#mwi-csim-upgrade-level-boost-group');
             const isEquipmentMode = e.target.value === 'equipment';
             const isLevelMode = e.target.value === 'ability_level';
             const isSwapMode = e.target.value === 'ability_swap';
             levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
             budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
+            levelBoostGroup.style.display = isEquipmentMode ? 'inline-flex' : 'none';
             if (isEquipmentMode) {
                 budgetLabel.textContent = 'Max Cost (M coins)';
                 budgetInput.title =
@@ -3124,6 +3133,8 @@ class CombatSimUI {
             swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : null;
         const equipmentBudget =
             swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : 1_000_000;
+        const levelBoostInput = this.panel.querySelector('#mwi-csim-upgrade-level-boost')?.value;
+        const equipmentLevelBoost = Math.max(0, Math.floor(parseFloat(levelBoostInput)) || 0);
 
         if (!zoneHrid) {
             this._setStatus('Select a zone in Configure tab first.');
@@ -3180,6 +3191,7 @@ class CombatSimUI {
                     abilityLevelBudget,
                     abilitySwapBudget,
                     equipmentBudget,
+                    equipmentLevelBoost,
                     skipBackSlot,
                 },
                 ({ current, total, description }) => {

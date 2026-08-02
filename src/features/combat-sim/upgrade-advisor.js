@@ -216,12 +216,15 @@ function isAbilitySlotUnlocked(slotIdx, playerDTO) {
  * Build a map of the player's live skill levels keyed by raw skillHrid (not the
  * DTO's derived field names), so it can be compared directly against requirement
  * lists that also key by skillHrid without guessing a naming convention.
+ * @param {number} [levelBoost=0] - Levels to add to every skill, for planning future
+ *  upgrades against a hypothetical "current level + X" (e.g. "what could I equip 10
+ *  levels from now").
  * @returns {Map<string, number>} skillHrid -> level
  */
-function getCharacterSkillLevelMap() {
+function getCharacterSkillLevelMap(levelBoost = 0) {
     const map = new Map();
     for (const skill of dataManager.characterData?.characterSkills || []) {
-        if (skill?.skillHrid) map.set(skill.skillHrid, skill.level || 0);
+        if (skill?.skillHrid) map.set(skill.skillHrid, (skill.level || 0) + levelBoost);
     }
     return map;
 }
@@ -922,6 +925,8 @@ function findBestOffHand(gameData, damageStyle, maxItemLevel) {
  * @param {string} [mode='equipment'] - 'equipment' or 'abilities'
  * @param {number} [abilityTargetLevel=0] - Target level or increment for ability upgrades
  * @param {string} [abilityLevelType='increment'] - 'increment' (add N levels) or 'target' (absolute level)
+ * @param {number} [equipmentLevelBoost=0] - Levels to add to every skill when checking equip
+ *  requirements, for planning upgrades reachable X levels from now.
  * @returns {Array} Candidates: [{slot, currentHrid, currentLevel, upgradeHrid, upgradeLevel, description, type}]
  */
 export function generateCandidates(
@@ -933,7 +938,8 @@ export function generateCandidates(
     skipBackSlot = false,
     abilitySwapBudget = null,
     abilityLevelBudget = null,
-    equipmentBudget = null
+    equipmentBudget = null,
+    equipmentLevelBoost = 0
 ) {
     const candidates = [];
 
@@ -942,7 +948,7 @@ export function generateCandidates(
         const tierProgression = getEquipmentTierProgression(gameData);
         const upgradeMap = buildUpgradeMap(gameData);
         const directUpgradeMap = buildDirectUpgradeMap(gameData);
-        const skillLevelMap = getCharacterSkillLevelMap();
+        const skillLevelMap = getCharacterSkillLevelMap(equipmentLevelBoost);
 
         // Combat style is set by the equipped weapon, not by whatever's currently in
         // each armor/off-hand slot — e.g. boots with +magic accuracy should be filtered
@@ -1383,6 +1389,7 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         abilityLevelBudget,
         abilitySwapBudget,
         equipmentBudget,
+        equipmentLevelBoost,
         skipBackSlot,
     } = params;
     const { abortSignal } = options;
@@ -1402,7 +1409,8 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         skipBackSlot,
         abilitySwapBudget,
         abilityLevelBudget,
-        equipmentBudget
+        equipmentBudget,
+        equipmentLevelBoost
     );
     let candidatesWithCost = candidates.map((c) => ({
         ...c,

@@ -754,11 +754,12 @@ function calculateTeaCostPerHour(teaHrids, drinkConcentration) {
 /**
  * Get other efficiency sources (non-tea)
  * @param {string} actionType - Action type HRID
+ * @param {Object|null} overrides - Optional custom-loadout overrides: { houseRooms: Map, communityBuffLevels: Object }.
+ *  Falls back to live player data for any field not present.
  * @returns {Object} Other efficiency values
  */
-function getOtherEfficiencySources(actionType) {
-    const _equipment = dataManager.getEquipment();
-    const houseRoomsMap = dataManager.getHouseRooms();
+function getOtherEfficiencySources(actionType, overrides = null) {
+    const houseRoomsMap = overrides?.houseRooms ?? dataManager.getHouseRooms();
     const houseRooms = houseRoomsMap ? Array.from(houseRoomsMap.values()) : [];
     const gameData = dataManager.getInitClientData();
 
@@ -789,7 +790,8 @@ function getOtherEfficiencySources(actionType) {
     const communityBuffType = isProductionType
         ? '/community_buff_types/production_efficiency'
         : '/community_buff_types/efficiency';
-    const communityEffLevel = dataManager.getCommunityBuffLevel(communityBuffType);
+    const communityEffLevel =
+        overrides?.communityBuffLevels?.[communityBuffType] ?? dataManager.getCommunityBuffLevel(communityBuffType);
     if (communityEffLevel) {
         // Get buff definition from game data for accurate calculation
         const buffDef = gameData.communityBuffTypeDetailMap?.[communityBuffType];
@@ -805,7 +807,9 @@ function getOtherEfficiencySources(actionType) {
     }
 
     // Community gathering buff
-    const communityGatheringLevel = dataManager.getCommunityBuffLevel('/community_buff_types/gathering_quantity');
+    const communityGatheringLevel =
+        overrides?.communityBuffLevels?.['/community_buff_types/gathering_quantity'] ??
+        dataManager.getCommunityBuffLevel('/community_buff_types/gathering_quantity');
     if (communityGatheringLevel) {
         result.gathering = 0.2 + (communityGatheringLevel - 1) * 0.005;
     }
@@ -815,7 +819,9 @@ function getOtherEfficiencySources(actionType) {
     result.gathering += achievementGathering;
 
     // Community wisdom buff
-    const communityWisdomLevel = dataManager.getCommunityBuffLevel('/community_buff_types/experience');
+    const communityWisdomLevel =
+        overrides?.communityBuffLevels?.['/community_buff_types/experience'] ??
+        dataManager.getCommunityBuffLevel('/community_buff_types/experience');
     if (communityWisdomLevel) {
         result.wisdom = 20 + (communityWisdomLevel - 1) * 0.5;
     }
@@ -838,6 +844,9 @@ function getOtherEfficiencySources(actionType) {
  * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr achievable across ALL
  *  skills (not just this one), used as the recovery-ratio denominator for gold-neutral effective XP.
  *  Falls back to this skill's own best-profit action if omitted.
+ * @param {Object|null} overrides - Optional custom-loadout overrides: { equipment, skillLevels, houseRooms,
+ *  communityBuffLevels }. Any field not present falls back to live player data. `equipmentOverride` (above)
+ *  takes precedence over `overrides.equipment` when both are given.
  * @returns {Object} Optimization result
  */
 export function findOptimalTeas(
@@ -849,7 +858,8 @@ export function findOptimalTeas(
     alchemyContext = null,
     equipmentOverride = null,
     selectedActionHrids = null,
-    globalBestProfit = null
+    globalBestProfit = null,
+    overrides = null
 ) {
     const normalizedSkill = skillName.toLowerCase();
     const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
@@ -865,18 +875,24 @@ export function findOptimalTeas(
     }
 
     // Get player's skill level
-    const skills = dataManager.getSkills();
-    const skillHrid = `/skills/${normalizedSkill}`;
-    let playerLevel = 1;
-    for (const skill of skills || []) {
-        if (skill.skillHrid === skillHrid) {
-            playerLevel = skill.level;
-            break;
+    const overrideLevel = overrides?.skillLevels?.[normalizedSkill];
+    let playerLevel;
+    if (overrideLevel != null) {
+        playerLevel = overrideLevel;
+    } else {
+        const skills = dataManager.getSkills();
+        const skillHrid = `/skills/${normalizedSkill}`;
+        playerLevel = 1;
+        for (const skill of skills || []) {
+            if (skill.skillHrid === skillHrid) {
+                playerLevel = skill.level;
+                break;
+            }
         }
     }
 
     // Get drink concentration
-    const equipment = equipmentOverride ?? dataManager.getEquipment();
+    const equipment = equipmentOverride ?? overrides?.equipment ?? dataManager.getEquipment();
     const drinkConcentration = getDrinkConcentration(equipment, gameData.itemDetailMap);
 
     // Get relevant teas and generate combinations
@@ -935,7 +951,7 @@ export function findOptimalTeas(
 
     // Get other efficiency sources
     const actionType = SKILL_TO_ACTION_TYPE[normalizedSkill];
-    const otherEfficiency = getOtherEfficiencySources(actionType);
+    const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
 
     // Score each combination
     const results = [];
@@ -1174,9 +1190,17 @@ function getRepresentativeAlchemyItemHrid(playerLevel, itemDetailMap) {
  * @param {string} goal - 'xp' or 'gold'
  * @param {Map} equipment - Map<itemLocationHrid, { itemHrid, enhancementLevel }>
  * @param {number} playerLevel
+ * @param {Object|null} overrides - Optional custom-loadout overrides: { houseRooms, communityBuffLevels }.
  * @returns {number} Average XP/hr or Gold/hr across available actions
  */
-export function scoreEquipmentSetup(skillName, goal, equipment, playerLevel, selectedActionHrids = null) {
+export function scoreEquipmentSetup(
+    skillName,
+    goal,
+    equipment,
+    playerLevel,
+    selectedActionHrids = null,
+    overrides = null
+) {
     const normalizedSkill = skillName.toLowerCase();
     const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
     const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
@@ -1189,7 +1213,7 @@ export function scoreEquipmentSetup(skillName, goal, equipment, playerLevel, sel
     const actionType = SKILL_TO_ACTION_TYPE[normalizedSkill];
     if (!actionType) return 0;
 
-    const otherEfficiency = getOtherEfficiencySources(actionType);
+    const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
 
     // Add equipment gathering quantity bonus — not captured by the standard speed/efficiency parsers
     if (isGathering) {
@@ -1278,9 +1302,11 @@ export function scoreEquipmentSetup(skillName, goal, equipment, playerLevel, sel
  * @param {string} goal - 'xp' or 'gold' — determines which optimal tea combo is used
  * @param {number|null} globalBestProfit - When goal is 'xp', the best profit/hr across ALL skills,
  *  used as the opportunity-cost anchor for gold-neutral effective XP. See {@link getGlobalBestProfitPerHour}.
+ * @param {Object|null} overrides - Optional custom-loadout overrides: { equipment, houseRooms,
+ *  communityBuffLevels }. Any field not present falls back to live player data.
  * @returns {Array<{name: string, hrid: string, requiredLevel: number, xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
  */
-export function getSkillActionRates(skillName, playerLevel, goal, globalBestProfit = null) {
+export function getSkillActionRates(skillName, playerLevel, goal, globalBestProfit = null, overrides = null) {
     const normalizedSkill = skillName.toLowerCase();
     const isGathering = GATHERING_SKILLS.includes(normalizedSkill);
     const isProduction = PRODUCTION_SKILLS.includes(normalizedSkill);
@@ -1292,9 +1318,9 @@ export function getSkillActionRates(skillName, playerLevel, goal, globalBestProf
     const actionType = SKILL_TO_ACTION_TYPE[normalizedSkill];
     if (!actionType) return [];
 
-    const equipment = dataManager.getEquipment();
+    const equipment = overrides?.equipment ?? dataManager.getEquipment();
     const drinkConcentration = getDrinkConcentration(equipment, gameData.itemDetailMap);
-    const otherEfficiency = getOtherEfficiencySources(actionType);
+    const otherEfficiency = getOtherEfficiencySources(actionType, overrides);
     if (isGathering) {
         const equipGathering = parseGatheringQuantityBonus(equipment, gameData.itemDetailMap);
         if (equipGathering > 0) otherEfficiency.gathering = (otherEfficiency.gathering || 0) + equipGathering;
@@ -1315,9 +1341,10 @@ export function getSkillActionRates(skillName, playerLevel, goal, globalBestProf
             null,
             null,
             alchemyContext,
+            equipment,
             null,
-            null,
-            globalBestProfit
+            globalBestProfit,
+            overrides
         );
         const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
 
@@ -1339,18 +1366,31 @@ export function getSkillActionRates(skillName, playerLevel, goal, globalBestProf
         ];
     }
 
-    const optimalResult = findOptimalTeas(skillName, goal, null, null, null, null, null, null, globalBestProfit);
-    const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
-
-    const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
-    const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
-
     const results = [];
     for (const [hrid, action] of Object.entries(gameData.actionDetailMap)) {
         if (action.type !== actionType) continue;
 
         const requiredLevel = action.levelRequirement?.level || 1;
         if (playerLevel < requiredLevel) continue;
+
+        // Optimize teas per action, not per skill-average — a combo that's best in aggregate can
+        // easily be beaten, for one specific action, by a different combo (e.g. gourmet/artisan
+        // relevance and action time/cost vary a lot between actions in the same skill).
+        const optimalResult = findOptimalTeas(
+            skillName,
+            goal,
+            null,
+            action.name,
+            null,
+            null,
+            equipment,
+            null,
+            globalBestProfit,
+            overrides
+        );
+        const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+        const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
+        const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
 
         const xpPerHour = calculateXpPerHour(action, buffs, playerLevel, otherEfficiency, calcContext);
         const rawProfitPerHour = isGathering

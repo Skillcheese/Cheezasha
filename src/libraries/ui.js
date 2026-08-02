@@ -42,6 +42,7 @@ import taskAutoReroll from '../features/tasks/task-auto-reroll.js';
 import remainingXP from '../features/skills/remaining-xp.js';
 import xpTracker from '../features/skills/xp-tracker.js';
 import bestRatesPopup from '../features/skills/best-rates-popup.js';
+import skillOptimizerPopup from '../features/skill-optimizer/skill-optimizer-ui.js';
 
 // Action features
 import lootLogStats from '../features/actions/loot-log-stats.js';
@@ -68,6 +69,7 @@ import alchemyActionProtection from '../features/alchemy/alchemy-action-protecti
 // Enhancement
 import enhancementFeature from '../features/enhancement/enhancement-feature.js';
 import xphCalculator from '../features/enhancement/xph-calculator.js';
+import profitCalculator from '../features/enhancement/profit-calculator.js';
 
 // Guild
 import guildXPTracker from '../features/guild/guild-xp-tracker.js';
@@ -124,6 +126,7 @@ toolashaRoot.UI = {
     remainingXP,
     xpTracker,
     bestRatesPopup,
+    skillOptimizerPopup,
     lootLogStats,
     housePanelObserver,
     settingsUI,
@@ -138,6 +141,7 @@ toolashaRoot.UI = {
     alchemyActionProtection,
     enhancementFeature,
     xphCalculator,
+    profitCalculator,
     guildXPTracker,
     guildXPDisplay,
     guildCreditValue,

@@ -175,6 +175,130 @@ export function scrapeAbilities(selectedLoadout, clientData) {
 }
 
 /**
+ * Scrape the currently equipped abilities from a live ability-slot grid on the game page —
+ * either the Combat Zones panel (CombatZones_abilitiesContainer, shown while picking a combat
+ * zone) or the Abilities equip screen (AbilitiesPanel_abilityGrid). Both use the same
+ * AbilitySlot_abilitySlot markup. This reflects the character's actual current ability loadout
+ * even when it was changed via a loadout swap, which does not trigger any WebSocket message our
+ * data layer can observe.
+ * @returns {Array<{abilityHrid: string, level: number}>|null} 5-slot array (slot 0 = special),
+ *   or null if neither panel is currently open/rendered.
+ */
+export function scrapeCurrentAbilities() {
+    const grid =
+        document.querySelector('[class*="CombatZones_abilitiesContainer"]') ||
+        document.querySelector('[class*="AbilitiesPanel_abilityGrid"]');
+    if (!grid) return null;
+
+    const slots = grid.querySelectorAll('[class*="AbilitySlot_abilitySlot"]');
+    if (slots.length === 0) return null;
+
+    const result = [
+        { abilityHrid: '', level: 1 },
+        { abilityHrid: '', level: 1 },
+        { abilityHrid: '', level: 1 },
+        { abilityHrid: '', level: 1 },
+        { abilityHrid: '', level: 1 },
+    ];
+
+    slots.forEach((slot, i) => {
+        if (i >= 5) return;
+        const use = slot.querySelector('use');
+        if (!use) return; // empty or locked slot
+
+        const href = use.getAttribute('href') || use.getAttribute('xlink:href') || '';
+        const abilityHrid = abilityHridFromUseHref(href);
+        if (!abilityHrid) return;
+
+        const levelEl = slot.querySelector('[class*="Ability_level"]');
+        let level = 1;
+        if (levelEl) {
+            const match = levelEl.textContent.trim().match(/\d+/);
+            if (match) level = parseInt(match[0], 10);
+        }
+
+        result[i] = { abilityHrid, level };
+    });
+
+    return result;
+}
+
+/**
+ * Scrape the currently equipped combat food/drink slots from the live Combat Zones panel
+ * (CombatZones_consumablesContainer, shown while picking a combat zone). Like abilities,
+ * consumable slot changes don't reliably keep dataManager's cached character data fresh, so
+ * this reads directly from the DOM. The panel renders two ActionTypeConsumableSlots_consumableSlots
+ * groups in order: food (3 slots), then drinks (3 slots).
+ * @returns {{ food: Array<{itemHrid: string}>, drinks: Array<{itemHrid: string}> }|null}
+ *   3-slot arrays for food and drinks, or null if the panel isn't currently open/rendered.
+ */
+export function scrapeCurrentConsumables() {
+    const container = document.querySelector('[class*="CombatZones_consumablesContainer"]');
+    if (!container) return null;
+
+    const slotGroups = container.querySelectorAll('[class*="ActionTypeConsumableSlots_consumableSlots"]');
+    if (slotGroups.length < 2) return null;
+
+    const scrapeGroup = (group) => {
+        const slots = group.querySelectorAll('[class*="ConsumableSlot_consumableSlotContainer"]');
+        const result = [];
+        slots.forEach((slot) => {
+            const use = slot.querySelector('use');
+            const href = use?.getAttribute('href') || use?.getAttribute('xlink:href') || '';
+            result.push({ itemHrid: itemHridFromUseHref(href) || '' });
+        });
+        while (result.length < 3) result.push({ itemHrid: '' });
+        return result.slice(0, 3);
+    };
+
+    return {
+        food: scrapeGroup(slotGroups[0]),
+        drinks: scrapeGroup(slotGroups[1]),
+    };
+}
+
+/**
+ * Overlay a player DTO's abilities/food/drinks with whatever the live Combat Zones (or
+ * Abilities equip screen) panel currently shows in the DOM, in place. dataManager's cached
+ * character data is never patched when abilities/consumables are re-equipped or swapped via a
+ * loadout — the game sends no WebSocket message for it — so callers that need the character's
+ * true current loadout (e.g. "Reset to Current", food/coffee optimizers) should call this right
+ * before use. No-ops silently if neither panel is currently open/rendered.
+ * @param {Object} playerDTO - Player DTO in sim engine format (mutated in place)
+ */
+export function applyLiveSelfOverrides(playerDTO) {
+    if (!playerDTO) return;
+
+    const liveAbilities = scrapeCurrentAbilities();
+    if (liveAbilities) {
+        playerDTO.abilities = liveAbilities.map((live, i) => {
+            if (!live.abilityHrid) return null;
+            const prev = playerDTO.abilities[i];
+            return {
+                hrid: live.abilityHrid,
+                level: live.level,
+                triggers: prev?.hrid === live.abilityHrid ? prev.triggers : null,
+            };
+        });
+    }
+
+    const liveConsumables = scrapeCurrentConsumables();
+    if (liveConsumables) {
+        const mergeSlots = (liveSlots, prevSlots) =>
+            liveSlots.map((live, i) => {
+                if (!live.itemHrid) return null;
+                const prev = prevSlots[i];
+                return {
+                    hrid: live.itemHrid,
+                    triggers: prev?.hrid === live.itemHrid ? prev.triggers : null,
+                };
+            });
+        playerDTO.food = mergeSlots(liveConsumables.food, playerDTO.food);
+        playerDTO.drinks = mergeSlots(liveConsumables.drinks, playerDTO.drinks);
+    }
+}
+
+/**
  * Scrape consumables (food/drinks) from the selected loadout element
  * @param {Element} selectedLoadout
  * @param {Object} clientData - initClientData for item type lookup

@@ -357,6 +357,13 @@ class Config {
                 description: 'Floating button showing top profit/hr and XP/hr methods per skill',
                 settingKey: 'bestRatesPopup',
             },
+            skillOptimizerPopup: {
+                enabled: true,
+                name: 'Skill Optimizer Popup',
+                category: 'Skills',
+                description: 'Floating button with a customizable gear/stat loadout and top profit/hr per skill',
+                settingKey: 'skillOptimizerPopup',
+            },
 
             // House Features
             houseCostDisplay: {

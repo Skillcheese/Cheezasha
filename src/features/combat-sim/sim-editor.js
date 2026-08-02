@@ -11,6 +11,7 @@ import {
     applyLoadoutSnapshotToDTO,
 } from './combat-sim-adapter.js';
 import loadoutSnapshot from '../combat/loadout-snapshot.js';
+import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
 
 const ACCENT = '#4a9eff';
 const ACCENT_BG = 'rgba(74, 158, 255, 0.12)';
@@ -1300,6 +1301,7 @@ export class SimEditor {
                         const { players } = await buildAllPlayerDTOs();
                         const freshSelf = players.find((p) => p.hrid === selfHrid);
                         if (freshSelf) {
+                            applyLiveSelfOverrides(freshSelf);
                             this._originalDTOs[selfHrid] = structuredClone(freshSelf);
                         }
                     } catch (error) {
