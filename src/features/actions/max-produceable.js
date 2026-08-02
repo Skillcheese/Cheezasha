@@ -34,6 +34,10 @@ const PRODUCTION_TYPES = [
     '/action_types/tailoring',
 ];
 
+// Rank used for the gold-neutral recovery anchor: the Nth-best profit/hr among visible actions
+// rather than the single best, so one outlier-priced item doesn't dictate the recovery bar alone.
+const PROFIT_ANCHOR_RANK = 10;
+
 /**
  * Build inventory index map for O(1) lookups
  * @param {Array} inventory - Inventory array from dataManager
@@ -625,13 +629,12 @@ class MaxProduceable {
      */
     addBestActionIndicators() {
         let bestProfit = null;
-        let bestProfitExp = null;
-        let bestProfitHrid = null;
         let bestExp = null;
         let bestOverall = null;
         let bestProfitPanels = [];
         let bestExpPanels = [];
         let bestOverallPanels = [];
+        const profitableEntries = [];
 
         // First pass: find the best values
         for (const [actionPanel, data] of this.actionElements.entries()) {
@@ -644,10 +647,9 @@ class MaxProduceable {
 
             // Skip actions with missing or estimated prices for profit comparison
             if (!unreliablePrice && profitPerHour !== null && profitPerHour > 0) {
+                profitableEntries.push({ profitPerHour, expPerHour, actionHrid: data.actionHrid });
                 if (bestProfit === null || profitPerHour > bestProfit) {
                     bestProfit = profitPerHour;
-                    bestProfitExp = expPerHour;
-                    bestProfitHrid = data.actionHrid;
                     bestProfitPanels = [actionPanel];
                 } else if (profitPerHour === bestProfit) {
                     bestProfitPanels.push(actionPanel);
@@ -665,6 +667,15 @@ class MaxProduceable {
             }
         }
 
+        // Recovery anchor: the Nth-best profit/hr among visible actions rather than the single
+        // best, so one outlier-priced item doesn't single-handedly set the recovery bar.
+        profitableEntries.sort((a, b) => b.profitPerHour - a.profitPerHour);
+        const anchorIndex = Math.min(PROFIT_ANCHOR_RANK - 1, profitableEntries.length - 1);
+        const recoveryAnchor = profitableEntries[anchorIndex] || null;
+        const recoveryProfit = recoveryAnchor?.profitPerHour ?? null;
+        const recoveryExp = recoveryAnchor?.expPerHour ?? null;
+        const recoveryHrid = recoveryAnchor?.actionHrid ?? null;
+
         // Second pass: compute gold-neutral effective XP/hr and find best overall
         for (const [actionPanel, data] of this.actionElements.entries()) {
             if (!document.body.contains(actionPanel) || !data.displayElement) {
@@ -680,10 +691,15 @@ class MaxProduceable {
             let effectiveXp;
             if (profitPerHour >= 0) {
                 effectiveXp = expPerHour;
-            } else if (bestProfit > 0) {
+            } else if (recoveryProfit > 0) {
                 const loss = Math.abs(profitPerHour);
-                const recoveryRatio = loss / bestProfit;
-                effectiveXp = (expPerHour + recoveryRatio * (bestProfitExp || 0)) / (1 + recoveryRatio);
+                const recoveryRatio = loss / recoveryProfit;
+                // Blending toward the recovery action's XP is a discount, never a bonus — cap at
+                // this action's own raw XP so a lucrative recoveryExp can't inflate it.
+                effectiveXp = Math.min(
+                    expPerHour,
+                    (expPerHour + recoveryRatio * (recoveryExp || 0)) / (1 + recoveryRatio)
+                );
             } else {
                 continue;
             }
@@ -707,8 +723,8 @@ class MaxProduceable {
             return t;
         };
 
-        const bestProfitName = bestProfitHrid
-            ? dataManager.getActionDetails(bestProfitHrid)?.name || bestProfitHrid
+        const recoveryActionName = recoveryHrid
+            ? dataManager.getActionDetails(recoveryHrid)?.name || recoveryHrid
             : null;
 
         for (const [actionPanel, data] of this.actionElements.entries()) {
@@ -736,15 +752,15 @@ class MaxProduceable {
                 const label = effXp != null ? `Eff. XP/hr: ${formatKMB(effXp)}` : stripEmoji(overallSpan.textContent);
                 overallSpan.textContent = label + (isBestOverall ? ' 🏆' : '');
 
-                if (data.profitPerHour < 0 && bestProfit > 0 && effXp != null) {
+                if (data.profitPerHour < 0 && recoveryProfit > 0 && effXp != null) {
                     const loss = Math.abs(data.profitPerHour);
-                    const ratio = loss / bestProfit;
+                    const ratio = loss / recoveryProfit;
                     overallSpan.title =
                         `Gold-neutral XP rate\n` +
                         `This action: ${formatKMB(data.expPerHour)} XP/hr, -${formatKMB(loss)}/hr\n` +
-                        `Recovery: ${bestProfitName} (+${formatKMB(bestProfit)}/hr, ${formatKMB(bestProfitExp || 0)} XP/hr)\n` +
+                        `Recovery: ${recoveryActionName} (+${formatKMB(recoveryProfit)}/hr, ${formatKMB(recoveryExp || 0)} XP/hr)\n` +
                         `Ratio: ${ratio.toFixed(2)}hr recovery per 1hr action\n` +
-                        `Blended: (${formatKMB(data.expPerHour)} + ${ratio.toFixed(2)} × ${formatKMB(bestProfitExp || 0)}) / ${(1 + ratio).toFixed(2)} = ${formatKMB(effXp)}`;
+                        `Blended: (${formatKMB(data.expPerHour)} + ${ratio.toFixed(2)} × ${formatKMB(recoveryExp || 0)}) / ${(1 + ratio).toFixed(2)} = ${formatKMB(effXp)}`;
                 } else {
                     overallSpan.title = '';
                 }
