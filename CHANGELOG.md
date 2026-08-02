@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/Skillcheese/Cheezasha/compare/v2.87.1...v3.0.0) (2026-08-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* The userscript name, IndexedDB database, window global namespace, and CSS variable prefixes are renamed from Toolasha/toolasha to Cheezasha/cheezasha. A one-time migration copies existing users' IndexedDB data from ToolashaDB to CheezashaDB on first load so settings and history are preserved. The GitHub repo is renamed to Skillcheese/Cheezasha and downloadURL/updateURL now point at the releases branch instead of the old Greasy Fork listing.
+
+### Features
+
+* rename project from Toolasha to Cheezasha ([d4e31c1](https://github.com/Skillcheese/Cheezasha/commit/d4e31c11fe941c24710392f1cdcf4f8e5965cc44))
+
 ## [2.87.1](https://github.com/Skillcheese/Toolasha/compare/v2.87.0...v2.87.1) (2026-08-02)
 
 
