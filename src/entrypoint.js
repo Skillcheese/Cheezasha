@@ -451,6 +451,14 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'optimizeCoffee',
+            name: 'Optimize Coffee',
+            category: 'Combat',
+            module: Combat.optimizeCoffee,
+            async: false,
+            customCheck: () => config.getSetting('combatSim'),
+        },
+        {
             key: 'labSim',
             name: 'Lab Simulator',
             category: 'Combat',

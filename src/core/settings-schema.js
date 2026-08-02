@@ -1673,6 +1673,16 @@ export const settingsGroups = {
                 default: false,
                 help: 'Automatically run combat estimates using the default loadout when task cards appear',
             },
+            combatSim_optimizeCoffeeHours: {
+                id: 'combatSim_optimizeCoffeeHours',
+                label: 'Combat Simulator: Optimize Coffee test hours per combo',
+                type: 'number',
+                default: 2,
+                min: 1,
+                max: 1000,
+                step: 1,
+                help: 'Simulated hours run per coffee combination when ranking XP/hr and coins/hr (lower = faster search)',
+            },
             combatSim_maxThreads: {
                 id: 'combatSim_maxThreads',
                 label: 'Combat Simulator: Max threads',
