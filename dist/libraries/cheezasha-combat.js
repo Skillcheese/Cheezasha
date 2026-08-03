@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.2.1
+ * Version: 3.3.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -8831,6 +8831,20 @@
     }
 
     /**
+     * Max concurrency for fanning out many independent single-worker tasks (one worker per task,
+     * no intra-task chunking) — e.g. upgrade-candidate analysis. MAX_WORKERS=4 exists to avoid
+     * oversubscribing the pool when each task might itself split into multiple sub-workers; that
+     * doesn't apply here, so this scales up to the full pool (still capped by the user's
+     * combatSim_maxThreads setting when set).
+     * @returns {number}
+     */
+    function getMaxBatchWorkers() {
+        const setting = config.getSetting('combatSim_maxThreads') || 0;
+        const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+        return setting > 0 ? Math.min(setting, cores) : Math.min(WORKER_POOL_MAX, cores);
+    }
+
+    /**
      * Get or create the worker Blob URL (created once, reused).
      * @returns {string}
      */
@@ -9082,23 +9096,27 @@
      * @param {number} params.difficultyTier - Difficulty tier (0+)
      * @param {number} params.hours - Hours to simulate
      * @param {Object} params.communityBuffs - { mooPass, comExp, comDrop }
+     * @param {boolean} [params.singleWorker] - Force a single worker/chunk (no intra-sim splitting
+     *   or result merging). Use when the caller is already running many independent sims concurrently
+     *   (e.g. upgrade-candidate analysis) — splitting each one further just oversubscribes the shared
+     *   worker pool and adds merge overhead without speeding up the overall batch.
      * @param {Function} [onProgress] - Called with (percent: 0-100)
      * @returns {Promise<Object>} Merged SimResult
      */
     async function runSimulation(params, onProgress) {
-        const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs } = params;
+        const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, singleWorker } = params;
 
         const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
         const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
         const ONE_HOUR_NS = 3600 * 1e9;
 
-        // Cancel any previous run
-        cancelSimulation();
-
         // Determine worker count
         const maxWorkers = getMaxWorkers();
-        const workerCount =
-            hours >= MIN_HOURS_PER_WORKER * 2 ? Math.min(maxWorkers, Math.floor(hours / MIN_HOURS_PER_WORKER)) : 1;
+        const workerCount = singleWorker
+            ? 1
+            : hours >= MIN_HOURS_PER_WORKER * 2
+              ? Math.min(maxWorkers, Math.floor(hours / MIN_HOURS_PER_WORKER))
+              : 1;
 
         // Split hours across workers
         const baseHours = Math.floor(hours / workerCount);
@@ -9175,9 +9193,6 @@
         const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
         const extraBuffs = [...buildExtraBuffs(communityBuffs, guildCombatBuffs), ...(labyrinthCombatBuffs || [])];
         const ONE_HOUR_NS = 3600 * 1e9;
-
-        // Cancel any previous run
-        cancelSimulation();
 
         const taskId = ++taskIdCounter;
         const message = {
@@ -15016,47 +15031,74 @@
         // Calculate baseline metrics
         const baselineMetrics = computeMetrics(baselineResult, gameData, playerHrid, hours);
 
-        // Run sim for each candidate
+        // Run sim for each candidate, fanned out across the worker pool instead of one at a time.
         const results = [];
-        for (const candidate of candidatesWithCost) {
-            if (abortSignal?.()) break;
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
+        await Promise.all(
+            Array.from({ length: workerCount }, async () => {
+                while (cursor < candidatesWithCost.length && !abortSignal?.()) {
+                    const candidate = candidatesWithCost[cursor++];
 
-            onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
+                    onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
 
-            // Clone playerDTOs and apply candidate upgrade
-            const modifiedDTOs = JSON.parse(JSON.stringify(playerDTOs));
+                    // Shallow-clone only what this candidate actually changes (playerDTOs array,
+                    // the target player, and the one abilities/equipment container it touches) —
+                    // each candidate gets its own independent objects for the fields it mutates,
+                    // so concurrent candidates never stomp on each other, without paying for a
+                    // full JSON deep-clone of the whole (potentially multi-player) DTO tree.
+                    const modifiedDTOs = playerDTOs.slice();
+                    const basePlayer = playerDTOs[playerIndex];
 
-            if (candidate.slot.startsWith('ability_')) {
-                // Ability upgrade/swap
-                const slotIdx = parseInt(candidate.slot.split('_')[1]);
-                modifiedDTOs[playerIndex].abilities[slotIdx] = {
-                    hrid: candidate.upgradeHrid,
-                    level: candidate.upgradeLevel,
-                    triggers: null,
-                };
-            } else {
-                // Equipment upgrade
-                modifiedDTOs[playerIndex].equipment[candidate.slot] = {
-                    hrid: candidate.upgradeHrid,
-                    enhancementLevel: candidate.upgradeLevel,
-                };
-            }
+                    if (candidate.slot.startsWith('ability_')) {
+                        // Ability upgrade/swap
+                        const slotIdx = parseInt(candidate.slot.split('_')[1]);
+                        const abilities = basePlayer.abilities.slice();
+                        abilities[slotIdx] = {
+                            hrid: candidate.upgradeHrid,
+                            level: candidate.upgradeLevel,
+                            triggers: null,
+                        };
+                        modifiedDTOs[playerIndex] = { ...basePlayer, abilities };
+                    } else {
+                        // Equipment upgrade
+                        modifiedDTOs[playerIndex] = {
+                            ...basePlayer,
+                            equipment: {
+                                ...basePlayer.equipment,
+                                [candidate.slot]: {
+                                    hrid: candidate.upgradeHrid,
+                                    enhancementLevel: candidate.upgradeLevel,
+                                },
+                            },
+                        };
+                    }
 
-            const simResult = await runSimulation(
-                { gameData, playerDTOs: modifiedDTOs, zoneHrid, difficultyTier, hours, communityBuffs },
-                null
-            );
+                    const simResult = await runSimulation(
+                        {
+                            gameData,
+                            playerDTOs: modifiedDTOs,
+                            zoneHrid,
+                            difficultyTier,
+                            hours,
+                            communityBuffs,
+                            singleWorker: true,
+                        },
+                        null
+                    );
 
-            if (abortSignal?.()) break;
+                    if (abortSignal?.()) break;
 
-            const metrics = computeMetrics(simResult, gameData, playerHrid, hours);
-            const deltas = computeDeltas(baselineMetrics, metrics);
-            const goldPer = computeGoldPerImprovement(candidate.cost, deltas);
+                    const metrics = computeMetrics(simResult, gameData, playerHrid, hours);
+                    const deltas = computeDeltas(baselineMetrics, metrics);
+                    const goldPer = computeGoldPerImprovement(candidate.cost, deltas);
 
-            results.push({ candidate, cost: candidate.cost, metrics, deltas, goldPer });
-            current++;
-            onProgress?.({ current, total, description: candidate.description });
-        }
+                    results.push({ candidate, cost: candidate.cost, metrics, deltas, goldPer });
+                    current++;
+                    onProgress?.({ current, total, description: candidate.description });
+                }
+            })
+        );
 
         // Sort by best value (lowest gold per 0.01% DPS improvement)
         results.sort((a, b) => {
@@ -15390,104 +15432,130 @@
 
         const results = [];
 
-        // ── Equipment / ability sims ──
-        for (const candidate of candidatesWithCost) {
-            if (abortSignal?.()) break;
+        // ── Equipment / ability sims (fanned out across the worker pool) ──
+        let candidateCursor = 0;
+        const candidateWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
+        await Promise.all(
+            Array.from({ length: candidateWorkerCount }, async () => {
+                while (candidateCursor < candidatesWithCost.length && !abortSignal?.()) {
+                    const candidate = candidatesWithCost[candidateCursor++];
 
-            onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
+                    onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
 
-            const modifiedDTO = JSON.parse(JSON.stringify(playerDTOs[playerIndex]));
+                    // Shallow-clone only the container this candidate touches (abilities array or
+                    // equipment map) instead of deep-cloning the whole player DTO — each candidate
+                    // still gets its own independent objects, safe for concurrent execution.
+                    const basePlayer = playerDTOs[playerIndex];
+                    let modifiedDTO;
 
-            if (candidate.slot.startsWith('ability_')) {
-                const slotIdx = parseInt(candidate.slot.split('_')[1]);
-                modifiedDTO.abilities[slotIdx] = {
-                    hrid: candidate.upgradeHrid,
-                    level: candidate.upgradeLevel,
-                    triggers: null,
-                };
-            } else if (candidate.type === 'cross_slot') {
-                for (const slot of candidate.clearedSlots) {
-                    modifiedDTO.equipment[slot] = null;
+                    if (candidate.slot.startsWith('ability_')) {
+                        const slotIdx = parseInt(candidate.slot.split('_')[1]);
+                        const abilities = basePlayer.abilities.slice();
+                        abilities[slotIdx] = {
+                            hrid: candidate.upgradeHrid,
+                            level: candidate.upgradeLevel,
+                            triggers: null,
+                        };
+                        modifiedDTO = { ...basePlayer, abilities };
+                    } else if (candidate.type === 'cross_slot') {
+                        const equipment = { ...basePlayer.equipment };
+                        for (const slot of candidate.clearedSlots) {
+                            equipment[slot] = null;
+                        }
+                        for (const [slot, item] of Object.entries(candidate.addedSlots)) {
+                            equipment[slot] = item;
+                        }
+                        modifiedDTO = { ...basePlayer, equipment };
+                    } else {
+                        modifiedDTO = {
+                            ...basePlayer,
+                            equipment: {
+                                ...basePlayer.equipment,
+                                [candidate.slot]: {
+                                    hrid: candidate.upgradeHrid,
+                                    enhancementLevel: candidate.upgradeLevel,
+                                },
+                            },
+                        };
+                    }
+
+                    const simResult = await runLabyrinthSimulation({
+                        gameData,
+                        playerDTOs: [modifiedDTO],
+                        zoneHrid,
+                        monsterHrid,
+                        roomLevel,
+                        crates,
+                        hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs,
+                    });
+
+                    if (abortSignal?.()) break;
+
+                    const attempts = simResult.labyAttemptCount || 1;
+                    const encounters = simResult.encounters || 0;
+                    const winRate = encounters / attempts;
+                    const winRateDelta = winRate - baselineWinRate;
+
+                    results.push({
+                        candidate,
+                        costType: 'gold',
+                        cost: candidate.cost,
+                        winRate,
+                        winRateDelta,
+                        goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
+                        metricType: 'winRate',
+                    });
+                    current++;
+                    onProgress?.({ current, total, description: candidate.description });
                 }
-                for (const [slot, item] of Object.entries(candidate.addedSlots)) {
-                    modifiedDTO.equipment[slot] = item;
+            })
+        );
+
+        // ── Combat buff sims (fanned out across the worker pool) ──
+        let buffCursor = 0;
+        const buffWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combatBuffCandidates.length));
+        await Promise.all(
+            Array.from({ length: buffWorkerCount }, async () => {
+                while (buffCursor < combatBuffCandidates.length && !abortSignal?.()) {
+                    const buffCandidate = combatBuffCandidates[buffCursor++];
+
+                    onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
+
+                    const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
+                    const simResult = await runLabyrinthSimulation({
+                        gameData,
+                        playerDTOs: [playerDTOs[playerIndex]],
+                        zoneHrid,
+                        monsterHrid,
+                        roomLevel,
+                        crates,
+                        hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs: modifiedBuffs,
+                    });
+
+                    if (abortSignal?.()) break;
+
+                    const attempts = simResult.labyAttemptCount || 1;
+                    const encounters = simResult.encounters || 0;
+                    const winRate = encounters / attempts;
+                    const winRateDelta = winRate - baselineWinRate;
+
+                    results.push({
+                        candidate: buffCandidate,
+                        costType: 'token',
+                        tokenCost: buffCandidate.tokenCost,
+                        winRate,
+                        winRateDelta,
+                        metricType: 'winRate',
+                    });
+                    current++;
+                    onProgress?.({ current, total, description: buffCandidate.description });
                 }
-            } else {
-                modifiedDTO.equipment[candidate.slot] = {
-                    hrid: candidate.upgradeHrid,
-                    enhancementLevel: candidate.upgradeLevel,
-                };
-            }
-
-            const simResult = await runLabyrinthSimulation({
-                gameData,
-                playerDTOs: [modifiedDTO],
-                zoneHrid,
-                monsterHrid,
-                roomLevel,
-                crates,
-                hours,
-                communityBuffs,
-                labyrinthCombatBuffs,
-            });
-
-            if (abortSignal?.()) break;
-
-            const attempts = simResult.labyAttemptCount || 1;
-            const encounters = simResult.encounters || 0;
-            const winRate = encounters / attempts;
-            const winRateDelta = winRate - baselineWinRate;
-
-            results.push({
-                candidate,
-                costType: 'gold',
-                cost: candidate.cost,
-                winRate,
-                winRateDelta,
-                goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
-                metricType: 'winRate',
-            });
-            current++;
-            onProgress?.({ current, total, description: candidate.description });
-        }
-
-        // ── Combat buff sims ──
-        for (const buffCandidate of combatBuffCandidates) {
-            if (abortSignal?.()) break;
-
-            onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
-
-            const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
-            const simResult = await runLabyrinthSimulation({
-                gameData,
-                playerDTOs: [playerDTOs[playerIndex]],
-                zoneHrid,
-                monsterHrid,
-                roomLevel,
-                crates,
-                hours,
-                communityBuffs,
-                labyrinthCombatBuffs: modifiedBuffs,
-            });
-
-            if (abortSignal?.()) break;
-
-            const attempts = simResult.labyAttemptCount || 1;
-            const encounters = simResult.encounters || 0;
-            const winRate = encounters / attempts;
-            const winRateDelta = winRate - baselineWinRate;
-
-            results.push({
-                candidate: buffCandidate,
-                costType: 'token',
-                tokenCost: buffCandidate.tokenCost,
-                winRate,
-                winRateDelta,
-                metricType: 'winRate',
-            });
-            current++;
-            onProgress?.({ current, total, description: buffCandidate.description });
-        }
+            })
+        );
 
         // ── Experience buff (flat % increase, no sim needed) ──
         for (const buffCandidate of experienceBuffCandidates) {
@@ -18016,7 +18084,7 @@
             (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
         );
 
-        const semaphore = createSemaphore$1(Math.max(1, getMaxWorkers()));
+        const semaphore = createSemaphore$1(Math.max(1, getMaxBatchWorkers()));
         const ctx = {
             semaphore,
             gameData,
@@ -18064,7 +18132,7 @@
 
         const testIndicesInParallel = async (indices) => {
             let cursor = 0;
-            const workerCount = Math.max(1, Math.min(getMaxWorkers(), indices.length));
+            const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), indices.length));
             await Promise.all(
                 Array.from({ length: workerCount }, async () => {
                     while (cursor < indices.length && !isAborted()) {
@@ -19699,7 +19767,7 @@
         const groups = getCandidateDrinkGroups(attackStyle);
         const combos = generateCombos(groups, MAX_DRINK_SLOTS$1);
 
-        const semaphore = createSemaphore(Math.max(1, getMaxWorkers()));
+        const semaphore = createSemaphore(Math.max(1, getMaxBatchWorkers()));
         const ctx = { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid };
 
         const results = [];
@@ -19727,7 +19795,7 @@
         };
 
         let nextIndex = 0;
-        const workerCount = Math.max(1, Math.min(getMaxWorkers(), combos.length));
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combos.length));
         await Promise.all(
             Array.from({ length: workerCount }, async () => {
                 while (nextIndex < combos.length && !isAborted()) {
@@ -19914,6 +19982,7 @@
             if (isAborted()) return { converged: false, reason: 'aborted', history, finalZone: null };
 
             const bestFood = rankFoodResults(foodResult.refined, 1)[0] || null;
+            const topFoods = rankFoodResults(foodResult.refined, 5);
             const foodDTO = bestFood
                 ? buildFoodDTO(bestFood.combo, bestFood.slotTriggers || bestFood.combo.map(() => null))
                 : [null, null, null];
@@ -19976,6 +20045,7 @@
                 zoneHrid: currentZone,
                 difficultyTier: currentTier,
                 food: bestFood,
+                topFoods,
                 coffee: bestCoffee,
                 topCoffees,
                 bestZone: best,
@@ -20086,6 +20156,9 @@
             this._usimLastTopCoffees = [];
             this._usimCoffeeSortCol = 'score';
             this._usimCoffeeSortAsc = false;
+            this._usimLastTopFoods = [];
+            this._usimFoodSortCol = 'deathsPerHour';
+            this._usimFoodSortAsc = true;
         }
 
         /**
@@ -23811,6 +23884,7 @@
 
                 this._usimLastTopZones = result.history[result.history.length - 1]?.topZones || [];
                 this._usimLastTopCoffees = result.history[result.history.length - 1]?.topCoffees || [];
+                this._usimLastTopFoods = result.history[result.history.length - 1]?.topFoods || [];
                 this._renderUltimateHistory(result.history, result);
 
                 if (result.reason === 'aborted') {
@@ -23857,6 +23931,7 @@
             const rows = history
                 .map((h) => {
                     const foodLabel = h.food?.label || 'None';
+                    const foodTriggerDesc = h.food ? describeFoodTriggers(h.food) : null;
                     const coffeeLabel = h.coffee?.label || 'None';
                     const bestZoneName = h.bestZone?.zone?.name || '?';
                     const bestTier = h.bestZone?.zone?.difficultyTier ?? '?';
@@ -23865,7 +23940,10 @@
                     return `
                     <tr style="border-bottom:1px solid #1a1a1a;">
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${h.iteration + 1}</td>
-                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${foodLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">
+                            ${foodLabel}
+                            ${foodTriggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${foodTriggerDesc}</div>` : ''}
+                        </td>
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeLabel}</td>
                         <td style="padding:4px 4px; font-size:11px; color:${ACCENT$1}; font-weight:600;">${bestZoneName} (T${bestTier})</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${xp}</td>
@@ -23902,12 +23980,94 @@
             ${finalNote}
             <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin:12px 0 6px 0;">Top Zones (latest all-zones pass)</div>
             <div id="mwi-csim-usim-top-zones"></div>
+            <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin:12px 0 6px 0;">Top Foods (latest food pass)</div>
+            <div id="mwi-csim-usim-top-foods"></div>
             <div style="font-weight:700; font-size:12px; color:${ACCENT$1}; margin:12px 0 6px 0;">Top Coffees (latest coffee pass)</div>
             <div id="mwi-csim-usim-top-coffees"></div>
         `;
 
             this._renderUsimTopZonesTable();
+            this._renderUsimTopFoodsTable();
             this._renderUsimTopCoffeesTable();
+        }
+
+        /**
+         * Render the sortable top-5-food-combos table from the last completed food pass.
+         * @private
+         */
+        _renderUsimTopFoodsTable() {
+            const container = this.panel?.querySelector('#mwi-csim-usim-top-foods');
+            if (!container) return;
+
+            const topFoods = this._usimLastTopFoods;
+            if (!topFoods.length) {
+                container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No food results yet.</div>`;
+                return;
+            }
+
+            const cols = [
+                { key: 'label', label: 'Food Combination' },
+                { key: 'deathsPerHour', label: 'Deaths/hr' },
+                { key: 'oomPercent', label: 'Mana OOM %' },
+                { key: 'costPerHour', label: 'Cost/hr' },
+            ];
+
+            const sortCol = this._usimFoodSortCol;
+            const sortAsc = this._usimFoodSortAsc;
+            const sorted = [...topFoods].sort((a, b) => {
+                const va = sortCol === 'label' ? a.label : a[sortCol];
+                const vb = sortCol === 'label' ? b.label : b[sortCol];
+                if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                return sortAsc ? va - vb : vb - va;
+            });
+
+            const headerCells = cols
+                .map((col) => {
+                    const arrow = this._usimFoodSortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+                    const align = col.key === 'label' ? 'left' : 'right';
+                    return `<th data-sort-col="${col.key}" style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${align}; border-bottom:1px solid #333; cursor:pointer; user-select:none;">${col.label}${arrow}</th>`;
+                })
+                .join('');
+
+            const bodyRows = sorted
+                .map((r, i) => {
+                    const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                    const rowWeight = i === 0 ? '700' : '400';
+                    const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                    const triggerDesc = describeFoodTriggers(r);
+                    return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${r.label}
+                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
+                        </td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.costPerHour))}</td>
+                    </tr>
+                `;
+                })
+                .join('');
+
+            container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+
+            container.querySelectorAll('th[data-sort-col]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const col = th.getAttribute('data-sort-col');
+                    if (this._usimFoodSortCol === col) {
+                        this._usimFoodSortAsc = !this._usimFoodSortAsc;
+                    } else {
+                        this._usimFoodSortCol = col;
+                        this._usimFoodSortAsc = col === 'label';
+                    }
+                    this._renderUsimTopFoodsTable();
+                });
+            });
         }
 
         /**
@@ -24279,15 +24439,17 @@
                         equipmentLevelBoost,
                         skipBackSlot,
                     },
-                    ({ current, total, description }) => {
-                        if (this._upgradeAborted) return;
+                    (() => {
                         const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');
                         const text = this.panel.querySelector('#mwi-csim-upgrade-progress-text');
-                        const pct = Math.round((current / total) * 100);
-                        if (fill) fill.style.width = pct + '%';
-                        if (text) text.textContent = `${current} / ${total}`;
-                        this._setStatus(description);
-                    },
+                        return ({ current, total, description }) => {
+                            if (this._upgradeAborted) return;
+                            const pct = Math.round((current / total) * 100);
+                            if (fill) fill.style.width = pct + '%';
+                            if (text) text.textContent = `${current} / ${total}`;
+                            this._setStatus(description);
+                        };
+                    })(),
                     { abortSignal: () => this._upgradeAborted }
                 );
 

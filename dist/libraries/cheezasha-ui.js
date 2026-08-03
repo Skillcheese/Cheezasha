@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.2.1
+ * Version: 3.3.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -6813,23 +6813,25 @@ ${starCSS}
      * @param {number} params.difficultyTier - Difficulty tier (0+)
      * @param {number} params.hours - Hours to simulate
      * @param {Object} params.communityBuffs - { mooPass, comExp, comDrop }
+     * @param {boolean} [params.singleWorker] - Force a single worker/chunk (no intra-sim splitting
+     *   or result merging). Use when the caller is already running many independent sims concurrently
+     *   (e.g. upgrade-candidate analysis) — splitting each one further just oversubscribes the shared
+     *   worker pool and adds merge overhead without speeding up the overall batch.
      * @param {Function} [onProgress] - Called with (percent: 0-100)
      * @returns {Promise<Object>} Merged SimResult
      */
     async function runSimulation(params, onProgress) {
-        const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs } = params;
+        const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, singleWorker } = params;
 
         const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
         const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
         const ONE_HOUR_NS = 3600 * 1e9;
 
-        // Cancel any previous run
-        cancelSimulation();
-
         // Determine worker count
         getMaxWorkers();
-        const workerCount =
-            1;
+        const workerCount = singleWorker
+            ? 1
+            : 1;
 
         // Split hours across workers
         const baseHours = Math.floor(hours / workerCount);
@@ -6866,24 +6868,6 @@ ${starCSS}
         const results = await Promise.all(promises);
 
         return mergeSimResults(results);
-    }
-
-    /**
-     * Terminate all pooled workers (including any mid-simulation, since a running sim can't be
-     * interrupted any other way) and reject every in-flight or queued task. The pool rebuilds itself
-     * lazily on the next call.
-     */
-    function cancelSimulation() {
-        const inFlight = workerPool.filter((s) => s.busy).map((s) => s.currentTask);
-        for (const slot of workerPool) {
-            slot.worker.terminate();
-        }
-        workerPool = [];
-
-        const queued = taskQueue.splice(0);
-        for (const task of [...inFlight, ...queued]) {
-            if (task) task.reject(new Error('Cancelled'));
-        }
     }
 
     /**
