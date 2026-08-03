@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/Skillcheese/Cheezasha/compare/v3.2.1...v3.3.0) (2026-08-03)
+
+
+### Features
+
+* **combat-sim:** parallelize upgrade/labyrinth optimizers, add ultimate sim food display ([1453836](https://github.com/Skillcheese/Cheezasha/commit/14538362a1e68bbe3f3753b6d6e34ec5168e1f94))
+
+
+### Documentation
+
+* document release-please version-sync workflow in CLAUDE.md ([d366462](https://github.com/Skillcheese/Cheezasha/commit/d366462c19ad25387caf6152cedae5c2496ef1a0))
+
 ## [3.2.1](https://github.com/Skillcheese/Cheezasha/compare/v3.2.0...v3.2.1) (2026-08-02)
 
 ### Bug Fixes
