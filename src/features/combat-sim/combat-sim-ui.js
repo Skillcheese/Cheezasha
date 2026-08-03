@@ -106,6 +106,9 @@ class CombatSimUI {
         this._usimLastTopCoffees = [];
         this._usimCoffeeSortCol = 'score';
         this._usimCoffeeSortAsc = false;
+        this._usimLastTopFoods = [];
+        this._usimFoodSortCol = 'deathsPerHour';
+        this._usimFoodSortAsc = true;
     }
 
     /**
@@ -3831,6 +3834,7 @@ class CombatSimUI {
 
             this._usimLastTopZones = result.history[result.history.length - 1]?.topZones || [];
             this._usimLastTopCoffees = result.history[result.history.length - 1]?.topCoffees || [];
+            this._usimLastTopFoods = result.history[result.history.length - 1]?.topFoods || [];
             this._renderUltimateHistory(result.history, result);
 
             if (result.reason === 'aborted') {
@@ -3877,6 +3881,7 @@ class CombatSimUI {
         const rows = history
             .map((h) => {
                 const foodLabel = h.food?.label || 'None';
+                const foodTriggerDesc = h.food ? describeFoodTriggers(h.food) : null;
                 const coffeeLabel = h.coffee?.label || 'None';
                 const bestZoneName = h.bestZone?.zone?.name || '?';
                 const bestTier = h.bestZone?.zone?.difficultyTier ?? '?';
@@ -3885,7 +3890,10 @@ class CombatSimUI {
                 return `
                     <tr style="border-bottom:1px solid #1a1a1a;">
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${h.iteration + 1}</td>
-                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${foodLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">
+                            ${foodLabel}
+                            ${foodTriggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${foodTriggerDesc}</div>` : ''}
+                        </td>
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeLabel}</td>
                         <td style="padding:4px 4px; font-size:11px; color:${ACCENT}; font-weight:600;">${bestZoneName} (T${bestTier})</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${xp}</td>
@@ -3922,12 +3930,94 @@ class CombatSimUI {
             ${finalNote}
             <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin:12px 0 6px 0;">Top Zones (latest all-zones pass)</div>
             <div id="mwi-csim-usim-top-zones"></div>
+            <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin:12px 0 6px 0;">Top Foods (latest food pass)</div>
+            <div id="mwi-csim-usim-top-foods"></div>
             <div style="font-weight:700; font-size:12px; color:${ACCENT}; margin:12px 0 6px 0;">Top Coffees (latest coffee pass)</div>
             <div id="mwi-csim-usim-top-coffees"></div>
         `;
 
         this._renderUsimTopZonesTable();
+        this._renderUsimTopFoodsTable();
         this._renderUsimTopCoffeesTable();
+    }
+
+    /**
+     * Render the sortable top-5-food-combos table from the last completed food pass.
+     * @private
+     */
+    _renderUsimTopFoodsTable() {
+        const container = this.panel?.querySelector('#mwi-csim-usim-top-foods');
+        if (!container) return;
+
+        const topFoods = this._usimLastTopFoods;
+        if (!topFoods.length) {
+            container.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:10px 0;">No food results yet.</div>`;
+            return;
+        }
+
+        const cols = [
+            { key: 'label', label: 'Food Combination' },
+            { key: 'deathsPerHour', label: 'Deaths/hr' },
+            { key: 'oomPercent', label: 'Mana OOM %' },
+            { key: 'costPerHour', label: 'Cost/hr' },
+        ];
+
+        const sortCol = this._usimFoodSortCol;
+        const sortAsc = this._usimFoodSortAsc;
+        const sorted = [...topFoods].sort((a, b) => {
+            const va = sortCol === 'label' ? a.label : a[sortCol];
+            const vb = sortCol === 'label' ? b.label : b[sortCol];
+            if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return sortAsc ? va - vb : vb - va;
+        });
+
+        const headerCells = cols
+            .map((col) => {
+                const arrow = this._usimFoodSortCol === col.key ? (sortAsc ? ' ▲' : ' ▼') : '';
+                const align = col.key === 'label' ? 'left' : 'right';
+                return `<th data-sort-col="${col.key}" style="padding:3px 4px; font-size:10px; font-weight:600; color:#888; text-align:${align}; border-bottom:1px solid #333; cursor:pointer; user-select:none;">${col.label}${arrow}</th>`;
+            })
+            .join('');
+
+        const bodyRows = sorted
+            .map((r, i) => {
+                const rowColor = i === 0 ? '#4caf50' : '#ccc';
+                const rowWeight = i === 0 ? '700' : '400';
+                const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                const triggerDesc = describeFoodTriggers(r);
+                return `
+                    <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${r.label}
+                            ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
+                        </td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.deathsPerHour.toFixed(2)}</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${r.oomPercent.toFixed(1)}%</td>
+                        <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.costPerHour))}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        container.innerHTML = `
+            <table style="width:100%; border-collapse:collapse;">
+                <thead><tr>${headerCells}</tr></thead>
+                <tbody>${bodyRows}</tbody>
+            </table>
+        `;
+
+        container.querySelectorAll('th[data-sort-col]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const col = th.getAttribute('data-sort-col');
+                if (this._usimFoodSortCol === col) {
+                    this._usimFoodSortAsc = !this._usimFoodSortAsc;
+                } else {
+                    this._usimFoodSortCol = col;
+                    this._usimFoodSortAsc = col === 'label';
+                }
+                this._renderUsimTopFoodsTable();
+            });
+        });
     }
 
     /**
@@ -4299,15 +4389,17 @@ class CombatSimUI {
                     equipmentLevelBoost,
                     skipBackSlot,
                 },
-                ({ current, total, description }) => {
-                    if (this._upgradeAborted) return;
+                (() => {
                     const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');
                     const text = this.panel.querySelector('#mwi-csim-upgrade-progress-text');
-                    const pct = Math.round((current / total) * 100);
-                    if (fill) fill.style.width = pct + '%';
-                    if (text) text.textContent = `${current} / ${total}`;
-                    this._setStatus(description);
-                },
+                    return ({ current, total, description }) => {
+                        if (this._upgradeAborted) return;
+                        const pct = Math.round((current / total) * 100);
+                        if (fill) fill.style.width = pct + '%';
+                        if (text) text.textContent = `${current} / ${total}`;
+                        this._setStatus(description);
+                    };
+                })(),
                 { abortSignal: () => this._upgradeAborted }
             );
 

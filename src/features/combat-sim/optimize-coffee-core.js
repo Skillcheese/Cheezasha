@@ -6,7 +6,7 @@
 
 import dataManager from '../../core/data-manager.js';
 import { calculateSimRevenue } from './combat-sim-adapter.js';
-import { runWorkerChunk, getMaxWorkers } from './combat-sim-runner.js';
+import { runWorkerChunk, getMaxBatchWorkers } from './combat-sim-runner.js';
 import { getGlobalBestProfitPerHour } from '../../utils/tea-optimizer.js';
 import { generateCombos } from './combo-utils.js';
 
@@ -227,7 +227,7 @@ export async function runCoffeeOptimization(params) {
     const groups = getCandidateDrinkGroups(attackStyle);
     const combos = generateCombos(groups, MAX_DRINK_SLOTS);
 
-    const semaphore = createSemaphore(Math.max(1, getMaxWorkers()));
+    const semaphore = createSemaphore(Math.max(1, getMaxBatchWorkers()));
     const ctx = { semaphore, gameData, playerDTOs, baseIndex, zoneHrid, difficultyTier, hours, extraBuffs, selfHrid };
 
     const results = [];
@@ -255,7 +255,7 @@ export async function runCoffeeOptimization(params) {
     };
 
     let nextIndex = 0;
-    const workerCount = Math.max(1, Math.min(getMaxWorkers(), combos.length));
+    const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combos.length));
     await Promise.all(
         Array.from({ length: workerCount }, async () => {
             while (nextIndex < combos.length && !isAborted()) {

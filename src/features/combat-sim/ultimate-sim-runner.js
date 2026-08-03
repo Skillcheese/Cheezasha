@@ -184,6 +184,7 @@ export async function runUltimateSim(params) {
         if (isAborted()) return { converged: false, reason: 'aborted', history, finalZone: null };
 
         const bestFood = rankFoodResults(foodResult.refined, 1)[0] || null;
+        const topFoods = rankFoodResults(foodResult.refined, 5);
         const foodDTO = bestFood
             ? buildFoodDTO(bestFood.combo, bestFood.slotTriggers || bestFood.combo.map(() => null))
             : [null, null, null];
@@ -246,6 +247,7 @@ export async function runUltimateSim(params) {
             zoneHrid: currentZone,
             difficultyTier: currentTier,
             food: bestFood,
+            topFoods,
             coffee: bestCoffee,
             topCoffees,
             bestZone: best,

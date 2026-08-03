@@ -7,7 +7,7 @@
 import dataManager from '../../core/data-manager.js';
 import marketAPI from '../../api/marketplace.js';
 import { getBuyPrice } from './combat-sim-adapter.js';
-import { runWorkerChunk, getMaxWorkers } from './combat-sim-runner.js';
+import { runWorkerChunk, getMaxBatchWorkers } from './combat-sim-runner.js';
 import { generateCombos } from './combo-utils.js';
 
 const MAX_FOOD_SLOTS = 3;
@@ -448,7 +448,7 @@ export async function runFoodOptimization(params) {
         (a, b) => a.reduce((s, c) => s + c.price, 0) - b.reduce((s, c) => s + c.price, 0)
     );
 
-    const semaphore = createSemaphore(Math.max(1, getMaxWorkers()));
+    const semaphore = createSemaphore(Math.max(1, getMaxBatchWorkers()));
     const ctx = {
         semaphore,
         gameData,
@@ -496,7 +496,7 @@ export async function runFoodOptimization(params) {
 
     const testIndicesInParallel = async (indices) => {
         let cursor = 0;
-        const workerCount = Math.max(1, Math.min(getMaxWorkers(), indices.length));
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), indices.length));
         await Promise.all(
             Array.from({ length: workerCount }, async () => {
                 while (cursor < indices.length && !isAborted()) {

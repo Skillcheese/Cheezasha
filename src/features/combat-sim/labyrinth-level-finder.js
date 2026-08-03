@@ -3,7 +3,7 @@
  * Binary search to find the highest beatable roomLevel at a given win-rate threshold.
  */
 
-import { runLabyrinthSimulation, cancelSimulation } from './combat-sim-runner.js';
+import { runLabyrinthSimulation, cancelSimulation, getMaxBatchWorkers } from './combat-sim-runner.js';
 
 const DEFAULT_MIN_LEVEL = 20;
 const DEFAULT_MAX_LEVEL = 300;
@@ -130,35 +130,51 @@ export async function runAllLabyrinths(params, onProgress) {
         levels.push(level);
     }
 
-    const total = labyrinthMonsters.length * levels.length;
-    let done = 0;
-    const results = [];
-
+    // Every (monster, level) pair is an independent sim, so fan them out across the worker pool
+    // instead of running them one at a time.
+    const tasks = [];
     for (const monsterHrid of labyrinthMonsters) {
         for (const roomLevel of levels) {
-            const simResult = await runLabyrinthSimulation({
-                gameData,
-                playerDTOs,
-                zoneHrid,
-                monsterHrid,
-                roomLevel,
-                crates,
-                hours: simHours,
-                communityBuffs,
-            });
-
-            const attempts = simResult.labyAttemptCount || 1;
-            const encounters = simResult.encounters || 0;
-            const winRate = encounters / attempts;
-
-            results.push({ monsterHrid, roomLevel, winRate, encounters, attempts });
-            done++;
-
-            if (onProgress) {
-                onProgress({ monsterHrid, roomLevel, winRate, done, total });
-            }
+            tasks.push({ monsterHrid, roomLevel });
         }
     }
+
+    const total = tasks.length;
+    let done = 0;
+    const results = new Array(tasks.length);
+
+    let cursor = 0;
+    const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), tasks.length));
+    await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+            while (cursor < tasks.length) {
+                const index = cursor++;
+                const { monsterHrid, roomLevel } = tasks[index];
+
+                const simResult = await runLabyrinthSimulation({
+                    gameData,
+                    playerDTOs,
+                    zoneHrid,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours: simHours,
+                    communityBuffs,
+                });
+
+                const attempts = simResult.labyAttemptCount || 1;
+                const encounters = simResult.encounters || 0;
+                const winRate = encounters / attempts;
+
+                results[index] = { monsterHrid, roomLevel, winRate, encounters, attempts };
+                done++;
+
+                if (onProgress) {
+                    onProgress({ monsterHrid, roomLevel, winRate, done, total });
+                }
+            }
+        })
+    );
 
     return results;
 }

@@ -7,7 +7,7 @@
 
 import dataManager from '../../core/data-manager.js';
 import { buildGameDataPayload, calculateSimRevenue } from './combat-sim-adapter.js';
-import { runSimulation, runLabyrinthSimulation } from './combat-sim-runner.js';
+import { runSimulation, runLabyrinthSimulation, getMaxBatchWorkers } from './combat-sim-runner.js';
 import labyrinthClearRate from '../combat/labyrinth-clear-rate.js';
 import { resolveItemPrice } from '../../utils/profit-helpers.js';
 import { getItemPrices } from '../../utils/market-data.js';
@@ -1443,47 +1443,74 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
     // Calculate baseline metrics
     const baselineMetrics = computeMetrics(baselineResult, gameData, playerHrid, hours);
 
-    // Run sim for each candidate
+    // Run sim for each candidate, fanned out across the worker pool instead of one at a time.
     const results = [];
-    for (const candidate of candidatesWithCost) {
-        if (abortSignal?.()) break;
+    let cursor = 0;
+    const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
+    await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+            while (cursor < candidatesWithCost.length && !abortSignal?.()) {
+                const candidate = candidatesWithCost[cursor++];
 
-        onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
+                onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
 
-        // Clone playerDTOs and apply candidate upgrade
-        const modifiedDTOs = JSON.parse(JSON.stringify(playerDTOs));
+                // Shallow-clone only what this candidate actually changes (playerDTOs array,
+                // the target player, and the one abilities/equipment container it touches) —
+                // each candidate gets its own independent objects for the fields it mutates,
+                // so concurrent candidates never stomp on each other, without paying for a
+                // full JSON deep-clone of the whole (potentially multi-player) DTO tree.
+                const modifiedDTOs = playerDTOs.slice();
+                const basePlayer = playerDTOs[playerIndex];
 
-        if (candidate.slot.startsWith('ability_')) {
-            // Ability upgrade/swap
-            const slotIdx = parseInt(candidate.slot.split('_')[1]);
-            modifiedDTOs[playerIndex].abilities[slotIdx] = {
-                hrid: candidate.upgradeHrid,
-                level: candidate.upgradeLevel,
-                triggers: null,
-            };
-        } else {
-            // Equipment upgrade
-            modifiedDTOs[playerIndex].equipment[candidate.slot] = {
-                hrid: candidate.upgradeHrid,
-                enhancementLevel: candidate.upgradeLevel,
-            };
-        }
+                if (candidate.slot.startsWith('ability_')) {
+                    // Ability upgrade/swap
+                    const slotIdx = parseInt(candidate.slot.split('_')[1]);
+                    const abilities = basePlayer.abilities.slice();
+                    abilities[slotIdx] = {
+                        hrid: candidate.upgradeHrid,
+                        level: candidate.upgradeLevel,
+                        triggers: null,
+                    };
+                    modifiedDTOs[playerIndex] = { ...basePlayer, abilities };
+                } else {
+                    // Equipment upgrade
+                    modifiedDTOs[playerIndex] = {
+                        ...basePlayer,
+                        equipment: {
+                            ...basePlayer.equipment,
+                            [candidate.slot]: {
+                                hrid: candidate.upgradeHrid,
+                                enhancementLevel: candidate.upgradeLevel,
+                            },
+                        },
+                    };
+                }
 
-        const simResult = await runSimulation(
-            { gameData, playerDTOs: modifiedDTOs, zoneHrid, difficultyTier, hours, communityBuffs },
-            null
-        );
+                const simResult = await runSimulation(
+                    {
+                        gameData,
+                        playerDTOs: modifiedDTOs,
+                        zoneHrid,
+                        difficultyTier,
+                        hours,
+                        communityBuffs,
+                        singleWorker: true,
+                    },
+                    null
+                );
 
-        if (abortSignal?.()) break;
+                if (abortSignal?.()) break;
 
-        const metrics = computeMetrics(simResult, gameData, playerHrid, hours);
-        const deltas = computeDeltas(baselineMetrics, metrics);
-        const goldPer = computeGoldPerImprovement(candidate.cost, deltas);
+                const metrics = computeMetrics(simResult, gameData, playerHrid, hours);
+                const deltas = computeDeltas(baselineMetrics, metrics);
+                const goldPer = computeGoldPerImprovement(candidate.cost, deltas);
 
-        results.push({ candidate, cost: candidate.cost, metrics, deltas, goldPer });
-        current++;
-        onProgress?.({ current, total, description: candidate.description });
-    }
+                results.push({ candidate, cost: candidate.cost, metrics, deltas, goldPer });
+                current++;
+                onProgress?.({ current, total, description: candidate.description });
+            }
+        })
+    );
 
     // Sort by best value (lowest gold per 0.01% DPS improvement)
     results.sort((a, b) => {
@@ -1817,104 +1844,130 @@ export async function runLabyrinthUpgradeAnalysis(params, onProgress, options = 
 
     const results = [];
 
-    // ── Equipment / ability sims ──
-    for (const candidate of candidatesWithCost) {
-        if (abortSignal?.()) break;
+    // ── Equipment / ability sims (fanned out across the worker pool) ──
+    let candidateCursor = 0;
+    const candidateWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
+    await Promise.all(
+        Array.from({ length: candidateWorkerCount }, async () => {
+            while (candidateCursor < candidatesWithCost.length && !abortSignal?.()) {
+                const candidate = candidatesWithCost[candidateCursor++];
 
-        onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
+                onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
 
-        const modifiedDTO = JSON.parse(JSON.stringify(playerDTOs[playerIndex]));
+                // Shallow-clone only the container this candidate touches (abilities array or
+                // equipment map) instead of deep-cloning the whole player DTO — each candidate
+                // still gets its own independent objects, safe for concurrent execution.
+                const basePlayer = playerDTOs[playerIndex];
+                let modifiedDTO;
 
-        if (candidate.slot.startsWith('ability_')) {
-            const slotIdx = parseInt(candidate.slot.split('_')[1]);
-            modifiedDTO.abilities[slotIdx] = {
-                hrid: candidate.upgradeHrid,
-                level: candidate.upgradeLevel,
-                triggers: null,
-            };
-        } else if (candidate.type === 'cross_slot') {
-            for (const slot of candidate.clearedSlots) {
-                modifiedDTO.equipment[slot] = null;
+                if (candidate.slot.startsWith('ability_')) {
+                    const slotIdx = parseInt(candidate.slot.split('_')[1]);
+                    const abilities = basePlayer.abilities.slice();
+                    abilities[slotIdx] = {
+                        hrid: candidate.upgradeHrid,
+                        level: candidate.upgradeLevel,
+                        triggers: null,
+                    };
+                    modifiedDTO = { ...basePlayer, abilities };
+                } else if (candidate.type === 'cross_slot') {
+                    const equipment = { ...basePlayer.equipment };
+                    for (const slot of candidate.clearedSlots) {
+                        equipment[slot] = null;
+                    }
+                    for (const [slot, item] of Object.entries(candidate.addedSlots)) {
+                        equipment[slot] = item;
+                    }
+                    modifiedDTO = { ...basePlayer, equipment };
+                } else {
+                    modifiedDTO = {
+                        ...basePlayer,
+                        equipment: {
+                            ...basePlayer.equipment,
+                            [candidate.slot]: {
+                                hrid: candidate.upgradeHrid,
+                                enhancementLevel: candidate.upgradeLevel,
+                            },
+                        },
+                    };
+                }
+
+                const simResult = await runLabyrinthSimulation({
+                    gameData,
+                    playerDTOs: [modifiedDTO],
+                    zoneHrid,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs,
+                });
+
+                if (abortSignal?.()) break;
+
+                const attempts = simResult.labyAttemptCount || 1;
+                const encounters = simResult.encounters || 0;
+                const winRate = encounters / attempts;
+                const winRateDelta = winRate - baselineWinRate;
+
+                results.push({
+                    candidate,
+                    costType: 'gold',
+                    cost: candidate.cost,
+                    winRate,
+                    winRateDelta,
+                    goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
+                    metricType: 'winRate',
+                });
+                current++;
+                onProgress?.({ current, total, description: candidate.description });
             }
-            for (const [slot, item] of Object.entries(candidate.addedSlots)) {
-                modifiedDTO.equipment[slot] = item;
+        })
+    );
+
+    // ── Combat buff sims (fanned out across the worker pool) ──
+    let buffCursor = 0;
+    const buffWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combatBuffCandidates.length));
+    await Promise.all(
+        Array.from({ length: buffWorkerCount }, async () => {
+            while (buffCursor < combatBuffCandidates.length && !abortSignal?.()) {
+                const buffCandidate = combatBuffCandidates[buffCursor++];
+
+                onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
+
+                const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
+                const simResult = await runLabyrinthSimulation({
+                    gameData,
+                    playerDTOs: [playerDTOs[playerIndex]],
+                    zoneHrid,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs: modifiedBuffs,
+                });
+
+                if (abortSignal?.()) break;
+
+                const attempts = simResult.labyAttemptCount || 1;
+                const encounters = simResult.encounters || 0;
+                const winRate = encounters / attempts;
+                const winRateDelta = winRate - baselineWinRate;
+
+                results.push({
+                    candidate: buffCandidate,
+                    costType: 'token',
+                    tokenCost: buffCandidate.tokenCost,
+                    winRate,
+                    winRateDelta,
+                    metricType: 'winRate',
+                });
+                current++;
+                onProgress?.({ current, total, description: buffCandidate.description });
             }
-        } else {
-            modifiedDTO.equipment[candidate.slot] = {
-                hrid: candidate.upgradeHrid,
-                enhancementLevel: candidate.upgradeLevel,
-            };
-        }
-
-        const simResult = await runLabyrinthSimulation({
-            gameData,
-            playerDTOs: [modifiedDTO],
-            zoneHrid,
-            monsterHrid,
-            roomLevel,
-            crates,
-            hours,
-            communityBuffs,
-            labyrinthCombatBuffs,
-        });
-
-        if (abortSignal?.()) break;
-
-        const attempts = simResult.labyAttemptCount || 1;
-        const encounters = simResult.encounters || 0;
-        const winRate = encounters / attempts;
-        const winRateDelta = winRate - baselineWinRate;
-
-        results.push({
-            candidate,
-            costType: 'gold',
-            cost: candidate.cost,
-            winRate,
-            winRateDelta,
-            goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
-            metricType: 'winRate',
-        });
-        current++;
-        onProgress?.({ current, total, description: candidate.description });
-    }
-
-    // ── Combat buff sims ──
-    for (const buffCandidate of combatBuffCandidates) {
-        if (abortSignal?.()) break;
-
-        onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
-
-        const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
-        const simResult = await runLabyrinthSimulation({
-            gameData,
-            playerDTOs: [playerDTOs[playerIndex]],
-            zoneHrid,
-            monsterHrid,
-            roomLevel,
-            crates,
-            hours,
-            communityBuffs,
-            labyrinthCombatBuffs: modifiedBuffs,
-        });
-
-        if (abortSignal?.()) break;
-
-        const attempts = simResult.labyAttemptCount || 1;
-        const encounters = simResult.encounters || 0;
-        const winRate = encounters / attempts;
-        const winRateDelta = winRate - baselineWinRate;
-
-        results.push({
-            candidate: buffCandidate,
-            costType: 'token',
-            tokenCost: buffCandidate.tokenCost,
-            winRate,
-            winRateDelta,
-            metricType: 'winRate',
-        });
-        current++;
-        onProgress?.({ current, total, description: buffCandidate.description });
-    }
+        })
+    );
 
     // ── Experience buff (flat % increase, no sim needed) ──
     for (const buffCandidate of experienceBuffCandidates) {

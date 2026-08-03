@@ -112,6 +112,20 @@ export function getMaxWorkers() {
 }
 
 /**
+ * Max concurrency for fanning out many independent single-worker tasks (one worker per task,
+ * no intra-task chunking) — e.g. upgrade-candidate analysis. MAX_WORKERS=4 exists to avoid
+ * oversubscribing the pool when each task might itself split into multiple sub-workers; that
+ * doesn't apply here, so this scales up to the full pool (still capped by the user's
+ * combatSim_maxThreads setting when set).
+ * @returns {number}
+ */
+export function getMaxBatchWorkers() {
+    const setting = config.getSetting('combatSim_maxThreads') || 0;
+    const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+    return setting > 0 ? Math.min(setting, cores) : Math.min(WORKER_POOL_MAX, cores);
+}
+
+/**
  * Get or create the worker Blob URL (created once, reused).
  * @returns {string}
  */
@@ -363,23 +377,27 @@ function mergeSimResults(results) {
  * @param {number} params.difficultyTier - Difficulty tier (0+)
  * @param {number} params.hours - Hours to simulate
  * @param {Object} params.communityBuffs - { mooPass, comExp, comDrop }
+ * @param {boolean} [params.singleWorker] - Force a single worker/chunk (no intra-sim splitting
+ *   or result merging). Use when the caller is already running many independent sims concurrently
+ *   (e.g. upgrade-candidate analysis) — splitting each one further just oversubscribes the shared
+ *   worker pool and adds merge overhead without speeding up the overall batch.
  * @param {Function} [onProgress] - Called with (percent: 0-100)
  * @returns {Promise<Object>} Merged SimResult
  */
 export async function runSimulation(params, onProgress) {
-    const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs } = params;
+    const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, singleWorker } = params;
 
     const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
     const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
     const ONE_HOUR_NS = 3600 * 1e9;
 
-    // Cancel any previous run
-    cancelSimulation();
-
     // Determine worker count
     const maxWorkers = getMaxWorkers();
-    const workerCount =
-        hours >= MIN_HOURS_PER_WORKER * 2 ? Math.min(maxWorkers, Math.floor(hours / MIN_HOURS_PER_WORKER)) : 1;
+    const workerCount = singleWorker
+        ? 1
+        : hours >= MIN_HOURS_PER_WORKER * 2
+          ? Math.min(maxWorkers, Math.floor(hours / MIN_HOURS_PER_WORKER))
+          : 1;
 
     // Split hours across workers
     const baseHours = Math.floor(hours / workerCount);
@@ -477,9 +495,6 @@ export async function runLabyrinthSimulation(params, onProgress) {
     const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
     const extraBuffs = [...buildExtraBuffs(communityBuffs, guildCombatBuffs), ...(labyrinthCombatBuffs || [])];
     const ONE_HOUR_NS = 3600 * 1e9;
-
-    // Cancel any previous run
-    cancelSimulation();
 
     const taskId = ++taskIdCounter;
     const message = {
