@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.4.0](https://github.com/Skillcheese/Cheezasha/compare/v3.3.0...v3.4.0) (2026-08-06)
+
+
+### Features
+
+* add marketplace flipping tool, churn estimator, and combat ETA/level-target analysis ([86d19ef](https://github.com/Skillcheese/Cheezasha/commit/86d19ef7c5f4e59ccc46af8cbc909a1bf0e1d082))
+
+
+### Performance Improvements
+
+* **combat-sim:** reduce allocations and redundant work in simulator hot path ([f5e567d](https://github.com/Skillcheese/Cheezasha/commit/f5e567da9abc65f2f06c711dccaa907a418c40f7))
+
 ## [3.3.0](https://github.com/Skillcheese/Cheezasha/compare/v3.2.1...v3.3.0) (2026-08-03)
 
 ### Features
