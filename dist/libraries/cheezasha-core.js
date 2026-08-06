@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.3.0
+ * Version: 3.4.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -19,7 +19,7 @@
             this.db = null;
             this.available = false;
             this.dbName = 'CheezashaDB';
-            this.dbVersion = 17; // Bumped for leaderboardHistory store
+            this.dbVersion = 18; // Bumped for flippingHistory store
             this.saveDebounceTimers = new Map(); // Per-key debounce timers
             this.pendingWrites = new Map(); // Per-key pending write data: {value, storeName, resolvers, generation}
             this._writeGeneration = new Map(); // Per-key monotonic generation counter
@@ -276,6 +276,11 @@
                     // Create leaderboardHistory store if it doesn't exist (for leaderboard XP tracker)
                     if (!db.objectStoreNames.contains('leaderboardHistory')) {
                         db.createObjectStore('leaderboardHistory');
+                    }
+
+                    // Create flippingHistory store if it doesn't exist (for flipping/trading tool price history)
+                    if (!db.objectStoreNames.contains('flippingHistory')) {
+                        db.createObjectStore('flippingHistory');
                     }
                 };
             });
@@ -854,6 +859,13 @@
                     type: 'checkbox',
                     default: false,
                     help: 'Displays profit/hr and remaining profit for the current action (gathering and production)',
+                },
+                actionBar_showCombatEta: {
+                    id: 'actionBar_showCombatEta',
+                    label: 'Action bar: Combat time remaining (finite kill-count tasks)',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Runs a quick combat simulation to estimate kills/hr, then shows time remaining for "Kill N" combat tasks. Re-simulates every 30 minutes to stay accurate. Infinite ("until stopped") combat tasks show no estimate.',
                 },
                 actionPanel_liveCountdown: {
                     id: 'actionPanel_liveCountdown',
@@ -1920,6 +1932,13 @@
                     default: true,
                     help: 'Adds "Philo Gamba" button to settings panel for calculating transmutation ROI into Philosopher\'s Stones',
                 },
+                market_flippingTool: {
+                    id: 'market_flippingTool',
+                    label: 'Market: Enable flipping/trading tool',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Samples marketplace-wide ask/bid prices over time and adds a "Flipping" tab to the marketplace showing ROI-ranked flip opportunities and under/over-priced alerts',
+                },
                 market_showQueueLength: {
                     id: 'market_showQueueLength',
                     label: 'Market: Show queue length estimates',
@@ -1933,6 +1952,13 @@
                     type: 'checkbox',
                     default: false,
                     help: 'Adds a small link to view the current item on milkyway.market',
+                },
+                market_showChurnEstimate: {
+                    id: 'market_showChurnEstimate',
+                    label: 'Market: Show estimated listing churn',
+                    type: 'checkbox',
+                    default: true,
+                    help: "Displays the average age of listings sitting at the current best ask/bid price for the item you're viewing, as a rough proxy for how quickly its queue actually turns over (only updates for items you've viewed, no extra requests are made)",
                 },
             },
         },
@@ -2464,6 +2490,16 @@
                     max: 1000,
                     step: 1,
                     help: 'Simulated hours run per food combination when ranking deaths/hr, mana OOM%, and cost/hr (lower = faster search)',
+                },
+                combatSim_upgradeAdvisorHours: {
+                    id: 'combatSim_upgradeAdvisorHours',
+                    label: 'Combat Simulator: Upgrade Advisor test hours per candidate',
+                    type: 'number',
+                    default: 2,
+                    min: 1,
+                    max: 1000,
+                    step: 1,
+                    help: 'Simulated hours run per equipment/ability candidate when ranking upgrades (lower = faster search)',
                 },
                 combatSim_maxThreads: {
                     id: 'combatSim_maxThreads',
@@ -3914,6 +3950,10 @@
             try {
                 const data = JSON.parse(message);
                 const parsedMessageType = data.type;
+
+                if (parsedMessageType && /abilit/i.test(parsedMessageType)) {
+                    console.log('[Cheezasha][trace] ability-related websocket message:', parsedMessageType, data);
+                }
 
                 // Save critical data to GM storage for Combat Sim export
                 this.saveCombatSimData(parsedMessageType, message);
@@ -5686,6 +5726,20 @@
                     category: 'Market',
                     description: "Calculate expected value of transmuting items into Philosopher's Stones",
                     settingKey: 'market_showPhiloCalculator',
+                },
+                flipSampler: {
+                    enabled: true,
+                    name: 'Flipping / Trading Tool (Sampler)',
+                    category: 'Market',
+                    description: 'Samples marketplace-wide ask/bid prices over time for the flipping tool',
+                    settingKey: 'market_flippingTool',
+                },
+                flipUI: {
+                    enabled: true,
+                    name: 'Flipping / Trading Tool (UI)',
+                    category: 'Market',
+                    description: 'Adds a "Flipping" tab with ROI-ranked flip opportunities to the marketplace',
+                    settingKey: 'market_flippingTool',
                 },
 
                 // Action Features

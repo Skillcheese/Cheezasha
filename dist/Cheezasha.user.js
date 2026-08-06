@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cheezasha
 // @namespace    http://tampermonkey.net/
-// @version      3.3.0
+// @version      3.4.0
 // @downloadURL  https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @updateURL    https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @description  Cheezasha - Enhanced tools for Milky Way Idle.
@@ -21,12 +21,12 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.js
 // @require      https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-core.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-utils.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-market.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-actions.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-combat.js
-// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@358b1c5b6cacba21a9c632ffb3d1cb4ea69a6cf0/dist/libraries/cheezasha-ui.js
+// @require      https://UPDATE-THIS-URL/cheezasha-core.js
+// @require      https://UPDATE-THIS-URL/cheezasha-utils.js
+// @require      https://UPDATE-THIS-URL/cheezasha-market.js
+// @require      https://UPDATE-THIS-URL/cheezasha-actions.js
+// @require      https://UPDATE-THIS-URL/cheezasha-combat.js
+// @require      https://UPDATE-THIS-URL/cheezasha-ui.js
 // ==/UserScript==
 // Note: Combat Sim auto-import requires Tampermonkey for cross-domain storage. Not available on Steam (use manual clipboard copy/paste instead).
 
@@ -192,10 +192,38 @@
                 async: false,
             },
             {
+                key: 'marketChurnEstimator',
+                name: 'Market Churn Estimator',
+                category: 'Market',
+                module: Market.marketChurnEstimator,
+                async: false,
+            },
+            {
                 key: 'sellQueue',
                 name: 'Sell Queue',
                 category: 'Market',
                 module: Market.sellQueue,
+                async: false,
+            },
+            {
+                key: 'flipSampler',
+                name: 'Flipping Tool Sampler',
+                category: 'Market',
+                module: Market.flipSampler,
+                async: true,
+            },
+            {
+                key: 'flipUI',
+                name: 'Flipping Tool UI',
+                category: 'Market',
+                module: Market.flipUI,
+                async: true,
+            },
+            {
+                key: 'flipChartLink',
+                name: 'Flipping Chart Link',
+                category: 'Market',
+                module: Market.flipChartLink,
                 async: false,
             },
             { key: 'networth', name: 'Net Worth', category: 'Economy', module: Market.networthFeature, async: false },
@@ -941,7 +969,7 @@
         // Expose minimal user-facing API
         const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-        targetWindow.Cheezasha.version = '3.3.0';
+        targetWindow.Cheezasha.version = '3.4.0';
 
         // Feature toggle API (for users to manage settings via console)
         targetWindow.Cheezasha.features = {
