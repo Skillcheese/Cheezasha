@@ -1613,6 +1613,7 @@ async function generateAbilityOptimizeCandidates(params, onProgress, abortSignal
             name: abDetail.name || abHrid.split('/').pop(),
             isDamage,
             isZeroCooldown,
+            cooldownDuration: abDetail.cooldownDuration || 0,
         };
     };
 
@@ -1819,12 +1820,15 @@ async function generateAbilityOptimizeCandidates(params, onProgress, abortSignal
     };
     combine(0, [], 0);
 
-    // Order a combo's abilities across the given slots with any 0-cooldown ability moved to
-    // the last slot, so it only fires as a fallback instead of blocking everything behind it.
+    // Order a combo's abilities across the given slots by cooldown, longest first. Combat picks
+    // the first ready ability by slot order each attack cycle, so a short-cooldown ability placed
+    // early is ready almost every cycle and permanently starves everything behind it — the game's
+    // priority system, not raw dpsGain, decides who should sit up front. A long-cooldown ability
+    // is rarely ready, so giving it first priority lets it fire the instant it's available without
+    // blocking the more frequent abilities behind it; a 0-cooldown "always ready" filler is the
+    // most extreme case of this and must be last (see isZeroCooldown above).
     const arrangeForSlots = (entries, slotIndices) => {
-        const zeroCd = entries.find((e) => e.isZeroCooldown);
-        const rest = entries.filter((e) => !e.isZeroCooldown);
-        const ordered = zeroCd ? [...rest, zeroCd] : rest;
+        const ordered = entries.slice().sort((a, b) => b.cooldownDuration - a.cooldownDuration);
         return ordered.map((entry, i) => ({ slotIdx: slotIndices[i], entry }));
     };
 
@@ -1834,25 +1838,31 @@ async function generateAbilityOptimizeCandidates(params, onProgress, abortSignal
         const totalCost = normalCost + specialCost;
         if (totalCost > totalBudget) continue;
 
+        const arranged = arrangeForSlots(combo, normalSlotIndices);
+
         const reorderSlots = [];
         const reorderAbilities = [];
         if (bestSpecial) {
             reorderSlots.push(0);
             reorderAbilities.push({ hrid: bestSpecial.hrid, level: bestSpecial.level, triggers: null });
         }
-        for (const { slotIdx, entry } of arrangeForSlots(combo, normalSlotIndices)) {
+        for (const { slotIdx, entry } of arranged) {
             reorderSlots.push(slotIdx);
             reorderAbilities.push({ hrid: entry.hrid, level: entry.level, triggers: null });
         }
 
+        // Description order must match reorderSlots (left-to-right equip order), not the
+        // dpsGain-sorted `combo` order — those can differ now that slot placement is decided by
+        // cooldown (longest first), so displaying `combo`'s order would mislabel which ability
+        // actually ends up in which slot.
         candidates.push({
             slot: 'ability_optimize',
             currentHrid: null,
             currentLevel: 0,
             upgradeHrid: null,
             upgradeLevel: 0,
-            description: `${bestSpecial ? `${bestSpecial.name} (Lv${bestSpecial.level}) + ` : ''}${combo
-                .map((e) => `${e.name} (Lv${e.level})`)
+            description: `${bestSpecial ? `${bestSpecial.name} (Lv${bestSpecial.level}) + ` : ''}${arranged
+                .map(({ entry }) => `${entry.name} (Lv${entry.level})`)
                 .join(', ')}`,
             type: 'ability_optimize',
             cost: totalCost,

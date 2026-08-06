@@ -189,6 +189,7 @@ class XPTracker {
         this.timerRegistry = createTimerRegistry();
         this.unregisterObservers = [];
         this.tooltipObserver = null;
+        this.navBarsDebounceTimer = null;
     }
 
     async initialize() {
@@ -309,7 +310,18 @@ class XPTracker {
 
         storage.set(`xpHistory_${this.characterId}`, this.xpHistory, STORE_NAME);
 
-        this._updateNavBars();
+        this._scheduleUpdateNavBars();
+    }
+
+    /**
+     * Debounce nav bar updates so a burst of action_completed events (e.g. an efficiency
+     * proc firing two completions back-to-back) only triggers one DOM rebuild.
+     */
+    _scheduleUpdateNavBars() {
+        clearTimeout(this.navBarsDebounceTimer);
+        this.navBarsDebounceTimer = setTimeout(() => {
+            this._updateNavBars();
+        }, 150);
     }
 
     /**
@@ -482,6 +494,8 @@ class XPTracker {
 
     disable() {
         this.timerRegistry.clearAll();
+        clearTimeout(this.navBarsDebounceTimer);
+        this.navBarsDebounceTimer = null;
 
         this.unregisterObservers.forEach((fn) => fn());
         this.unregisterObservers = [];

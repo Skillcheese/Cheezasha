@@ -104,13 +104,13 @@ class ActionCountdown {
 
     _stopLoop() {
         if (this.rafId) {
-            cancelAnimationFrame(this.rafId);
+            clearTimeout(this.rafId);
             this.rafId = null;
         }
     }
 
     _tick() {
-        this.rafId = requestAnimationFrame(() => this._tick());
+        this.rafId = setTimeout(() => this._tick(), 200);
 
         if (!this.textEl || !this.textEl.isConnected || !this.totalTime) return;
 
