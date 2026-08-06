@@ -38,11 +38,12 @@ class CombatSimulator {
      * @param {Function} [onProgress] - Optional progress callback receiving { zone, difficultyTier, progress }
      * @param {Labyrinth} [labyrinth] - Optional labyrinth encounter manager (replaces zone encounter logic)
      */
-    constructor(players, zone, onProgress, labyrinth) {
+    constructor(players, zone, onProgress, labyrinth, infiniteMana) {
         this.players = players;
         this.zone = zone;
         this.labyrinth = labyrinth || null;
         this.onProgress = onProgress;
+        this.infiniteMana = infiniteMana || false;
         this.eventQueue = new EventQueue();
         this.simResult = new SimResult(zone, players.length);
         this.allPlayersDead = false;
@@ -53,6 +54,56 @@ class CombatSimulator {
             count: 0,
             maxSize: 200,
         };
+
+        // Reusable buff objects, keyed per-unit, to avoid re-allocating buff literals on every hit.
+        this._buffPools = new WeakMap();
+
+        // Reusable scratch arrays to avoid re-allocating target lists in hot paths.
+        this._scratchParry = [];
+        this._scratchAliveA = [];
+        this._scratchAliveB = [];
+        this._scratchAliveC = [];
+    }
+
+    _getPooledBuff(unit, key) {
+        let pool = this._buffPools.get(unit);
+        if (!pool) {
+            pool = {};
+            this._buffPools.set(unit, pool);
+        }
+        let buff = pool[key];
+        if (!buff) {
+            buff = {};
+            pool[key] = buff;
+        }
+        return buff;
+    }
+
+    _filterAliveInto(scratch, units) {
+        scratch.length = 0;
+        for (let i = 0; i < units.length; i++) {
+            const unit = units[i];
+            if (unit && unit.combatDetails.currentHitpoints > 0) {
+                scratch.push(unit);
+            }
+        }
+        return scratch;
+    }
+
+    _pickThreatTarget(targets) {
+        let cumulativeThreat = 0;
+        for (let i = 0; i < targets.length; i++) {
+            cumulativeThreat += targets[i].combatDetails.combatStats.threat;
+        }
+        const randomValueHit = Math.random() * cumulativeThreat;
+        let running = 0;
+        for (let i = 0; i < targets.length; i++) {
+            running += targets[i].combatDetails.combatStats.threat;
+            if (randomValueHit < running) {
+                return targets[i];
+            }
+        }
+        return targets[targets.length - 1];
     }
 
     addToWipeLogs(logEntry) {
@@ -252,6 +303,10 @@ class CombatSimulator {
     processEvent(event) {
         this.simulationTime = event.time;
 
+        // startNewEncounter() already runs checkTriggers() internally, so these two event
+        // types don't need the trailing checkTriggers() below to run again.
+        let needsTriggerCheck = event.type !== CombatStartEvent.type && event.type !== EnemyRespawnEvent.type;
+
         switch (event.type) {
             case CombatStartEvent.type:
                 this.processCombatStartEvent(event);
@@ -302,6 +357,8 @@ class CombatSimulator {
                 this.tryUseAbility(event.source, event.ability);
                 break;
             case AwaitCooldownEvent.type:
+                // Only reschedules an attack/ability; can't itself change trigger-relevant state.
+                needsTriggerCheck = false;
                 this.addNextAttackEvent(event.source);
                 break;
             case CooldownReadyEvent.type:
@@ -309,7 +366,9 @@ class CombatSimulator {
                 break;
         }
 
-        this.checkTriggers();
+        if (needsTriggerCheck) {
+            this.checkTriggers();
+        }
     }
 
     processCombatStartEvent(event) {
@@ -412,9 +471,14 @@ class CombatSimulator {
     }
 
     checkParry(targets) {
-        const parryUnits = targets.filter(
-            (unit) => unit && unit.combatDetails.currentHitpoints > 0 && unit.combatDetails.combatStats.parry > 0
-        );
+        const parryUnits = this._scratchParry;
+        parryUnits.length = 0;
+        for (let i = 0; i < targets.length; i++) {
+            const unit = targets[i];
+            if (unit && unit.combatDetails.currentHitpoints > 0 && unit.combatDetails.combatStats.parry > 0) {
+                parryUnits.push(unit);
+            }
+        }
         if (parryUnits.length <= 0) {
             return undefined;
         }
@@ -432,26 +496,12 @@ class CombatSimulator {
             return;
         }
 
-        const aliveTargets = targets.filter((unit) => unit && unit.combatDetails.currentHitpoints > 0);
+        const aliveTargets = this._filterAliveInto(this._scratchAliveA, targets);
 
         for (let i = 0; i < aliveTargets.length; i++) {
             let target = aliveTargets[i];
             if (!event.source.isPlayer && aliveTargets.length > 1) {
-                let cumulativeThreat = 0;
-                const cumulativeRanges = [];
-                aliveTargets.forEach((player) => {
-                    const playerThreat = player.combatDetails.combatStats.threat;
-                    cumulativeThreat += playerThreat;
-                    cumulativeRanges.push({
-                        player: player,
-                        rangeStart: cumulativeThreat - playerThreat,
-                        rangeEnd: cumulativeThreat,
-                    });
-                });
-                const randomValueHit = Math.random() * cumulativeThreat;
-                target = cumulativeRanges.find(
-                    (range) => randomValueHit >= range.rangeStart && randomValueHit < range.rangeEnd
-                ).player;
+                target = this._pickThreatTarget(aliveTargets);
             }
             let source = event.source;
 
@@ -481,16 +531,15 @@ class CombatSimulator {
                     currentCurseAmount,
                     target
                 );
-                const curseBuff = {
-                    uniqueHrid: '/buff_uniques/curse',
-                    typeHrid: '/buff_types/damage_taken',
-                    ratioBoost: 0,
-                    ratioBoostLevelBonus: 0,
-                    flatBoost: source.combatDetails.combatStats.curse * curseExpirationEvent.curseAmount,
-                    flatBoostLevelBonus: 0,
-                    startTime: '0001-01-01T00:00:00Z',
-                    duration: curseExpireTime,
-                };
+                const curseBuff = this._getPooledBuff(target, 'curse');
+                curseBuff.uniqueHrid = '/buff_uniques/curse';
+                curseBuff.typeHrid = '/buff_types/damage_taken';
+                curseBuff.ratioBoost = 0;
+                curseBuff.ratioBoostLevelBonus = 0;
+                curseBuff.flatBoost = source.combatDetails.combatStats.curse * curseExpirationEvent.curseAmount;
+                curseBuff.flatBoostLevelBonus = 0;
+                curseBuff.startTime = '0001-01-01T00:00:00Z';
+                curseBuff.duration = curseExpireTime;
                 target.addBuff(curseBuff);
                 this.eventQueue.addEvent(curseExpirationEvent);
             }
@@ -510,16 +559,16 @@ class CombatSimulator {
                     weakenAmount,
                     source
                 );
-                const weakenBuff = {
-                    uniqueHrid: '/buff_uniques/weaken',
-                    typeHrid: '/buff_types/damage',
-                    ratioBoost: -1 * target.combatDetails.combatStats.weaken * weakenExpirationEvent.weakenAmount,
-                    ratioBoostLevelBonus: 0,
-                    flatBoost: 0,
-                    flatBoostLevelBonus: 0,
-                    startTime: '0001-01-01T00:00:00Z',
-                    duration: weakenExpireTime,
-                };
+                const weakenBuff = this._getPooledBuff(source, 'weaken');
+                weakenBuff.uniqueHrid = '/buff_uniques/weaken';
+                weakenBuff.typeHrid = '/buff_types/damage';
+                weakenBuff.ratioBoost =
+                    -1 * target.combatDetails.combatStats.weaken * weakenExpirationEvent.weakenAmount;
+                weakenBuff.ratioBoostLevelBonus = 0;
+                weakenBuff.flatBoost = 0;
+                weakenBuff.flatBoostLevelBonus = 0;
+                weakenBuff.startTime = '0001-01-01T00:00:00Z';
+                weakenBuff.duration = weakenExpireTime;
                 source.addBuff(weakenBuff);
                 this.eventQueue.addEvent(weakenExpirationEvent);
             }
@@ -969,26 +1018,26 @@ class CombatSimulator {
                     return;
                 }
 
-                const enrageDamageBuff = {
-                    uniqueHrid: '/buff_uniques/enrage_damage',
-                    typeHrid: '/buff_types/damage',
-                    ratioBoost: nowStack * 0.1,
-                    ratioBoostLevelBonus: 0,
-                    flatBoost: 0,
-                    flatBoostLevelBonus: 0,
-                    startTime: '0001-01-01T00:00:00Z',
-                    duration: ENRAGE_TICK_INTERVAL,
-                };
-                const enrageAccuracyBuff = {
-                    uniqueHrid: '/buff_uniques/enrage_accuracy',
-                    typeHrid: '/buff_types/accuracy',
-                    ratioBoost: nowStack * 0.1,
-                    ratioBoostLevelBonus: 0,
-                    flatBoost: 0,
-                    flatBoostLevelBonus: 0,
-                    startTime: '0001-01-01T00:00:00Z',
-                    duration: ENRAGE_TICK_INTERVAL,
-                };
+                const enrageDamageBuff = this._getPooledBuff(enemy, 'enrageDamage');
+                enrageDamageBuff.uniqueHrid = '/buff_uniques/enrage_damage';
+                enrageDamageBuff.typeHrid = '/buff_types/damage';
+                enrageDamageBuff.ratioBoost = nowStack * 0.1;
+                enrageDamageBuff.ratioBoostLevelBonus = 0;
+                enrageDamageBuff.flatBoost = 0;
+                enrageDamageBuff.flatBoostLevelBonus = 0;
+                enrageDamageBuff.startTime = '0001-01-01T00:00:00Z';
+                enrageDamageBuff.duration = ENRAGE_TICK_INTERVAL;
+
+                const enrageAccuracyBuff = this._getPooledBuff(enemy, 'enrageAccuracy');
+                enrageAccuracyBuff.uniqueHrid = '/buff_uniques/enrage_accuracy';
+                enrageAccuracyBuff.typeHrid = '/buff_types/accuracy';
+                enrageAccuracyBuff.ratioBoost = nowStack * 0.1;
+                enrageAccuracyBuff.ratioBoostLevelBonus = 0;
+                enrageAccuracyBuff.flatBoost = 0;
+                enrageAccuracyBuff.flatBoostLevelBonus = 0;
+                enrageAccuracyBuff.startTime = '0001-01-01T00:00:00Z';
+                enrageAccuracyBuff.duration = ENRAGE_TICK_INTERVAL;
+
                 enemy.addBuff(enrageDamageBuff);
                 enemy.addBuff(enrageAccuracyBuff);
 
@@ -1102,7 +1151,7 @@ class CombatSimulator {
         }
 
         for (const buff of consumable.buffs) {
-            const currentBuff = structuredClone(buff);
+            const currentBuff = { ...buff };
             if (source.combatDetails.combatStats.drinkConcentration > 0 && consumable.catagoryHrid.includes('drink')) {
                 currentBuff.ratioBoost *= 1 + source.combatDetails.combatStats.drinkConcentration;
                 currentBuff.flatBoost *= 1 + source.combatDetails.combatStats.drinkConcentration;
@@ -1122,6 +1171,10 @@ class CombatSimulator {
     canUseAbility(source, ability, oomCheck) {
         if (source.combatDetails.currentHitpoints <= 0) {
             return false;
+        }
+
+        if (this.infiniteMana && source.isPlayer) {
+            return true;
         }
 
         if (source.combatDetails.currentManapoints < ability.manaCost) {
@@ -1149,7 +1202,9 @@ class CombatSimulator {
             }
         }
 
-        source.combatDetails.currentManapoints -= ability.manaCost;
+        if (!this.infiniteMana || !source.isPlayer) {
+            source.combatDetails.currentManapoints -= ability.manaCost;
+        }
 
         ability.lastUsed = this.simulationTime;
 
@@ -1235,14 +1290,15 @@ class CombatSimulator {
     processAbilityBuffEffect(source, ability, abilityEffect) {
         if (abilityEffect.targetType === 'allAllies') {
             const targets = source.isPlayer ? this.players : this.enemies;
-            for (const target of targets.filter((unit) => unit && unit.combatDetails.currentHitpoints > 0)) {
+            const aliveTargets = this._filterAliveInto(this._scratchAliveA, targets);
+            for (const target of aliveTargets) {
                 for (const buff of abilityEffect.buffs) {
                     if (ability.isSpecialAbility && buff.multiplierForSkillHrid && buff.multiplierPerSkillLevel > 0) {
                         const multiplier =
                             1.0 +
                             source.combatDetails[buff.multiplierForSkillHrid.split('/')[2] + 'Level'] *
                                 buff.multiplierPerSkillLevel;
-                        const currentBuff = structuredClone(buff);
+                        const currentBuff = { ...buff };
                         currentBuff.flatBoost *= multiplier;
                         currentBuff.ratioBoost *= multiplier;
                         target.addBuff(currentBuff, this.simulationTime);
@@ -1289,7 +1345,8 @@ class CombatSimulator {
 
         let isSkipParry = false;
 
-        for (let target of targets.filter((unit) => unit && unit.combatDetails.currentHitpoints > 0)) {
+        const initialAliveTargets = this._filterAliveInto(this._scratchAliveB, targets);
+        for (let target of initialAliveTargets) {
             let parryTarget;
             if (!isSkipParry) {
                 parryTarget = this.checkParry(targets);
@@ -1354,25 +1411,16 @@ class CombatSimulator {
                     }
                 }
             } else {
-                targets = targets.filter(
-                    (unit) => unit && !avoidTarget.includes(unit.hrid) && unit.combatDetails.currentHitpoints > 0
-                );
+                this._scratchAliveC.length = 0;
+                for (let i = 0; i < targets.length; i++) {
+                    const unit = targets[i];
+                    if (unit && !avoidTarget.includes(unit.hrid) && unit.combatDetails.currentHitpoints > 0) {
+                        this._scratchAliveC.push(unit);
+                    }
+                }
+                targets = this._scratchAliveC;
                 if (!source.isPlayer && targets.length > 0 && abilityEffect.targetType === 'enemy') {
-                    let cumulativeThreat = 0;
-                    const cumulativeRanges = [];
-                    targets.forEach((player) => {
-                        const playerThreat = player.combatDetails.combatStats.threat;
-                        cumulativeThreat += playerThreat;
-                        cumulativeRanges.push({
-                            player: player,
-                            rangeStart: cumulativeThreat - playerThreat,
-                            rangeEnd: cumulativeThreat,
-                        });
-                    });
-                    const randomValueHit = Math.random() * cumulativeThreat;
-                    target = cumulativeRanges.find(
-                        (range) => randomValueHit >= range.rangeStart && randomValueHit < range.rangeEnd
-                    ).player;
+                    target = this._pickThreatTarget(targets);
                     avoidTarget.push(target.hrid);
                 }
                 if (targets.length <= 0) {
@@ -1576,7 +1624,8 @@ class CombatSimulator {
     processAbilityHealEffect(source, ability, abilityEffect) {
         if (abilityEffect.targetType === 'allAllies') {
             const targets = source.isPlayer ? this.players : this.enemies;
-            for (const target of targets.filter((unit) => unit && unit.combatDetails.currentHitpoints > 0)) {
+            const aliveTargets = this._filterAliveInto(this._scratchAliveA, targets);
+            for (const target of aliveTargets) {
                 const amountHealed = CombatUtilities.processHeal(source, abilityEffect, target);
                 this.simResult.addHitpointsGained(target, ability.hrid, amountHealed);
             }
@@ -1585,8 +1634,9 @@ class CombatSimulator {
 
         if (abilityEffect.targetType === 'lowestHpAlly') {
             const targets = source.isPlayer ? this.players : this.enemies;
+            const aliveTargets = this._filterAliveInto(this._scratchAliveA, targets);
             let healTarget;
-            for (const target of targets.filter((unit) => unit && unit.combatDetails.currentHitpoints > 0)) {
+            for (const target of aliveTargets) {
                 if (!healTarget) {
                     healTarget = target;
                     continue;
