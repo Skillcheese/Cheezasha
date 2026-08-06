@@ -1412,15 +1412,18 @@ export function getSkillActionRates(skillName, playerLevel, goal, globalBestProf
  * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
  *  entry, or null if fewer than 1 profitable action exists across all skills
  */
-const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+// 5 minutes: this anchor doesn't need to track prices/levels in near-real-time — it's an
+// opportunity-cost reference bar, not a live number. gathering-stats and max-produceable both
+// call this synchronously from their per-action-completion display refresh, so a short TTL meant
+// this ~600ms multi-skill/action/tea-combo search (findOptimalTeas × every gathering+production
+// action) was re-running on or near every single action completion and blocking the main thread
+// for the duration. A long TTL plus a background refresh (see below) means it now only actually
+// computes a few times per session, off the completion path.
+const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5 * 60 * 1000;
 let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+let globalProfitAnchorRefreshPending = false;
 
-export function getGlobalProfitAnchor() {
-    const now = Date.now();
-    if (now < globalProfitAnchorCache.expiresAt) {
-        return globalProfitAnchorCache.value;
-    }
-
+function computeGlobalProfitAnchor() {
     const skills = dataManager.getSkills();
     const allEntries = [];
     for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
@@ -1446,9 +1449,28 @@ export function getGlobalProfitAnchor() {
         const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, allEntries.length - 1);
         result = allEntries[rankIndex];
     }
-
-    globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
     return result;
+}
+
+/**
+ * Returns the cached anchor immediately (stale or not) and kicks off a background recompute if
+ * the cache is stale, rather than blocking the caller — callers on the action-completion display
+ * path can't afford to wait on a ~600ms synchronous search.
+ */
+export function getGlobalProfitAnchor() {
+    const now = Date.now();
+    const isFresh = now < globalProfitAnchorCache.expiresAt;
+
+    if (!isFresh && !globalProfitAnchorRefreshPending) {
+        globalProfitAnchorRefreshPending = true;
+        setTimeout(() => {
+            globalProfitAnchorRefreshPending = false;
+            const result = computeGlobalProfitAnchor();
+            globalProfitAnchorCache = { value: result, expiresAt: Date.now() + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+        }, 0);
+    }
+
+    return globalProfitAnchorCache.value;
 }
 
 /**

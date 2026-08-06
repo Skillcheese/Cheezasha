@@ -20,6 +20,19 @@ import { getGlobalProfitAnchor } from '../../utils/tea-optimizer.js';
 // rather than the single best, so one outlier-priced item doesn't dictate the recovery bar alone.
 const PROFIT_ANCHOR_RANK = 10;
 
+// Shared offscreen canvas for text-width measurement. Canvas measureText() computes width
+// without touching page layout, unlike getBoundingClientRect() — reading that inside a loop that
+// also writes styles forces a synchronous layout recalc every iteration ("layout thrashing"),
+// which with many visible action panels can block the main thread for the better part of a second.
+let measureCtx = null;
+function measureTextWidth(text, fontSize, fontFamily, fontWeight) {
+    if (!measureCtx) {
+        measureCtx = document.createElement('canvas').getContext('2d');
+    }
+    measureCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    return measureCtx.measureText(text).width;
+}
+
 class GatheringStats {
     constructor() {
         this.actionElements = new Map(); // actionPanel → {actionHrid, displayElement}
@@ -562,17 +575,25 @@ class GatheringStats {
                 textSpan.style.setProperty('transform-origin', 'left center');
                 textSpan.style.setProperty('transform', 'scaleX(1)');
 
+                // Read font family/weight once (safe — doesn't force layout) and the text content,
+                // then find the fitting size purely via canvas measurement before touching any
+                // layout-affecting style. Only the final font-size is written to the DOM.
+                const computed = getComputedStyle(textSpan);
+                const fontFamily = computed.fontFamily;
+                const fontWeight = computed.fontWeight;
+                const text = textSpan.textContent;
+
                 let fontSize = baseFontSize;
-                textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
-                let textWidth = textSpan.getBoundingClientRect().width;
+                let textWidth = measureTextWidth(text, fontSize, fontFamily, fontWeight);
                 let iterations = 0;
 
                 while (textWidth > availableWidth && fontSize > minFontSize && iterations < 20) {
                     fontSize -= 1;
-                    textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
-                    textWidth = textSpan.getBoundingClientRect().width;
+                    textWidth = measureTextWidth(text, fontSize, fontFamily, fontWeight);
                     iterations += 1;
                 }
+
+                textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
 
                 if (textWidth > availableWidth) {
                     const scaleX = Math.max(0.6, availableWidth / textWidth);

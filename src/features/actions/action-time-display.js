@@ -73,6 +73,7 @@ class ActionTimeDisplay {
         this.combatEtaPendingKey = null; // zone|tier key of the in-flight combat ETA calc, if any
         this.waitForPanelTimeout = null;
         this.retryUpdateTimeout = null;
+        this.actionsUpdatedDebounceTimer = null;
         this.settingChangeHandlers = []; // [{key, fn}] for offSettingChange cleanup
         this.cleanupRegistry = createCleanupRegistry();
     }
@@ -136,8 +137,15 @@ class ActionTimeDisplay {
         // (the DOM updates optimistically before the WS message, so the mutation observer fires
         // before characterActions is populated — this ensures we retry once the data is available)
         if (!this.actionsUpdatedHandler) {
+            // Debounced: actions_updated fires on every action/kill completion, and updateDisplay()
+            // does synchronous DOM style writes (setProperty/removeProperty with !important, walking
+            // parent elements) each time. A burst of back-to-back completions (e.g. an efficiency
+            // proc) would otherwise re-run that DOM churn multiple times in the same frame.
             this.actionsUpdatedHandler = () => {
-                this.updateDisplay();
+                clearTimeout(this.actionsUpdatedDebounceTimer);
+                this.actionsUpdatedDebounceTimer = setTimeout(() => {
+                    this.updateDisplay();
+                }, 50);
             };
             dataManager.on('actions_updated', this.actionsUpdatedHandler);
             this.cleanupRegistry.registerCleanup(() => {
@@ -145,6 +153,8 @@ class ActionTimeDisplay {
                     dataManager.off('actions_updated', this.actionsUpdatedHandler);
                     this.actionsUpdatedHandler = null;
                 }
+                clearTimeout(this.actionsUpdatedDebounceTimer);
+                this.actionsUpdatedDebounceTimer = null;
             });
         }
 

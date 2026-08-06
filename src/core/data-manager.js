@@ -1084,6 +1084,7 @@ class DataManager {
      */
     emit(event, data) {
         const listeners = this.eventListeners.get(event) || [];
+        if (listeners.length === 0) return;
 
         // Only character_switching must run immediately (cleanup phase)
         // character_switched can be deferred - it just schedules re-init anyway
@@ -1098,18 +1099,36 @@ class DataManager {
                     console.error(`[Data Manager] Error in ${event} listener:`, error);
                 }
             }
-        } else {
-            // Defer all other events to prevent main thread blocking
-            setTimeout(() => {
-                for (const listener of listeners) {
+            return;
+        }
+
+        // Defer, then run listeners in time-sliced batches across animation frames. Events like
+        // items_updated/action_completed fan out to a dozen+ feature listeners; running them all
+        // synchronously in one macrotask (the old behavior) blocks input for as long as their
+        // combined DOM work takes, which shows up as UI lag on every action completion. Giving
+        // each frame a small time budget and yielding to the next rAF once it's spent keeps any
+        // single frame from being blocked by the full batch.
+        setTimeout(() => {
+            const pending = listeners.slice();
+            const FRAME_BUDGET_MS = 5;
+
+            const runChunk = () => {
+                const start = performance.now();
+                while (pending.length > 0 && performance.now() - start < FRAME_BUDGET_MS) {
+                    const listener = pending.shift();
                     try {
                         listener(data);
                     } catch (error) {
                         console.error(`[Data Manager] Error in ${event} listener:`, error);
                     }
                 }
-            }, 0);
-        }
+                if (pending.length > 0) {
+                    requestAnimationFrame(runChunk);
+                }
+            };
+
+            runChunk();
+        }, 0);
     }
 }
 
