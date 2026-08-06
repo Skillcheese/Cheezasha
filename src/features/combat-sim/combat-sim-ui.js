@@ -27,6 +27,7 @@ import { SimEditor } from './sim-editor.js';
 import { runFoodOptimization, rankFoodResults, describeFoodTriggers } from './optimize-food-core.js';
 import { runCoffeeOptimization } from './optimize-coffee-core.js';
 import { runUltimateSim } from './ultimate-sim-runner.js';
+import { runLevelTargetAnalysis, COMBAT_SKILLS } from './level-target-core.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
 // Sub-phases reported by runFoodOptimization while phase is 'food' (see optimize-food-core.js).
@@ -191,6 +192,7 @@ class CombatSimUI {
             <button id="mwi-csim-tab-results" style="${tabStyle(false)}">Results</button>
             <button id="mwi-csim-tab-seek" style="${tabStyle(false)}">Seek</button>
             <button id="mwi-csim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
+            <button id="mwi-csim-tab-leveltarget" style="${tabStyle(false)}">Level Goal</button>
             <button id="mwi-csim-tab-optfood" style="${tabStyle(false)}">Optimize Food</button>
             <button id="mwi-csim-tab-optcoffee" style="${tabStyle(false)}">Optimize Coffee</button>
             <button id="mwi-csim-tab-optultimate" style="${tabStyle(false)}">Ultimate Sim</button>
@@ -455,6 +457,7 @@ class CombatSimUI {
                 <option value="equipment">Equipment</option>
                 <option value="ability_level">Ability Levels</option>
                 <option value="ability_swap">Ability Swaps</option>
+                <option value="ability_optimize">Optimize Abilities</option>
             </select>
             <span id="mwi-csim-upgrade-level-group" style="display:none; align-items:center; gap:4px;">
                 <select id="mwi-csim-upgrade-level-type" style="
@@ -487,6 +490,16 @@ class CombatSimUI {
                 <input type="checkbox" id="mwi-csim-upgrade-skip-back" style="margin:0; cursor:pointer;">
                 Skip Back
             </label>
+            <label id="mwi-csim-upgrade-reorder-group" style="display:none; align-items:center; gap:4px; color:#888; font-size:12px; cursor:pointer;"
+                title="Also try every ordering of your currently equipped abilities across the 4 normal slots (up to 24 extra sims), since slot order can affect cast timing.">
+                <input type="checkbox" id="mwi-csim-upgrade-reorder" style="margin:0; cursor:pointer;">
+                Try Reordering
+            </label>
+            <label style="color:#888; font-size:12px;">Test Hours</label>
+            <input id="mwi-csim-upgrade-hours" type="number" min="1" max="1000" step="1" value="${config.getSettingValue('combatSim_upgradeAdvisorHours', 2)}" style="
+                width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                border-radius:3px; padding:3px 5px; font-size:12px; text-align:center;"
+                title="Simulated hours run per candidate when ranking upgrades. Lower = faster search, more noise.">
             <button id="mwi-csim-upgrade-run" style="
                 background: ${ACCENT_BTN_BG};
                 color: ${ACCENT};
@@ -529,6 +542,92 @@ class CombatSimUI {
         upgradeContent.appendChild(upgradeControls);
         upgradeContent.appendChild(upgradeProgress);
         upgradeContent.appendChild(upgradeResults);
+
+        // Level Goal tab content (hidden by default)
+        const levelTargetContent = document.createElement('div');
+        levelTargetContent.id = 'mwi-csim-leveltarget-content';
+        levelTargetContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+        const ltControls = document.createElement('div');
+        ltControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        ltControls.innerHTML = `
+            <span style="color:#888; font-size:12px;">Uses the zone, tier, hours, and loadout from Configure.</span>
+            <button id="mwi-csim-lt-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG};
+                color: ${ACCENT};
+                border: 1px solid ${ACCENT_BTN_BORDER};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Simulate</button>
+            <button id="mwi-csim-lt-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+        const ltLevelsRow = document.createElement('div');
+        ltLevelsRow.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        const ltTargetInputsHtml = COMBAT_SKILLS.map(
+            ({ key, label }) => `
+            <span style="display:inline-flex; flex-direction:column; align-items:center; gap:2px;">
+                <label style="color:#888; font-size:11px;">${label}</label>
+                <input id="mwi-csim-lt-target-${key}" type="number" min="1" max="200" step="1" placeholder="—" style="
+                    width:50px; background:#1a1a2e; color:#e0e0e0;
+                    border:1px solid #444; border-radius:4px;
+                    padding:3px 4px; font-size:12px; text-align:center; font-family:inherit;">
+            </span>`
+        ).join('');
+        ltLevelsRow.innerHTML = `
+            <span style="color:#888; font-size:12px; align-self:center;">Target Level</span>
+            ${ltTargetInputsHtml}
+        `;
+
+        const ltProgress = document.createElement('div');
+        ltProgress.id = 'mwi-csim-lt-progress';
+        ltProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+        ltProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-lt-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-lt-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0%</span>
+            </div>
+        `;
+
+        const ltResults = document.createElement('div');
+        ltResults.id = 'mwi-csim-lt-results';
+        ltResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+        ltResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Enter a target level for one or more skills, then click Simulate.</div>`;
+
+        levelTargetContent.appendChild(ltControls);
+        levelTargetContent.appendChild(ltLevelsRow);
+        levelTargetContent.appendChild(ltProgress);
+        levelTargetContent.appendChild(ltResults);
 
         // Optimize Food tab content
         const optFoodContent = document.createElement('div');
@@ -773,6 +872,7 @@ class CombatSimUI {
         this.panel.appendChild(resultsContent);
         this.panel.appendChild(seekContent);
         this.panel.appendChild(upgradeContent);
+        this.panel.appendChild(levelTargetContent);
         this.panel.appendChild(optFoodContent);
         this.panel.appendChild(optCoffeeContent);
         this.panel.appendChild(optUltimateContent);
@@ -811,6 +911,9 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-tab-results').addEventListener('click', () => this._switchTab('results'));
         this.panel.querySelector('#mwi-csim-tab-seek').addEventListener('click', () => this._switchTab('seek'));
         this.panel.querySelector('#mwi-csim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
+        this.panel
+            .querySelector('#mwi-csim-tab-leveltarget')
+            .addEventListener('click', () => this._switchTab('leveltarget'));
         this.panel.querySelector('#mwi-csim-tab-optfood').addEventListener('click', () => this._switchTab('optfood'));
         this.panel
             .querySelector('#mwi-csim-tab-optcoffee')
@@ -856,18 +959,26 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-upgrade-stop').addEventListener('click', () => {
             this._upgradeAborted = true;
         });
+        this.panel.querySelector('#mwi-csim-lt-run').addEventListener('click', () => this._onLevelTargetRun());
+        this.panel.querySelector('#mwi-csim-lt-stop').addEventListener('click', () => {
+            this._levelTargetAborted = true;
+            cancelSimulation();
+        });
         this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
             const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
             const budgetGroup = this.panel.querySelector('#mwi-csim-upgrade-budget-group');
             const budgetLabel = this.panel.querySelector('#mwi-csim-upgrade-budget-label');
             const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
             const levelBoostGroup = this.panel.querySelector('#mwi-csim-upgrade-level-boost-group');
+            const reorderGroup = this.panel.querySelector('#mwi-csim-upgrade-reorder-group');
             const isEquipmentMode = e.target.value === 'equipment';
             const isLevelMode = e.target.value === 'ability_level';
             const isSwapMode = e.target.value === 'ability_swap';
+            const isOptimizeMode = e.target.value === 'ability_optimize';
             levelGroup.style.display = isLevelMode ? 'inline-flex' : 'none';
             budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
             levelBoostGroup.style.display = isEquipmentMode ? 'inline-flex' : 'none';
+            reorderGroup.style.display = isSwapMode ? 'inline-flex' : 'none';
             if (isEquipmentMode) {
                 budgetLabel.textContent = 'Max Cost (M coins)';
                 budgetInput.title =
@@ -876,6 +987,10 @@ class CombatSimUI {
                 budgetLabel.textContent = 'Budget (M coins)';
                 budgetInput.title =
                     'Coin budget (in millions, decimals allowed) to size swap/level candidates against. Leave blank to use the average cost already invested in your equipped abilities.';
+            } else if (isOptimizeMode) {
+                budgetLabel.textContent = 'Total Budget (M coins)';
+                budgetInput.title =
+                    'Total coin budget (in millions) to spend across your whole ability loadout (special + all unlocked normal slots). Ignores what you currently have equipped and searches for the best affordable combination from scratch. Leave blank to size against the average cost already invested in your equipped abilities.';
             }
             if (isLevelMode) {
                 this._setDefaultAbilityTargetLevel();
@@ -1777,6 +1892,7 @@ class CombatSimUI {
         const resultsContent = this.panel.querySelector('#mwi-csim-results-content');
         const seekContent = this.panel.querySelector('#mwi-csim-seek-content');
         const upgradeContent = this.panel.querySelector('#mwi-csim-upgrade-content');
+        const levelTargetContent = this.panel.querySelector('#mwi-csim-leveltarget-content');
         const optFoodContent = this.panel.querySelector('#mwi-csim-optfood-content');
         const optCoffeeContent = this.panel.querySelector('#mwi-csim-optcoffee-content');
         const optUltimateContent = this.panel.querySelector('#mwi-csim-optultimate-content');
@@ -1784,6 +1900,7 @@ class CombatSimUI {
         const tabResults = this.panel.querySelector('#mwi-csim-tab-results');
         const tabSeek = this.panel.querySelector('#mwi-csim-tab-seek');
         const tabUpgrade = this.panel.querySelector('#mwi-csim-tab-upgrade');
+        const tabLevelTarget = this.panel.querySelector('#mwi-csim-tab-leveltarget');
         const tabOptFood = this.panel.querySelector('#mwi-csim-tab-optfood');
         const tabOptCoffee = this.panel.querySelector('#mwi-csim-tab-optcoffee');
         const tabOptUltimate = this.panel.querySelector('#mwi-csim-tab-optultimate');
@@ -1796,6 +1913,7 @@ class CombatSimUI {
         resultsContent.style.display = 'none';
         if (seekContent) seekContent.style.display = 'none';
         if (upgradeContent) upgradeContent.style.display = 'none';
+        if (levelTargetContent) levelTargetContent.style.display = 'none';
         if (optFoodContent) optFoodContent.style.display = 'none';
         if (optCoffeeContent) optCoffeeContent.style.display = 'none';
         if (optUltimateContent) optUltimateContent.style.display = 'none';
@@ -1803,6 +1921,7 @@ class CombatSimUI {
         tabResults.style.cssText = inactiveStyle;
         if (tabSeek) tabSeek.style.cssText = inactiveStyle;
         if (tabUpgrade) tabUpgrade.style.cssText = inactiveStyle;
+        if (tabLevelTarget) tabLevelTarget.style.cssText = inactiveStyle;
         if (tabOptFood) tabOptFood.style.cssText = inactiveStyle;
         if (tabOptCoffee) tabOptCoffee.style.cssText = inactiveStyle;
         if (tabOptUltimate) tabOptUltimate.style.cssText = inactiveStyle;
@@ -1821,6 +1940,11 @@ class CombatSimUI {
             if (tabUpgrade) tabUpgrade.style.cssText = activeStyle;
             this._populateUpgradePlayerSelector();
             this._setStatus('Select a player and click Analyze.');
+        } else if (tab === 'leveltarget') {
+            if (levelTargetContent) levelTargetContent.style.display = 'flex';
+            if (tabLevelTarget) tabLevelTarget.style.cssText = activeStyle;
+            this._populateLevelTargetInputs();
+            this._setStatus('Enter target levels and click Simulate. Uses the zone/loadout from Configure.');
         } else if (tab === 'optfood') {
             if (optFoodContent) optFoodContent.style.display = 'flex';
             if (tabOptFood) tabOptFood.style.cssText = activeStyle;
@@ -4283,6 +4407,182 @@ class CombatSimUI {
     }
 
     /**
+     * Prefill the Level Goal target-level input placeholders with the player's current levels.
+     * @private
+     */
+    _populateLevelTargetInputs() {
+        const editedDTOs = this._editor?.getEditedDTOs();
+        const selfHrid = this._editor?.getSelfHrid();
+        let playerDTO = null;
+        if (editedDTOs) {
+            const dtos = Object.values(editedDTOs);
+            playerDTO = dtos.find((p) => p.hrid === selfHrid) || dtos[0];
+        }
+
+        for (const { key } of COMBAT_SKILLS) {
+            const input = this.panel?.querySelector(`#mwi-csim-lt-target-${key}`);
+            if (!input) continue;
+            const currentLevel = playerDTO?.[key + 'Level'];
+            input.placeholder = currentLevel ? `Lv${currentLevel}+` : '—';
+        }
+    }
+
+    /**
+     * Run the Level Goal analysis when Simulate is clicked: sim the configured zone/loadout
+     * once, then extrapolate hours/kills needed to reach each entered target level from the
+     * sim's measured XP/hr per skill.
+     * @private
+     */
+    async _onLevelTargetRun() {
+        if (this._levelTargetRunning) return;
+
+        const zoneHrid = this.panel?.querySelector('#mwi-csim-zone')?.value;
+        const difficultyTier = parseInt(this.panel?.querySelector('#mwi-csim-tier')?.value) || 0;
+        const hours = Math.min(
+            10000,
+            Math.max(
+                1,
+                parseInt(this.panel?.querySelector('#mwi-csim-hours')?.value) ||
+                    config.getSettingValue('combatSim_defaultHours', 100)
+            )
+        );
+
+        if (!zoneHrid) {
+            this._setStatus('Select a zone in Configure tab first.');
+            return;
+        }
+
+        const targets = {};
+        for (const { key } of COMBAT_SKILLS) {
+            const input = this.panel?.querySelector(`#mwi-csim-lt-target-${key}`);
+            const val = parseInt(input?.value);
+            if (val > 0) targets[key] = Math.min(200, val);
+        }
+
+        if (Object.keys(targets).length === 0) {
+            this._setStatus('Enter a target level for at least one skill.');
+            return;
+        }
+
+        const { playerDTOs, baseIndex } = await this._getConfiguredPlayerDTOs();
+        if (!playerDTOs.length) {
+            this._setStatus('No character data available. Configure a simulation first.');
+            return;
+        }
+
+        const communityBuffs = getCommunityBuffs();
+
+        this._levelTargetRunning = true;
+        this._levelTargetAborted = false;
+        const runBtn = this.panel.querySelector('#mwi-csim-lt-run');
+        const stopBtn = this.panel.querySelector('#mwi-csim-lt-stop');
+        const progressEl = this.panel.querySelector('#mwi-csim-lt-progress');
+        const progressFill = this.panel.querySelector('#mwi-csim-lt-progress-fill');
+        const progressText = this.panel.querySelector('#mwi-csim-lt-progress-text');
+        const resultsEl = this.panel.querySelector('#mwi-csim-lt-results');
+
+        runBtn.style.display = 'none';
+        stopBtn.style.display = 'inline-block';
+        progressEl.style.display = 'block';
+        resultsEl.innerHTML = '';
+
+        try {
+            const analysis = await runLevelTargetAnalysis(
+                { playerDTOs, playerIndex: baseIndex, zoneHrid, difficultyTier, hours, communityBuffs, targets },
+                (percent) => {
+                    if (this._levelTargetAborted) return;
+                    if (progressFill) progressFill.style.width = percent + '%';
+                    if (progressText) progressText.textContent = percent + '%';
+                }
+            );
+
+            if (this._levelTargetAborted) {
+                this._setStatus('Cancelled.');
+                return;
+            }
+
+            this._displayLevelTargetResults(analysis);
+            this._setStatus(
+                `Simulated ${analysis.simHours.toFixed(1)}h — ${analysis.encountersPerHour.toFixed(1)} kills/hr, ${analysis.deathsPerHour.toFixed(2)} deaths/hr.`
+            );
+        } catch (error) {
+            if (!this._levelTargetAborted) {
+                console.error('[CombatSimUI] Level target analysis failed:', error);
+                this._setStatus(`Error: ${error.message}`);
+            }
+        } finally {
+            this._levelTargetRunning = false;
+            runBtn.style.display = '';
+            stopBtn.style.display = 'none';
+            progressEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render Level Goal results as a table of hours/kills needed per targeted skill.
+     * @param {Object} analysis - Return value of runLevelTargetAnalysis
+     * @private
+     */
+    _displayLevelTargetResults(analysis) {
+        const resultsEl = this.panel?.querySelector('#mwi-csim-lt-results');
+        if (!resultsEl) return;
+
+        const { skillResults } = analysis;
+        if (!skillResults.length) {
+            resultsEl.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">No target levels entered.</div>`;
+            return;
+        }
+
+        const skillLabel = (key) => COMBAT_SKILLS.find((s) => s.key === key)?.label || key;
+
+        const rows = skillResults
+            .map((r) => {
+                const label = skillLabel(r.skillKey);
+                if (r.status === 'already-met') {
+                    return `<tr>
+                        <td style="padding:4px 8px;">${label}</td>
+                        <td style="padding:4px 8px; text-align:center;">${r.currentLevel}</td>
+                        <td style="padding:4px 8px; text-align:center;">${r.targetLevel}</td>
+                        <td colspan="3" style="padding:4px 8px; color:#4caf50; text-align:center;">Already at or above target</td>
+                    </tr>`;
+                }
+                if (r.status === 'invalid') {
+                    return `<tr>
+                        <td style="padding:4px 8px;">${label}</td>
+                        <td style="padding:4px 8px; text-align:center;">${r.currentLevel}</td>
+                        <td style="padding:4px 8px; text-align:center;">${r.targetLevel}</td>
+                        <td colspan="3" style="padding:4px 8px; color:#f44336; text-align:center;">Invalid setup — no XP gained in this skill from this loadout/zone</td>
+                    </tr>`;
+                }
+                return `<tr>
+                    <td style="padding:4px 8px;">${label}</td>
+                    <td style="padding:4px 8px; text-align:center;">${r.currentLevel}</td>
+                    <td style="padding:4px 8px; text-align:center;">${r.targetLevel}</td>
+                    <td style="padding:4px 8px; text-align:right;">${formatWithSeparator(Math.round(r.xpNeeded))}</td>
+                    <td style="padding:4px 8px; text-align:right;">${r.hoursNeeded.toFixed(1)}h</td>
+                    <td style="padding:4px 8px; text-align:right;">${r.killsNeeded != null ? formatWithSeparator(Math.ceil(r.killsNeeded)) : '—'}</td>
+                </tr>`;
+            })
+            .join('');
+
+        resultsEl.innerHTML = `
+            <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                    <tr style="color:#888; border-bottom:1px solid #333;">
+                        <th style="padding:4px 8px; text-align:left;">Skill</th>
+                        <th style="padding:4px 8px;">Current</th>
+                        <th style="padding:4px 8px;">Target</th>
+                        <th style="padding:4px 8px; text-align:right;">XP Needed</th>
+                        <th style="padding:4px 8px; text-align:right;">Est. Hours</th>
+                        <th style="padding:4px 8px; text-align:right;">Est. Kills</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+    }
+
+    /**
      * Set default ability target level input to increment mode with value 5.
      * @private
      */
@@ -4304,11 +4604,11 @@ class CombatSimUI {
         const zoneHrid = this.panel.querySelector('#mwi-csim-zone')?.value;
         const difficultyTier = parseInt(this.panel.querySelector('#mwi-csim-tier')?.value) || 0;
         const hours = Math.min(
-            10000,
+            1000,
             Math.max(
                 1,
-                parseInt(this.panel.querySelector('#mwi-csim-hours')?.value) ||
-                    config.getSettingValue('combatSim_defaultHours', 100)
+                parseInt(this.panel.querySelector('#mwi-csim-upgrade-hours')?.value) ||
+                    config.getSettingValue('combatSim_upgradeAdvisorHours', 2)
             )
         );
         const playerIndex = parseInt(this.panel.querySelector('#mwi-csim-upgrade-player')?.value) || 0;
@@ -4330,6 +4630,8 @@ class CombatSimUI {
             swapBudgetInput && parseFloat(swapBudgetInput) > 0 ? parseFloat(swapBudgetInput) * 1_000_000 : 1_000_000;
         const levelBoostInput = this.panel.querySelector('#mwi-csim-upgrade-level-boost')?.value;
         const equipmentLevelBoost = Math.max(0, Math.floor(parseFloat(levelBoostInput)) || 0);
+        const abilityReorderEnabled =
+            upgradeMode === 'ability_swap' && (this.panel.querySelector('#mwi-csim-upgrade-reorder')?.checked || false);
 
         if (!zoneHrid) {
             this._setStatus('Select a zone in Configure tab first.');
@@ -4388,6 +4690,7 @@ class CombatSimUI {
                     equipmentBudget,
                     equipmentLevelBoost,
                     skipBackSlot,
+                    abilityReorderEnabled,
                 },
                 (() => {
                     const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');

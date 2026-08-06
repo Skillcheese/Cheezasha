@@ -156,6 +156,20 @@ class Config {
                 description: "Calculate expected value of transmuting items into Philosopher's Stones",
                 settingKey: 'market_showPhiloCalculator',
             },
+            flipSampler: {
+                enabled: true,
+                name: 'Flipping / Trading Tool (Sampler)',
+                category: 'Market',
+                description: 'Samples marketplace-wide ask/bid prices over time for the flipping tool',
+                settingKey: 'market_flippingTool',
+            },
+            flipUI: {
+                enabled: true,
+                name: 'Flipping / Trading Tool (UI)',
+                category: 'Market',
+                description: 'Adds a "Flipping" tab with ROI-ranked flip opportunities to the marketplace',
+                settingKey: 'market_flippingTool',
+            },
 
             // Action Features
             actionTimeDisplay: {

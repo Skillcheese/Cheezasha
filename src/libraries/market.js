@@ -29,6 +29,10 @@ import alchemyProfitCalculator from '../features/market/alchemy-profit-calculato
 import marketplaceShortcuts from '../features/market/marketplace-shortcuts.js';
 import sellQueue from '../features/market/sell-queue.js';
 import milkywayMarketLink from '../features/market/milkyway-market-link.js';
+import marketChurnEstimator from '../features/market/market-churn-estimator.js';
+import flipSampler from '../features/market/flipping/flip-sampler.js';
+import flipUI from '../features/market/flipping/flip-ui.js';
+import flipChartLink from '../features/market/flipping/flip-chart-link.js';
 
 // Networth/Economy features
 import networthFeature from '../features/networth/index.js';
@@ -82,6 +86,10 @@ cheezashaRoot.Market = {
     marketplaceShortcuts,
     sellQueue,
     milkywayMarketLink,
+    marketChurnEstimator,
+    flipSampler,
+    flipUI,
+    flipChartLink,
 };
 
 console.log('[Cheezasha] Market library loaded');

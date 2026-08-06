@@ -19,6 +19,7 @@ import marketAPI from '../../api/marketplace.js';
 import { calculateGatheringProfit } from './gathering-profit.js';
 import profitCalculator from '../market/profit-calculator.js';
 import alchemyProfitCalculator from '../market/alchemy-profit-calculator.js';
+import combatEtaEstimator from '../combat-sim/combat-eta.js';
 import { calculateActionStats } from '../../utils/action-calculator.js';
 import { timeReadable, formatWithSeparator, formatDateTime } from '../../utils/formatters.js';
 import { calculateEfficiencyMultiplier } from '../../utils/efficiency.js';
@@ -62,10 +63,14 @@ class ActionTimeDisplay {
         this.unregisterQueueObserver = null;
         this.actionNameObserver = null;
         this.queueMenuObserver = null; // Observer for queue menu mutations
+        this.currentQueueMenu = null; // Currently mounted queue edit-menu element, if open
+        this.combatEtaUnsubscribe = null;
         this.unregisterActionNameObserver = null;
         this.characterInitHandler = null; // Handler for character switch
         this.activeProfitCalculationId = null; // Track active profit calculation to prevent race conditions
         this.activeBarProfitId = null;
+        this.activeCombatEtaId = null;
+        this.combatEtaPendingKey = null; // zone|tier key of the in-flight combat ETA calc, if any
         this.waitForPanelTimeout = null;
         this.retryUpdateTimeout = null;
         this.settingChangeHandlers = []; // [{key, fn}] for offSettingChange cleanup
@@ -203,6 +208,21 @@ class ActionTimeDisplay {
         // Initialize queue hover tooltip observer
         this.initializeQueueTooltipObserver();
 
+        // Re-render the queue menu (if open) once a background combat sim resolves, so
+        // "Calculating..." entries get filled in without waiting for the next DOM mutation.
+        this.combatEtaUnsubscribe = combatEtaEstimator.subscribe(() => {
+            this.updateDisplay();
+            if (this.currentQueueMenu && document.body.contains(this.currentQueueMenu)) {
+                this.injectQueueTimes(this.currentQueueMenu);
+            }
+        });
+        this.cleanupRegistry.registerCleanup(() => {
+            if (this.combatEtaUnsubscribe) {
+                this.combatEtaUnsubscribe();
+                this.combatEtaUnsubscribe = null;
+            }
+        });
+
         this.isInitialized = true;
     }
 
@@ -234,6 +254,7 @@ class ActionTimeDisplay {
             'ActionTimeDisplay-Queue',
             'QueuedActions_queuedActionsEditMenu',
             (queueMenu) => {
+                this.currentQueueMenu = queueMenu;
                 this.injectQueueTimes(queueMenu);
 
                 this.setupQueueMenuObserver(queueMenu);
@@ -319,7 +340,7 @@ class ActionTimeDisplay {
 
                 if (result.isTrulyInfinite) {
                     hasInfinite = true;
-                } else {
+                } else if (!result.isCalculating) {
                     accumulatedTime += result.actionTimeSeconds;
                 }
 
@@ -327,6 +348,8 @@ class ActionTimeDisplay {
                 let timeText;
                 if (result.isTrulyInfinite) {
                     timeText = '[∞]';
+                } else if (result.isCalculating) {
+                    timeText = '[Calculating…]';
                 } else if (result.isInfinite && result.materialLimit !== null) {
                     const timeStr = timeReadable(result.totalTime);
                     timeText = `[${timeStr} · ${result.limitLabel}: ${this.formatLargeNumber(result.materialLimit)}]`;
@@ -336,7 +359,7 @@ class ActionTimeDisplay {
                 }
 
                 // Add completion time
-                if (!hasInfinite && !result.isTrulyInfinite) {
+                if (!hasInfinite && !result.isTrulyInfinite && !result.isCalculating) {
                     const completionDate = new Date();
                     completionDate.setSeconds(completionDate.getSeconds() + accumulatedTime);
                     const isToday = completionDate.toDateString() === new Date().toDateString();
@@ -431,22 +454,38 @@ class ActionTimeDisplay {
      * @param {Object} actionObj - Action object from dataManager cache
      * @param {Object} actionDetails - Action details from dataManager
      * @param {Object} inventoryLookup - Inventory lookup map
-     * @returns {Object} { totalTime, actionTimeSeconds, count, baseActionsNeeded, isTrulyInfinite, isInfinite, materialLimit, limitType, limitLabel, isEnhancing }
+     * @returns {Object} { totalTime, actionTimeSeconds, count, baseActionsNeeded, isTrulyInfinite, isCalculating, isInfinite, materialLimit, limitType, limitLabel, isEnhancing }
      */
     calculateSingleQueueActionTime(actionObj, actionDetails, inventoryLookup) {
         const isEnhancing = actionDetails.type === '/action_types/enhancing';
-        const isInfinite = !actionObj.hasMaxCount || actionObj.actionHrid.includes('/combat/');
+        const isCombat = actionDetails.type === '/action_types/combat';
+        const isInfinite = !actionObj.hasMaxCount;
 
         let totalTime = 0;
         let actionTimeSeconds = 0;
         let count = 0;
         let baseActionsNeeded = 0;
         let isTrulyInfinite = false;
+        let isCalculating = false;
         let materialLimit = null;
         let limitType = null;
         let limitLabel = '';
 
-        if (isEnhancing) {
+        if (isCombat) {
+            if (isInfinite) {
+                isTrulyInfinite = true;
+                totalTime = Infinity;
+            } else {
+                count = actionObj.maxCount - actionObj.currentCount;
+                const killsPerHour = combatEtaEstimator.peek(actionObj.actionHrid, actionObj.difficultyTier || 0);
+                if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
+                    totalTime = (count / killsPerHour) * 3600;
+                    actionTimeSeconds = totalTime;
+                } else {
+                    isCalculating = true;
+                }
+            }
+        } else if (isEnhancing) {
             const enhancingTime = this.calculateEnhancingQueueTime(actionObj, actionDetails, inventoryLookup);
             if (enhancingTime) {
                 count = enhancingTime.count;
@@ -465,6 +504,7 @@ class ActionTimeDisplay {
                     count: 0,
                     baseActionsNeeded: 0,
                     isTrulyInfinite: isInfinite,
+                    isCalculating: false,
                     isInfinite,
                     materialLimit: null,
                     limitType: null,
@@ -529,6 +569,7 @@ class ActionTimeDisplay {
             count,
             baseActionsNeeded,
             isTrulyInfinite,
+            isCalculating,
             isInfinite,
             materialLimit,
             limitType,
@@ -601,6 +642,8 @@ class ActionTimeDisplay {
     handleCharacterSwitch() {
         // Cancel any active profit calculations to prevent stale data
         this.activeProfitCalculationId = null;
+        this.activeCombatEtaId = null;
+        combatEtaEstimator.reset();
 
         // Clear appended stats from old character's action panel (before it's removed)
         const oldActionNameElement = document.querySelector('div[class*="Header_actionName"]');
@@ -797,12 +840,10 @@ class ActionTimeDisplay {
         if (!action) {
             this.displayElement.innerHTML = '';
             this.clearAppendedStats(actionNameElement);
-            // Only retry if no cached actions (data not loaded yet).
-            // If cached actions exist but none match, data updated before DOM —
-            // the mutation observer will trigger updateDisplay when DOM catches up.
-            if (cachedActions.length === 0) {
-                this.scheduleUpdateRetry();
-            }
+            // Retry even when cached actions exist: in combat the action-name text often stays
+            // identical between kills (same mob/zone), so no further mutation will fire to
+            // re-trigger updateDisplay once the cache catches up — retry self-heals that case.
+            this.scheduleUpdateRetry();
             this.reconnectActionNameObserver(actionNameElement);
             return;
         }
@@ -869,6 +910,8 @@ class ActionTimeDisplay {
                     levels++;
                 }
             }
+
+            this.updateCombatEtaDisplay(action);
 
             this.reconnectActionNameObserver(actionNameElement);
             return;
@@ -1636,10 +1679,14 @@ class ActionTimeDisplay {
     getCleanActionName(actionNameElement) {
         // Walk direct children to join their text with spaces, preserving word boundaries
         // that textContent would collapse (e.g. <span>Dragon</span><span>Fruit</span> → "Dragon Fruit")
+        // Also skip other Cheezasha-injected siblings living inside this element (e.g. the
+        // combat-battle-counter's "· Battle #N" span) — their text isn't part of the actual
+        // action name and would break matchCurrentActionFromText's parsing.
         const markerSpan = actionNameElement.querySelector('.mwi-appended-stats');
+        const battleCounterSpan = actionNameElement.querySelector('#mwi-battle-counter');
         const parts = [];
         for (const node of actionNameElement.childNodes) {
-            if (node === markerSpan) continue;
+            if (node === markerSpan || node === battleCounterSpan) continue;
             const text = node.textContent.trim();
             if (text) parts.push(text);
         }
@@ -2103,15 +2150,33 @@ class ActionTimeDisplay {
                 const actionDetails = dataManager.getActionDetails(currentAction.actionHrid);
                 if (actionDetails) {
                     const isEnhancing = actionDetails.type === '/action_types/enhancing';
+                    const isCombat = actionDetails.type === '/action_types/combat';
 
                     // Check if infinite BEFORE calculating count
-                    const isInfinite = !currentAction.hasMaxCount || currentAction.actionHrid.includes('/combat/');
+                    const isInfinite = !currentAction.hasMaxCount;
 
                     let actionTimeSeconds = 0; // Time spent on this action (for profit calculation)
                     let count = 0; // Queued action count for profit calculation
                     let baseActionsNeeded = 0; // Time-consuming actions for time calculation
 
-                    if (isEnhancing) {
+                    if (isCombat) {
+                        if (isInfinite) {
+                            hasInfinite = true;
+                        } else {
+                            count = currentAction.maxCount - currentAction.currentCount;
+                            const killsPerHour = combatEtaEstimator.peek(
+                                currentAction.actionHrid,
+                                currentAction.difficultyTier || 0
+                            );
+                            if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
+                                const totalTime = (count / killsPerHour) * 3600;
+                                accumulatedTime += totalTime;
+                                actionTimeSeconds = totalTime;
+                            }
+                            // else: still calculating — skip contributing to the total for now,
+                            // the combatEtaEstimator subscription re-renders once the sim resolves
+                        }
+                    } else if (isEnhancing) {
                         // Enhancing: use enhancement-specific time calculation
                         const enhancingTime = this.calculateEnhancingQueueTime(
                             currentAction,
@@ -2177,8 +2242,8 @@ class ActionTimeDisplay {
                     }
 
                     // Store action for profit calculation (done async after UI renders)
-                    // Skip enhancing actions — no profit applies
-                    if (actionTimeSeconds > 0 && !isEnhancing) {
+                    // Skip enhancing and combat actions — no profit applies
+                    if (actionTimeSeconds > 0 && !isEnhancing && !isCombat) {
                         actionsToCalculate.push({
                             actionHrid: currentAction.actionHrid,
                             primaryItemHash: currentAction.primaryItemHash || null,
@@ -2238,19 +2303,41 @@ class ActionTimeDisplay {
                 }
 
                 const isEnhancing = actionDetails.type === '/action_types/enhancing';
+                const isCombat = actionDetails.type === '/action_types/combat';
 
                 // Check if infinite BEFORE calculating count
-                const isInfinite = !actionObj.hasMaxCount || actionObj.actionHrid.includes('/combat/');
+                const isInfinite = !actionObj.hasMaxCount;
 
                 let totalTime;
                 let actionTimeSeconds = 0;
                 let baseActionsNeeded = 0;
                 let count = 0;
                 let isTrulyInfinite = false;
+                let isCalculating = false;
                 let materialLimit = null;
                 let limitType = null;
 
-                if (isEnhancing) {
+                if (isCombat) {
+                    if (isInfinite) {
+                        isTrulyInfinite = true;
+                        hasInfinite = true;
+                        totalTime = Infinity;
+                    } else {
+                        count = actionObj.maxCount - actionObj.currentCount;
+                        const killsPerHour = combatEtaEstimator.peek(
+                            actionObj.actionHrid,
+                            actionObj.difficultyTier || 0
+                        );
+                        if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
+                            totalTime = (count / killsPerHour) * 3600;
+                            accumulatedTime += totalTime;
+                            actionTimeSeconds = totalTime;
+                        } else {
+                            isCalculating = true;
+                            totalTime = 0;
+                        }
+                    }
+                } else if (isEnhancing) {
                     // Enhancing: use enhancement-specific time calculation
                     const enhancingTime = this.calculateEnhancingQueueTime(actionObj, actionDetails, inventoryLookup);
                     if (enhancingTime) {
@@ -2322,8 +2409,8 @@ class ActionTimeDisplay {
                 }
 
                 // Store action for profit calculation (done async after UI renders)
-                // Skip enhancing actions — no profit applies
-                if (actionTimeSeconds > 0 && !isTrulyInfinite && !isEnhancing) {
+                // Skip enhancing and combat actions — no profit applies
+                if (actionTimeSeconds > 0 && !isTrulyInfinite && !isEnhancing && !isCombat) {
                     actionsToCalculate.push({
                         actionHrid: actionObj.actionHrid,
                         primaryItemHash: actionObj.primaryItemHash || null,
@@ -2336,7 +2423,7 @@ class ActionTimeDisplay {
 
                 // Format completion time
                 let completionText = '';
-                if (!hasInfinite && !isTrulyInfinite) {
+                if (!hasInfinite && !isTrulyInfinite && !isCalculating) {
                     const completionDate = new Date();
                     completionDate.setSeconds(completionDate.getSeconds() + accumulatedTime);
                     const isToday = completionDate.toDateString() === new Date().toDateString();
@@ -2355,6 +2442,8 @@ class ActionTimeDisplay {
 
                 if (isTrulyInfinite) {
                     timeDiv.textContent = '[∞]';
+                } else if (isCalculating) {
+                    timeDiv.textContent = '[Calculating…]';
                 } else if (isInfinite && materialLimit !== null) {
                     // Material-limited infinite action
                     let limitLabel = '';
@@ -2384,11 +2473,12 @@ class ActionTimeDisplay {
                 }
 
                 // Create empty profit div for this action (will be populated asynchronously)
-                // Skip enhancing actions — no profit applies
+                // Skip enhancing and combat actions — no profit applies
                 if (
                     !isTrulyInfinite &&
                     actionTimeSeconds > 0 &&
                     !isEnhancing &&
+                    !isCombat &&
                     config.getSettingValue('actionQueue_showValue', true)
                 ) {
                     const profitDiv = document.createElement('div');
@@ -2726,6 +2816,74 @@ class ActionTimeDisplay {
     }
 
     /**
+     * Estimate and display time remaining for a finite ("Kill N") combat task.
+     * Uses combatEtaEstimator's cached kills/hr (re-simulated at most every 30 min), so most
+     * calls resolve from cache instantly; only the first call for a new zone actually waits
+     * on a simulation.
+     * @param {Object} action - Current combat action object from dataManager
+     */
+    async updateCombatEtaDisplay(action) {
+        if (!this.displayElement) return;
+
+        if (!config.getSetting('actionBar_showCombatEta') || !action.hasMaxCount) {
+            // Infinite ("until stopped") combat tasks have nothing to estimate.
+            this.displayElement.innerHTML = '';
+            return;
+        }
+
+        const remainingKills = action.maxCount - action.currentCount;
+        if (!(remainingKills > 0)) {
+            this.displayElement.innerHTML = '';
+            // A kill can transiently leave the cached action at currentCount === maxCount
+            // right before the queue advances; retry so the ETA reappears once it does,
+            // rather than staying blank until an unrelated DOM mutation fires.
+            this.scheduleUpdateRetry();
+            return;
+        }
+
+        // Don't invalidate an in-flight calculation for the same zone/tier — the periodic
+        // safety-net timer calls this every few seconds, and a fresh-zone simulation can take
+        // longer than that interval. Reusing the same calcId lets the original await win instead
+        // of being cancelled by every subsequent tick before it ever resolves.
+        const key = `${action.actionHrid}|${action.difficultyTier || 0}`;
+        const calcId = this.combatEtaPendingKey === key ? this.activeCombatEtaId : Date.now() + Math.random();
+        this.activeCombatEtaId = calcId;
+        this.combatEtaPendingKey = key;
+
+        try {
+            const encountersPerHour = await combatEtaEstimator.getKillsPerHour(
+                action.actionHrid,
+                action.difficultyTier || 0
+            );
+
+            if (this.activeCombatEtaId !== calcId || !this.displayElement) return;
+
+            if (!encountersPerHour || !isFinite(encountersPerHour) || encountersPerHour <= 0) {
+                this.displayElement.innerHTML = `<span style="opacity:0.7;">⏱ Calculating combat ETA…</span>`;
+                return;
+            }
+
+            const totalTimeSeconds = (remainingKills / encountersPerHour) * 3600;
+            const completionTime = new Date();
+            completionTime.setSeconds(completionTime.getSeconds() + totalTimeSeconds);
+            const isToday = completionTime.toDateString() === new Date().toDateString();
+            const timeStr = timeReadable(totalTimeSeconds);
+            const clockTime = formatCompletionTime(completionTime, !isToday);
+
+            this.displayElement.innerHTML = `<span style="display: inline-flex; flex-wrap: nowrap; align-items: baseline; gap: 0.25em;"><span>⏱</span> ${timeStr} → ${clockTime} <span style="opacity:0.6; font-size:0.85em;">(${encountersPerHour.toFixed(0)} kills/hr)</span></span>`;
+        } catch (error) {
+            console.error('[Action Time Display] Combat ETA failed:', error);
+            if (this.activeCombatEtaId === calcId && this.displayElement) {
+                this.displayElement.innerHTML = '';
+            }
+        } finally {
+            if (this.combatEtaPendingKey === key) {
+                this.combatEtaPendingKey = null;
+            }
+        }
+    }
+
+    /**
      * Disable the action time display (cleanup)
      */
     disable() {
@@ -2740,6 +2898,10 @@ class ActionTimeDisplay {
         this.waitForPanelTimeout = null;
         this.activeProfitCalculationId = null;
         this.activeBarProfitId = null;
+        this.activeCombatEtaId = null;
+        this.combatEtaPendingKey = null;
+        this.currentQueueMenu = null;
+        this.combatEtaUnsubscribe = null;
         this.isInitialized = false;
     }
 }

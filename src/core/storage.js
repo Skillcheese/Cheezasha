@@ -9,7 +9,7 @@ class Storage {
         this.db = null;
         this.available = false;
         this.dbName = 'CheezashaDB';
-        this.dbVersion = 17; // Bumped for leaderboardHistory store
+        this.dbVersion = 18; // Bumped for flippingHistory store
         this.saveDebounceTimers = new Map(); // Per-key debounce timers
         this.pendingWrites = new Map(); // Per-key pending write data: {value, storeName, resolvers, generation}
         this._writeGeneration = new Map(); // Per-key monotonic generation counter
@@ -266,6 +266,11 @@ class Storage {
                 // Create leaderboardHistory store if it doesn't exist (for leaderboard XP tracker)
                 if (!db.objectStoreNames.contains('leaderboardHistory')) {
                     db.createObjectStore('leaderboardHistory');
+                }
+
+                // Create flippingHistory store if it doesn't exist (for flipping/trading tool price history)
+                if (!db.objectStoreNames.contains('flippingHistory')) {
+                    db.createObjectStore('flippingHistory');
                 }
             };
         });

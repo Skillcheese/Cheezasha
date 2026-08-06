@@ -292,6 +292,10 @@ class WebSocketHook {
             const data = JSON.parse(message);
             const parsedMessageType = data.type;
 
+            if (parsedMessageType && /abilit/i.test(parsedMessageType)) {
+                console.log('[Cheezasha][trace] ability-related websocket message:', parsedMessageType, data);
+            }
+
             // Save critical data to GM storage for Combat Sim export
             this.saveCombatSimData(parsedMessageType, message);
 

@@ -14,7 +14,7 @@ import {
     getCommunityBuffs,
     getLabyrinthMonsters,
 } from './combat-sim-adapter.js';
-import { runLabyrinthSimulation, cancelSimulation } from './combat-sim-runner.js';
+import { runLabyrinthSimulation, cancelSimulation, getMaxBatchWorkers } from './combat-sim-runner.js';
 import { findMaxLabyrinthLevel } from './labyrinth-level-finder.js';
 import {
     runLabyrinthUpgradeAnalysis,
@@ -147,20 +147,6 @@ class LabSimUI {
         configureContent.id = 'mwi-labsim-configure-content';
         configureContent.style.cssText = 'display:flex; flex-direction:column; flex:1; overflow:hidden;';
 
-        const configureControls = document.createElement('div');
-        configureControls.style.cssText = `
-            display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-            padding: 10px 14px; border-bottom: 1px solid #222; flex-shrink: 0;
-        `;
-        configureControls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Monster</label>
-            <select id="mwi-labsim-monster" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Level</label>
-            <input id="mwi-labsim-level" type="number" min="20" max="300" value="100" style="${inputStyle}">
-            <label style="color:#888; font-size:12px;">Hours</label>
-            <input id="mwi-labsim-hours" type="number" min="1" max="10000" value="${config.getSettingValue('labyrinthRecommendSimHours', 10)}" style="${inputStyle}">
-        `;
-
         const crateRow = document.createElement('div');
         crateRow.style.cssText = `
             display: flex;
@@ -205,7 +191,6 @@ class LabSimUI {
 
         this._editor = new SimEditor({ editorEl: editorArea, labMode: true });
 
-        configureContent.appendChild(configureControls);
         configureContent.appendChild(crateRow);
 
         // Collapsible Labyrinth Buffs section
@@ -244,10 +229,14 @@ class LabSimUI {
 
         const maxLevelControls = document.createElement('div');
         maxLevelControls.style.cssText = `
-            display: flex; align-items: center; gap: 12px;
+            display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
             padding: 8px 14px; border-bottom: 1px solid #222; flex-shrink: 0; font-size: 12px;
         `;
         maxLevelControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Level</label>
+            <input id="mwi-labsim-level" type="number" min="20" max="300" value="100" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Hours</label>
+            <input id="mwi-labsim-hours" type="number" min="1" max="10000" value="${config.getSettingValue('labyrinthRecommendSimHours', 10)}" style="${inputStyle}">
             <button id="mwi-labsim-run" style="
                 background: ${ACCENT_BTN_BG};
                 color: ${ACCENT};
@@ -299,6 +288,8 @@ class LabSimUI {
             padding: 10px 14px; border-bottom: 1px solid #222; flex-shrink: 0;
         `;
         upgradeControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Monster</label>
+            <select id="mwi-labsim-upgrade-monster" style="${selectStyle}"></select>
             <label style="color:#888; font-size:12px;">Player</label>
             <select id="mwi-labsim-upgrade-player" style="${selectStyle}"></select>
             <button id="mwi-labsim-upgrade-run" style="
@@ -481,7 +472,7 @@ class LabSimUI {
         status.id = 'mwi-labsim-status';
         status.style.cssText =
             'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-        status.textContent = 'Select a monster in Configure, then use Max Level or Upgrade to simulate.';
+        status.textContent = 'Set level and hours in Max Level, then Simulate to see all labyrinth mobs.';
 
         // Assemble
         this.panel.appendChild(header);
@@ -528,8 +519,8 @@ class LabSimUI {
             .querySelector('#mwi-labsim-tab-skilling')
             .addEventListener('click', () => this._switchTab('skilling'));
 
-        // Configure listeners
-        this.panel.querySelector('#mwi-labsim-monster').addEventListener('change', (e) => {
+        // Upgrade listeners
+        this.panel.querySelector('#mwi-labsim-upgrade-monster').addEventListener('change', (e) => {
             this._onMonsterChange(e.target.value);
         });
 
@@ -573,7 +564,7 @@ class LabSimUI {
 
     /** @private */
     _populateMonsters() {
-        const select = this.panel?.querySelector('#mwi-labsim-monster');
+        const select = this.panel?.querySelector('#mwi-labsim-upgrade-monster');
         if (!select) return;
 
         const monsters = getLabyrinthMonsters();
@@ -755,25 +746,26 @@ class LabSimUI {
     async _onSimulate() {
         if (this.isRunning) {
             cancelSimulation();
+            this.isRunning = false;
             this._setStatus('Labyrinth simulation cancelled.');
             return;
         }
 
-        const monsterHrid = this.panel.querySelector('#mwi-labsim-monster')?.value;
         const roomLevel = parseInt(this.panel.querySelector('#mwi-labsim-level')?.value) || 100;
         const hours = Math.min(
             10000,
             Math.max(1, parseInt(this.panel.querySelector('#mwi-labsim-hours')?.value) || 10)
         );
 
-        if (!monsterHrid) {
-            this._setStatus('Select a monster first.');
-            return;
-        }
-
         const gameData = buildGameDataPayload();
         if (!gameData) {
             this._setStatus('No game data available.');
+            return;
+        }
+
+        const monsters = getLabyrinthMonsters();
+        if (!monsters.length) {
+            this._setStatus('No labyrinth monsters found.');
             return;
         }
 
@@ -811,9 +803,15 @@ class LabSimUI {
         const progressText = this.panel.querySelector('#mwi-labsim-progress-text');
         progressContainer.style.display = 'block';
         progressFill.style.width = '0%';
-        progressText.textContent = '0%';
+        progressText.textContent = `0 / ${monsters.length}`;
 
         const simStartTime = Date.now();
+
+        const onProgress = (done, total, monsterName) => {
+            const percent = Math.round((done / total) * 100);
+            progressFill.style.width = `${percent}%`;
+            progressText.textContent = `${done} / ${total}${monsterName ? ' — ' + monsterName : ''}`;
+        };
 
         try {
             if (this._labyFindMaxMode) {
@@ -822,50 +820,41 @@ class LabSimUI {
                         100,
                         Math.max(1, parseInt(this.panel.querySelector('#mwi-labsim-threshold')?.value) || 95)
                     ) / 100;
-                const maxResult = await findMaxLabyrinthLevel(
+                const results = await this._runAllMonstersFindMax(
                     {
+                        monsters,
                         gameData,
                         playerDTOs,
                         zoneHrid,
-                        monsterHrid,
                         crates,
-                        simHours: hours,
+                        hours,
                         communityBuffs,
                         labyrinthCombatBuffs,
                         threshold,
                     },
-                    (progress) => {
-                        const percent = Math.round((progress.step / progress.totalSteps) * 100);
-                        progressFill.style.width = `${percent}%`;
-                        progressText.textContent = `Level ${progress.level} — ${(progress.winRate * 100).toFixed(0)}% (step ${progress.step}/${progress.totalSteps})`;
-                    }
+                    onProgress
                 );
 
-                this._maxLevel = maxResult.maxLevel;
-                const levelInput = this.panel.querySelector('#mwi-labsim-level');
-                if (levelInput) levelInput.value = maxResult.maxLevel;
-
-                this._displayFindMaxResults(maxResult, monsterHrid, simStartTime);
+                this._labyResults = { mode: 'findmax', results };
+                this._displayAllMobsFindMaxResults(results, simStartTime);
             } else {
-                const simResult = await runLabyrinthSimulation(
+                const results = await this._runAllMonstersSim(
                     {
+                        monsters,
                         gameData,
                         playerDTOs,
                         zoneHrid,
-                        monsterHrid,
                         roomLevel,
                         crates,
                         hours,
                         communityBuffs,
                         labyrinthCombatBuffs,
                     },
-                    (percent) => {
-                        progressFill.style.width = `${percent}%`;
-                        progressText.textContent = `${percent}%`;
-                    }
+                    onProgress
                 );
 
-                this._displaySimResults(simResult, monsterHrid, roomLevel, hours, simStartTime);
+                this._labyResults = { mode: 'sim', results, roomLevel, hours };
+                this._displayAllMobsSimResults(results, roomLevel, hours, simStartTime);
             }
         } catch (error) {
             if (error.message !== 'Cancelled') {
@@ -878,97 +867,216 @@ class LabSimUI {
             runBtn.style.opacity = '1';
             runBtn.style.cursor = 'pointer';
             progressContainer.style.display = 'none';
-            clearInterval(this.elapsedTimer);
-            this.elapsedTimer = null;
         }
     }
 
-    /** @private */
-    _displaySimResults(simResult, monsterHrid, roomLevel, hours, simStartTime) {
-        const container = this.panel?.querySelector('#mwi-labsim-results');
-        if (!container) return;
+    /**
+     * Run a fixed-level sim for every labyrinth monster in parallel across the shared worker pool.
+     * @private
+     */
+    async _runAllMonstersSim(params, onProgress) {
+        const {
+            monsters,
+            gameData,
+            playerDTOs,
+            zoneHrid,
+            roomLevel,
+            crates,
+            hours,
+            communityBuffs,
+            labyrinthCombatBuffs,
+        } = params;
+        const total = monsters.length;
+        let done = 0;
+        const results = new Array(total);
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), total));
 
-        const totalElapsed = formatElapsed((Date.now() - simStartTime) / 1000);
-        const attempts = simResult.labyAttemptCount || 0;
-        const encounters = simResult.encounters || 0;
-        const deaths = simResult.deaths?.player1 || 0;
-        const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
-        const winRate = attempts > 0 ? ((encounters / attempts) * 100).toFixed(2) : '0.00';
+        await Promise.all(
+            Array.from({ length: workerCount }, async () => {
+                while (cursor < monsters.length) {
+                    const index = cursor++;
+                    const monster = monsters[index];
+                    const simResult = await runLabyrinthSimulation({
+                        gameData,
+                        playerDTOs,
+                        zoneHrid,
+                        monsterHrid: monster.hrid,
+                        roomLevel,
+                        crates,
+                        hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs,
+                    });
 
-        const monsterName = monsterHrid
-            .split('/')
-            .pop()
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
+                    const attempts = simResult.labyAttemptCount || 0;
+                    const encounters = simResult.encounters || 0;
+                    const deaths = simResult.deaths?.player1 || 0;
+                    const winRate = attempts > 0 ? encounters / attempts : 0;
 
-        container.innerHTML = `
-            <div style="margin-bottom:12px;">
-                <div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
-                    ${monsterName} \u2014 Level ${roomLevel}
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 20px; font-size:12px;">
-                    <div><span style="color:#888;">Win Rate:</span> <span style="color:${parseFloat(winRate) >= 95 ? '#4caf50' : parseFloat(winRate) >= 50 ? '#ff9800' : '#f44336'}; font-weight:600;">${winRate}%</span></div>
-                    <div><span style="color:#888;">Encounters:</span> ${formatWithSeparator(attempts)}</div>
-                    <div><span style="color:#888;">Deaths:</span> <span style="color:${deaths > 0 ? '#f44336' : '#4caf50'};">${formatWithSeparator(deaths)}</span></div>
-                    <div><span style="color:#888;">Sim Time:</span> ${simHours.toFixed(1)}h</div>
-                </div>
-                <div style="color:#555; font-size:10px; margin-top:6px;">Completed in ${totalElapsed}</div>
-            </div>
-        `;
+                    results[index] = {
+                        monsterHrid: monster.hrid,
+                        monsterName: monster.name,
+                        winRate,
+                        encounters,
+                        attempts,
+                        deaths,
+                    };
+                    done++;
+                    if (onProgress) onProgress(done, total, monster.name);
+                }
+            })
+        );
 
-        this._setStatus(`Simulation complete \u2014 ${winRate}% win rate at level ${roomLevel}.`);
+        return results;
+    }
+
+    /**
+     * Binary-search the max beatable level for every labyrinth monster in parallel.
+     * @private
+     */
+    async _runAllMonstersFindMax(params, onProgress) {
+        const {
+            monsters,
+            gameData,
+            playerDTOs,
+            zoneHrid,
+            crates,
+            hours,
+            communityBuffs,
+            labyrinthCombatBuffs,
+            threshold,
+        } = params;
+        const total = monsters.length;
+        let done = 0;
+        const results = new Array(total);
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), total));
+
+        await Promise.all(
+            Array.from({ length: workerCount }, async () => {
+                while (cursor < monsters.length) {
+                    const index = cursor++;
+                    const monster = monsters[index];
+                    const maxResult = await findMaxLabyrinthLevel({
+                        gameData,
+                        playerDTOs,
+                        zoneHrid,
+                        monsterHrid: monster.hrid,
+                        crates,
+                        simHours: hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs,
+                        threshold,
+                        minLevel: 1,
+                    });
+
+                    results[index] = {
+                        monsterHrid: monster.hrid,
+                        monsterName: monster.name,
+                        maxLevel: maxResult.maxLevel,
+                        winRate: maxResult.winRate,
+                        steps: maxResult.steps,
+                    };
+                    done++;
+                    if (onProgress) onProgress(done, total, monster.name);
+                }
+            })
+        );
+
+        return results;
     }
 
     /** @private */
-    _displayFindMaxResults(maxResult, monsterHrid, simStartTime) {
+    _displayAllMobsSimResults(results, roomLevel, hours, simStartTime) {
         const container = this.panel?.querySelector('#mwi-labsim-results');
         if (!container) return;
 
         const totalElapsed = formatElapsed((Date.now() - simStartTime) / 1000);
-        const monsterName = monsterHrid
-            .split('/')
-            .pop()
-            .replace(/_/g, ' ')
-            .replace(/\b\w/g, (c) => c.toUpperCase());
+        const sorted = [...results].sort((a, b) => b.winRate - a.winRate);
+        const thStyle = 'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333;';
+        const thLeftStyle = 'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333;';
+        const tdStyle = 'padding:3px 4px; text-align:right;';
+
+        let html = `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
+            All Labyrinth Mobs — Level ${roomLevel} (${hours}h)
+        </div>`;
+        html += '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
+        html += `<thead><tr>
+            <th style="${thLeftStyle}">Monster</th>
+            <th style="${thStyle}">Win Rate</th>
+            <th style="${thStyle}">Encounters</th>
+            <th style="${thStyle}">Deaths</th>
+        </tr></thead><tbody>`;
+
+        for (const r of sorted) {
+            const winRatePct = r.winRate * 100;
+            const color = winRatePct >= 95 ? '#4caf50' : winRatePct >= 50 ? '#ff9800' : '#f44336';
+            html += `<tr style="border-bottom:1px solid #1a1a1a;">
+                <td style="padding:3px 4px; color:#e0e0e0;">${r.monsterName}</td>
+                <td style="${tdStyle} color:${color}; font-weight:600;">${winRatePct.toFixed(2)}%</td>
+                <td style="${tdStyle} color:#ccc;">${formatWithSeparator(r.encounters)}</td>
+                <td style="${tdStyle} color:${r.deaths > 0 ? '#f44336' : '#4caf50'};">${formatWithSeparator(r.deaths)}</td>
+            </tr>`;
+        }
+
+        html += `</tbody></table><div style="color:#555; font-size:10px; margin-top:6px;">Completed in ${totalElapsed}</div>`;
+        container.innerHTML = html;
+
+        this._setStatus(`Simulated ${results.length} labyrinth mobs at level ${roomLevel}.`);
+    }
+
+    /** @private */
+    _displayAllMobsFindMaxResults(results, simStartTime) {
+        const container = this.panel?.querySelector('#mwi-labsim-results');
+        if (!container) return;
+
+        const totalElapsed = formatElapsed((Date.now() - simStartTime) / 1000);
         const effectiveCombatLevel = labyrinthClearRate.getPlayerEffectiveCombatLevel();
-        const recommendedSkip = maxResult.maxLevel - effectiveCombatLevel + 1;
+        const sorted = [...results].sort((a, b) => b.maxLevel - a.maxLevel);
+        const thStyle = 'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333;';
+        const thLeftStyle = 'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333;';
+        const tdStyle = 'padding:3px 4px; text-align:right;';
 
-        container.innerHTML = `
-            <div style="margin-bottom:12px;">
-                <div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
-                    ${monsterName} \u2014 Find Max Result
-                </div>
-                <div style="font-size:24px; font-weight:700; color:#4caf50; margin-bottom:6px;">
-                    Level ${maxResult.maxLevel}
-                </div>
-                <div style="font-size:12px; color:#888;">
-                    Win Rate: <span style="color:#e0e0e0; font-weight:600;">${(maxResult.winRate * 100).toFixed(1)}%</span>
-                    at level ${maxResult.maxLevel}
-                </div>
-                <div style="font-size:12px; color:#888; margin-top:4px;">
-                    Recommended skip: <span style="color:#e0e0e0; font-weight:600;">${recommendedSkip}</span>
-                </div>
-                <div style="color:#555; font-size:10px; margin-top:6px;">Completed in ${totalElapsed} (${maxResult.steps} steps)</div>
-            </div>
-        `;
+        let html = `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
+            All Labyrinth Mobs \u2014 Find Max Results
+        </div>`;
+        html += '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
+        html += `<thead><tr>
+            <th style="${thLeftStyle}">Monster</th>
+            <th style="${thStyle}">Max Level</th>
+            <th style="${thStyle}">Win Rate</th>
+            <th style="${thStyle}">Skip</th>
+        </tr></thead><tbody>`;
 
-        this._setStatus(
-            `Max beatable level: ${maxResult.maxLevel} (${(maxResult.winRate * 100).toFixed(1)}% win rate).`
-        );
+        for (const r of sorted) {
+            const recommendedSkip = r.maxLevel - effectiveCombatLevel + 1;
+            html += `<tr style="border-bottom:1px solid #1a1a1a;">
+                <td style="padding:3px 4px; color:#e0e0e0;">${r.monsterName}</td>
+                <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
+                <td style="${tdStyle} color:#ccc;">${(r.winRate * 100).toFixed(1)}%</td>
+                <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
+            </tr>`;
+        }
+
+        html += `</tbody></table><div style="color:#555; font-size:10px; margin-top:6px;">Completed in ${totalElapsed}</div>`;
+        container.innerHTML = html;
+
+        this._setStatus(`Found max levels for ${results.length} labyrinth mobs.`);
     }
 
     /** @private */
     async _onUpgradeAnalyze() {
         const playerIndex = parseInt(this.panel.querySelector('#mwi-labsim-upgrade-player')?.value) || 0;
         const roomLevel = parseInt(this.panel.querySelector('#mwi-labsim-level')?.value) || 100;
-        const monsterHrid = this.panel.querySelector('#mwi-labsim-monster')?.value;
+        const monsterHrid = this.panel.querySelector('#mwi-labsim-upgrade-monster')?.value;
         const hours = Math.min(
             10000,
             Math.max(1, parseInt(this.panel.querySelector('#mwi-labsim-hours')?.value) || 10)
         );
 
         if (!monsterHrid) {
-            this._setStatus('Select a monster in the Configure tab first.');
+            this._setStatus('Select a monster in the Upgrade tab first.');
             return;
         }
 

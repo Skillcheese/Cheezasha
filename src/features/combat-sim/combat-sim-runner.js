@@ -381,11 +381,15 @@ function mergeSimResults(results) {
  *   or result merging). Use when the caller is already running many independent sims concurrently
  *   (e.g. upgrade-candidate analysis) — splitting each one further just oversubscribes the shared
  *   worker pool and adds merge overhead without speeding up the overall batch.
+ * @param {boolean} [params.infiniteMana] - Skip mana costs/OOM checks for player ability use, so
+ *   candidates are compared on pure ability performance rather than being bottlenecked by whatever
+ *   food/mana setup happens to be equipped (used by the ability-swap upgrade advisor).
  * @param {Function} [onProgress] - Called with (percent: 0-100)
  * @returns {Promise<Object>} Merged SimResult
  */
 export async function runSimulation(params, onProgress) {
-    const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, singleWorker } = params;
+    const { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, singleWorker, infiniteMana } =
+        params;
 
     const guildCombatBuffs = playerDTOs[0]?.guildCombatBuffs;
     const extraBuffs = buildExtraBuffs(communityBuffs, guildCombatBuffs);
@@ -429,6 +433,7 @@ export async function runSimulation(params, onProgress) {
             difficultyTier,
             simulationTimeLimit: chunkHours * ONE_HOUR_NS,
             extraBuffs,
+            infiniteMana,
         };
 
         return runWorkerChunk(message, (percent) => {

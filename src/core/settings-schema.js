@@ -136,6 +136,13 @@ export const settingsGroups = {
                 default: false,
                 help: 'Displays profit/hr and remaining profit for the current action (gathering and production)',
             },
+            actionBar_showCombatEta: {
+                id: 'actionBar_showCombatEta',
+                label: 'Action bar: Combat time remaining (finite kill-count tasks)',
+                type: 'checkbox',
+                default: true,
+                help: 'Runs a quick combat simulation to estimate kills/hr, then shows time remaining for "Kill N" combat tasks. Re-simulates every 30 minutes to stay accurate. Infinite ("until stopped") combat tasks show no estimate.',
+            },
             actionPanel_liveCountdown: {
                 id: 'actionPanel_liveCountdown',
                 label: 'Action bar: Live countdown timer',
@@ -1201,6 +1208,13 @@ export const settingsGroups = {
                 default: true,
                 help: 'Adds "Philo Gamba" button to settings panel for calculating transmutation ROI into Philosopher\'s Stones',
             },
+            market_flippingTool: {
+                id: 'market_flippingTool',
+                label: 'Market: Enable flipping/trading tool',
+                type: 'checkbox',
+                default: true,
+                help: 'Samples marketplace-wide ask/bid prices over time and adds a "Flipping" tab to the marketplace showing ROI-ranked flip opportunities and under/over-priced alerts',
+            },
             market_showQueueLength: {
                 id: 'market_showQueueLength',
                 label: 'Market: Show queue length estimates',
@@ -1214,6 +1228,13 @@ export const settingsGroups = {
                 type: 'checkbox',
                 default: false,
                 help: 'Adds a small link to view the current item on milkyway.market',
+            },
+            market_showChurnEstimate: {
+                id: 'market_showChurnEstimate',
+                label: 'Market: Show estimated listing churn',
+                type: 'checkbox',
+                default: true,
+                help: "Displays the average age of listings sitting at the current best ask/bid price for the item you're viewing, as a rough proxy for how quickly its queue actually turns over (only updates for items you've viewed, no extra requests are made)",
             },
         },
     },
@@ -1745,6 +1766,16 @@ export const settingsGroups = {
                 max: 1000,
                 step: 1,
                 help: 'Simulated hours run per food combination when ranking deaths/hr, mana OOM%, and cost/hr (lower = faster search)',
+            },
+            combatSim_upgradeAdvisorHours: {
+                id: 'combatSim_upgradeAdvisorHours',
+                label: 'Combat Simulator: Upgrade Advisor test hours per candidate',
+                type: 'number',
+                default: 2,
+                min: 1,
+                max: 1000,
+                step: 1,
+                help: 'Simulated hours run per equipment/ability candidate when ranking upgrades (lower = faster search)',
             },
             combatSim_maxThreads: {
                 id: 'combatSim_maxThreads',

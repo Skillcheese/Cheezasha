@@ -199,6 +199,25 @@ function getAbilityCombatStyle(abilityDetail) {
 const ABILITY_SLOT_INT_REQUIREMENTS = { 2: 20, 3: 50, 4: 90 };
 
 /**
+ * Generate all orderings of an array's elements (order matters, no repeated picks).
+ * Used to enumerate ability-slot arrangements — capped by callers to a handful of
+ * items (4! = 24) since this is naive O(n!) recursion.
+ * @param {Array} arr
+ * @returns {Array<Array>}
+ */
+function permute(arr) {
+    if (arr.length <= 1) return [arr];
+    const result = [];
+    for (let i = 0; i < arr.length; i++) {
+        const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+        for (const rest_perm of permute(rest)) {
+            result.push([arr[i], ...rest_perm]);
+        }
+    }
+    return result;
+}
+
+/**
  * Check whether an ability slot is unlocked for the player.
  * Slots 0-1 (special + first normal slot) are always available. Slots 2, 3,
  * and 4 (2nd/3rd/4th normal ability slots) require Intelligence 20 / 50 / 90.
@@ -223,8 +242,40 @@ function isAbilitySlotUnlocked(slotIdx, playerDTO) {
  */
 function getCharacterSkillLevelMap(levelBoost = 0) {
     const map = new Map();
-    for (const skill of dataManager.characterData?.characterSkills || []) {
+    // dataManager.characterSkills is kept live-updated by the skills_updated websocket handler;
+    // characterData.characterSkills is only a one-time snapshot from login/character-init and
+    // goes stale the moment a skill levels up during the session.
+    const skills = dataManager.characterSkills || dataManager.characterData?.characterSkills || [];
+    for (const skill of skills) {
         if (skill?.skillHrid) map.set(skill.skillHrid, (skill.level || 0) + levelBoost);
+    }
+    return map;
+}
+
+/** Combat skill hrid -> matching field name on a player DTO. */
+const DTO_SKILL_FIELDS = {
+    '/skills/stamina': 'staminaLevel',
+    '/skills/intelligence': 'intelligenceLevel',
+    '/skills/attack': 'attackLevel',
+    '/skills/melee': 'meleeLevel',
+    '/skills/defense': 'defenseLevel',
+    '/skills/ranged': 'rangedLevel',
+    '/skills/magic': 'magicLevel',
+};
+
+/**
+ * Build a skill-level map from a player DTO's own combat-skill fields, falling back to the
+ * live character's skills for anything the DTO doesn't carry (non-combat skills). Ability-book
+ * requirement checks must use this instead of the live character's skills whenever the DTO
+ * being planned against has simulated/edited stats — otherwise editing a stat in the sim editor
+ * silently has no effect on what abilities are considered available.
+ * @param {Object} playerDTO
+ * @returns {Map<string, number>} skillHrid -> level
+ */
+function getSkillLevelMapFromDTO(playerDTO) {
+    const map = getCharacterSkillLevelMap();
+    for (const [skillHrid, field] of Object.entries(DTO_SKILL_FIELDS)) {
+        if (playerDTO[field] != null) map.set(skillHrid, playerDTO[field]);
     }
     return map;
 }
@@ -829,17 +880,70 @@ function filterToLatestInChain(items, directUpgradeMap) {
 }
 
 /**
+ * Group candidate items into their same-line chains (e.g. Cheese/Verdant/Azure Chest)
+ * and keep only the top N by item level within each line. Unlike filterToLatestInChain
+ * (which keeps only the single furthest tier), this preserves lower tiers that may be
+ * more coin-efficient upgrades, while still bounding how many tiers of the same line get
+ * simmed.
+ * @param {Array<{hrid: string, itemLevel?: number}>} items
+ * @param {Map<string, Set<string>>} directUpgradeMap
+ * @param {number} n - Max items to keep per line
+ * @returns {Array<{hrid: string}>}
+ */
+function groupTopNPerLine(items, directUpgradeMap, n) {
+    const hridSet = new Set(items.map((item) => item.hrid));
+    const parent = new Map(items.map((item) => [item.hrid, item.hrid]));
+
+    function find(hrid) {
+        while (parent.get(hrid) !== hrid) {
+            parent.set(hrid, parent.get(parent.get(hrid)));
+            hrid = parent.get(hrid);
+        }
+        return hrid;
+    }
+    function union(a, b) {
+        const rootA = find(a);
+        const rootB = find(b);
+        if (rootA !== rootB) parent.set(rootA, rootB);
+    }
+
+    for (const item of items) {
+        const upgrades = directUpgradeMap.get(item.hrid);
+        if (!upgrades) continue;
+        for (const upgradeHrid of upgrades) {
+            if (hridSet.has(upgradeHrid)) union(item.hrid, upgradeHrid);
+        }
+    }
+
+    const lines = new Map();
+    for (const item of items) {
+        const root = find(item.hrid);
+        if (!lines.has(root)) lines.set(root, []);
+        lines.get(root).push(item);
+    }
+
+    const out = [];
+    for (const line of lines.values()) {
+        line.sort((a, b) => (b.itemLevel || 0) - (a.itemLevel || 0));
+        out.push(...line.slice(0, n));
+    }
+    return out;
+}
+
+/**
  * Get the primary damage style of an item's combat stats.
  * @param {Object} combatStats - Item combat stats
  * @returns {string} 'slash', 'stab', 'smash', 'ranged', 'magic', or 'unknown'
  */
 function getItemDamageStyle(combatStats) {
     if (!combatStats) return 'unknown';
-    const slash = combatStats.slashDamage || 0;
-    const stab = combatStats.stabDamage || 0;
-    const smash = combatStats.smashDamage || 0;
-    const ranged = combatStats.rangedDamage || 0;
-    const magic = combatStats.magicDamage || 0;
+    // Combine damage and accuracy so weapons that lean on one or the other (e.g. high-tier
+    // elemental staffs with magicAccuracy but little/no magicDamage) still classify correctly.
+    const slash = (combatStats.slashDamage || 0) + (combatStats.slashAccuracy || 0);
+    const stab = (combatStats.stabDamage || 0) + (combatStats.stabAccuracy || 0);
+    const smash = (combatStats.smashDamage || 0) + (combatStats.smashAccuracy || 0);
+    const ranged = (combatStats.rangedDamage || 0) + (combatStats.rangedAccuracy || 0);
+    const magic = (combatStats.magicDamage || 0) + (combatStats.magicAccuracy || 0);
 
     if (slash >= stab && slash >= smash && slash >= ranged && slash >= magic && slash > 0) return 'slash';
     if (stab >= slash && stab >= smash && stab >= ranged && stab >= magic && stab > 0) return 'stab';
@@ -849,13 +953,16 @@ function getItemDamageStyle(combatStats) {
     return 'unknown';
 }
 
+/** Max number of style-matched off-hands to test per main-hand weapon. */
+const MAX_OFFHAND_CANDIDATES = 3;
+
 /**
  * Find candidate off-hand items for a given combat style and level range.
- * Returns up to two options (deduped):
- *  - Style-matched: highest-itemLevel off-hand whose offensive stats match the
- *    weapon's damage style (e.g. Manticore Shield for ranged).
- *  - Highest-itemLevel: the strongest off-hand by item level overall, regardless
- *    of style fit (e.g. Knight's Aegis for any cross-slot upgrade).
+ * Returns up to MAX_OFFHAND_CANDIDATES style-matched off-hands by item level (not just the
+ * single best) plus, if not already included, the strongest off-hand overall regardless of
+ * style fit (e.g. Knight's Aegis for any cross-slot upgrade). Returning more than just "the
+ * one best" matters because a lower tier can be more coin-efficient, and different items
+ * bring different utility stats (e.g. a tome vs. a buckler) that only the sim can judge.
  * @param {Object} gameData - Game data
  * @param {string} damageStyle - Primary damage style of the weapon
  * @param {number} maxItemLevel - Maximum item level to consider
@@ -866,7 +973,7 @@ function findBestOffHand(gameData, damageStyle, maxItemLevel) {
     const isRanged = damageStyle === 'ranged';
     const isMelee = damageStyle === 'slash' || damageStyle === 'stab' || damageStyle === 'smash';
 
-    let styleMatched = null; // highest-itemLevel off-hand with style-matched stats
+    const styleMatches = [];
     let highest = null; // highest-itemLevel off-hand overall (with magic-exclusion for non-magic)
 
     for (const [itemHrid, item] of Object.entries(gameData.itemDetailMap)) {
@@ -893,8 +1000,7 @@ function findBestOffHand(gameData, damageStyle, maxItemLevel) {
             highest = { hrid: itemHrid, itemLevel: level };
         }
 
-        // Build "style-matched" candidate — highest itemLevel among off-hands whose
-        // offensive stats match the weapon's damage style.
+        // Collect every off-hand whose offensive stats match the weapon's damage style.
         let styleMatch = false;
         if (isMagic) {
             styleMatch = hasMagicStats;
@@ -905,14 +1011,16 @@ function findBestOffHand(gameData, damageStyle, maxItemLevel) {
             const meleeAcc = (stats.stabAccuracy || 0) + (stats.slashAccuracy || 0) + (stats.smashAccuracy || 0);
             styleMatch = meleeDmg > 0 || meleeAcc > 0;
         }
-        if (styleMatch && (!styleMatched || level > styleMatched.itemLevel)) {
-            styleMatched = { hrid: itemHrid, itemLevel: level };
-        }
+        if (styleMatch) styleMatches.push({ hrid: itemHrid, itemLevel: level });
     }
 
-    const out = [];
-    if (styleMatched) out.push({ hrid: styleMatched.hrid, itemLevel: styleMatched.itemLevel });
-    if (highest && (!styleMatched || highest.hrid !== styleMatched.hrid)) {
+    // Keep the top few off-hands by item level (not just the single best) — a lower tier
+    // can be the more coin-efficient upgrade, and different items bring different utility
+    // stats (e.g. a tome vs. a buckler) that only the sim can judge.
+    const topOffHands = styleMatches.sort((a, b) => b.itemLevel - a.itemLevel).slice(0, MAX_OFFHAND_CANDIDATES);
+
+    const out = [...topOffHands];
+    if (highest && !out.some((oh) => oh.hrid === highest.hrid)) {
         out.push({ hrid: highest.hrid, itemLevel: highest.itemLevel });
     }
     return out;
@@ -939,7 +1047,8 @@ export function generateCandidates(
     abilitySwapBudget = null,
     abilityLevelBudget = null,
     equipmentBudget = null,
-    equipmentLevelBoost = 0
+    equipmentLevelBoost = 0,
+    abilityReorderEnabled = false
 ) {
     const candidates = [];
 
@@ -1061,6 +1170,7 @@ export function generateCandidates(
                 const enhLevel = twoHandEquip.enhancementLevel || 0;
 
                 // Find main_hand weapons with matching style at or above current level
+                const rawMainHands = [];
                 for (const [itemHrid, item] of Object.entries(gameData.itemDetailMap)) {
                     const eq = item.equipmentDetail;
                     if (!eq || eq.type !== '/equipment_types/main_hand') continue;
@@ -1071,8 +1181,20 @@ export function generateCandidates(
                     const style = getItemDamageStyle(eq.combatStats);
                     if (style !== damageStyle) continue;
 
-                    // Find candidate off-hands at this tier (may return 1 or 2 options:
-                    // style-matched and/or highest-itemLevel).
+                    rawMainHands.push({ hrid: itemHrid, itemLevel: item.itemLevel || 0 });
+                }
+
+                // Keep up to the top 3 tiers of each weapon line (e.g. Cheese/Verdant/Azure)
+                // rather than only the furthest tier — a lower tier can be the more
+                // coin-efficient upgrade — while still bounding the sim combination count.
+                const mainHands = groupTopNPerLine(rawMainHands, directUpgradeMap, 3);
+
+                for (const { hrid: itemHrid } of mainHands) {
+                    const item = gameData.itemDetailMap[itemHrid];
+
+                    // Find candidate off-hands at this tier (a small handful of distinct
+                    // style-matched/highest-level options, not just a single "best" pick —
+                    // different off-hands bring different utility stats worth simming).
                     const offHandCandidates = findBestOffHand(gameData, damageStyle, item.itemLevel || 999).filter(
                         (oh) => meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData)
                     );
@@ -1161,7 +1283,7 @@ export function generateCandidates(
                     : getAverageEquippedAbilityCost(playerDTO)
                 : 0;
         const learnedAbilityLevels = mode === 'ability_swap' ? getLearnedAbilityLevels() : null;
-        const skillLevelMap = mode === 'ability_swap' ? getCharacterSkillLevelMap() : null;
+        const skillLevelMap = mode === 'ability_swap' ? getSkillLevelMapFromDTO(playerDTO) : null;
         const swapLevelCache = new Map();
         const getSwapTargetLevel = (abHrid) => {
             if (swapLevelCache.has(abHrid)) return swapLevelCache.get(abHrid);
@@ -1296,6 +1418,43 @@ export function generateCandidates(
                 }
             }
         }
+
+        // Reorder candidates: try every ordering of the abilities already equipped in
+        // the 4 unlocked normal slots (special ability slot 0 is fixed). Slot order can
+        // shift cast timing/priority, so this searches for a better arrangement of the
+        // *same* abilities rather than swapping in new ones. Capped at 4 slots (4! = 24
+        // permutations) so it stays cheap even combined with the swap candidates above.
+        if (mode === 'ability_swap' && abilityReorderEnabled) {
+            const normalSlotIndices = [1, 2, 3, 4].filter((i) => isAbilitySlotUnlocked(i, playerDTO));
+            const equippedInNormalSlots = normalSlotIndices
+                .map((slotIdx) => ({ slotIdx, ability: playerDTO.abilities[slotIdx] }))
+                .filter((x) => x.ability);
+
+            if (equippedInNormalSlots.length >= 2) {
+                const slots = equippedInNormalSlots.map((x) => x.slotIdx);
+                const abilities = equippedInNormalSlots.map((x) => x.ability);
+
+                for (const perm of permute(abilities)) {
+                    if (perm.every((ab, i) => ab === abilities[i])) continue; // identity == baseline, skip
+
+                    const description = perm
+                        .map((ab) => gameData.abilityDetailMap[ab.hrid]?.name || ab.hrid.split('/').pop())
+                        .join(' → ');
+
+                    candidates.push({
+                        slot: 'ability_reorder',
+                        currentHrid: null,
+                        currentLevel: 0,
+                        upgradeHrid: null,
+                        upgradeLevel: 0,
+                        description: `Reorder: ${description}`,
+                        type: 'ability_reorder',
+                        reorderSlots: slots,
+                        reorderAbilities: perm,
+                    });
+                }
+            }
+        }
     }
 
     return candidates;
@@ -1310,6 +1469,16 @@ export function generateCandidates(
  * @returns {number} Total gold cost
  */
 export function calculateUpgradeCost(candidate, gameData) {
+    if (candidate.type === 'ability_reorder') {
+        // Rearranging already-equipped abilities costs nothing.
+        return 0;
+    }
+
+    if (candidate.type === 'ability_optimize') {
+        // Already computed as the sum of each chosen ability's incremental cost.
+        return candidate.cost || 0;
+    }
+
     if (candidate.type === 'ability_level' || candidate.type === 'ability_reinvest') {
         // Incremental cost only (current level/xp → target) — never the sunk cost of
         // levels already owned, since that money is already spent regardless.
@@ -1368,6 +1537,333 @@ export function calculateUpgradeCost(candidate, gameData) {
     }).price;
 }
 
+/** Default size of the top-ranked ability pool searched exhaustively by ability_optimize. */
+const ABILITY_OPTIMIZE_POOL_SIZE = 15;
+
+/**
+ * Find the best whole ability loadout (special + all unlocked normal slots) for a total
+ * coin budget, from scratch — ignoring whatever is currently equipped. Abilities already
+ * learned cost only the incremental level-up from their learned level; unlearned abilities
+ * cost their full purchase+level cost. Same budget pool competes for both.
+ *
+ * True exhaustive search over every ability combination is combinatorially infeasible
+ * (dozens of compatible abilities choosing 4 for the normal slots is already thousands of
+ * arrangements), so this runs a two-phase search instead:
+ *   1. Rank every compatible, budget-sized ability in isolation (alone in an otherwise
+ *      empty loadout) to score its standalone value.
+ *   2. Exhaustively simulate every combination of the top-ranked abilities (poolSize) for
+ *      the normal slots, paired with the single best affordable special ability.
+ * This is a near-optimal heuristic, not a guaranteed global optimum.
+ *
+ * @param {Object} params - { playerDTOs, playerIndex, gameData, zoneHrid, difficultyTier,
+ *  hours, communityBuffs, budget, poolSize }
+ * @param {Function} [onProgress] - Called with { description }
+ * @param {Function} [abortSignal] - Returns true if the search should stop early
+ * @returns {Promise<Array>} Candidates in the same shape generateCandidates() produces
+ */
+async function generateAbilityOptimizeCandidates(params, onProgress, abortSignal) {
+    const {
+        playerDTOs,
+        playerIndex,
+        gameData,
+        zoneHrid,
+        difficultyTier,
+        hours,
+        communityBuffs,
+        budget,
+        poolSize = ABILITY_OPTIMIZE_POOL_SIZE,
+    } = params;
+
+    const playerDTO = playerDTOs[playerIndex];
+    const playerHrid = playerDTO.hrid;
+    const playerStyle = getPlayerCombatStyle(playerDTO, gameData);
+    const learnedAbilityLevels = getLearnedAbilityLevels();
+    const skillLevelMap = getSkillLevelMapFromDTO(playerDTO);
+    console.log(
+        '[UpgradeAdvisor] ability_optimize skill levels used for book requirements:',
+        Object.fromEntries(skillLevelMap)
+    );
+    const levelXpTable = gameData.levelExperienceTable || [];
+
+    const normalSlotIndices = [1, 2, 3, 4].filter((i) => isAbilitySlotUnlocked(i, playerDTO));
+    if (normalSlotIndices.length === 0) return [];
+
+    const numSlots = 1 + normalSlotIndices.length;
+    const perSlotBudget = budget != null && budget > 0 ? budget / numSlots : getAverageEquippedAbilityCost(playerDTO);
+
+    const buildPoolEntry = (abHrid, abDetail) => {
+        const learnedLevel = learnedAbilityLevels.get(abHrid) || 0;
+        const learnedXp = learnedLevel > 0 ? levelXpTable[learnedLevel] || 0 : 0;
+        const targetLevel = Math.min(
+            200,
+            Math.max(getBudgetMatchedLevelFromCurrent(abHrid, learnedLevel, learnedXp, perSlotBudget), 1)
+        );
+        const cost = calculateAbilityLevelUpCost(abHrid, learnedLevel, learnedXp, targetLevel);
+        const isDamage = (abDetail.abilityEffects || []).some(
+            (effect) => effect.effectType === '/ability_effect_types/damage'
+        );
+        // 0-cooldown abilities are "always ready" filler/spam abilities — they must be the
+        // last equipped ability, since combat picks the first ready ability by slot order and
+        // an always-ready ability placed earlier would permanently block everything behind it.
+        const isZeroCooldown = (abDetail.cooldownDuration || 0) === 0;
+        return {
+            hrid: abHrid,
+            level: targetLevel,
+            cost,
+            name: abDetail.name || abHrid.split('/').pop(),
+            isDamage,
+            isZeroCooldown,
+        };
+    };
+
+    const damagePool = [];
+    const supportPool = []; // auras/buffs/heals — no direct damage effect of their own
+    const specialPool = [];
+    const TRACE_HRID = '/abilities/crippling_slash';
+    for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
+        if (abHrid === '/abilities/promote') continue;
+        if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) {
+            if (abHrid === TRACE_HRID) console.log('[UpgradeAdvisor][trace]', abHrid, 'excluded: book requirement');
+            continue;
+        }
+
+        if (abDetail.isSpecialAbility) {
+            specialPool.push(buildPoolEntry(abHrid, abDetail));
+            if (abHrid === TRACE_HRID) console.log('[UpgradeAdvisor][trace]', abHrid, 'added to specialPool');
+            continue;
+        }
+        const abStyle = getAbilityCombatStyle(abDetail);
+        if (!isAbilityCompatible(abStyle, playerStyle)) {
+            if (abHrid === TRACE_HRID)
+                console.log('[UpgradeAdvisor][trace]', abHrid, 'excluded: style incompatible', abStyle, playerStyle);
+            continue;
+        }
+        const entry = buildPoolEntry(abHrid, abDetail);
+        if (abHrid === TRACE_HRID) console.log('[UpgradeAdvisor][trace]', abHrid, 'pool entry:', entry);
+        (entry.isDamage ? damagePool : supportPool).push(entry);
+    }
+
+    if (damagePool.length === 0 && supportPool.length === 0) return [];
+
+    const emptyAbilities = new Array(playerDTO.abilities.length).fill(null);
+    const runRankSim = async (abilities) => {
+        const modifiedDTOs = playerDTOs.slice();
+        modifiedDTOs[playerIndex] = { ...playerDTO, abilities };
+        const simResult = await runSimulation(
+            {
+                gameData,
+                playerDTOs: modifiedDTOs,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                communityBuffs,
+                singleWorker: true,
+                infiniteMana: true,
+            },
+            null
+        );
+        return computeMetrics(simResult, gameData, playerHrid, hours).dps;
+    };
+
+    // Rank a pool of candidates, each scored by simulating the loadout buildAbilities(entry)
+    // returns and comparing its dps against a fixed baseline — so the score reflects each
+    // candidate's own marginal contribution, not the absolute dps of whatever else is present.
+    const rankPool = async (pool, buildAbilities, baselineDps) => {
+        if (pool.length === 0) return [];
+        const scored = [];
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), pool.length));
+        await Promise.all(
+            Array.from({ length: workerCount }, async () => {
+                while (cursor < pool.length && !abortSignal?.()) {
+                    const entry = pool[cursor++];
+                    onProgress?.({ description: `Ranking abilities: ${entry.name}` });
+                    const dps = await runRankSim(buildAbilities(entry));
+                    scored.push({ ...entry, dpsGain: dps - baselineDps });
+                }
+            })
+        );
+        scored.sort((a, b) => b.dpsGain - a.dpsGain);
+        return scored;
+    };
+
+    // Phase 1a: rank damage-dealing abilities alone (nothing else equipped) — their own
+    // hit output is what matters, and there's no realistic "kit" to test them against yet.
+    const rankedDamage = await rankPool(
+        damagePool,
+        (entry) => {
+            const abilities = emptyAbilities.slice();
+            abilities[normalSlotIndices[0]] = { hrid: entry.hrid, level: entry.level, triggers: null };
+            return abilities;
+        },
+        0
+    );
+    if (abortSignal?.()) return [];
+
+    // Phase 1b: rank support abilities (auras/buffs) alongside a representative "anchor kit"
+    // of the best damage abilities found above, not alone. An aura tested completely solo
+    // (e.g. an attack-speed aura with nothing else equipped) can look artificially strong
+    // since basic attacks are the only thing happening for it to speed up, while a damage%
+    // or accuracy-style aura looks artificially weak with no real attacks to amplify. Scoring
+    // is the delta over the anchor kit's own dps, so it reflects each aura's real contribution.
+    // A real loadout almost always has a 0-cooldown filler ability, so the anchor kit should
+    // include the best one too — but it must sit in the *last* anchor slot (immediately before
+    // the buff-under-test slot), never earlier, or it would permanently block the buff from
+    // ever casting (see isZeroCooldown above). The 0cd ability's own standalone value is
+    // already captured separately by its Phase 1a solo ranking.
+    const bestZeroCd = rankedDamage.find((entry) => entry.isZeroCooldown) || null;
+    const nonZeroCdCandidates = rankedDamage.filter((entry) => !entry.isZeroCooldown);
+    const anchorCount = Math.min(normalSlotIndices.length - 1, rankedDamage.length);
+    const nonZeroCdSlots = bestZeroCd ? Math.max(0, anchorCount - 1) : anchorCount;
+    const anchorKit = nonZeroCdCandidates.slice(0, nonZeroCdSlots);
+    if (bestZeroCd && anchorCount > 0) anchorKit.push(bestZeroCd); // last -> rightmost anchor slot
+    const anchorSlots = normalSlotIndices.slice(0, anchorKit.length);
+    const buffTestSlot = normalSlotIndices[normalSlotIndices.length - 1];
+
+    const buildAnchorAbilities = () => {
+        const abilities = emptyAbilities.slice();
+        anchorSlots.forEach((slotIdx, i) => {
+            abilities[slotIdx] = { hrid: anchorKit[i].hrid, level: anchorKit[i].level, triggers: null };
+        });
+        return abilities;
+    };
+    const anchorBaselineDps = anchorCount > 0 ? await runRankSim(buildAnchorAbilities()) : 0;
+    if (abortSignal?.()) return [];
+
+    // Phase 1c: re-rank EVERY non-filler damage AND support ability together inside the
+    // anchor kit's context (swapped into the last slot alongside the anchor), not just
+    // support abilities. Some damage abilities (e.g. AOE/debuff abilities that only pay off
+    // alongside other hits) score poorly when tested completely alone in Phase 1a, which
+    // would wrongly exclude them from the combination pool even though they're the best
+    // pick once paired with the rest of a real kit. Scoring everything the same way here
+    // (marginal dpsGain over the same anchor baseline) also keeps damage-vs-support ranking
+    // apples-to-apples, instead of comparing "alone" scores against "with anchor" scores.
+    // The chosen 0-cooldown filler is excluded — it already occupies the anchor kit itself,
+    // so testing another 0cd ability in the same slot would just have it blocked by the
+    // anchor's own filler and produce a meaningless near-zero score.
+    const contextPool = [...damagePool, ...supportPool].filter((e) => !e.isZeroCooldown);
+    const rankedContext = await rankPool(
+        contextPool,
+        (entry) => {
+            const abilities = buildAnchorAbilities();
+            abilities[buffTestSlot] = { hrid: entry.hrid, level: entry.level, triggers: null };
+            return abilities;
+        },
+        anchorBaselineDps
+    );
+    if (abortSignal?.()) return [];
+
+    // The special-ability slot is also where this game puts auras (Fierce Aura, Speed Aura,
+    // Mystic Aura, etc. all carry isSpecialAbility: true) alongside true ultimates, sharing
+    // one exclusive slot. Auras need the same anchor-kit context as normal-slot support
+    // abilities — an attack-speed aura tested totally alone (nothing else equipped to speed
+    // up) looks artificially strong, while a damage/accuracy aura looks artificially weak
+    // with nothing to amplify. So rank them against the anchor kit, not in isolation.
+    const rankedSpecial = await rankPool(
+        specialPool,
+        (entry) => {
+            const abilities = buildAnchorAbilities();
+            abilities[0] = { hrid: entry.hrid, level: entry.level, triggers: null };
+            return abilities;
+        },
+        anchorBaselineDps
+    );
+    if (abortSignal?.()) return [];
+
+    // The 0cd filler's own value was already captured by its Phase 1a solo ranking (it can't
+    // be scored in anchor context — see above), so it's merged back in here.
+    const rankedNormal = (bestZeroCd ? [bestZeroCd, ...rankedContext] : rankedContext).sort(
+        (a, b) => b.dpsGain - a.dpsGain
+    );
+    console.log(
+        '[UpgradeAdvisor] ability_optimize ranking (anchor baseline dps: %s):',
+        anchorBaselineDps,
+        rankedNormal.map((e) => ({
+            name: e.name,
+            isDamage: e.isDamage,
+            isZeroCooldown: e.isZeroCooldown,
+            dpsGain: e.dpsGain,
+            cost: e.cost,
+            level: e.level,
+        }))
+    );
+    console.log(
+        '[UpgradeAdvisor] ability_optimize special/aura ranking:',
+        rankedSpecial.map((e) => ({ name: e.name, dpsGain: e.dpsGain, cost: e.cost, level: e.level }))
+    );
+    const comboSize = Math.min(normalSlotIndices.length, rankedNormal.length);
+    const topNormal = rankedNormal.slice(0, poolSize);
+    const bestSpecial = rankedSpecial[0] || null;
+    const specialCost = bestSpecial ? bestSpecial.cost : 0;
+    const totalBudget = budget != null && budget > 0 ? budget : Infinity;
+
+    // Phase 2: exhaustively try every combination (order doesn't matter beyond the
+    // zero-cooldown placement below — the separate "Try Reordering" swap-mode option already
+    // searches ordering among non-filler abilities) of comboSize abilities from the top-ranked
+    // pool, paired with the best affordable special ability. At most one 0-cooldown ability is
+    // allowed per combo — equipping a second is never useful, since only the first-checked one
+    // would ever fire.
+    const combos = [];
+    const combine = (start, chosen, zeroCdCount) => {
+        if (chosen.length === comboSize) {
+            combos.push(chosen.slice());
+            return;
+        }
+        for (let i = start; i < topNormal.length; i++) {
+            const nextZeroCdCount = zeroCdCount + (topNormal[i].isZeroCooldown ? 1 : 0);
+            if (nextZeroCdCount > 1) continue;
+            chosen.push(topNormal[i]);
+            combine(i + 1, chosen, nextZeroCdCount);
+            chosen.pop();
+        }
+    };
+    combine(0, [], 0);
+
+    // Order a combo's abilities across the given slots with any 0-cooldown ability moved to
+    // the last slot, so it only fires as a fallback instead of blocking everything behind it.
+    const arrangeForSlots = (entries, slotIndices) => {
+        const zeroCd = entries.find((e) => e.isZeroCooldown);
+        const rest = entries.filter((e) => !e.isZeroCooldown);
+        const ordered = zeroCd ? [...rest, zeroCd] : rest;
+        return ordered.map((entry, i) => ({ slotIdx: slotIndices[i], entry }));
+    };
+
+    const candidates = [];
+    for (const combo of combos) {
+        const normalCost = combo.reduce((s, e) => s + e.cost, 0);
+        const totalCost = normalCost + specialCost;
+        if (totalCost > totalBudget) continue;
+
+        const reorderSlots = [];
+        const reorderAbilities = [];
+        if (bestSpecial) {
+            reorderSlots.push(0);
+            reorderAbilities.push({ hrid: bestSpecial.hrid, level: bestSpecial.level, triggers: null });
+        }
+        for (const { slotIdx, entry } of arrangeForSlots(combo, normalSlotIndices)) {
+            reorderSlots.push(slotIdx);
+            reorderAbilities.push({ hrid: entry.hrid, level: entry.level, triggers: null });
+        }
+
+        candidates.push({
+            slot: 'ability_optimize',
+            currentHrid: null,
+            currentLevel: 0,
+            upgradeHrid: null,
+            upgradeLevel: 0,
+            description: `${bestSpecial ? `${bestSpecial.name} (Lv${bestSpecial.level}) + ` : ''}${combo
+                .map((e) => `${e.name} (Lv${e.level})`)
+                .join(', ')}`,
+            type: 'ability_optimize',
+            cost: totalCost,
+            reorderSlots,
+            reorderAbilities,
+        });
+    }
+
+    return candidates;
+}
+
 /**
  * Run the full upgrade analysis: baseline sim + one sim per candidate.
  * @param {Object} params - { playerDTOs, playerIndex, zoneHrid, difficultyTier, hours, communityBuffs, upgradeMode }
@@ -1391,6 +1887,7 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
         equipmentBudget,
         equipmentLevelBoost,
         skipBackSlot,
+        abilityReorderEnabled,
     } = params;
     const { abortSignal } = options;
     const gameData = buildGameDataPayload();
@@ -1400,22 +1897,46 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
     const playerHrid = playerDTO.hrid;
 
     // Generate candidates and compute costs
-    const candidates = generateCandidates(
-        playerDTO,
-        gameData,
-        upgradeMode,
-        abilityTargetLevel,
-        abilityLevelType,
-        skipBackSlot,
-        abilitySwapBudget,
-        abilityLevelBudget,
-        equipmentBudget,
-        equipmentLevelBoost
-    );
-    let candidatesWithCost = candidates.map((c) => ({
-        ...c,
-        cost: calculateUpgradeCost(c, gameData),
-    }));
+    let candidatesWithCost;
+    if (upgradeMode === 'ability_optimize') {
+        // Full from-scratch ability search: its own two-phase (rank, then combine) async
+        // pipeline instead of the synchronous per-slot candidate generator above, since it
+        // needs ranking sims before it can even produce a candidate list.
+        const optimizeCandidates = await generateAbilityOptimizeCandidates(
+            {
+                playerDTOs,
+                playerIndex,
+                gameData,
+                zoneHrid,
+                difficultyTier,
+                hours,
+                communityBuffs,
+                budget: abilitySwapBudget,
+            },
+            onProgress,
+            abortSignal
+        );
+        if (abortSignal?.()) return { baseline: null, results: [] };
+        candidatesWithCost = optimizeCandidates.map((c) => ({ ...c, cost: calculateUpgradeCost(c, gameData) }));
+    } else {
+        const candidates = generateCandidates(
+            playerDTO,
+            gameData,
+            upgradeMode,
+            abilityTargetLevel,
+            abilityLevelType,
+            skipBackSlot,
+            abilitySwapBudget,
+            abilityLevelBudget,
+            equipmentBudget,
+            equipmentLevelBoost,
+            abilityReorderEnabled
+        );
+        candidatesWithCost = candidates.map((c) => ({
+            ...c,
+            cost: calculateUpgradeCost(c, gameData),
+        }));
+    }
 
     if (upgradeMode === 'equipment') {
         // Filter out equipment candidates the player can't reasonably afford, so time
@@ -1426,12 +1947,18 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
     }
 
     const total = candidatesWithCost.length + 1; // +1 for baseline
+
     let current = 0;
+
+    // Ability swaps/optimize are compared on pure ability performance, not on whether the
+    // player's current food/mana setup happens to sustain the new abilities — otherwise a
+    // strong ability could rank worse than it should just because it runs the sim out of mana.
+    const infiniteMana = upgradeMode === 'ability_swap' || upgradeMode === 'ability_optimize';
 
     // Run baseline sim
     onProgress?.({ current: 0, total, description: 'Running baseline...' });
     const baselineResult = await runSimulation(
-        { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs },
+        { gameData, playerDTOs, zoneHrid, difficultyTier, hours, communityBuffs, infiniteMana },
         null
     );
     current++;
@@ -1462,7 +1989,15 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
                 const modifiedDTOs = playerDTOs.slice();
                 const basePlayer = playerDTOs[playerIndex];
 
-                if (candidate.slot.startsWith('ability_')) {
+                if (candidate.reorderSlots) {
+                    // Multi-slot ability change (reorder or full optimize): apply every
+                    // touched slot in one shot rather than a single slot mutation.
+                    const abilities = basePlayer.abilities.slice();
+                    candidate.reorderSlots.forEach((slotIdx, i) => {
+                        abilities[slotIdx] = candidate.reorderAbilities[i];
+                    });
+                    modifiedDTOs[playerIndex] = { ...basePlayer, abilities };
+                } else if (candidate.slot.startsWith('ability_')) {
                     // Ability upgrade/swap
                     const slotIdx = parseInt(candidate.slot.split('_')[1]);
                     const abilities = basePlayer.abilities.slice();
@@ -1495,6 +2030,7 @@ export async function runUpgradeAnalysis(params, onProgress, options = {}) {
                         hours,
                         communityBuffs,
                         singleWorker: true,
+                        infiniteMana,
                     },
                     null
                 );
@@ -1860,7 +2396,13 @@ export async function runLabyrinthUpgradeAnalysis(params, onProgress, options = 
                 const basePlayer = playerDTOs[playerIndex];
                 let modifiedDTO;
 
-                if (candidate.slot.startsWith('ability_')) {
+                if (candidate.reorderSlots) {
+                    const abilities = basePlayer.abilities.slice();
+                    candidate.reorderSlots.forEach((slotIdx, i) => {
+                        abilities[slotIdx] = candidate.reorderAbilities[i];
+                    });
+                    modifiedDTO = { ...basePlayer, abilities };
+                } else if (candidate.slot.startsWith('ability_')) {
                     const slotIdx = parseInt(candidate.slot.split('_')[1]);
                     const abilities = basePlayer.abilities.slice();
                     abilities[slotIdx] = {

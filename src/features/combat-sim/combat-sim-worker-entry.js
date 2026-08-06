@@ -31,6 +31,7 @@ onmessage = function (event) {
             simulationTimeLimit,
             extraBuffs,
             labyrinth: labyrinthData,
+            infiniteMana,
         } = event.data;
 
         // Set game data for the engine singleton
@@ -75,7 +76,8 @@ onmessage = function (event) {
                     progress: Math.round(progressData.progress * 100),
                 });
             },
-            labyrinth
+            labyrinth,
+            infiniteMana
         );
 
         // Run simulation
