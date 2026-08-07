@@ -34,6 +34,31 @@ function findProductionAction(itemHrid) {
 }
 
 /**
+ * Group a recipe's input items so that inputs produced by actions in the same
+ * production category (e.g. multiple cheese types) end up adjacent, while
+ * otherwise preserving the recipe's original ordering (first-appearance order
+ * of each category).
+ * @param {Array<{itemHrid: string, count?: number}>} inputItems
+ * @returns {Array<{itemHrid: string, count?: number}>}
+ */
+function groupInputsByProductionCategory(inputItems) {
+    const order = [];
+    const groups = new Map();
+    for (const item of inputItems) {
+        const production = findProductionAction(item.itemHrid);
+        const key = production?.action?.category || `__nocat_${item.itemHrid}`;
+        if (!groups.has(key)) {
+            groups.set(key, []);
+            order.push(key);
+        }
+        groups.get(key).push(item);
+    }
+    const result = [];
+    for (const key of order) result.push(...groups.get(key));
+    return result;
+}
+
+/**
  * Get artisan tea material reduction bonus for an action type.
  * @param {string} actionType - e.g. '/action_types/brewing'
  * @returns {number} Reduction as decimal (e.g. 0.112 for 11.2%)
@@ -110,6 +135,7 @@ export function computeBestCraftingPlan(
             buyPrice: 1,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             actionsNeeded: 0,
             children: [],
         };
@@ -128,6 +154,7 @@ export function computeBestCraftingPlan(
             buyPrice,
             craftCost: cachedUnitCost.craftCost,
             actionHrid: cachedUnitCost.actionHrid,
+            actionCategory: cachedUnitCost.actionCategory ?? null,
             actionsNeeded:
                 cachedUnitCost.strategy === 'craft' ? Math.ceil(quantity / (cachedUnitCost.outputCount || 1)) : 0,
             children:
@@ -163,6 +190,7 @@ export function computeBestCraftingPlan(
             buyPrice,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             actionsNeeded: 0,
             children: [],
         };
@@ -178,6 +206,7 @@ export function computeBestCraftingPlan(
             unitCost,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             outputCount: 1,
             childrenTemplate: [],
         });
@@ -191,6 +220,7 @@ export function computeBestCraftingPlan(
             buyPrice,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             actionsNeeded: 0,
             children: [],
         };
@@ -208,6 +238,7 @@ export function computeBestCraftingPlan(
             unitCost,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             outputCount: 1,
             childrenTemplate: [],
         });
@@ -221,6 +252,7 @@ export function computeBestCraftingPlan(
             buyPrice,
             craftCost: null,
             actionHrid: null,
+            actionCategory: null,
             actionsNeeded: 0,
             children: [],
         };
@@ -236,8 +268,11 @@ export function computeBestCraftingPlan(
     const childrenTemplate = []; // { itemHrid, qtyPerUnit } for memo reconstruction
 
     // Input items (affected by artisan bonus)
-    if (action.inputItems) {
-        for (const input of action.inputItems) {
+    // Grouped by production category so e.g. multiple cheese inputs are processed
+    // together rather than interleaved with unrelated materials.
+    const groupedInputItems = action.inputItems ? groupInputsByProductionCategory(action.inputItems) : null;
+    if (groupedInputItems) {
+        for (const input of groupedInputItems) {
             const inputCountPerAction = input.count || 1;
             const reducedCount = inputCountPerAction * (1 - artisanBonus);
             const qtyPerUnit = reducedCount * actionsForOne;
@@ -316,6 +351,7 @@ export function computeBestCraftingPlan(
         unitCost,
         craftCost: craftCostPerUnit,
         actionHrid: strategy === 'craft' ? actionHrid : null,
+        actionCategory: strategy === 'craft' ? (action.category ?? null) : null,
         outputCount,
         childrenTemplate: strategy === 'craft' ? childrenTemplate : [],
     });
@@ -325,8 +361,8 @@ export function computeBestCraftingPlan(
     if (!shouldBuy) {
         const actionsNeeded = Math.ceil(quantity / outputCount);
         children = [];
-        if (action.inputItems) {
-            for (const input of action.inputItems) {
+        if (groupedInputItems) {
+            for (const input of groupedInputItems) {
                 const inputCountPerAction = input.count || 1;
                 const reducedCount = inputCountPerAction * (1 - artisanBonus);
                 const inputQty = Math.ceil(reducedCount * actionsNeeded);
@@ -376,6 +412,7 @@ export function computeBestCraftingPlan(
         buyPrice,
         craftCost: craftCostPerUnit,
         actionHrid: strategy === 'craft' ? actionHrid : null,
+        actionCategory: strategy === 'craft' ? (action.category ?? null) : null,
         actionsNeeded: strategy === 'craft' ? Math.ceil(quantity / outputCount) : 0,
         children,
     };

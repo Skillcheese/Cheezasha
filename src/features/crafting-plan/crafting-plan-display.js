@@ -8,10 +8,11 @@ import config from '../../core/config.js';
 import domObserver from '../../core/dom-observer.js';
 import dataManager from '../../core/data-manager.js';
 import { computeBestCraftingPlan } from './crafting-plan-calculator.js';
+import { getItemPrice } from '../../utils/market-data.js';
 import { createCollapsibleSection } from '../../utils/ui-components.js';
 import { formatKMB, formatWithSeparator, timeReadable } from '../../utils/formatters.js';
 import { getActionHridFromName } from '../../utils/game-lookups.js';
-import { findActionInput } from '../../utils/action-panel-helper.js';
+import { findActionInput, attachInputListeners } from '../../utils/action-panel-helper.js';
 import {
     createMaterialTab,
     removeMaterialTabs,
@@ -22,6 +23,8 @@ import { createAutofillManager } from '../../utils/marketplace-autofill.js';
 import { calculateActionStats } from '../../utils/action-calculator.js';
 import { calculateEfficiencyMultiplier } from '../../utils/efficiency.js';
 import { calculateExpPerHour } from '../../utils/experience-calculator.js';
+import { setReactInputValue } from '../../utils/react-input.js';
+import { createTimerRegistry } from '../../utils/timer-registry.js';
 
 const UI_ID = 'mwi-crafting-plan';
 
@@ -34,6 +37,9 @@ const PRICING_MODES = [
 const craftingPlanTabs = [];
 let cleanupObserver = null;
 const autofillManager = createAutofillManager('CraftingPlan');
+const timerRegistry = createTimerRegistry();
+let storedActionHrid = null;
+let storedNumActions = 0;
 
 const PRODUCTION_TYPES = [
     '/action_types/brewing',
@@ -106,24 +112,114 @@ function collectBuyItems(node, buyItems) {
 }
 
 /**
- * Collect all "craft" steps from the plan tree.
- * @param {Object} node - CraftingPlanNode
- * @param {Array} craftSteps - Array to collect craft steps into
+ * Collect all "craft" steps from the plan tree, merging every instance of the
+ * same recipe (e.g. cheese needed by several sub-recipes) into a single
+ * combined step, and ordering the result so that steps sharing the same
+ * production category (e.g. all cheese items anywhere in the plan) are
+ * grouped together as much as possible, while still respecting dependencies
+ * (an item's ingredients are always scheduled before it).
+ * @param {Object} root - CraftingPlanNode
+ * @returns {Array} Ordered, de-duplicated craft steps
  */
-function collectCraftSteps(node, craftSteps) {
-    // Depth-first: collect children first so deepest crafts appear first
-    for (const child of node.children) {
-        collectCraftSteps(child, craftSteps);
+function collectCraftSteps(root) {
+    // Flatten the tree into craft-only node instances with dependency edges
+    // (an instance depends on its direct craft children).
+    const instances = [];
+    function visit(node) {
+        const deps = [];
+        for (const child of node.children) {
+            if (child.strategy === 'craft' && child.actionHrid) {
+                deps.push(visit(child));
+            }
+        }
+        const id = instances.length;
+        instances.push({ node, deps });
+        return id;
+    }
+    visit(root);
+
+    // Merge every instance of the same recipe (actionHrid) into one group,
+    // summing quantities and combining dependency edges.
+    const groupKeys = []; // instanceId -> groupKey
+    const groups = new Map(); // groupKey -> { itemName, actionHrid, category, quantity, actionsNeeded, deps: Set }
+    for (const { node, deps } of instances) {
+        const key = node.actionHrid;
+        groupKeys.push(key);
+        let group = groups.get(key);
+        if (!group) {
+            group = {
+                itemName: node.itemName,
+                actionHrid: node.actionHrid,
+                category: node.actionCategory || node.actionHrid,
+                quantity: 0,
+                actionsNeeded: 0,
+                deps: new Set(),
+            };
+            groups.set(key, group);
+        }
+        group.quantity += node.quantity;
+        group.actionsNeeded += node.actionsNeeded;
+        for (const depId of deps) {
+            const depKey = groupKeys[depId];
+            if (depKey !== key) group.deps.add(depKey);
+        }
     }
 
-    if (node.strategy === 'craft' && node.actionHrid) {
-        craftSteps.push({
-            itemName: node.itemName,
-            quantity: Math.ceil(node.quantity),
-            actionsNeeded: node.actionsNeeded,
-            actionHrid: node.actionHrid,
-        });
+    const groupKeyList = [...groups.keys()];
+    const indexOf = new Map(groupKeyList.map((key, i) => [key, i]));
+    const taskNodes = groupKeyList.map((key) => groups.get(key));
+
+    // Kahn-style topological scheduling that prefers to keep scheduling from
+    // the current category before switching to a new one.
+    const indegree = taskNodes.map((t) => t.deps.size);
+    const dependents = taskNodes.map(() => []);
+    taskNodes.forEach((t, id) => {
+        for (const depKey of t.deps) {
+            dependents[indexOf.get(depKey)].push(id);
+        }
+    });
+
+    const remaining = new Set(taskNodes.map((_, id) => id));
+    const orderedIds = [];
+    let currentCategory = null;
+
+    while (remaining.size > 0) {
+        let chosen = null;
+        if (currentCategory !== null) {
+            for (const id of remaining) {
+                if (indegree[id] === 0 && taskNodes[id].category === currentCategory) {
+                    chosen = id;
+                    break;
+                }
+            }
+        }
+        if (chosen === null) {
+            for (const id of remaining) {
+                if (indegree[id] === 0) {
+                    chosen = id;
+                    break;
+                }
+            }
+        }
+        if (chosen === null) break; // Safety net; shouldn't happen (would indicate a cycle)
+
+        orderedIds.push(chosen);
+        remaining.delete(chosen);
+        currentCategory = taskNodes[chosen].category;
+        for (const dependentId of dependents[chosen]) {
+            indegree[dependentId]--;
+        }
     }
+
+    return orderedIds.map((id) => {
+        const t = taskNodes[id];
+        return {
+            itemName: t.itemName,
+            quantity: Math.ceil(t.quantity),
+            actionsNeeded: t.actionsNeeded,
+            actionHrid: t.actionHrid,
+        };
+    });
 }
 
 /**
@@ -164,7 +260,7 @@ function createRow(leftText, rightText, options = {}) {
  * @param {boolean} [defaultOpen=false] - Whether the section should be open
  * @returns {HTMLElement|null}
  */
-function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
+function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1) {
     const gameData = dataManager.getInitClientData();
     const actionDetail = gameData?.actionDetailMap?.[actionHrid];
     if (!actionDetail) return null;
@@ -181,11 +277,12 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
     const taskMode = config.getSetting('actionPanel_craftingPlanTaskMode');
     const timeCostEnabled = config.getSetting('actionPanel_craftingPlanTimeCost');
     const goldPerHour = config.getSetting('actionPanel_craftingPlanGoldPerHour') || 0;
+    const totalQuantity = Math.max(1, actionCount) * (output.count || 1);
     let plan;
     try {
         plan = computeBestCraftingPlan(
             output.itemHrid,
-            1,
+            totalQuantity,
             mode,
             new Set(),
             new Map(),
@@ -434,17 +531,16 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
             border: 1px solid #60a5fa; border-radius: 4px;
             color: white; cursor: pointer; font-size: 0.85em;
         `;
-        buyButton.addEventListener('click', async () => {
-            const panel = buyButton.closest('[class*="SkillActionDetail_skillActionDetail"]');
+        buyButton.addEventListener('click', async (e) => {
+            const panel = e.currentTarget.closest('[class*="SkillActionDetail_skillActionDetail"]');
             const inputField = findActionInput(panel);
-            const numActions = parseInt(inputField?.value) || 1;
-            const outputCount = output.count || 1;
-            const totalQty = numActions * outputCount;
+            const numActions = parseInt(inputField?.value, 10) || 1;
+
             const inventory = dataManager.getInventory() || [];
 
             const missingMaterials = [];
             for (const [itemHrid, item] of buyItems) {
-                const needed = Math.ceil(item.quantity * totalQty);
+                const needed = Math.ceil(item.quantity);
                 const have = inventory
                     .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
                     .reduce((sum, i) => sum + (i.count || 0), 0);
@@ -463,6 +559,9 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
             }
 
             if (missingMaterials.length === 0) return;
+
+            storedActionHrid = actionHrid;
+            storedNumActions = numActions;
 
             // Navigate to marketplace via navbar click
             const navButtons = document.querySelectorAll('.NavigationBar_nav__3uuUl');
@@ -492,8 +591,7 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
     }
 
     // === Crafting Steps (what to craft, in order) ===
-    const craftSteps = [];
-    collectCraftSteps(plan, craftSteps);
+    const craftSteps = collectCraftSteps(plan);
 
     if (craftSteps.length > 0) {
         const divider2 = document.createElement('div');
@@ -565,6 +663,33 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
                 })
             );
         }
+
+        // Profit from crafting = sell value of the crafted output minus total material/action cost
+        const itemDetails = dataManager.getItemDetails(plan.itemHrid);
+        if (itemDetails?.isTradable) {
+            const sellPrice = getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
+            if (sellPrice !== null) {
+                const profit = sellPrice * plan.quantity - plan.totalCost;
+                const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                content.appendChild(
+                    createRow('Profit from crafting', formatWithSeparator(Math.round(profit)), {
+                        leftColor: 'var(--text-color-primary, #fff)',
+                        rightColor: profitColor,
+                    })
+                );
+
+                if (totalCraftSeconds > 0) {
+                    const profitPerHour = profit * (3600 / totalCraftSeconds);
+                    const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                    content.appendChild(
+                        createRow('Profit/hr from crafting', formatWithSeparator(Math.round(profitPerHour)), {
+                            leftColor: 'var(--text-color-primary, #fff)',
+                            rightColor: profitPerHourColor,
+                        })
+                    );
+                }
+            }
+        }
     }
 
     const costText = plan.unitCost === Infinity ? '?' : `${formatKMB(Math.round(plan.unitCost))}/ea`;
@@ -573,6 +698,97 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
     section.className = 'mwi-crafting-plan-section';
 
     return section;
+}
+
+/**
+ * Get game object via React fiber tree traversal, to reach handleGoToAction.
+ * @returns {Object|null} Game component instance
+ */
+function getGameObject() {
+    const rootEl = document.getElementById('root');
+    const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
+    if (!rootFiber) return null;
+
+    function find(fiber) {
+        if (!fiber) return null;
+        if (fiber.stateNode?.handleGoToAction) return fiber.stateNode;
+        return find(fiber.child) || find(fiber.sibling);
+    }
+
+    return find(rootFiber);
+}
+
+/**
+ * Navigate back to the stored crafting action and restore its input value.
+ */
+async function handleReturnToAction() {
+    if (!storedActionHrid) return;
+
+    const game = getGameObject();
+    if (!game?.handleGoToAction) return;
+
+    // Capture locally — navigating away hides the marketplace, and the cleanup
+    // observer polls for that and resets the module-level stored values, which
+    // would otherwise race with the delayed restore below.
+    const actionHrid = storedActionHrid;
+    const numActions = storedNumActions;
+
+    game.handleGoToAction(actionHrid);
+
+    if (numActions > 0) {
+        const maxAttempts = 20;
+        for (let i = 0; i < maxAttempts; i++) {
+            await new Promise((resolve) => {
+                const t = setTimeout(resolve, 100);
+                timerRegistry.registerTimeout(t);
+            });
+
+            const input =
+                document.querySelector('[class*="maxActionCountInput"] input') ||
+                document.querySelector('[class*="SkillActionDetail_skillActionDetail"] input[type="number"]');
+            if (input) {
+                setReactInputValue(input, numActions);
+                break;
+            }
+        }
+    }
+}
+
+/**
+ * Create a "Return to Craft" tab for navigating back after buying materials.
+ * @param {HTMLElement} referenceTab - Tab element to clone structure from
+ * @returns {HTMLElement|null} Return tab element, or null if no stored context
+ */
+function createReturnTab(referenceTab) {
+    if (!storedActionHrid) return null;
+
+    const details = dataManager.getActionDetails(storedActionHrid);
+    let displayName = details?.name || storedActionHrid.split('/').pop();
+    if (storedNumActions > 0) displayName += ` (×${formatWithSeparator(storedNumActions)})`;
+
+    const tab = referenceTab.cloneNode(true);
+    tab.setAttribute('data-mwi-custom-tab', 'true');
+    tab.classList.remove('Mui-selected');
+    tab.setAttribute('aria-selected', 'false');
+    tab.setAttribute('tabindex', '-1');
+
+    const badgeSpan = tab.querySelector('[class*="TabsComponent_badge"]');
+    if (badgeSpan) {
+        badgeSpan.innerHTML = `
+            <div style="text-align: center;">
+                <div>↩ Return to Craft</div>
+                <div style="font-size: 0.75em; color: #60a5fa;">${displayName}</div>
+            </div>
+        `;
+    }
+
+    tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleReturnToAction();
+    });
+
+    return tab;
 }
 
 /**
@@ -605,9 +821,19 @@ function createCraftingPlanTabs(missingMaterials) {
         craftingPlanTabs.push(tab);
     }
 
+    // Add "Return to Craft" tab at the end
+    const returnTab = createReturnTab(referenceTab);
+    if (returnTab) {
+        tabsContainer.appendChild(returnTab);
+        craftingPlanTabs.push(returnTab);
+    }
+
     if (!cleanupObserver) {
         cleanupObserver = setupMarketplaceCleanupObserver(() => {
+            removeMaterialTabs();
             craftingPlanTabs.length = 0;
+            storedActionHrid = null;
+            storedNumActions = 0;
         }, craftingPlanTabs);
     }
 }
@@ -618,6 +844,7 @@ class CraftingPlanDisplay {
         this.unregisterHandlers = [];
         this.processedPanels = new WeakSet();
         this.panelObservers = new Map();
+        this.inputCleanups = new Map();
     }
 
     initialize() {
@@ -646,12 +873,18 @@ class CraftingPlanDisplay {
     }
 
     _attachToPanel(panel, actionHrid) {
+        const inputField = findActionInput(panel);
+        const getActionCount = () => {
+            const val = parseInt(inputField?.value, 10);
+            return val > 0 ? val : 1;
+        };
+
         const rebuild = () => {
             const existing = panel.querySelector(`#${UI_ID}`);
             const wasOpen = existing?.querySelector('.mwi-section-header span')?.textContent === '▼';
             if (existing) existing.remove();
 
-            const newUI = buildPlanUI(actionHrid, rebuild, wasOpen);
+            const newUI = buildPlanUI(actionHrid, rebuild, wasOpen, getActionCount());
             if (!newUI) return;
 
             const profitSection = panel.querySelector('[data-mwi-profit-display]');
@@ -662,8 +895,23 @@ class CraftingPlanDisplay {
             }
         };
 
-        const ui = buildPlanUI(actionHrid, rebuild);
+        const ui = buildPlanUI(actionHrid, rebuild, false, getActionCount());
         if (!ui) return;
+
+        // attachInputListeners also fires on any click within the panel (to catch
+        // quick-input-button clicks), which would otherwise destroy/recreate this
+        // section — and any input inside it, like the gold/hr field — on every
+        // click. Only rebuild when the action count actually changed.
+        if (inputField) {
+            let lastActionCount = getActionCount();
+            const cleanupInput = attachInputListeners(panel, inputField, () => {
+                const count = getActionCount();
+                if (count === lastActionCount) return;
+                lastActionCount = count;
+                rebuild();
+            });
+            this.inputCleanups.set(panel, cleanupInput);
+        }
 
         const position = () => {
             const existing = panel.querySelector(`#${UI_ID}`);
@@ -710,6 +958,13 @@ class CraftingPlanDisplay {
         // Disconnect panel observers
         this.panelObservers.forEach((obs) => obs.disconnect());
         this.panelObservers = new Map();
+
+        // Remove input listeners
+        this.inputCleanups.forEach((cleanup) => cleanup());
+        this.inputCleanups = new Map();
+
+        timerRegistry.clearAll();
+
         this.processedPanels = new WeakSet();
         this.isInitialized = false;
     }
