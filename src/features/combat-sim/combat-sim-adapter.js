@@ -323,12 +323,14 @@ export function parseShykaiImport(jsonString) {
             houseRooms: {},
         };
 
-        // Equipment: array format [{itemLocationHrid, itemHrid, enhancementLevel}]
+        // Equipment: array format [{itemLocationHrid, itemHrid, enhancementLevel}].
+        // itemLocationHrid uses the /item_locations/ namespace (e.g. /item_locations/head), but
+        // the engine keys equipment by /equipment_types/ — always derive the type from item data,
+        // same as buildPlayerDTO does for the live character.
         if (Array.isArray(p.equipment)) {
             for (const eq of p.equipment) {
                 if (!eq.itemHrid) continue;
-                // Map itemLocationHrid (e.g. /equipment_types/head) to equipment type
-                const eqType = eq.itemLocationHrid || itemDetailMap[eq.itemHrid]?.equipmentDetail?.type;
+                const eqType = itemDetailMap[eq.itemHrid]?.equipmentDetail?.type;
                 if (eqType) {
                     dto.equipment[eqType] = {
                         hrid: eq.itemHrid,
