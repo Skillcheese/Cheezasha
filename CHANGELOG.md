@@ -2,10 +2,9 @@
 
 ## [3.6.1](https://github.com/Skillcheese/Cheezasha/compare/v3.6.0...v3.6.1) (2026-08-07)
 
-
 ### Bug Fixes
 
-* apply hypothetical tea combos to alchemy efficiency in tea optimizer ([9e9ced6](https://github.com/Skillcheese/Cheezasha/commit/9e9ced64e1c0b9f329c00d5bbd8267f3b06c3f52))
+- apply hypothetical tea combos to alchemy efficiency in tea optimizer ([9e9ced6](https://github.com/Skillcheese/Cheezasha/commit/9e9ced64e1c0b9f329c00d5bbd8267f3b06c3f52))
 
 ## [3.6.0](https://github.com/Skillcheese/Cheezasha/compare/v3.5.0...v3.6.0) (2026-08-07)
 
