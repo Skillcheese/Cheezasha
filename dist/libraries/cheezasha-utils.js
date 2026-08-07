@@ -1,7 +1,7 @@
 /**
  * Cheezasha Utils Library
  * All utility modules
- * Version: 3.6.0
+ * Version: 3.6.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -5849,6 +5849,8 @@ self.onmessage = function (e) {
      * @param {boolean} options.includeCommunityBuff - Include community buff in efficiency (default: false)
      * @param {boolean} options.includeBreakdown - Include detailed breakdown data (default: false)
      * @param {number} options.levelRequirementOverride - Override base level requirement (e.g., item level for alchemy)
+     * @param {Array|null} options.drinksOverride - If provided, use these drinks instead of resolving the
+     *  live/snapshot loadout — lets callers evaluate a hypothetical tea combination (e.g. the tea optimizer).
      * @returns {Object} { actionTime, totalEfficiency, breakdown? }
      */
     function calculateActionStats(actionDetails, options = {}) {
@@ -5860,6 +5862,7 @@ self.onmessage = function (e) {
             includeCommunityBuff = false,
             includeBreakdown = false,
             levelRequirementOverride,
+            drinksOverride = null,
         } = options;
 
         try {
@@ -5901,8 +5904,9 @@ self.onmessage = function (e) {
             // Get drink concentration
             const drinkConcentration = getDrinkConcentration(equipment, itemDetailMap);
 
-            // Get active drinks for this action type (loadout-snapshot aware)
-            const activeDrinks = resolveActionContext(actionDetails.type).drinks;
+            // Get active drinks for this action type (loadout-snapshot aware), unless a hypothetical
+            // combination was supplied by the caller (e.g. the tea optimizer evaluating a combo)
+            const activeDrinks = drinksOverride ?? resolveActionContext(actionDetails.type).drinks;
 
             // Calculate Action Level bonus from teas
             const actionLevelBonus = parseActionLevelBonus(activeDrinks, itemDetailMap, drinkConcentration);

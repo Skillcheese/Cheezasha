@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.6.0
+ * Version: 3.6.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -13795,11 +13795,15 @@
      * Calculate Gold/hour for an alchemy action with a specific tea combination
      * @param {Object} alchemyContext - { actionType: 'coinify'|'decompose'|'transmute', itemHrid, enhancementLevel }
      * @param {Object} buffs - Parsed tea buffs (includes alchemySuccess)
+     * @param {Array<string>} teaHrids - Tea HRIDs in this combo, passed through as a drinks override so
+     *  non-catalytic teas (efficiency, wisdom, etc.) actually influence the computed action speed/efficiency
+     *  instead of the profit calculator silently falling back to whatever tea is live-equipped in-game.
      * @returns {number} Gold per hour (profit after all costs)
      */
-    function calculateAlchemyGoldPerHour(alchemyContext, buffs) {
+    function calculateAlchemyGoldPerHour(alchemyContext, buffs, teaHrids = []) {
         const { actionType, itemHrid, enhancementLevel = 0 } = alchemyContext;
         const teaBonusOverride = buffs.alchemySuccess || 0;
+        const drinksOverride = teaHrids.map((itemHrid) => ({ itemHrid }));
 
         let profitData = null;
         if (actionType === 'coinify') {
@@ -13807,17 +13811,24 @@
                 itemHrid,
                 enhancementLevel,
                 false,
-                teaBonusOverride
+                teaBonusOverride,
+                drinksOverride
             );
         } else if (actionType === 'decompose') {
             profitData = alchemyProfitCalculator.calculateDecomposeProfit(
                 itemHrid,
                 enhancementLevel,
                 false,
-                teaBonusOverride
+                teaBonusOverride,
+                drinksOverride
             );
         } else if (actionType === 'transmute') {
-            profitData = alchemyProfitCalculator.calculateTransmuteProfit(itemHrid, false, teaBonusOverride);
+            profitData = alchemyProfitCalculator.calculateTransmuteProfit(
+                itemHrid,
+                false,
+                teaBonusOverride,
+                drinksOverride
+            );
         }
 
         if (!profitData) return 0;
@@ -14255,7 +14266,7 @@
                     score = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
                     totalScore += score;
                 } else {
-                    score = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour.total;
+                    score = calculateAlchemyGoldPerHour(alchemyContext, buffs, combo) - teaCostPerHour.total;
                     if (score > 0) {
                         totalScore += score;
                         profitableCount++;
@@ -14511,7 +14522,7 @@
                     otherEfficiency,
                     calcContext
                 );
-                const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+                const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs, teaHrids) - teaCostPerHour;
                 if (xpPerHour <= 0 && profitPerHour <= 0) continue;
 
                 const actionLabel = actionType.charAt(0).toUpperCase() + actionType.slice(1);

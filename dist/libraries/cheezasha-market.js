@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.6.0
+ * Version: 3.6.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -2805,7 +2805,13 @@ self.onmessage = function (e) {
          * @param {number} enhancementLevel - Enhancement level (default 0)
          * @returns {Object|null} Detailed profit data or null if not coinifiable
          */
-        calculateCoinifyProfit(itemHrid, enhancementLevel = 0, useLiveSetup = false, teaBonusOverride = null) {
+        calculateCoinifyProfit(
+            itemHrid,
+            enhancementLevel = 0,
+            useLiveSetup = false,
+            teaBonusOverride = null,
+            drinksOverride = null
+        ) {
             try {
                 const gameData = dataManager.getInitClientData();
                 const itemDetails = dataManager.getItemDetails(itemHrid);
@@ -2837,6 +2843,7 @@ self.onmessage = function (e) {
                     includeCommunityBuff: true,
                     includeBreakdown: true,
                     levelRequirementOverride: itemDetails.itemLevel || 1,
+                    drinksOverride,
                 });
 
                 const { actionTime, totalEfficiency, efficiencyBreakdown } = actionStats;
@@ -3063,7 +3070,13 @@ self.onmessage = function (e) {
          * @param {number} enhancementLevel - Enhancement level (default 0)
          * @returns {Object|null} Profit data or null if not decomposable
          */
-        calculateDecomposeProfit(itemHrid, enhancementLevel = 0, useLiveSetup = false, teaBonusOverride = null) {
+        calculateDecomposeProfit(
+            itemHrid,
+            enhancementLevel = 0,
+            useLiveSetup = false,
+            teaBonusOverride = null,
+            drinksOverride = null
+        ) {
             try {
                 const gameData = dataManager.getInitClientData();
                 const itemDetails = dataManager.getItemDetails(itemHrid);
@@ -3095,6 +3108,7 @@ self.onmessage = function (e) {
                     includeCommunityBuff: true,
                     includeBreakdown: true,
                     levelRequirementOverride: itemDetails.itemLevel || 1,
+                    drinksOverride,
                 });
 
                 const { actionTime, totalEfficiency, efficiencyBreakdown } = actionStats;
@@ -3361,7 +3375,7 @@ self.onmessage = function (e) {
          * @param {string} itemHrid - Item HRID
          * @returns {Object|null} Profit data or null if not transmutable
          */
-        calculateTransmuteProfit(itemHrid, useLiveSetup = false, teaBonusOverride = null) {
+        calculateTransmuteProfit(itemHrid, useLiveSetup = false, teaBonusOverride = null, drinksOverride = null) {
             try {
                 const gameData = dataManager.getInitClientData();
                 const itemDetails = dataManager.getItemDetails(itemHrid);
@@ -3407,6 +3421,7 @@ self.onmessage = function (e) {
                     includeCommunityBuff: true,
                     includeBreakdown: true,
                     levelRequirementOverride: itemDetails.itemLevel || 1,
+                    drinksOverride,
                 });
 
                 const { actionTime, totalEfficiency, efficiencyBreakdown } = actionStats;
