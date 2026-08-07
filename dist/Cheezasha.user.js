@@ -21,12 +21,12 @@
 // @require      https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.js
 // @require      https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js
 // @require      https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0/dist/chartjs-plugin-datalabels.min.js
-// @require      https://UPDATE-THIS-URL/cheezasha-core.js
-// @require      https://UPDATE-THIS-URL/cheezasha-utils.js
-// @require      https://UPDATE-THIS-URL/cheezasha-market.js
-// @require      https://UPDATE-THIS-URL/cheezasha-actions.js
-// @require      https://UPDATE-THIS-URL/cheezasha-combat.js
-// @require      https://UPDATE-THIS-URL/cheezasha-ui.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-core.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-utils.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-market.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-actions.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-combat.js
+// @require      https://cdn.jsdelivr.net/gh/Skillcheese/Cheezasha@113f89dae85509978423adddc501d99c29f316e7/dist/libraries/cheezasha-ui.js
 // ==/UserScript==
 // Note: Combat Sim auto-import requires Tampermonkey for cross-domain storage. Not available on Steam (use manual clipboard copy/paste instead).
 
