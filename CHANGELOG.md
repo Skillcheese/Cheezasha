@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/Skillcheese/Cheezasha/compare/v3.5.0...v3.6.0) (2026-08-07)
+
+### Features
+
+- break down alchemy rates by action type in skill optimizer and best-rates popup ([d29acdd](https://github.com/Skillcheese/Cheezasha/commit/d29acdd0676087f25d01d25784da1928f2b4aadc))
+- improve crafting plan ordering, dedup, live updates, and profit stats ([e5501d7](https://github.com/Skillcheese/Cheezasha/commit/e5501d798827475f234f641ee326e4f204583ed4))
+
 ## [3.5.0](https://github.com/Skillcheese/Cheezasha/compare/v3.4.0...v3.5.0) (2026-08-07)
 
 ### Features
