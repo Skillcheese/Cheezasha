@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.4.0
+ * Version: 3.5.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -8438,6 +8438,7 @@
             this.combatEtaPendingKey = null; // zone|tier key of the in-flight combat ETA calc, if any
             this.waitForPanelTimeout = null;
             this.retryUpdateTimeout = null;
+            this.actionsUpdatedDebounceTimer = null;
             this.settingChangeHandlers = []; // [{key, fn}] for offSettingChange cleanup
             this.cleanupRegistry = cleanupRegistry_js.createCleanupRegistry();
         }
@@ -8501,8 +8502,15 @@
             // (the DOM updates optimistically before the WS message, so the mutation observer fires
             // before characterActions is populated — this ensures we retry once the data is available)
             if (!this.actionsUpdatedHandler) {
+                // Debounced: actions_updated fires on every action/kill completion, and updateDisplay()
+                // does synchronous DOM style writes (setProperty/removeProperty with !important, walking
+                // parent elements) each time. A burst of back-to-back completions (e.g. an efficiency
+                // proc) would otherwise re-run that DOM churn multiple times in the same frame.
                 this.actionsUpdatedHandler = () => {
-                    this.updateDisplay();
+                    clearTimeout(this.actionsUpdatedDebounceTimer);
+                    this.actionsUpdatedDebounceTimer = setTimeout(() => {
+                        this.updateDisplay();
+                    }, 50);
                 };
                 dataManager.on('actions_updated', this.actionsUpdatedHandler);
                 this.cleanupRegistry.registerCleanup(() => {
@@ -8510,6 +8518,8 @@
                         dataManager.off('actions_updated', this.actionsUpdatedHandler);
                         this.actionsUpdatedHandler = null;
                     }
+                    clearTimeout(this.actionsUpdatedDebounceTimer);
+                    this.actionsUpdatedDebounceTimer = null;
                 });
             }
 
@@ -11376,13 +11386,13 @@
 
         _stopLoop() {
             if (this.rafId) {
-                cancelAnimationFrame(this.rafId);
+                clearTimeout(this.rafId);
                 this.rafId = null;
             }
         }
 
         _tick() {
-            this.rafId = requestAnimationFrame(() => this._tick());
+            this.rafId = setTimeout(() => this._tick(), 200);
 
             if (!this.textEl || !this.textEl.isConnected || !this.totalTime) return;
 
@@ -14677,15 +14687,18 @@
      * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
      *  entry, or null if fewer than 1 profitable action exists across all skills
      */
-    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+    // 5 minutes: this anchor doesn't need to track prices/levels in near-real-time — it's an
+    // opportunity-cost reference bar, not a live number. gathering-stats and max-produceable both
+    // call this synchronously from their per-action-completion display refresh, so a short TTL meant
+    // this ~600ms multi-skill/action/tea-combo search (findOptimalTeas × every gathering+production
+    // action) was re-running on or near every single action completion and blocking the main thread
+    // for the duration. A long TTL plus a background refresh (see below) means it now only actually
+    // computes a few times per session, off the completion path.
+    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5 * 60 * 1000;
     let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+    let globalProfitAnchorRefreshPending = false;
 
-    function getGlobalProfitAnchor() {
-        const now = Date.now();
-        if (now < globalProfitAnchorCache.expiresAt) {
-            return globalProfitAnchorCache.value;
-        }
-
+    function computeGlobalProfitAnchor() {
         const skills = dataManager.getSkills();
         const allEntries = [];
         for (const skillName of [...GATHERING_SKILLS$1, ...PRODUCTION_SKILLS]) {
@@ -14711,9 +14724,28 @@
             const rankIndex = Math.min(PROFIT_ANCHOR_RANK$2 - 1, allEntries.length - 1);
             result = allEntries[rankIndex];
         }
-
-        globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
         return result;
+    }
+
+    /**
+     * Returns the cached anchor immediately (stale or not) and kicks off a background recompute if
+     * the cache is stale, rather than blocking the caller — callers on the action-completion display
+     * path can't afford to wait on a ~600ms synchronous search.
+     */
+    function getGlobalProfitAnchor() {
+        const now = Date.now();
+        const isFresh = now < globalProfitAnchorCache.expiresAt;
+
+        if (!isFresh && !globalProfitAnchorRefreshPending) {
+            globalProfitAnchorRefreshPending = true;
+            setTimeout(() => {
+                globalProfitAnchorRefreshPending = false;
+                const result = computeGlobalProfitAnchor();
+                globalProfitAnchorCache = { value: result, expiresAt: Date.now() + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+            }, 0);
+        }
+
+        return globalProfitAnchorCache.value;
     }
 
     /**
@@ -15912,6 +15944,19 @@
     // rather than the single best, so one outlier-priced item doesn't dictate the recovery bar alone.
     const PROFIT_ANCHOR_RANK = 10;
 
+    // Shared offscreen canvas for text-width measurement. Canvas measureText() computes width
+    // without touching page layout, unlike getBoundingClientRect() — reading that inside a loop that
+    // also writes styles forces a synchronous layout recalc every iteration ("layout thrashing"),
+    // which with many visible action panels can block the main thread for the better part of a second.
+    let measureCtx = null;
+    function measureTextWidth(text, fontSize, fontFamily, fontWeight) {
+        if (!measureCtx) {
+            measureCtx = document.createElement('canvas').getContext('2d');
+        }
+        measureCtx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+        return measureCtx.measureText(text).width;
+    }
+
     class GatheringStats {
         constructor() {
             this.actionElements = new Map(); // actionPanel → {actionHrid, displayElement}
@@ -16454,17 +16499,25 @@
                     textSpan.style.setProperty('transform-origin', 'left center');
                     textSpan.style.setProperty('transform', 'scaleX(1)');
 
+                    // Read font family/weight once (safe — doesn't force layout) and the text content,
+                    // then find the fitting size purely via canvas measurement before touching any
+                    // layout-affecting style. Only the final font-size is written to the DOM.
+                    const computed = getComputedStyle(textSpan);
+                    const fontFamily = computed.fontFamily;
+                    const fontWeight = computed.fontWeight;
+                    const text = textSpan.textContent;
+
                     let fontSize = baseFontSize;
-                    textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
-                    let textWidth = textSpan.getBoundingClientRect().width;
+                    let textWidth = measureTextWidth(text, fontSize, fontFamily, fontWeight);
                     let iterations = 0;
 
                     while (textWidth > availableWidth && fontSize > minFontSize && iterations < 20) {
                         fontSize -= 1;
-                        textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
-                        textWidth = textSpan.getBoundingClientRect().width;
+                        textWidth = measureTextWidth(text, fontSize, fontFamily, fontWeight);
                         iterations += 1;
                     }
+
+                    textSpan.style.setProperty('font-size', `${fontSize}px`, 'important');
 
                     if (textWidth > availableWidth) {
                         const scaleX = Math.max(0.6, availableWidth / textWidth);

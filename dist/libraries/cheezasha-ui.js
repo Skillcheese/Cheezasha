@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.4.0
+ * Version: 3.5.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -15596,6 +15596,7 @@ ${starCSS}
             this.timerRegistry = timerRegistry_js.createTimerRegistry();
             this.unregisterObservers = [];
             this.tooltipObserver = null;
+            this.navBarsDebounceTimer = null;
         }
 
         async initialize() {
@@ -15716,7 +15717,18 @@ ${starCSS}
 
             storage.set(`xpHistory_${this.characterId}`, this.xpHistory, STORE_NAME$4);
 
-            this._updateNavBars();
+            this._scheduleUpdateNavBars();
+        }
+
+        /**
+         * Debounce nav bar updates so a burst of action_completed events (e.g. an efficiency
+         * proc firing two completions back-to-back) only triggers one DOM rebuild.
+         */
+        _scheduleUpdateNavBars() {
+            clearTimeout(this.navBarsDebounceTimer);
+            this.navBarsDebounceTimer = setTimeout(() => {
+                this._updateNavBars();
+            }, 150);
         }
 
         /**
@@ -15889,6 +15901,8 @@ ${starCSS}
 
         disable() {
             this.timerRegistry.clearAll();
+            clearTimeout(this.navBarsDebounceTimer);
+            this.navBarsDebounceTimer = null;
 
             this.unregisterObservers.forEach((fn) => fn());
             this.unregisterObservers = [];
@@ -17306,15 +17320,18 @@ ${starCSS}
      * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
      *  entry, or null if fewer than 1 profitable action exists across all skills
      */
-    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+    // 5 minutes: this anchor doesn't need to track prices/levels in near-real-time — it's an
+    // opportunity-cost reference bar, not a live number. gathering-stats and max-produceable both
+    // call this synchronously from their per-action-completion display refresh, so a short TTL meant
+    // this ~600ms multi-skill/action/tea-combo search (findOptimalTeas × every gathering+production
+    // action) was re-running on or near every single action completion and blocking the main thread
+    // for the duration. A long TTL plus a background refresh (see below) means it now only actually
+    // computes a few times per session, off the completion path.
+    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5 * 60 * 1000;
     let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+    let globalProfitAnchorRefreshPending = false;
 
-    function getGlobalProfitAnchor() {
-        const now = Date.now();
-        if (now < globalProfitAnchorCache.expiresAt) {
-            return globalProfitAnchorCache.value;
-        }
-
+    function computeGlobalProfitAnchor() {
         const skills = dataManager.getSkills();
         const allEntries = [];
         for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
@@ -17340,9 +17357,28 @@ ${starCSS}
             const rankIndex = Math.min(PROFIT_ANCHOR_RANK$1 - 1, allEntries.length - 1);
             result = allEntries[rankIndex];
         }
-
-        globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
         return result;
+    }
+
+    /**
+     * Returns the cached anchor immediately (stale or not) and kicks off a background recompute if
+     * the cache is stale, rather than blocking the caller — callers on the action-completion display
+     * path can't afford to wait on a ~600ms synchronous search.
+     */
+    function getGlobalProfitAnchor() {
+        const now = Date.now();
+        const isFresh = now < globalProfitAnchorCache.expiresAt;
+
+        if (!isFresh && !globalProfitAnchorRefreshPending) {
+            globalProfitAnchorRefreshPending = true;
+            setTimeout(() => {
+                globalProfitAnchorRefreshPending = false;
+                const result = computeGlobalProfitAnchor();
+                globalProfitAnchorCache = { value: result, expiresAt: Date.now() + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+            }, 0);
+        }
+
+        return globalProfitAnchorCache.value;
     }
 
     /**
@@ -17635,6 +17671,22 @@ ${starCSS}
         return Array.from(bestByHrid.values());
     }
 
+    /**
+     * Check whether an action's crafted output is a charm — charm crafting recipes often show
+     * absurdly inflated profit/hr (e.g. 200M/hr) that doesn't reflect realistic sell volume, so
+     * they're excludable via the "Disable Charms" checkbox.
+     * @param {string} actionHrid
+     * @returns {boolean}
+     */
+    function isCharmAction$1(actionHrid) {
+        const gameData = dataManager.getInitClientData();
+        const action = gameData?.actionDetailMap?.[actionHrid];
+        const outputItemHrid = action?.outputItems?.[0]?.itemHrid;
+        if (!outputItemHrid) return false;
+        const itemDetails = gameData.itemDetailMap?.[outputItemHrid];
+        return itemDetails?.equipmentDetail?.type === '/equipment_types/charm';
+    }
+
     function getPlayerLevel(skillName) {
         const skills = dataManager.getSkills();
         const skillHrid = `/skills/${skillName}`;
@@ -17650,6 +17702,7 @@ ${starCSS}
             this.button = null;
             this.modal = null;
             this.activeTab = 'profit';
+            this.disableCharms = false;
         }
 
         initialize() {
@@ -17767,11 +17820,32 @@ ${starCSS}
             tabs.appendChild(xpTab);
             tabs.appendChild(balancedTab);
 
+            const charmToggleLabel = document.createElement('label');
+            charmToggleLabel.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        `;
+            const charmToggle = document.createElement('input');
+            charmToggle.type = 'checkbox';
+            charmToggle.checked = this.disableCharms;
+            charmToggle.addEventListener('change', () => {
+                this.disableCharms = charmToggle.checked;
+                this.renderContent();
+            });
+            charmToggleLabel.appendChild(charmToggle);
+            charmToggleLabel.appendChild(document.createTextNode('Disable charms'));
+
             const body = document.createElement('div');
             body.className = 'mwi-best-rates-body';
 
             content.appendChild(header);
             content.appendChild(tabs);
+            content.appendChild(charmToggleLabel);
             content.appendChild(body);
             this.modal.appendChild(content);
             document.body.appendChild(this.modal);
@@ -17824,6 +17898,7 @@ ${starCSS}
                 const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
                 const top = rates
                     .filter((r) => r.profitPerHour > 0)
+                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
                     .sort((a, b) => b.profitPerHour - a.profitPerHour)
                     .slice(0, TOP_N$1);
 
@@ -17841,6 +17916,7 @@ ${starCSS}
                 const playerLevel = getPlayerLevel(skill);
                 const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
                 const top = computeEffectiveXpRates(rates, globalBestProfit)
+                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
                     .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
                     .slice(0, TOP_N$1);
 
@@ -17866,6 +17942,7 @@ ${starCSS}
                 const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
                 const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
                 const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
+                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
                     .sort((a, b) => b.balancedScore - a.balancedScore)
                     .slice(0, TOP_N$1);
 
@@ -18148,18 +18225,36 @@ ${starCSS}
     }
 
     /**
+     * Check whether an action's crafted output is a charm — charm crafting recipes often show
+     * absurdly inflated profit/hr (e.g. 200M/hr) that doesn't reflect realistic sell volume, so
+     * they're excludable via the "Disable Charms" checkbox.
+     * @param {string} actionHrid
+     * @returns {boolean}
+     */
+    function isCharmAction(actionHrid) {
+        const gameData = dataManager.getInitClientData();
+        const action = gameData?.actionDetailMap?.[actionHrid];
+        const outputItemHrid = action?.outputItems?.[0]?.itemHrid;
+        if (!outputItemHrid) return false;
+        const itemDetails = gameData.itemDetailMap?.[outputItemHrid];
+        return itemDetails?.equipmentDetail?.type === '/equipment_types/charm';
+    }
+
+    /**
      * Compute the top-N profit/hr actions for every skill under a given loadout override.
      * @param {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}} overrides
      * @param {number} topN
+     * @param {boolean} excludeCharms - When true, drops charm-crafting actions before ranking
      * @returns {Object<string, Array<{name: string, hrid: string, profitPerHour: number, xpPerHour: number, teaHrids: Array<string>}>>}
      */
-    function computeTopResults(overrides, topN = 3) {
+    function computeTopResults(overrides, topN = 3, excludeCharms = false) {
         const results = {};
         for (const skill of SKILLS) {
             const playerLevel = overrides.skillLevels?.[skill] ?? 1;
             const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
             results[skill] = rates
                 .filter((r) => r.profitPerHour > 0)
+                .filter((r) => !excludeCharms || !isCharmAction(r.hrid))
                 .sort((a, b) => b.profitPerHour - a.profitPerHour)
                 .slice(0, topN);
         }
@@ -18254,6 +18349,7 @@ ${starCSS}
             this.activeTab = 'customize';
             this.loadout = null;
             this.results = null;
+            this.disableCharms = false;
         }
 
         initialize() {
@@ -18619,10 +18715,34 @@ ${starCSS}
             font-size: 13px;
         `;
             calcBtn.addEventListener('click', () => {
-                this.results = computeTopResults(this.loadout, TOP_N);
+                this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
                 this.renderContent();
             });
             body.appendChild(calcBtn);
+
+            const charmToggleLabel = document.createElement('label');
+            charmToggleLabel.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        `;
+            const charmToggle = document.createElement('input');
+            charmToggle.type = 'checkbox';
+            charmToggle.checked = this.disableCharms;
+            charmToggle.addEventListener('change', () => {
+                this.disableCharms = charmToggle.checked;
+                if (this.results) {
+                    this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
+                }
+                this.renderContent();
+            });
+            charmToggleLabel.appendChild(charmToggle);
+            charmToggleLabel.appendChild(document.createTextNode('Disable charms'));
+            body.appendChild(charmToggleLabel);
 
             if (!this.results) {
                 const hint = document.createElement('div');
@@ -35776,10 +35896,13 @@ ${starCSS}
 
     /**
      * Calculate profit/hr, XP/hr, and eff. XP/hr for enhancing a single item to a single target level,
-     * automatically choosing the protect-from level (0 = never protect) that yields the best profit/hr.
-     * Protection only ever helps profit above the level where the protection item's own cost is
-     * recovered by the attempts it saves, so trying every candidate and keeping the best is exact
-     * rather than heuristic.
+     * automatically choosing the protect-from level (0 = never protect) that yields the lowest total
+     * cost to reach that level. Ranking by profit/hr instead would let a strategy that takes longer
+     * (and costs more overall) look better just because its losses are spread over more hours — this
+     * always picks the cheapest way to actually reach the target, matching the enhancement tooltip.
+     * protectFrom = 1 is skipped: protection only changes the failure destination for i >= protectFrom,
+     * and at i = 1 that destination is level 0 either way, so protectFrom = 1 always costs strictly
+     * more than protectFrom = 0 for zero benefit.
      * @param {string} itemHrid
      * @param {Object} itemDetails
      * @param {number} targetLevel
@@ -35803,6 +35926,7 @@ ${starCSS}
         const maxProtectFrom = canProtect ? targetLevel - 1 : 0;
 
         for (let protectFrom = 0; protectFrom <= maxProtectFrom; protectFrom++) {
+            if (protectFrom === 1) continue;
             const result = simulateItemAtProtectFrom(
                 itemHrid,
                 itemDetails,
@@ -35813,7 +35937,7 @@ ${starCSS}
                 protectionInfo,
                 calcCache
             );
-            if (result && (!best || result.profitPerHour > best.profitPerHour)) {
+            if (result && (!best || result.baseCost + result.enhancingCost < best.baseCost + best.enhancingCost)) {
                 best = result;
             }
         }

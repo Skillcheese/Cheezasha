@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.4.0
+ * Version: 3.5.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -7870,12 +7870,14 @@
                 houseRooms: {},
             };
 
-            // Equipment: array format [{itemLocationHrid, itemHrid, enhancementLevel}]
+            // Equipment: array format [{itemLocationHrid, itemHrid, enhancementLevel}].
+            // itemLocationHrid uses the /item_locations/ namespace (e.g. /item_locations/head), but
+            // the engine keys equipment by /equipment_types/ — always derive the type from item data,
+            // same as buildPlayerDTO does for the live character.
             if (Array.isArray(p.equipment)) {
                 for (const eq of p.equipment) {
                     if (!eq.itemHrid) continue;
-                    // Map itemLocationHrid (e.g. /equipment_types/head) to equipment type
-                    const eqType = eq.itemLocationHrid || itemDetailMap[eq.itemHrid]?.equipmentDetail?.type;
+                    const eqType = itemDetailMap[eq.itemHrid]?.equipmentDetail?.type;
                     if (eqType) {
                         dto.equipment[eqType] = {
                             hrid: eq.itemHrid,
@@ -15204,6 +15206,7 @@
                 name: abDetail.name || abHrid.split('/').pop(),
                 isDamage,
                 isZeroCooldown,
+                cooldownDuration: abDetail.cooldownDuration || 0,
             };
         };
 
@@ -15410,12 +15413,15 @@
         };
         combine(0, [], 0);
 
-        // Order a combo's abilities across the given slots with any 0-cooldown ability moved to
-        // the last slot, so it only fires as a fallback instead of blocking everything behind it.
+        // Order a combo's abilities across the given slots by cooldown, longest first. Combat picks
+        // the first ready ability by slot order each attack cycle, so a short-cooldown ability placed
+        // early is ready almost every cycle and permanently starves everything behind it — the game's
+        // priority system, not raw dpsGain, decides who should sit up front. A long-cooldown ability
+        // is rarely ready, so giving it first priority lets it fire the instant it's available without
+        // blocking the more frequent abilities behind it; a 0-cooldown "always ready" filler is the
+        // most extreme case of this and must be last (see isZeroCooldown above).
         const arrangeForSlots = (entries, slotIndices) => {
-            const zeroCd = entries.find((e) => e.isZeroCooldown);
-            const rest = entries.filter((e) => !e.isZeroCooldown);
-            const ordered = zeroCd ? [...rest, zeroCd] : rest;
+            const ordered = entries.slice().sort((a, b) => b.cooldownDuration - a.cooldownDuration);
             return ordered.map((entry, i) => ({ slotIdx: slotIndices[i], entry }));
         };
 
@@ -15425,25 +15431,31 @@
             const totalCost = normalCost + specialCost;
             if (totalCost > totalBudget) continue;
 
+            const arranged = arrangeForSlots(combo, normalSlotIndices);
+
             const reorderSlots = [];
             const reorderAbilities = [];
             if (bestSpecial) {
                 reorderSlots.push(0);
                 reorderAbilities.push({ hrid: bestSpecial.hrid, level: bestSpecial.level, triggers: null });
             }
-            for (const { slotIdx, entry } of arrangeForSlots(combo, normalSlotIndices)) {
+            for (const { slotIdx, entry } of arranged) {
                 reorderSlots.push(slotIdx);
                 reorderAbilities.push({ hrid: entry.hrid, level: entry.level, triggers: null });
             }
 
+            // Description order must match reorderSlots (left-to-right equip order), not the
+            // dpsGain-sorted `combo` order — those can differ now that slot placement is decided by
+            // cooldown (longest first), so displaying `combo`'s order would mislabel which ability
+            // actually ends up in which slot.
             candidates.push({
                 slot: 'ability_optimize',
                 currentHrid: null,
                 currentLevel: 0,
                 upgradeHrid: null,
                 upgradeLevel: 0,
-                description: `${bestSpecial ? `${bestSpecial.name} (Lv${bestSpecial.level}) + ` : ''}${combo
-                .map((e) => `${e.name} (Lv${e.level})`)
+                description: `${bestSpecial ? `${bestSpecial.name} (Lv${bestSpecial.level}) + ` : ''}${arranged
+                .map(({ entry }) => `${entry.name} (Lv${entry.level})`)
                 .join(', ')}`,
                 type: 'ability_optimize',
                 cost: totalCost,
@@ -16808,9 +16820,9 @@
                 editorArea.innerHTML = `
                 <div style="text-align:center; padding:20px 0;">
                     <div style="color:#888; font-size:12px; margin-bottom:10px;">No players loaded.</div>
-                    <button id="mwi-csim-import-btn" disabled title="Temporarily disabled: the sim always uses your current character" style="
-                        background:rgba(255,255,255,0.03); border:1px solid #333; color:#555;
-                        padding:5px 14px; border-radius:5px; font-size:12px; cursor:not-allowed;
+                    <button id="mwi-csim-import-btn" title="Import players from Combat Sim Export JSON" style="
+                        background:${ACCENT_BTN_BG$2}; border:1px solid ${ACCENT_BTN_BORDER$2}; color:${ACCENT$2};
+                        padding:5px 14px; border-radius:5px; font-size:12px; cursor:pointer;
                         font-family:inherit; font-weight:600;">+ Import Player</button>
                     <div id="mwi-csim-import-area" style="display:none; margin-top:10px; text-align:left;">
                         <textarea id="mwi-csim-import-text" placeholder="Paste Combat Sim Export JSON here..." style="
@@ -16894,10 +16906,10 @@
                 font-family:inherit; transition:all 0.1s; position:relative;
             ">${name}<span data-remove-player="${hrid}" style="margin-left:4px; color:#f44; cursor:pointer; font-size:14px;" title="Remove player">\u00d7</span></button>`;
             }
-            html += `<button id="mwi-csim-import-btn" disabled style="
-            background:rgba(255,255,255,0.02); border:1px solid #2a2a2a; color:#555;
-            padding:3px 8px; border-radius:5px; font-size:11px; cursor:not-allowed;
-            font-family:inherit;" title="Temporarily disabled: the sim always uses your current character">+ Import</button>`;
+            html += `<button id="mwi-csim-import-btn" style="
+            background:rgba(255,255,255,0.04); border:1px solid #333; color:#888;
+            padding:3px 8px; border-radius:5px; font-size:11px; cursor:pointer;
+            font-family:inherit;" title="Import players from Combat Sim Export JSON">+ Import</button>`;
             html += '</div>';
 
             // Import paste area (hidden by default)
@@ -20041,15 +20053,18 @@
      * @returns {{profitPerHour: number, xpPerHour: number, name: string, hrid: string}|null} the anchor
      *  entry, or null if fewer than 1 profitable action exists across all skills
      */
-    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5000;
+    // 5 minutes: this anchor doesn't need to track prices/levels in near-real-time — it's an
+    // opportunity-cost reference bar, not a live number. gathering-stats and max-produceable both
+    // call this synchronously from their per-action-completion display refresh, so a short TTL meant
+    // this ~600ms multi-skill/action/tea-combo search (findOptimalTeas × every gathering+production
+    // action) was re-running on or near every single action completion and blocking the main thread
+    // for the duration. A long TTL plus a background refresh (see below) means it now only actually
+    // computes a few times per session, off the completion path.
+    const GLOBAL_BEST_PROFIT_CACHE_TTL_MS = 5 * 60 * 1000;
     let globalProfitAnchorCache = { value: null, expiresAt: 0 };
+    let globalProfitAnchorRefreshPending = false;
 
-    function getGlobalProfitAnchor() {
-        const now = Date.now();
-        if (now < globalProfitAnchorCache.expiresAt) {
-            return globalProfitAnchorCache.value;
-        }
-
+    function computeGlobalProfitAnchor() {
         const skills = dataManager.getSkills();
         const allEntries = [];
         for (const skillName of [...GATHERING_SKILLS, ...PRODUCTION_SKILLS]) {
@@ -20075,9 +20090,28 @@
             const rankIndex = Math.min(PROFIT_ANCHOR_RANK - 1, allEntries.length - 1);
             result = allEntries[rankIndex];
         }
-
-        globalProfitAnchorCache = { value: result, expiresAt: now + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
         return result;
+    }
+
+    /**
+     * Returns the cached anchor immediately (stale or not) and kicks off a background recompute if
+     * the cache is stale, rather than blocking the caller — callers on the action-completion display
+     * path can't afford to wait on a ~600ms synchronous search.
+     */
+    function getGlobalProfitAnchor() {
+        const now = Date.now();
+        const isFresh = now < globalProfitAnchorCache.expiresAt;
+
+        if (!isFresh && !globalProfitAnchorRefreshPending) {
+            globalProfitAnchorRefreshPending = true;
+            setTimeout(() => {
+                globalProfitAnchorRefreshPending = false;
+                const result = computeGlobalProfitAnchor();
+                globalProfitAnchorCache = { value: result, expiresAt: Date.now() + GLOBAL_BEST_PROFIT_CACHE_TTL_MS };
+            }, 0);
+        }
+
+        return globalProfitAnchorCache.value;
     }
 
     /**
