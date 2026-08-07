@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.5.0
+ * Version: 3.6.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -19914,24 +19914,95 @@
      * @param {Object} itemDetailMap
      * @returns {string|null}
      */
-    function getRepresentativeAlchemyItemHrid(playerLevel, itemDetailMap) {
-        let bestHrid = null;
-        let bestLevel = 0;
-        let fallbackHrid = null;
-        let fallbackLevel = Infinity;
-        for (const [hrid, detail] of Object.entries(itemDetailMap)) {
-            if (!detail.alchemyDetail || !detail.itemLevel) continue;
-            if (detail.itemLevel <= playerLevel) {
-                if (detail.itemLevel > bestLevel) {
-                    bestLevel = detail.itemLevel;
-                    bestHrid = hrid;
-                }
-            } else if (detail.itemLevel < fallbackLevel) {
-                fallbackLevel = detail.itemLevel;
-                fallbackHrid = hrid;
+    const ALCHEMY_ACTION_TYPES = ['coinify', 'decompose', 'transmute'];
+
+    /**
+     * Check whether an item supports a given alchemy action type.
+     * @param {'coinify'|'decompose'|'transmute'} actionType
+     * @param {Object} itemDetail
+     * @returns {boolean}
+     */
+    function isAlchemyActionEligible(actionType, itemDetail) {
+        if (actionType === 'coinify') return itemDetail.alchemyDetail?.isCoinifiable === true;
+        if (actionType === 'decompose') return (itemDetail.alchemyDetail?.decomposeItems?.length ?? 0) > 0;
+        if (actionType === 'transmute') {
+            return (
+                (itemDetail.alchemyDetail?.transmuteDropTable?.length ?? 0) > 0 &&
+                (itemDetail.alchemyDetail?.transmuteSuccessRate || 0) > 0
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Compute Coinify/Decompose/Transmute rates for every alchemizable item at or below the player's
+     * level, each with its own optimal tea combo — unlike other skills' single action-list loop,
+     * alchemy's "actions" are per-item, so every eligible item/action-type pair is evaluated.
+     * @returns {Array<{name: string, hrid: string, actionType: string, requiredLevel: number,
+     *  xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
+     */
+    function getAlchemyActionRates(
+        playerLevel,
+        goal,
+        equipment,
+        drinkConcentration,
+        otherEfficiency,
+        calcContext,
+        globalBestProfit,
+        overrides
+    ) {
+        const gameData = dataManager.getInitClientData();
+        const itemDetailMap = gameData?.itemDetailMap;
+        if (!itemDetailMap) return [];
+
+        const results = [];
+        for (const [itemHrid, detail] of Object.entries(itemDetailMap)) {
+            if (!detail.alchemyDetail || !detail.itemLevel || detail.itemLevel > playerLevel) continue;
+
+            for (const actionType of ALCHEMY_ACTION_TYPES) {
+                if (!isAlchemyActionEligible(actionType, detail)) continue;
+
+                const alchemyContext = { actionType, itemHrid };
+                const optimalResult = findOptimalTeas(
+                    'alchemy',
+                    goal,
+                    null,
+                    null,
+                    null,
+                    alchemyContext,
+                    equipment,
+                    null,
+                    globalBestProfit,
+                    overrides
+                );
+                const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+                const buffs = parseTeaBuffs(teaHrids, itemDetailMap, drinkConcentration);
+                const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+                const xpPerHour = calculateAlchemyXpPerHour(
+                    alchemyContext,
+                    buffs,
+                    playerLevel,
+                    otherEfficiency,
+                    calcContext
+                );
+                const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+                if (xpPerHour <= 0 && profitPerHour <= 0) continue;
+
+                const actionLabel = actionType.charAt(0).toUpperCase() + actionType.slice(1);
+                results.push({
+                    name: `${actionLabel}: ${detail.name || itemHrid}`,
+                    hrid: `/actions/alchemy/${actionType}#${itemHrid}`,
+                    actionType,
+                    requiredLevel: detail.itemLevel,
+                    xpPerHour,
+                    profitPerHour,
+                    teaHrids,
+                });
             }
         }
-        return bestHrid ?? fallbackHrid;
+        return results;
     }
 
     /**
@@ -19970,41 +20041,16 @@
         const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
 
         if (normalizedSkill === 'alchemy') {
-            const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
-            if (!repItemHrid) return [];
-            const itemDetails = gameData.itemDetailMap[repItemHrid];
-            const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
-
-            const optimalResult = findOptimalTeas(
-                'alchemy',
+            return getAlchemyActionRates(
+                playerLevel,
                 goal,
-                null,
-                null,
-                null,
-                alchemyContext,
                 equipment,
-                null,
+                drinkConcentration,
+                otherEfficiency,
+                calcContext,
                 globalBestProfit,
                 overrides
             );
-            const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
-
-            const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
-            const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
-
-            const xpPerHour = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
-            const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
-
-            return [
-                {
-                    name: `Decompose ${itemDetails?.name || repItemHrid}`,
-                    hrid: '/actions/alchemy/decompose',
-                    requiredLevel: itemDetails?.itemLevel || 1,
-                    xpPerHour,
-                    profitPerHour,
-                    teaHrids,
-                },
-            ];
         }
 
         const results = [];

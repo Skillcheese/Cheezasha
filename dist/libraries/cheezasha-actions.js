@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.5.0
+ * Version: 3.6.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -6243,7 +6243,7 @@
      * Maps itemHrid to timeout ID
      */
     const updateTimeouts = new Map();
-    const timerRegistry$1 = timerRegistry_js.createTimerRegistry();
+    const timerRegistry$2 = timerRegistry_js.createTimerRegistry();
 
     /**
      * Event handler debounce timers
@@ -6272,7 +6272,7 @@
             updateTimeouts.delete(itemHrid);
         }, 500); // Wait 500ms after last change
 
-        timerRegistry$1.registerTimeout(timeoutId);
+        timerRegistry$2.registerTimeout(timeoutId);
 
         updateTimeouts.set(itemHrid, timeoutId);
     }
@@ -6412,7 +6412,7 @@
                 registerEnhancingPanelWatcher(existingPanel);
             }
         }, 500);
-        timerRegistry$1.registerTimeout(checkTimeout);
+        timerRegistry$2.registerTimeout(checkTimeout);
     }
 
     /**
@@ -6867,7 +6867,7 @@
                         }
                     }
                 }, 100);
-                timerRegistry$1.registerTimeout(tabTimeout);
+                timerRegistry$2.registerTimeout(tabTimeout);
             });
         });
     }
@@ -14438,6 +14438,97 @@
      * @param {Object} itemDetailMap
      * @returns {string|null}
      */
+    const ALCHEMY_ACTION_TYPES = ['coinify', 'decompose', 'transmute'];
+
+    /**
+     * Check whether an item supports a given alchemy action type.
+     * @param {'coinify'|'decompose'|'transmute'} actionType
+     * @param {Object} itemDetail
+     * @returns {boolean}
+     */
+    function isAlchemyActionEligible(actionType, itemDetail) {
+        if (actionType === 'coinify') return itemDetail.alchemyDetail?.isCoinifiable === true;
+        if (actionType === 'decompose') return (itemDetail.alchemyDetail?.decomposeItems?.length ?? 0) > 0;
+        if (actionType === 'transmute') {
+            return (
+                (itemDetail.alchemyDetail?.transmuteDropTable?.length ?? 0) > 0 &&
+                (itemDetail.alchemyDetail?.transmuteSuccessRate || 0) > 0
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Compute Coinify/Decompose/Transmute rates for every alchemizable item at or below the player's
+     * level, each with its own optimal tea combo — unlike other skills' single action-list loop,
+     * alchemy's "actions" are per-item, so every eligible item/action-type pair is evaluated.
+     * @returns {Array<{name: string, hrid: string, actionType: string, requiredLevel: number,
+     *  xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
+     */
+    function getAlchemyActionRates(
+        playerLevel,
+        goal,
+        equipment,
+        drinkConcentration,
+        otherEfficiency,
+        calcContext,
+        globalBestProfit,
+        overrides
+    ) {
+        const gameData = dataManager.getInitClientData();
+        const itemDetailMap = gameData?.itemDetailMap;
+        if (!itemDetailMap) return [];
+
+        const results = [];
+        for (const [itemHrid, detail] of Object.entries(itemDetailMap)) {
+            if (!detail.alchemyDetail || !detail.itemLevel || detail.itemLevel > playerLevel) continue;
+
+            for (const actionType of ALCHEMY_ACTION_TYPES) {
+                if (!isAlchemyActionEligible(actionType, detail)) continue;
+
+                const alchemyContext = { actionType, itemHrid };
+                const optimalResult = findOptimalTeas(
+                    'alchemy',
+                    goal,
+                    null,
+                    null,
+                    null,
+                    alchemyContext,
+                    equipment,
+                    null,
+                    globalBestProfit,
+                    overrides
+                );
+                const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+                const buffs = parseTeaBuffs(teaHrids, itemDetailMap, drinkConcentration);
+                const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+                const xpPerHour = calculateAlchemyXpPerHour(
+                    alchemyContext,
+                    buffs,
+                    playerLevel,
+                    otherEfficiency,
+                    calcContext
+                );
+                const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+                if (xpPerHour <= 0 && profitPerHour <= 0) continue;
+
+                const actionLabel = actionType.charAt(0).toUpperCase() + actionType.slice(1);
+                results.push({
+                    name: `${actionLabel}: ${detail.name || itemHrid}`,
+                    hrid: `/actions/alchemy/${actionType}#${itemHrid}`,
+                    actionType,
+                    requiredLevel: detail.itemLevel,
+                    xpPerHour,
+                    profitPerHour,
+                    teaHrids,
+                });
+            }
+        }
+        return results;
+    }
+
     function getRepresentativeAlchemyItemHrid(playerLevel, itemDetailMap) {
         let bestHrid = null;
         let bestLevel = 0;
@@ -14604,41 +14695,16 @@
         const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
 
         if (normalizedSkill === 'alchemy') {
-            const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
-            if (!repItemHrid) return [];
-            const itemDetails = gameData.itemDetailMap[repItemHrid];
-            const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
-
-            const optimalResult = findOptimalTeas(
-                'alchemy',
+            return getAlchemyActionRates(
+                playerLevel,
                 goal,
-                null,
-                null,
-                null,
-                alchemyContext,
                 equipment,
-                null,
+                drinkConcentration,
+                otherEfficiency,
+                calcContext,
                 globalBestProfit,
                 overrides
             );
-            const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
-
-            const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
-            const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
-
-            const xpPerHour = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
-            const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
-
-            return [
-                {
-                    name: `Decompose ${itemDetails?.name || repItemHrid}`,
-                    hrid: '/actions/alchemy/decompose',
-                    requiredLevel: itemDetails?.itemLevel || 1,
-                    xpPerHour,
-                    profitPerHour,
-                    teaHrids,
-                },
-            ];
         }
 
         const results = [];
@@ -17281,7 +17347,7 @@
      * Get game object via React fiber
      * @returns {Object|null} Game component instance
      */
-    function getGameObject$2() {
+    function getGameObject$3() {
         const rootEl = document.getElementById('root');
         const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
         if (!rootFiber) return null;
@@ -17301,7 +17367,7 @@
      * @param {number} enhancementLevel - Enhancement level (default 0)
      */
     function navigateToMarketplace(itemHrid, enhancementLevel = 0) {
-        const game = getGameObject$2();
+        const game = getGameObject$3();
         if (game?.handleGoToMarketplace) {
             game.handleGoToMarketplace(itemHrid, enhancementLevel);
         }
@@ -17324,10 +17390,10 @@
     let processedPanels$1 = new WeakSet();
     let processedEnhancingPanels = new WeakSet();
     let inventoryUpdateHandler = null;
-    let storedActionHrid = null;
-    let storedNumActions = 0;
+    let storedActionHrid$1 = null;
+    let storedNumActions$1 = 0;
     let storedEnhancementContext = null;
-    const timerRegistry = timerRegistry_js.createTimerRegistry();
+    const timerRegistry$1 = timerRegistry_js.createTimerRegistry();
     const autofillManager$1 = createAutofillManager('MissingMats-Actions');
 
     /**
@@ -17407,7 +17473,7 @@
             enhancementDebounceTimeout = null;
         }
 
-        timerRegistry.clearAll();
+        timerRegistry$1.clearAll();
     }
 
     /**
@@ -17847,8 +17913,8 @@
             repeatCount,
             strategyInfo,
         };
-        storedActionHrid = null;
-        storedNumActions = 0;
+        storedActionHrid$1 = null;
+        storedNumActions$1 = 0;
 
         // Navigate to marketplace
         const success = await openMarketplacePage();
@@ -17860,7 +17926,7 @@
         // Wait a moment for marketplace to settle
         await new Promise((resolve) => {
             const delayTimeout = setTimeout(resolve, 200);
-            timerRegistry.registerTimeout(delayTimeout);
+            timerRegistry$1.registerTimeout(delayTimeout);
         });
 
         // Recalculate materials fresh (inventory may have changed since button was rendered)
@@ -17944,8 +18010,8 @@
      */
     async function handleMissingMaterialsClick(actionHrid, numActions) {
         // Store context for live updates
-        storedActionHrid = actionHrid;
-        storedNumActions = numActions;
+        storedActionHrid$1 = actionHrid;
+        storedNumActions$1 = numActions;
         storedEnhancementContext = null;
 
         // Navigate to marketplace
@@ -17958,7 +18024,7 @@
         // Wait a moment for marketplace to settle
         await new Promise((resolve) => {
             const delayTimeout = setTimeout(resolve, 200);
-            timerRegistry.registerTimeout(delayTimeout);
+            timerRegistry$1.registerTimeout(delayTimeout);
         });
 
         // Recalculate materials fresh (inventory may have changed since button was rendered)
@@ -18020,7 +18086,7 @@
 
             await new Promise((resolve) => {
                 const delayTimeout = setTimeout(resolve, delayMs);
-                timerRegistry.registerTimeout(delayTimeout);
+                timerRegistry$1.registerTimeout(delayTimeout);
             });
         }
 
@@ -18093,7 +18159,7 @@
      * Get game object via React fiber tree traversal
      * @returns {Object|null} Game component instance
      */
-    function getGameObject$1() {
+    function getGameObject$2() {
         const rootEl = document.getElementById('root');
         const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
         if (!rootFiber) return null;
@@ -18112,13 +18178,13 @@
      * @param {HTMLElement} referenceTab - Tab element to clone structure from
      * @returns {HTMLElement|null} Return tab element, or null if no stored context
      */
-    function createReturnTab(referenceTab) {
+    function createReturnTab$1(referenceTab) {
         let displayName;
 
-        if (storedActionHrid) {
-            const details = dataManager.getActionDetails(storedActionHrid);
-            displayName = details?.name || storedActionHrid.split('/').pop();
-            if (storedNumActions > 0) displayName += ` (\u00d7${formatters_js.formatWithSeparator(storedNumActions)})`;
+        if (storedActionHrid$1) {
+            const details = dataManager.getActionDetails(storedActionHrid$1);
+            displayName = details?.name || storedActionHrid$1.split('/').pop();
+            if (storedNumActions$1 > 0) displayName += ` (\u00d7${formatters_js.formatWithSeparator(storedNumActions$1)})`;
         } else if (storedEnhancementContext) {
             const ctx = storedEnhancementContext;
             const itemName = dataManager.getItemDetails(ctx.itemHrid)?.name || '...';
@@ -18146,7 +18212,7 @@
         tab.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            handleReturnToAction();
+            handleReturnToAction$1();
         });
 
         return tab;
@@ -18155,12 +18221,12 @@
     /**
      * Navigate back to the stored action and restore input values
      */
-    async function handleReturnToAction() {
-        const game = getGameObject$1();
+    async function handleReturnToAction$1() {
+        const game = getGameObject$2();
         if (!game) return;
 
-        if (storedActionHrid) {
-            game.handleGoToAction(storedActionHrid);
+        if (storedActionHrid$1) {
+            game.handleGoToAction(storedActionHrid$1);
         } else if (storedEnhancementContext) {
             game.handleChangeNavTarget('enhancing');
         } else {
@@ -18168,19 +18234,19 @@
         }
 
         // Restore input value for production actions — poll for the input to appear
-        if (storedActionHrid && storedNumActions > 0) {
+        if (storedActionHrid$1 && storedNumActions$1 > 0) {
             const maxAttempts = 20;
             for (let i = 0; i < maxAttempts; i++) {
                 await new Promise((resolve) => {
                     const t = setTimeout(resolve, 100);
-                    timerRegistry.registerTimeout(t);
+                    timerRegistry$1.registerTimeout(t);
                 });
 
                 const input =
                     document.querySelector('[class*="maxActionCountInput"] input') ||
                     document.querySelector('[class*="SkillActionDetail_skillActionDetail"] input[type="number"]');
                 if (input) {
-                    reactInput_js.setReactInputValue(input, storedNumActions);
+                    reactInput_js.setReactInputValue(input, storedNumActions$1);
                     break;
                 }
             }
@@ -18250,7 +18316,7 @@
         }
 
         // Add "Return to Action" tab at the end
-        const returnTab = createReturnTab(referenceTab);
+        const returnTab = createReturnTab$1(referenceTab);
         if (returnTab) {
             tabsContainer.appendChild(returnTab);
             currentMaterialsTabs.push(returnTab);
@@ -18311,11 +18377,11 @@
                 ctx.protectFromLevel,
                 ctx.repeatCount
             );
-        } else if (storedActionHrid && storedNumActions > 0) {
+        } else if (storedActionHrid$1 && storedNumActions$1 > 0) {
             // Production mode
             const ignoreQueue = config.getSetting('actions_missingMaterialsButton_ignoreQueue') || false;
             const accountForQueue = !ignoreQueue;
-            updatedMaterials = materialCalculator_js.calculateMaterialRequirements(storedActionHrid, storedNumActions, accountForQueue);
+            updatedMaterials = materialCalculator_js.calculateMaterialRequirements(storedActionHrid$1, storedNumActions$1, accountForQueue);
         } else {
             return;
         }
@@ -18407,8 +18473,8 @@
         }
 
         // Clear stored context — only when genuinely leaving the marketplace
-        storedActionHrid = null;
-        storedNumActions = 0;
+        storedActionHrid$1 = null;
+        storedNumActions$1 = 0;
         storedEnhancementContext = null;
         autofillManager$1.clearQuantity();
     }
@@ -18925,6 +18991,31 @@
     }
 
     /**
+     * Group a recipe's input items so that inputs produced by actions in the same
+     * production category (e.g. multiple cheese types) end up adjacent, while
+     * otherwise preserving the recipe's original ordering (first-appearance order
+     * of each category).
+     * @param {Array<{itemHrid: string, count?: number}>} inputItems
+     * @returns {Array<{itemHrid: string, count?: number}>}
+     */
+    function groupInputsByProductionCategory(inputItems) {
+        const order = [];
+        const groups = new Map();
+        for (const item of inputItems) {
+            const production = findProductionAction(item.itemHrid);
+            const key = production?.action?.category || `__nocat_${item.itemHrid}`;
+            if (!groups.has(key)) {
+                groups.set(key, []);
+                order.push(key);
+            }
+            groups.get(key).push(item);
+        }
+        const result = [];
+        for (const key of order) result.push(...groups.get(key));
+        return result;
+    }
+
+    /**
      * Get artisan tea material reduction bonus for an action type.
      * @param {string} actionType - e.g. '/action_types/brewing'
      * @returns {number} Reduction as decimal (e.g. 0.112 for 11.2%)
@@ -19001,6 +19092,7 @@
                 buyPrice: 1,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 actionsNeeded: 0,
                 children: [],
             };
@@ -19019,6 +19111,7 @@
                 buyPrice,
                 craftCost: cachedUnitCost.craftCost,
                 actionHrid: cachedUnitCost.actionHrid,
+                actionCategory: cachedUnitCost.actionCategory ?? null,
                 actionsNeeded:
                     cachedUnitCost.strategy === 'craft' ? Math.ceil(quantity / (cachedUnitCost.outputCount || 1)) : 0,
                 children:
@@ -19054,6 +19147,7 @@
                 buyPrice,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 actionsNeeded: 0,
                 children: [],
             };
@@ -19069,6 +19163,7 @@
                 unitCost,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 outputCount: 1,
                 childrenTemplate: [],
             });
@@ -19082,6 +19177,7 @@
                 buyPrice,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 actionsNeeded: 0,
                 children: [],
             };
@@ -19099,6 +19195,7 @@
                 unitCost,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 outputCount: 1,
                 childrenTemplate: [],
             });
@@ -19112,6 +19209,7 @@
                 buyPrice,
                 craftCost: null,
                 actionHrid: null,
+                actionCategory: null,
                 actionsNeeded: 0,
                 children: [],
             };
@@ -19127,8 +19225,11 @@
         const childrenTemplate = []; // { itemHrid, qtyPerUnit } for memo reconstruction
 
         // Input items (affected by artisan bonus)
-        if (action.inputItems) {
-            for (const input of action.inputItems) {
+        // Grouped by production category so e.g. multiple cheese inputs are processed
+        // together rather than interleaved with unrelated materials.
+        const groupedInputItems = action.inputItems ? groupInputsByProductionCategory(action.inputItems) : null;
+        if (groupedInputItems) {
+            for (const input of groupedInputItems) {
                 const inputCountPerAction = input.count || 1;
                 const reducedCount = inputCountPerAction * (1 - artisanBonus);
                 const qtyPerUnit = reducedCount * actionsForOne;
@@ -19207,6 +19308,7 @@
             unitCost,
             craftCost: craftCostPerUnit,
             actionHrid: strategy === 'craft' ? actionHrid : null,
+            actionCategory: strategy === 'craft' ? (action.category ?? null) : null,
             outputCount,
             childrenTemplate: strategy === 'craft' ? childrenTemplate : [],
         });
@@ -19216,8 +19318,8 @@
         if (!shouldBuy) {
             const actionsNeeded = Math.ceil(quantity / outputCount);
             children = [];
-            if (action.inputItems) {
-                for (const input of action.inputItems) {
+            if (groupedInputItems) {
+                for (const input of groupedInputItems) {
                     const inputCountPerAction = input.count || 1;
                     const reducedCount = inputCountPerAction * (1 - artisanBonus);
                     const inputQty = Math.ceil(reducedCount * actionsNeeded);
@@ -19267,6 +19369,7 @@
             buyPrice,
             craftCost: craftCostPerUnit,
             actionHrid: strategy === 'craft' ? actionHrid : null,
+            actionCategory: strategy === 'craft' ? (action.category ?? null) : null,
             actionsNeeded: strategy === 'craft' ? Math.ceil(quantity / outputCount) : 0,
             children,
         };
@@ -19531,6 +19634,9 @@
     const craftingPlanTabs = [];
     let cleanupObserver = null;
     const autofillManager = createAutofillManager('CraftingPlan');
+    const timerRegistry = timerRegistry_js.createTimerRegistry();
+    let storedActionHrid = null;
+    let storedNumActions = 0;
 
     const PRODUCTION_TYPES$1 = [
         '/action_types/brewing',
@@ -19603,24 +19709,114 @@
     }
 
     /**
-     * Collect all "craft" steps from the plan tree.
-     * @param {Object} node - CraftingPlanNode
-     * @param {Array} craftSteps - Array to collect craft steps into
+     * Collect all "craft" steps from the plan tree, merging every instance of the
+     * same recipe (e.g. cheese needed by several sub-recipes) into a single
+     * combined step, and ordering the result so that steps sharing the same
+     * production category (e.g. all cheese items anywhere in the plan) are
+     * grouped together as much as possible, while still respecting dependencies
+     * (an item's ingredients are always scheduled before it).
+     * @param {Object} root - CraftingPlanNode
+     * @returns {Array} Ordered, de-duplicated craft steps
      */
-    function collectCraftSteps(node, craftSteps) {
-        // Depth-first: collect children first so deepest crafts appear first
-        for (const child of node.children) {
-            collectCraftSteps(child, craftSteps);
+    function collectCraftSteps(root) {
+        // Flatten the tree into craft-only node instances with dependency edges
+        // (an instance depends on its direct craft children).
+        const instances = [];
+        function visit(node) {
+            const deps = [];
+            for (const child of node.children) {
+                if (child.strategy === 'craft' && child.actionHrid) {
+                    deps.push(visit(child));
+                }
+            }
+            const id = instances.length;
+            instances.push({ node, deps });
+            return id;
+        }
+        visit(root);
+
+        // Merge every instance of the same recipe (actionHrid) into one group,
+        // summing quantities and combining dependency edges.
+        const groupKeys = []; // instanceId -> groupKey
+        const groups = new Map(); // groupKey -> { itemName, actionHrid, category, quantity, actionsNeeded, deps: Set }
+        for (const { node, deps } of instances) {
+            const key = node.actionHrid;
+            groupKeys.push(key);
+            let group = groups.get(key);
+            if (!group) {
+                group = {
+                    itemName: node.itemName,
+                    actionHrid: node.actionHrid,
+                    category: node.actionCategory || node.actionHrid,
+                    quantity: 0,
+                    actionsNeeded: 0,
+                    deps: new Set(),
+                };
+                groups.set(key, group);
+            }
+            group.quantity += node.quantity;
+            group.actionsNeeded += node.actionsNeeded;
+            for (const depId of deps) {
+                const depKey = groupKeys[depId];
+                if (depKey !== key) group.deps.add(depKey);
+            }
         }
 
-        if (node.strategy === 'craft' && node.actionHrid) {
-            craftSteps.push({
-                itemName: node.itemName,
-                quantity: Math.ceil(node.quantity),
-                actionsNeeded: node.actionsNeeded,
-                actionHrid: node.actionHrid,
-            });
+        const groupKeyList = [...groups.keys()];
+        const indexOf = new Map(groupKeyList.map((key, i) => [key, i]));
+        const taskNodes = groupKeyList.map((key) => groups.get(key));
+
+        // Kahn-style topological scheduling that prefers to keep scheduling from
+        // the current category before switching to a new one.
+        const indegree = taskNodes.map((t) => t.deps.size);
+        const dependents = taskNodes.map(() => []);
+        taskNodes.forEach((t, id) => {
+            for (const depKey of t.deps) {
+                dependents[indexOf.get(depKey)].push(id);
+            }
+        });
+
+        const remaining = new Set(taskNodes.map((_, id) => id));
+        const orderedIds = [];
+        let currentCategory = null;
+
+        while (remaining.size > 0) {
+            let chosen = null;
+            if (currentCategory !== null) {
+                for (const id of remaining) {
+                    if (indegree[id] === 0 && taskNodes[id].category === currentCategory) {
+                        chosen = id;
+                        break;
+                    }
+                }
+            }
+            if (chosen === null) {
+                for (const id of remaining) {
+                    if (indegree[id] === 0) {
+                        chosen = id;
+                        break;
+                    }
+                }
+            }
+            if (chosen === null) break; // Safety net; shouldn't happen (would indicate a cycle)
+
+            orderedIds.push(chosen);
+            remaining.delete(chosen);
+            currentCategory = taskNodes[chosen].category;
+            for (const dependentId of dependents[chosen]) {
+                indegree[dependentId]--;
+            }
         }
+
+        return orderedIds.map((id) => {
+            const t = taskNodes[id];
+            return {
+                itemName: t.itemName,
+                quantity: Math.ceil(t.quantity),
+                actionsNeeded: t.actionsNeeded,
+                actionHrid: t.actionHrid,
+            };
+        });
     }
 
     /**
@@ -19661,7 +19857,7 @@
      * @param {boolean} [defaultOpen=false] - Whether the section should be open
      * @returns {HTMLElement|null}
      */
-    function buildPlanUI(actionHrid, onToggle, defaultOpen = false) {
+    function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1) {
         const gameData = dataManager.getInitClientData();
         const actionDetail = gameData?.actionDetailMap?.[actionHrid];
         if (!actionDetail) return null;
@@ -19678,11 +19874,12 @@
         const taskMode = config.getSetting('actionPanel_craftingPlanTaskMode');
         const timeCostEnabled = config.getSetting('actionPanel_craftingPlanTimeCost');
         const goldPerHour = config.getSetting('actionPanel_craftingPlanGoldPerHour') || 0;
+        const totalQuantity = Math.max(1, actionCount) * (output.count || 1);
         let plan;
         try {
             plan = computeBestCraftingPlan(
                 output.itemHrid,
-                1,
+                totalQuantity,
                 mode,
                 new Set(),
                 new Map(),
@@ -19931,17 +20128,16 @@
             border: 1px solid #60a5fa; border-radius: 4px;
             color: white; cursor: pointer; font-size: 0.85em;
         `;
-            buyButton.addEventListener('click', async () => {
-                const panel = buyButton.closest('[class*="SkillActionDetail_skillActionDetail"]');
+            buyButton.addEventListener('click', async (e) => {
+                const panel = e.currentTarget.closest('[class*="SkillActionDetail_skillActionDetail"]');
                 const inputField = actionPanelHelper_js.findActionInput(panel);
-                const numActions = parseInt(inputField?.value) || 1;
-                const outputCount = output.count || 1;
-                const totalQty = numActions * outputCount;
+                const numActions = parseInt(inputField?.value, 10) || 1;
+
                 const inventory = dataManager.getInventory() || [];
 
                 const missingMaterials = [];
                 for (const [itemHrid, item] of buyItems) {
-                    const needed = Math.ceil(item.quantity * totalQty);
+                    const needed = Math.ceil(item.quantity);
                     const have = inventory
                         .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
                         .reduce((sum, i) => sum + (i.count || 0), 0);
@@ -19960,6 +20156,9 @@
                 }
 
                 if (missingMaterials.length === 0) return;
+
+                storedActionHrid = actionHrid;
+                storedNumActions = numActions;
 
                 // Navigate to marketplace via navbar click
                 const navButtons = document.querySelectorAll('.NavigationBar_nav__3uuUl');
@@ -19989,8 +20188,7 @@
         }
 
         // === Crafting Steps (what to craft, in order) ===
-        const craftSteps = [];
-        collectCraftSteps(plan, craftSteps);
+        const craftSteps = collectCraftSteps(plan);
 
         if (craftSteps.length > 0) {
             const divider2 = document.createElement('div');
@@ -20062,6 +20260,33 @@
                     })
                 );
             }
+
+            // Profit from crafting = sell value of the crafted output minus total material/action cost
+            const itemDetails = dataManager.getItemDetails(plan.itemHrid);
+            if (itemDetails?.isTradable) {
+                const sellPrice = marketData_js.getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
+                if (sellPrice !== null) {
+                    const profit = sellPrice * plan.quantity - plan.totalCost;
+                    const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                    content.appendChild(
+                        createRow('Profit from crafting', formatters_js.formatWithSeparator(Math.round(profit)), {
+                            leftColor: 'var(--text-color-primary, #fff)',
+                            rightColor: profitColor,
+                        })
+                    );
+
+                    if (totalCraftSeconds > 0) {
+                        const profitPerHour = profit * (3600 / totalCraftSeconds);
+                        const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                        content.appendChild(
+                            createRow('Profit/hr from crafting', formatters_js.formatWithSeparator(Math.round(profitPerHour)), {
+                                leftColor: 'var(--text-color-primary, #fff)',
+                                rightColor: profitPerHourColor,
+                            })
+                        );
+                    }
+                }
+            }
         }
 
         const costText = plan.unitCost === Infinity ? '?' : `${formatters_js.formatKMB(Math.round(plan.unitCost))}/ea`;
@@ -20070,6 +20295,97 @@
         section.className = 'mwi-crafting-plan-section';
 
         return section;
+    }
+
+    /**
+     * Get game object via React fiber tree traversal, to reach handleGoToAction.
+     * @returns {Object|null} Game component instance
+     */
+    function getGameObject$1() {
+        const rootEl = document.getElementById('root');
+        const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
+        if (!rootFiber) return null;
+
+        function find(fiber) {
+            if (!fiber) return null;
+            if (fiber.stateNode?.handleGoToAction) return fiber.stateNode;
+            return find(fiber.child) || find(fiber.sibling);
+        }
+
+        return find(rootFiber);
+    }
+
+    /**
+     * Navigate back to the stored crafting action and restore its input value.
+     */
+    async function handleReturnToAction() {
+        if (!storedActionHrid) return;
+
+        const game = getGameObject$1();
+        if (!game?.handleGoToAction) return;
+
+        // Capture locally — navigating away hides the marketplace, and the cleanup
+        // observer polls for that and resets the module-level stored values, which
+        // would otherwise race with the delayed restore below.
+        const actionHrid = storedActionHrid;
+        const numActions = storedNumActions;
+
+        game.handleGoToAction(actionHrid);
+
+        if (numActions > 0) {
+            const maxAttempts = 20;
+            for (let i = 0; i < maxAttempts; i++) {
+                await new Promise((resolve) => {
+                    const t = setTimeout(resolve, 100);
+                    timerRegistry.registerTimeout(t);
+                });
+
+                const input =
+                    document.querySelector('[class*="maxActionCountInput"] input') ||
+                    document.querySelector('[class*="SkillActionDetail_skillActionDetail"] input[type="number"]');
+                if (input) {
+                    reactInput_js.setReactInputValue(input, numActions);
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * Create a "Return to Craft" tab for navigating back after buying materials.
+     * @param {HTMLElement} referenceTab - Tab element to clone structure from
+     * @returns {HTMLElement|null} Return tab element, or null if no stored context
+     */
+    function createReturnTab(referenceTab) {
+        if (!storedActionHrid) return null;
+
+        const details = dataManager.getActionDetails(storedActionHrid);
+        let displayName = details?.name || storedActionHrid.split('/').pop();
+        if (storedNumActions > 0) displayName += ` (×${formatters_js.formatWithSeparator(storedNumActions)})`;
+
+        const tab = referenceTab.cloneNode(true);
+        tab.setAttribute('data-mwi-custom-tab', 'true');
+        tab.classList.remove('Mui-selected');
+        tab.setAttribute('aria-selected', 'false');
+        tab.setAttribute('tabindex', '-1');
+
+        const badgeSpan = tab.querySelector('[class*="TabsComponent_badge"]');
+        if (badgeSpan) {
+            badgeSpan.innerHTML = `
+            <div style="text-align: center;">
+                <div>↩ Return to Craft</div>
+                <div style="font-size: 0.75em; color: #60a5fa;">${displayName}</div>
+            </div>
+        `;
+        }
+
+        tab.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleReturnToAction();
+        });
+
+        return tab;
     }
 
     /**
@@ -20102,9 +20418,19 @@
             craftingPlanTabs.push(tab);
         }
 
+        // Add "Return to Craft" tab at the end
+        const returnTab = createReturnTab(referenceTab);
+        if (returnTab) {
+            tabsContainer.appendChild(returnTab);
+            craftingPlanTabs.push(returnTab);
+        }
+
         if (!cleanupObserver) {
             cleanupObserver = setupMarketplaceCleanupObserver(() => {
+                removeMaterialTabs();
                 craftingPlanTabs.length = 0;
+                storedActionHrid = null;
+                storedNumActions = 0;
             }, craftingPlanTabs);
         }
     }
@@ -20115,6 +20441,7 @@
             this.unregisterHandlers = [];
             this.processedPanels = new WeakSet();
             this.panelObservers = new Map();
+            this.inputCleanups = new Map();
         }
 
         initialize() {
@@ -20143,12 +20470,18 @@
         }
 
         _attachToPanel(panel, actionHrid) {
+            const inputField = actionPanelHelper_js.findActionInput(panel);
+            const getActionCount = () => {
+                const val = parseInt(inputField?.value, 10);
+                return val > 0 ? val : 1;
+            };
+
             const rebuild = () => {
                 const existing = panel.querySelector(`#${UI_ID}`);
                 const wasOpen = existing?.querySelector('.mwi-section-header span')?.textContent === '▼';
                 if (existing) existing.remove();
 
-                const newUI = buildPlanUI(actionHrid, rebuild, wasOpen);
+                const newUI = buildPlanUI(actionHrid, rebuild, wasOpen, getActionCount());
                 if (!newUI) return;
 
                 const profitSection = panel.querySelector('[data-mwi-profit-display]');
@@ -20159,8 +20492,23 @@
                 }
             };
 
-            const ui = buildPlanUI(actionHrid, rebuild);
+            const ui = buildPlanUI(actionHrid, rebuild, false, getActionCount());
             if (!ui) return;
+
+            // attachInputListeners also fires on any click within the panel (to catch
+            // quick-input-button clicks), which would otherwise destroy/recreate this
+            // section — and any input inside it, like the gold/hr field — on every
+            // click. Only rebuild when the action count actually changed.
+            if (inputField) {
+                let lastActionCount = getActionCount();
+                const cleanupInput = actionPanelHelper_js.attachInputListeners(panel, inputField, () => {
+                    const count = getActionCount();
+                    if (count === lastActionCount) return;
+                    lastActionCount = count;
+                    rebuild();
+                });
+                this.inputCleanups.set(panel, cleanupInput);
+            }
 
             const position = () => {
                 const existing = panel.querySelector(`#${UI_ID}`);
@@ -20207,6 +20555,13 @@
             // Disconnect panel observers
             this.panelObservers.forEach((obs) => obs.disconnect());
             this.panelObservers = new Map();
+
+            // Remove input listeners
+            this.inputCleanups.forEach((cleanup) => cleanup());
+            this.inputCleanups = new Map();
+
+            timerRegistry.clearAll();
+
             this.processedPanels = new WeakSet();
             this.isInitialized = false;
         }

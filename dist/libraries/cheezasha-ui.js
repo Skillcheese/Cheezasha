@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.5.0
+ * Version: 3.6.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -17071,6 +17071,97 @@ ${starCSS}
      * @param {Object} itemDetailMap
      * @returns {string|null}
      */
+    const ALCHEMY_ACTION_TYPES = ['coinify', 'decompose', 'transmute'];
+
+    /**
+     * Check whether an item supports a given alchemy action type.
+     * @param {'coinify'|'decompose'|'transmute'} actionType
+     * @param {Object} itemDetail
+     * @returns {boolean}
+     */
+    function isAlchemyActionEligible(actionType, itemDetail) {
+        if (actionType === 'coinify') return itemDetail.alchemyDetail?.isCoinifiable === true;
+        if (actionType === 'decompose') return (itemDetail.alchemyDetail?.decomposeItems?.length ?? 0) > 0;
+        if (actionType === 'transmute') {
+            return (
+                (itemDetail.alchemyDetail?.transmuteDropTable?.length ?? 0) > 0 &&
+                (itemDetail.alchemyDetail?.transmuteSuccessRate || 0) > 0
+            );
+        }
+        return false;
+    }
+
+    /**
+     * Compute Coinify/Decompose/Transmute rates for every alchemizable item at or below the player's
+     * level, each with its own optimal tea combo — unlike other skills' single action-list loop,
+     * alchemy's "actions" are per-item, so every eligible item/action-type pair is evaluated.
+     * @returns {Array<{name: string, hrid: string, actionType: string, requiredLevel: number,
+     *  xpPerHour: number, profitPerHour: number, teaHrids: Array<string>}>}
+     */
+    function getAlchemyActionRates(
+        playerLevel,
+        goal,
+        equipment,
+        drinkConcentration,
+        otherEfficiency,
+        calcContext,
+        globalBestProfit,
+        overrides
+    ) {
+        const gameData = dataManager.getInitClientData();
+        const itemDetailMap = gameData?.itemDetailMap;
+        if (!itemDetailMap) return [];
+
+        const results = [];
+        for (const [itemHrid, detail] of Object.entries(itemDetailMap)) {
+            if (!detail.alchemyDetail || !detail.itemLevel || detail.itemLevel > playerLevel) continue;
+
+            for (const actionType of ALCHEMY_ACTION_TYPES) {
+                if (!isAlchemyActionEligible(actionType, detail)) continue;
+
+                const alchemyContext = { actionType, itemHrid };
+                const optimalResult = findOptimalTeas(
+                    'alchemy',
+                    goal,
+                    null,
+                    null,
+                    null,
+                    alchemyContext,
+                    equipment,
+                    null,
+                    globalBestProfit,
+                    overrides
+                );
+                const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
+
+                const buffs = parseTeaBuffs(teaHrids, itemDetailMap, drinkConcentration);
+                const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
+
+                const xpPerHour = calculateAlchemyXpPerHour(
+                    alchemyContext,
+                    buffs,
+                    playerLevel,
+                    otherEfficiency,
+                    calcContext
+                );
+                const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
+                if (xpPerHour <= 0 && profitPerHour <= 0) continue;
+
+                const actionLabel = actionType.charAt(0).toUpperCase() + actionType.slice(1);
+                results.push({
+                    name: `${actionLabel}: ${detail.name || itemHrid}`,
+                    hrid: `/actions/alchemy/${actionType}#${itemHrid}`,
+                    actionType,
+                    requiredLevel: detail.itemLevel,
+                    xpPerHour,
+                    profitPerHour,
+                    teaHrids,
+                });
+            }
+        }
+        return results;
+    }
+
     function getRepresentativeAlchemyItemHrid(playerLevel, itemDetailMap) {
         let bestHrid = null;
         let bestLevel = 0;
@@ -17237,41 +17328,16 @@ ${starCSS}
         const calcContext = { equipment, itemDetailMap: gameData.itemDetailMap };
 
         if (normalizedSkill === 'alchemy') {
-            const repItemHrid = getRepresentativeAlchemyItemHrid(playerLevel, gameData.itemDetailMap);
-            if (!repItemHrid) return [];
-            const itemDetails = gameData.itemDetailMap[repItemHrid];
-            const alchemyContext = { actionType: 'decompose', itemHrid: repItemHrid };
-
-            const optimalResult = findOptimalTeas(
-                'alchemy',
+            return getAlchemyActionRates(
+                playerLevel,
                 goal,
-                null,
-                null,
-                null,
-                alchemyContext,
                 equipment,
-                null,
+                drinkConcentration,
+                otherEfficiency,
+                calcContext,
                 globalBestProfit,
                 overrides
             );
-            const teaHrids = optimalResult?.optimal?.teas?.map((t) => t.hrid) || [];
-
-            const buffs = parseTeaBuffs(teaHrids, gameData.itemDetailMap, drinkConcentration);
-            const teaCostPerHour = calculateTeaCostPerHour(teaHrids, drinkConcentration).total;
-
-            const xpPerHour = calculateAlchemyXpPerHour(alchemyContext, buffs, playerLevel, otherEfficiency, calcContext);
-            const profitPerHour = calculateAlchemyGoldPerHour(alchemyContext, buffs) - teaCostPerHour;
-
-            return [
-                {
-                    name: `Decompose ${itemDetails?.name || repItemHrid}`,
-                    hrid: '/actions/alchemy/decompose',
-                    requiredLevel: itemDetails?.itemLevel || 1,
-                    xpPerHour,
-                    profitPerHour,
-                    teaHrids,
-                },
-            ];
         }
 
         const results = [];
@@ -17575,6 +17641,24 @@ ${starCSS}
     ];
 
     const TOP_N$1 = 5;
+
+    // Alchemy's "actions" are per-item (any alchemizable item x coinify/decompose/transmute), so a
+    // flat top-N would let one action type crowd out the others — group and cap per type instead.
+    const ALCHEMY_TOP_N = 3;
+    const ALCHEMY_ACTION_LABELS = { coinify: 'Coinify', decompose: 'Decompose', transmute: 'Transmute' };
+
+    /**
+     * Split alchemy rates into per-action-type buckets.
+     * @param {Array<{actionType: string}>} rates
+     * @returns {{coinify: Array, decompose: Array, transmute: Array}}
+     */
+    function groupAlchemyByActionType(rates) {
+        const groups = { coinify: [], decompose: [], transmute: [] };
+        for (const r of rates) {
+            if (groups[r.actionType]) groups[r.actionType].push(r);
+        }
+        return groups;
+    }
 
     // Rank used for the local profit anchor: the Nth-highest profit/hr within a skill rather than the
     // single highest, so one outlier-priced item doesn't dictate the "gold-neutral" bar on its own.
@@ -17892,20 +17976,46 @@ ${starCSS}
             }
         }
 
+        /**
+         * Append either a single skill section, or (for alchemy) one section per action type
+         * (Coinify/Decompose/Transmute), each independently sorted and capped at ALCHEMY_TOP_N.
+         */
+        appendSkillSections(body, skill, filteredRates, sortFn, formatValue) {
+            if (skill === 'alchemy') {
+                const groups = groupAlchemyByActionType(filteredRates);
+                for (const actionType of ['coinify', 'decompose', 'transmute']) {
+                    const top = groups[actionType].sort(sortFn).slice(0, ALCHEMY_TOP_N);
+                    body.appendChild(
+                        this.renderSkillSection(`Alchemy – ${ALCHEMY_ACTION_LABELS[actionType]}`, top, formatValue, {
+                            perEntryTeas: true,
+                        })
+                    );
+                }
+                return;
+            }
+
+            const top = filteredRates.sort(sortFn).slice(0, TOP_N$1);
+            body.appendChild(
+                this.renderSkillSection(capitalize$1(skill), top, formatValue, {
+                    perEntryTeas: true,
+                })
+            );
+        }
+
         renderProfitTab(body) {
             for (const skill of SKILLS$1) {
                 const playerLevel = getPlayerLevel(skill);
                 const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
-                const top = rates
+                const filtered = rates
                     .filter((r) => r.profitPerHour > 0)
-                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
-                    .sort((a, b) => b.profitPerHour - a.profitPerHour)
-                    .slice(0, TOP_N$1);
+                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid));
 
-                body.appendChild(
-                    this.renderSkillSection(skill, top, (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr`, {
-                        perEntryTeas: true,
-                    })
+                this.appendSkillSections(
+                    body,
+                    skill,
+                    filtered,
+                    (a, b) => b.profitPerHour - a.profitPerHour,
+                    (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr`
                 );
             }
         }
@@ -17915,22 +18025,20 @@ ${starCSS}
             for (const skill of SKILLS$1) {
                 const playerLevel = getPlayerLevel(skill);
                 const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
-                const top = computeEffectiveXpRates(rates, globalBestProfit)
-                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
-                    .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
-                    .slice(0, TOP_N$1);
+                const filtered = computeEffectiveXpRates(rates, globalBestProfit).filter(
+                    (r) => !this.disableCharms || !isCharmAction$1(r.hrid)
+                );
 
-                body.appendChild(
-                    this.renderSkillSection(
-                        skill,
-                        top,
-                        (r) => {
-                            const costText =
-                                r.profitPerHour < 0 ? ` (-${formatters_js.formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
-                            return `${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
-                        },
-                        { perEntryTeas: true }
-                    )
+                this.appendSkillSections(
+                    body,
+                    skill,
+                    filtered,
+                    (a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour,
+                    (r) => {
+                        const costText =
+                            r.profitPerHour < 0 ? ` (-${formatters_js.formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
+                        return `${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
+                    }
                 );
             }
         }
@@ -17941,31 +18049,29 @@ ${starCSS}
                 const playerLevel = getPlayerLevel(skill);
                 const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
                 const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
-                const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
-                    .filter((r) => !this.disableCharms || !isCharmAction$1(r.hrid))
-                    .sort((a, b) => b.balancedScore - a.balancedScore)
-                    .slice(0, TOP_N$1);
+                const filtered = computeBalancedRates(goldRates, xpRates, globalBestProfit).filter(
+                    (r) => !this.disableCharms || !isCharmAction$1(r.hrid)
+                );
 
-                body.appendChild(
-                    this.renderSkillSection(
-                        skill,
-                        top,
-                        (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr, ${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`,
-                        { perEntryTeas: true }
-                    )
+                this.appendSkillSections(
+                    body,
+                    skill,
+                    filtered,
+                    (a, b) => b.balancedScore - a.balancedScore,
+                    (r) => `${formatters_js.formatKMB(r.profitPerHour, 1)}/hr, ${formatters_js.formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`
                 );
             }
         }
 
-        renderSkillSection(skill, entries, formatValue, options = {}) {
+        renderSkillSection(heading, entries, formatValue, options = {}) {
             const { perEntryTeas = false } = options;
             const section = document.createElement('div');
             section.style.cssText = 'margin-bottom: 16px;';
 
-            const heading = document.createElement('div');
-            heading.textContent = capitalize$1(skill);
-            heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 2px; font-size: 14px;';
-            section.appendChild(heading);
+            const headingEl = document.createElement('div');
+            headingEl.textContent = heading;
+            headingEl.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 2px; font-size: 14px;';
+            section.appendChild(headingEl);
 
             if (entries.length === 0) {
                 const empty = document.createElement('div');
@@ -18252,11 +18358,25 @@ ${starCSS}
         for (const skill of SKILLS) {
             const playerLevel = overrides.skillLevels?.[skill] ?? 1;
             const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
-            results[skill] = rates
+            const filtered = rates
                 .filter((r) => r.profitPerHour > 0)
-                .filter((r) => !excludeCharms || !isCharmAction(r.hrid))
-                .sort((a, b) => b.profitPerHour - a.profitPerHour)
-                .slice(0, topN);
+                .filter((r) => !excludeCharms || !isCharmAction(r.hrid));
+
+            if (skill === 'alchemy') {
+                // Alchemy's "actions" are per-item (any alchemizable item x coinify/decompose/transmute),
+                // so a flat top-N would let one action type crowd out the others — rank each type
+                // separately and concatenate, keeping topN best per type.
+                const groups = { coinify: [], decompose: [], transmute: [] };
+                for (const r of filtered) {
+                    if (groups[r.actionType]) groups[r.actionType].push(r);
+                }
+                results[skill] = ['coinify', 'decompose', 'transmute'].flatMap((actionType) =>
+                    groups[actionType].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, topN)
+                );
+                continue;
+            }
+
+            results[skill] = filtered.sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, topN);
         }
         return results;
     }
@@ -18754,18 +18874,32 @@ ${starCSS}
 
             for (const skill of SKILLS) {
                 const entries = this.results[skill] || [];
-                body.appendChild(this.renderSkillSection(skill, entries));
+
+                if (skill === 'alchemy') {
+                    const groups = { coinify: [], decompose: [], transmute: [] };
+                    for (const entry of entries) {
+                        if (groups[entry.actionType]) groups[entry.actionType].push(entry);
+                    }
+                    for (const actionType of ['coinify', 'decompose', 'transmute']) {
+                        body.appendChild(
+                            this.renderSkillSection(`Alchemy – ${capitalize(actionType)}`, groups[actionType])
+                        );
+                    }
+                    continue;
+                }
+
+                body.appendChild(this.renderSkillSection(capitalize(skill), entries));
             }
         }
 
-        renderSkillSection(skill, entries) {
+        renderSkillSection(heading, entries) {
             const section = document.createElement('div');
             section.style.cssText = 'margin-bottom: 16px;';
 
-            const heading = document.createElement('div');
-            heading.textContent = capitalize(skill);
-            heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 4px; font-size: 14px;';
-            section.appendChild(heading);
+            const headingEl = document.createElement('div');
+            headingEl.textContent = heading;
+            headingEl.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 4px; font-size: 14px;';
+            section.appendChild(headingEl);
 
             if (entries.length === 0) {
                 const empty = document.createElement('div');
