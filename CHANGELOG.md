@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.5.0](https://github.com/Skillcheese/Cheezasha/compare/v3.4.0...v3.5.0) (2026-08-07)
+
+### Features
+
+- add Disable Charms filter to skill optimizer and best-rates popup ([fcfdea7](https://github.com/Skillcheese/Cheezasha/commit/fcfdea777bdb02d45c444d65b796d89485f20c48))
+
+### Bug Fixes
+
+- pick lowest-cost protect-from level in enhancing optimizer ([303e114](https://github.com/Skillcheese/Cheezasha/commit/303e1141a7bb454fc10a5f00c4cc15b8e0939da1))
+- re-enable combat sim player import and fix equipment type mapping ([8762d35](https://github.com/Skillcheese/Cheezasha/commit/8762d358a8c702d6e66af7058035a954f4aa101a))
+
+### Performance Improvements
+
+- fix input freeze on action completion from layout thrashing and gold-anchor recompute ([07d0b4e](https://github.com/Skillcheese/Cheezasha/commit/07d0b4e4869876210051b6ce36ce4c4feef5e52a))
+- throttle action countdown loop and debounce XP nav bar updates ([6e86b28](https://github.com/Skillcheese/Cheezasha/commit/6e86b2877575166d1a617514531573f53a19bc3a))
+
 ## [3.4.0](https://github.com/Skillcheese/Cheezasha/compare/v3.3.0...v3.4.0) (2026-08-06)
 
 ### Features
