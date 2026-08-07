@@ -75,6 +75,7 @@ class SkillOptimizerPopup {
         this.activeTab = 'customize';
         this.loadout = null;
         this.results = null;
+        this.disableCharms = false;
     }
 
     initialize() {
@@ -440,10 +441,34 @@ class SkillOptimizerPopup {
             font-size: 13px;
         `;
         calcBtn.addEventListener('click', () => {
-            this.results = computeTopResults(this.loadout, TOP_N);
+            this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
             this.renderContent();
         });
         body.appendChild(calcBtn);
+
+        const charmToggleLabel = document.createElement('label');
+        charmToggleLabel.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        `;
+        const charmToggle = document.createElement('input');
+        charmToggle.type = 'checkbox';
+        charmToggle.checked = this.disableCharms;
+        charmToggle.addEventListener('change', () => {
+            this.disableCharms = charmToggle.checked;
+            if (this.results) {
+                this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
+            }
+            this.renderContent();
+        });
+        charmToggleLabel.appendChild(charmToggle);
+        charmToggleLabel.appendChild(document.createTextNode('Disable charms'));
+        body.appendChild(charmToggleLabel);
 
         if (!this.results) {
             const hint = document.createElement('div');

@@ -118,6 +118,22 @@ function computeBalancedRates(goldRates, xpRates, globalBestProfit) {
     return Array.from(bestByHrid.values());
 }
 
+/**
+ * Check whether an action's crafted output is a charm — charm crafting recipes often show
+ * absurdly inflated profit/hr (e.g. 200M/hr) that doesn't reflect realistic sell volume, so
+ * they're excludable via the "Disable Charms" checkbox.
+ * @param {string} actionHrid
+ * @returns {boolean}
+ */
+function isCharmAction(actionHrid) {
+    const gameData = dataManager.getInitClientData();
+    const action = gameData?.actionDetailMap?.[actionHrid];
+    const outputItemHrid = action?.outputItems?.[0]?.itemHrid;
+    if (!outputItemHrid) return false;
+    const itemDetails = gameData.itemDetailMap?.[outputItemHrid];
+    return itemDetails?.equipmentDetail?.type === '/equipment_types/charm';
+}
+
 function getPlayerLevel(skillName) {
     const skills = dataManager.getSkills();
     const skillHrid = `/skills/${skillName}`;
@@ -133,6 +149,7 @@ class BestRatesPopup {
         this.button = null;
         this.modal = null;
         this.activeTab = 'profit';
+        this.disableCharms = false;
     }
 
     initialize() {
@@ -250,11 +267,32 @@ class BestRatesPopup {
         tabs.appendChild(xpTab);
         tabs.appendChild(balancedTab);
 
+        const charmToggleLabel = document.createElement('label');
+        charmToggleLabel.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        `;
+        const charmToggle = document.createElement('input');
+        charmToggle.type = 'checkbox';
+        charmToggle.checked = this.disableCharms;
+        charmToggle.addEventListener('change', () => {
+            this.disableCharms = charmToggle.checked;
+            this.renderContent();
+        });
+        charmToggleLabel.appendChild(charmToggle);
+        charmToggleLabel.appendChild(document.createTextNode('Disable charms'));
+
         const body = document.createElement('div');
         body.className = 'mwi-best-rates-body';
 
         content.appendChild(header);
         content.appendChild(tabs);
+        content.appendChild(charmToggleLabel);
         content.appendChild(body);
         this.modal.appendChild(content);
         document.body.appendChild(this.modal);
@@ -307,6 +345,7 @@ class BestRatesPopup {
             const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
             const top = rates
                 .filter((r) => r.profitPerHour > 0)
+                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
                 .sort((a, b) => b.profitPerHour - a.profitPerHour)
                 .slice(0, TOP_N);
 
@@ -324,6 +363,7 @@ class BestRatesPopup {
             const playerLevel = getPlayerLevel(skill);
             const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
             const top = computeEffectiveXpRates(rates, globalBestProfit)
+                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
                 .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
                 .slice(0, TOP_N);
 
@@ -349,6 +389,7 @@ class BestRatesPopup {
             const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
             const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
             const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
+                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
                 .sort((a, b) => b.balancedScore - a.balancedScore)
                 .slice(0, TOP_N);
 

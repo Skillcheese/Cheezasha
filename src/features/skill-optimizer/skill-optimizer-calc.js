@@ -172,18 +172,36 @@ export function getLiveLoadout() {
 }
 
 /**
+ * Check whether an action's crafted output is a charm — charm crafting recipes often show
+ * absurdly inflated profit/hr (e.g. 200M/hr) that doesn't reflect realistic sell volume, so
+ * they're excludable via the "Disable Charms" checkbox.
+ * @param {string} actionHrid
+ * @returns {boolean}
+ */
+function isCharmAction(actionHrid) {
+    const gameData = dataManager.getInitClientData();
+    const action = gameData?.actionDetailMap?.[actionHrid];
+    const outputItemHrid = action?.outputItems?.[0]?.itemHrid;
+    if (!outputItemHrid) return false;
+    const itemDetails = gameData.itemDetailMap?.[outputItemHrid];
+    return itemDetails?.equipmentDetail?.type === '/equipment_types/charm';
+}
+
+/**
  * Compute the top-N profit/hr actions for every skill under a given loadout override.
  * @param {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}} overrides
  * @param {number} topN
+ * @param {boolean} excludeCharms - When true, drops charm-crafting actions before ranking
  * @returns {Object<string, Array<{name: string, hrid: string, profitPerHour: number, xpPerHour: number, teaHrids: Array<string>}>>}
  */
-export function computeTopResults(overrides, topN = 3) {
+export function computeTopResults(overrides, topN = 3, excludeCharms = false) {
     const results = {};
     for (const skill of SKILLS) {
         const playerLevel = overrides.skillLevels?.[skill] ?? 1;
         const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
         results[skill] = rates
             .filter((r) => r.profitPerHour > 0)
+            .filter((r) => !excludeCharms || !isCharmAction(r.hrid))
             .sort((a, b) => b.profitPerHour - a.profitPerHour)
             .slice(0, topN);
     }
