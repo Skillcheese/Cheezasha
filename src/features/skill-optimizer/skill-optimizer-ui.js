@@ -480,18 +480,32 @@ class SkillOptimizerPopup {
 
         for (const skill of SKILLS) {
             const entries = this.results[skill] || [];
-            body.appendChild(this.renderSkillSection(skill, entries));
+
+            if (skill === 'alchemy') {
+                const groups = { coinify: [], decompose: [], transmute: [] };
+                for (const entry of entries) {
+                    if (groups[entry.actionType]) groups[entry.actionType].push(entry);
+                }
+                for (const actionType of ['coinify', 'decompose', 'transmute']) {
+                    body.appendChild(
+                        this.renderSkillSection(`Alchemy – ${capitalize(actionType)}`, groups[actionType])
+                    );
+                }
+                continue;
+            }
+
+            body.appendChild(this.renderSkillSection(capitalize(skill), entries));
         }
     }
 
-    renderSkillSection(skill, entries) {
+    renderSkillSection(heading, entries) {
         const section = document.createElement('div');
         section.style.cssText = 'margin-bottom: 16px;';
 
-        const heading = document.createElement('div');
-        heading.textContent = capitalize(skill);
-        heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 4px; font-size: 14px;';
-        section.appendChild(heading);
+        const headingEl = document.createElement('div');
+        headingEl.textContent = heading;
+        headingEl.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 4px; font-size: 14px;';
+        section.appendChild(headingEl);
 
         if (entries.length === 0) {
             const empty = document.createElement('div');

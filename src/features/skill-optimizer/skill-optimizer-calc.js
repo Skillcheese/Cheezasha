@@ -199,11 +199,25 @@ export function computeTopResults(overrides, topN = 3, excludeCharms = false) {
     for (const skill of SKILLS) {
         const playerLevel = overrides.skillLevels?.[skill] ?? 1;
         const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
-        results[skill] = rates
+        const filtered = rates
             .filter((r) => r.profitPerHour > 0)
-            .filter((r) => !excludeCharms || !isCharmAction(r.hrid))
-            .sort((a, b) => b.profitPerHour - a.profitPerHour)
-            .slice(0, topN);
+            .filter((r) => !excludeCharms || !isCharmAction(r.hrid));
+
+        if (skill === 'alchemy') {
+            // Alchemy's "actions" are per-item (any alchemizable item x coinify/decompose/transmute),
+            // so a flat top-N would let one action type crowd out the others — rank each type
+            // separately and concatenate, keeping topN best per type.
+            const groups = { coinify: [], decompose: [], transmute: [] };
+            for (const r of filtered) {
+                if (groups[r.actionType]) groups[r.actionType].push(r);
+            }
+            results[skill] = ['coinify', 'decompose', 'transmute'].flatMap((actionType) =>
+                groups[actionType].sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, topN)
+            );
+            continue;
+        }
+
+        results[skill] = filtered.sort((a, b) => b.profitPerHour - a.profitPerHour).slice(0, topN);
     }
     return results;
 }

@@ -23,6 +23,24 @@ const SKILLS = [
 
 const TOP_N = 5;
 
+// Alchemy's "actions" are per-item (any alchemizable item x coinify/decompose/transmute), so a
+// flat top-N would let one action type crowd out the others — group and cap per type instead.
+const ALCHEMY_TOP_N = 3;
+const ALCHEMY_ACTION_LABELS = { coinify: 'Coinify', decompose: 'Decompose', transmute: 'Transmute' };
+
+/**
+ * Split alchemy rates into per-action-type buckets.
+ * @param {Array<{actionType: string}>} rates
+ * @returns {{coinify: Array, decompose: Array, transmute: Array}}
+ */
+function groupAlchemyByActionType(rates) {
+    const groups = { coinify: [], decompose: [], transmute: [] };
+    for (const r of rates) {
+        if (groups[r.actionType]) groups[r.actionType].push(r);
+    }
+    return groups;
+}
+
 // Rank used for the local profit anchor: the Nth-highest profit/hr within a skill rather than the
 // single highest, so one outlier-priced item doesn't dictate the "gold-neutral" bar on its own.
 const PROFIT_ANCHOR_RANK = 10;
@@ -339,20 +357,46 @@ class BestRatesPopup {
         }
     }
 
+    /**
+     * Append either a single skill section, or (for alchemy) one section per action type
+     * (Coinify/Decompose/Transmute), each independently sorted and capped at ALCHEMY_TOP_N.
+     */
+    appendSkillSections(body, skill, filteredRates, sortFn, formatValue) {
+        if (skill === 'alchemy') {
+            const groups = groupAlchemyByActionType(filteredRates);
+            for (const actionType of ['coinify', 'decompose', 'transmute']) {
+                const top = groups[actionType].sort(sortFn).slice(0, ALCHEMY_TOP_N);
+                body.appendChild(
+                    this.renderSkillSection(`Alchemy – ${ALCHEMY_ACTION_LABELS[actionType]}`, top, formatValue, {
+                        perEntryTeas: true,
+                    })
+                );
+            }
+            return;
+        }
+
+        const top = filteredRates.sort(sortFn).slice(0, TOP_N);
+        body.appendChild(
+            this.renderSkillSection(capitalize(skill), top, formatValue, {
+                perEntryTeas: true,
+            })
+        );
+    }
+
     renderProfitTab(body) {
         for (const skill of SKILLS) {
             const playerLevel = getPlayerLevel(skill);
             const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
-            const top = rates
+            const filtered = rates
                 .filter((r) => r.profitPerHour > 0)
-                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
-                .sort((a, b) => b.profitPerHour - a.profitPerHour)
-                .slice(0, TOP_N);
+                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid));
 
-            body.appendChild(
-                this.renderSkillSection(skill, top, (r) => `${formatKMB(r.profitPerHour, 1)}/hr`, {
-                    perEntryTeas: true,
-                })
+            this.appendSkillSections(
+                body,
+                skill,
+                filtered,
+                (a, b) => b.profitPerHour - a.profitPerHour,
+                (r) => `${formatKMB(r.profitPerHour, 1)}/hr`
             );
         }
     }
@@ -362,22 +406,20 @@ class BestRatesPopup {
         for (const skill of SKILLS) {
             const playerLevel = getPlayerLevel(skill);
             const rates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
-            const top = computeEffectiveXpRates(rates, globalBestProfit)
-                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
-                .sort((a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour)
-                .slice(0, TOP_N);
+            const filtered = computeEffectiveXpRates(rates, globalBestProfit).filter(
+                (r) => !this.disableCharms || !isCharmAction(r.hrid)
+            );
 
-            body.appendChild(
-                this.renderSkillSection(
-                    skill,
-                    top,
-                    (r) => {
-                        const costText =
-                            r.profitPerHour < 0 ? ` (-${formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
-                        return `${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
-                    },
-                    { perEntryTeas: true }
-                )
+            this.appendSkillSections(
+                body,
+                skill,
+                filtered,
+                (a, b) => b.effectiveXpPerHour - a.effectiveXpPerHour,
+                (r) => {
+                    const costText =
+                        r.profitPerHour < 0 ? ` (-${formatKMB(Math.abs(r.profitPerHour), 1)}/hr cost)` : '';
+                    return `${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr${costText}`;
+                }
             );
         }
     }
@@ -388,31 +430,29 @@ class BestRatesPopup {
             const playerLevel = getPlayerLevel(skill);
             const goldRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'gold');
             const xpRates = teaOptimizer.getSkillActionRates(skill, playerLevel, 'xp', globalBestProfit);
-            const top = computeBalancedRates(goldRates, xpRates, globalBestProfit)
-                .filter((r) => !this.disableCharms || !isCharmAction(r.hrid))
-                .sort((a, b) => b.balancedScore - a.balancedScore)
-                .slice(0, TOP_N);
+            const filtered = computeBalancedRates(goldRates, xpRates, globalBestProfit).filter(
+                (r) => !this.disableCharms || !isCharmAction(r.hrid)
+            );
 
-            body.appendChild(
-                this.renderSkillSection(
-                    skill,
-                    top,
-                    (r) => `${formatKMB(r.profitPerHour, 1)}/hr, ${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`,
-                    { perEntryTeas: true }
-                )
+            this.appendSkillSections(
+                body,
+                skill,
+                filtered,
+                (a, b) => b.balancedScore - a.balancedScore,
+                (r) => `${formatKMB(r.profitPerHour, 1)}/hr, ${formatKMB(r.effectiveXpPerHour, 1)} Eff. XP/hr`
             );
         }
     }
 
-    renderSkillSection(skill, entries, formatValue, options = {}) {
+    renderSkillSection(heading, entries, formatValue, options = {}) {
         const { perEntryTeas = false } = options;
         const section = document.createElement('div');
         section.style.cssText = 'margin-bottom: 16px;';
 
-        const heading = document.createElement('div');
-        heading.textContent = capitalize(skill);
-        heading.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 2px; font-size: 14px;';
-        section.appendChild(heading);
+        const headingEl = document.createElement('div');
+        headingEl.textContent = heading;
+        headingEl.style.cssText = 'color: #fff; font-weight: 700; margin-bottom: 2px; font-size: 14px;';
+        section.appendChild(headingEl);
 
         if (entries.length === 0) {
             const empty = document.createElement('div');
