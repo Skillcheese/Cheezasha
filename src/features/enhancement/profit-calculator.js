@@ -254,10 +254,13 @@ function simulateItemAtProtectFrom(
 
 /**
  * Calculate profit/hr, XP/hr, and eff. XP/hr for enhancing a single item to a single target level,
- * automatically choosing the protect-from level (0 = never protect) that yields the best profit/hr.
- * Protection only ever helps profit above the level where the protection item's own cost is
- * recovered by the attempts it saves, so trying every candidate and keeping the best is exact
- * rather than heuristic.
+ * automatically choosing the protect-from level (0 = never protect) that yields the lowest total
+ * cost to reach that level. Ranking by profit/hr instead would let a strategy that takes longer
+ * (and costs more overall) look better just because its losses are spread over more hours — this
+ * always picks the cheapest way to actually reach the target, matching the enhancement tooltip.
+ * protectFrom = 1 is skipped: protection only changes the failure destination for i >= protectFrom,
+ * and at i = 1 that destination is level 0 either way, so protectFrom = 1 always costs strictly
+ * more than protectFrom = 0 for zero benefit.
  * @param {string} itemHrid
  * @param {Object} itemDetails
  * @param {number} targetLevel
@@ -281,6 +284,7 @@ function calculateItemProfit(
     const maxProtectFrom = canProtect ? targetLevel - 1 : 0;
 
     for (let protectFrom = 0; protectFrom <= maxProtectFrom; protectFrom++) {
+        if (protectFrom === 1) continue;
         const result = simulateItemAtProtectFrom(
             itemHrid,
             itemDetails,
@@ -291,7 +295,7 @@ function calculateItemProfit(
             protectionInfo,
             calcCache
         );
-        if (result && (!best || result.profitPerHour > best.profitPerHour)) {
+        if (result && (!best || result.baseCost + result.enhancingCost < best.baseCost + best.enhancingCost)) {
             best = result;
         }
     }
