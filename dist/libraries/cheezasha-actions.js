@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.6.1
+ * Version: 3.7.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -16770,6 +16770,8 @@
             this.initialized = false;
             this.observers = [];
             this.processedPanels = new WeakSet();
+            this.openPanels = new Set();
+            this.itemsUpdatedHandler = null;
         }
 
         initialize() {
@@ -16783,10 +16785,29 @@
             );
             this.observers.push(unregister);
 
+            // Re-render "Missing: X" for open panels whenever inventory changes (e.g. buying
+            // materials from the marketplace) - otherwise it stays frozen at whatever it showed
+            // when the quantity input was last typed into.
+            this.itemsUpdatedHandler = () => this.refreshOpenPanels();
+            webSocketHook.on('items_updated', this.itemsUpdatedHandler);
+
             // Process existing panels
             this.processActionPanels();
 
             this.initialized = true;
+        }
+
+        refreshOpenPanels() {
+            for (const panel of this.openPanels) {
+                if (!document.body.contains(panel)) {
+                    this.openPanels.delete(panel);
+                    continue;
+                }
+                const inputField = actionPanelHelper_js.findActionInput(panel);
+                if (inputField) {
+                    this.updateRequiredMaterials(panel, inputField.value);
+                }
+            }
         }
 
         processActionPanels() {
@@ -16805,6 +16826,7 @@
 
                 // Mark as processed
                 this.processedPanels.add(panel);
+                this.openPanels.add(panel);
 
                 // Attach input listeners using utility
                 actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => {
@@ -17001,6 +17023,12 @@
             this.observers.forEach((unregister) => unregister());
             this.observers = [];
             this.processedPanels = new WeakSet();
+            this.openPanels.clear();
+
+            if (this.itemsUpdatedHandler) {
+                webSocketHook.off('items_updated', this.itemsUpdatedHandler);
+                this.itemsUpdatedHandler = null;
+            }
 
             document.querySelectorAll('.mwi-required-materials').forEach((el) => el.remove());
 
@@ -17317,29 +17345,96 @@
     }
 
     /**
+     * Update the badge content and quantity attribute on an existing material tab
+     * @param {HTMLElement} tab - Tab element created by createMaterialTab
+     * @param {Object} material - Updated material data
+     * @param {string} material.itemName - Display name
+     * @param {number} material.missing - Current missing quantity
+     * @param {number} [material.required] - Total required quantity
+     * @param {boolean} material.isTradeable - Whether tradeable
+     * @param {number} [material.queued] - Queued quantity
+     */
+    function updateTabBadge$1(tab, material) {
+        const badgeSpan = tab.querySelector('[class*="TabsComponent_badge"]');
+        if (!badgeSpan) return;
+
+        let statusColor;
+        let statusText;
+
+        if (!material.isTradeable) {
+            statusColor = '#888888';
+            statusText = 'Not Tradeable';
+        } else if (material.missing > 0) {
+            statusColor = '#ef4444';
+            const queuedText = material.queued > 0 ? ` (${formatters_js.formatWithSeparator(material.queued)} Q'd)` : '';
+            statusText = `Missing: ${formatters_js.formatWithSeparator(material.missing)}${queuedText}`;
+        } else {
+            statusColor = '#4ade80';
+            statusText = `Sufficient (${formatters_js.formatWithSeparator(material.required)})`;
+        }
+
+        const titleCaseName = material.itemName
+            .split(' ')
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+        badgeSpan.innerHTML = `
+        <div style="text-align: center;">
+            <div>${titleCaseName}</div>
+            <div style="font-size: 0.75em; color: ${statusColor};">
+                ${statusText}
+            </div>
+        </div>
+    `;
+
+        tab.setAttribute('data-missing-quantity', material.missing.toString());
+
+        if (!material.isTradeable) {
+            tab.style.opacity = '0.5';
+            tab.style.cursor = 'not-allowed';
+        } else {
+            tab.style.opacity = '1';
+            tab.style.cursor = 'pointer';
+        }
+    }
+
+    /**
      * Setup marketplace cleanup observer
      * Watches for marketplace panel removal and calls cleanup callback
      * @param {Function} onCleanup - Callback when marketplace closes, receives no args
      * @param {Array} tabsArray - Array reference to track tabs (will be checked for length)
+     * @param {Function} [onTabsLost] - Callback when custom tabs vanish from DOM but the marketplace
+     *   panel is still open (e.g. navigating to an item's detail view re-renders the tab bar).
+     *   Lets the caller re-insert its tabs instead of tearing down listeners/context.
      * @returns {Function} Unregister function to stop observing
      */
-    function setupMarketplaceCleanupObserver(onCleanup, tabsArray) {
+    function setupMarketplaceCleanupObserver(onCleanup, tabsArray, onTabsLost) {
         let pollInterval = null;
 
         function poll() {
             if (!tabsArray || tabsArray.length === 0) return;
 
-            // If custom tabs were removed from DOM, clean up
+            const marketplacePanel = document.querySelector('.MarketplacePanel_marketplacePanel__21b7o');
+            const subPanelContainer = marketplacePanel?.closest('.MainPanel_subPanelContainer__1i-H9');
+            const marketplaceOpen =
+                !!marketplacePanel && getComputedStyle(subPanelContainer ?? marketplacePanel).display !== 'none';
+
+            // If custom tabs were removed from DOM (e.g. the tab bar got re-rendered when
+            // navigating to an item's detail view), only treat it as "left marketplace" if the
+            // marketplace panel itself is actually gone/hidden. Otherwise let the caller
+            // re-insert the tabs onto the current tab bar.
             const hasCustomTabsInDOM = tabsArray.some((tab) => document.body.contains(tab));
             if (!hasCustomTabsInDOM) {
-                if (onCleanup) onCleanup();
+                if (marketplaceOpen) {
+                    if (onTabsLost) onTabsLost();
+                } else if (onCleanup) {
+                    onCleanup();
+                }
                 return;
             }
 
             // If marketplace panel is hidden (navigated away), clean up
-            const marketplacePanel = document.querySelector('.MarketplacePanel_marketplacePanel__21b7o');
-            const subPanelContainer = marketplacePanel?.closest('.MainPanel_subPanelContainer__1i-H9');
-            if (subPanelContainer && getComputedStyle(subPanelContainer).display === 'none') {
+            if (!marketplaceOpen) {
                 if (onCleanup) onCleanup();
             }
         }
@@ -17400,10 +17495,13 @@
     let enhancementDomObserverUnregister = null;
     let processedPanels$1 = new WeakSet();
     let processedEnhancingPanels = new WeakSet();
-    let inventoryUpdateHandler = null;
+    let inventoryUpdateHandler$1 = null;
+    let tabsPollInterval$1 = null;
     let storedActionHrid$1 = null;
     let storedNumActions$1 = 0;
     let storedEnhancementContext = null;
+    let lastMissingMaterials$1 = [];
+    let lastStrategyInfo = null;
     const timerRegistry$1 = timerRegistry_js.createTimerRegistry();
     const autofillManager$1 = createAutofillManager('MissingMats-Actions');
 
@@ -17427,7 +17525,7 @@
      * Initialize missing materials button feature
      */
     function initialize$1() {
-        cleanupObserver$1 = setupMarketplaceCleanupObserver(handleMarketplaceCleanup, currentMaterialsTabs);
+        cleanupObserver$1 = setupMarketplaceCleanupObserver(handleMarketplaceCleanup, currentMaterialsTabs, handleTabsLost);
         autofillManager$1.initialize();
 
         // Watch for production action panels appearing
@@ -17954,7 +18052,7 @@
         createMissingMaterialTabs(freshMaterials, strategyInfo);
 
         // Setup inventory listener for live updates
-        setupInventoryListener();
+        setupInventoryListener$1();
     }
 
     /**
@@ -18047,7 +18145,7 @@
         createMissingMaterialTabs(freshMaterials);
 
         // Setup inventory listener for live updates
-        setupInventoryListener();
+        setupInventoryListener$1();
     }
 
     /**
@@ -18270,6 +18368,9 @@
      * @param {Object|null} strategyInfo - Auto-calculated protection strategy info
      */
     function createMissingMaterialTabs(missingMaterials, strategyInfo = null) {
+        lastMissingMaterials$1 = missingMaterials;
+        lastStrategyInfo = strategyInfo;
+
         const tabsContainer = document.querySelector('.MuiTabs-flexContainer[role="tablist"]');
 
         if (!tabsContainer) {
@@ -18338,19 +18439,14 @@
      * Setup inventory listener for live tab updates
      * Listens for inventory changes via websocket and updates tabs accordingly
      */
-    function setupInventoryListener() {
+    function setupInventoryListener$1() {
         // Remove existing listener if any
-        if (inventoryUpdateHandler) {
-            webSocketHook.off('*', inventoryUpdateHandler);
+        if (inventoryUpdateHandler$1) {
+            webSocketHook.off('*', inventoryUpdateHandler$1);
         }
 
         // Create new listener that watches for inventory-related messages
-        inventoryUpdateHandler = (data) => {
-            // Check if this message might affect inventory
-            // Common message types that update inventory:
-            // - item_added, item_removed, items_updated
-            // - market_buy_complete, market_sell_complete
-            // - Or any message with inventory field
+        inventoryUpdateHandler$1 = (data) => {
             if (
                 data.type?.includes('item') ||
                 data.type?.includes('inventory') ||
@@ -18362,7 +18458,22 @@
             }
         };
 
-        webSocketHook.on('*', inventoryUpdateHandler);
+        webSocketHook.on('*', inventoryUpdateHandler$1);
+
+        // Fallback poll in case the game's purchase-confirmation message doesn't match the
+        // websocket filter above (message type naming isn't guaranteed) - keeps badges honest.
+        if (tabsPollInterval$1) {
+            clearInterval(tabsPollInterval$1);
+        }
+        tabsPollInterval$1 = setInterval(() => {
+            if (currentMaterialsTabs.length === 0) {
+                clearInterval(tabsPollInterval$1);
+                tabsPollInterval$1 = null;
+                return;
+            }
+            updateTabsOnInventoryChange();
+        }, 2000);
+        timerRegistry$1.registerInterval(tabsPollInterval$1);
     }
 
     /**
@@ -18396,6 +18507,8 @@
         } else {
             return;
         }
+
+        lastMissingMaterials$1 = updatedMaterials;
 
         // Update each existing tab
         currentMaterialsTabs.forEach((tab) => {
@@ -18470,6 +18583,20 @@
     }
 
     /**
+     * Handle custom tabs vanishing from the DOM while the marketplace is still open
+     * (e.g. clicking a material tab navigates to that item's detail view, which re-renders
+     * the tab bar). Re-inserts the tabs onto the current tab bar instead of tearing down
+     * the inventory listener and stored context, which would otherwise stop live updates.
+     * Called by the marketplace cleanup observer.
+     */
+    function handleTabsLost() {
+        if (!storedActionHrid$1 && !storedEnhancementContext) {
+            return;
+        }
+        createMissingMaterialTabs(lastMissingMaterials$1, lastStrategyInfo);
+    }
+
+    /**
      * Handle marketplace cleanup (when leaving marketplace)
      * Called by the marketplace cleanup observer
      */
@@ -18478,15 +18605,22 @@
         currentMaterialsTabs.length = 0; // Clear without reassigning (preserves observer reference)
 
         // Clean up inventory listener
-        if (inventoryUpdateHandler) {
-            webSocketHook.off('*', inventoryUpdateHandler);
-            inventoryUpdateHandler = null;
+        if (inventoryUpdateHandler$1) {
+            webSocketHook.off('*', inventoryUpdateHandler$1);
+            inventoryUpdateHandler$1 = null;
+        }
+
+        if (tabsPollInterval$1) {
+            clearInterval(tabsPollInterval$1);
+            tabsPollInterval$1 = null;
         }
 
         // Clear stored context — only when genuinely leaving the marketplace
         storedActionHrid$1 = null;
         storedNumActions$1 = 0;
         storedEnhancementContext = null;
+        lastMissingMaterials$1 = [];
+        lastStrategyInfo = null;
         autofillManager$1.clearQuantity();
     }
 
@@ -19648,6 +19782,10 @@
     const timerRegistry = timerRegistry_js.createTimerRegistry();
     let storedActionHrid = null;
     let storedNumActions = 0;
+    let storedBuyItems = null;
+    let inventoryUpdateHandler = null;
+    let tabsPollInterval = null;
+    let lastMissingMaterials = [];
 
     const PRODUCTION_TYPES$1 = [
         '/action_types/brewing',
@@ -20096,7 +20234,10 @@
         const buyItems = new Map();
         collectBuyItems(plan, buyItems);
 
-        if (buyItems.size > 0) {
+        // Only list what's actually missing - subtract what's already in inventory
+        const missingBuyItems = computeMissingMaterialsFromBuyItems(buyItems, { includeUntradeable: true });
+
+        if (missingBuyItems.length > 0) {
             const divider = document.createElement('div');
             divider.style.cssText = 'border-top: 1px solid var(--border-color, #333); margin: 6px 0;';
             content.appendChild(divider);
@@ -20111,10 +20252,10 @@
             content.appendChild(shoppingHeader);
 
             // Sort by total cost descending
-            const sortedItems = [...buyItems.values()].sort((a, b) => b.totalCost - a.totalCost);
+            const sortedItems = [...missingBuyItems].sort((a, b) => b.totalCost - a.totalCost);
 
             for (const item of sortedItems) {
-                const qty = Math.ceil(item.quantity);
+                const qty = Math.ceil(item.missing);
                 const cost = formatters_js.formatKMB(Math.round(item.totalCost));
                 const unit = formatters_js.formatWithSeparator(Math.round(item.unitCost));
                 content.appendChild(createRow(`${item.itemName} x${formatters_js.formatWithSeparator(qty)}`, `${cost} (${unit}/ea)`));
@@ -20144,32 +20285,12 @@
                 const inputField = actionPanelHelper_js.findActionInput(panel);
                 const numActions = parseInt(inputField?.value, 10) || 1;
 
-                const inventory = dataManager.getInventory() || [];
-
-                const missingMaterials = [];
-                for (const [itemHrid, item] of buyItems) {
-                    const needed = Math.ceil(item.quantity);
-                    const have = inventory
-                        .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
-                        .reduce((sum, i) => sum + (i.count || 0), 0);
-                    const missing = Math.max(0, needed - have);
-                    const itemDetails = dataManager.getItemDetails(itemHrid);
-                    const isTradeable = itemDetails?.isTradable !== false;
-                    if (missing > 0 && isTradeable) {
-                        missingMaterials.push({
-                            itemHrid,
-                            itemName: item.itemName,
-                            missing,
-                            required: needed,
-                            isTradeable,
-                        });
-                    }
-                }
-
+                const missingMaterials = computeMissingMaterialsFromBuyItems(buyItems);
                 if (missingMaterials.length === 0) return;
 
                 storedActionHrid = actionHrid;
                 storedNumActions = numActions;
+                storedBuyItems = buyItems;
 
                 // Navigate to marketplace via navbar click
                 const navButtons = document.querySelectorAll('.NavigationBar_nav__3uuUl');
@@ -20193,7 +20314,10 @@
                 }
 
                 await new Promise((resolve) => setTimeout(resolve, 200));
-                createCraftingPlanTabs(missingMaterials);
+                // Recalculate fresh (inventory may have changed since the button was rendered)
+                const freshMaterials = computeMissingMaterialsFromBuyItems(buyItems);
+                createCraftingPlanTabs(freshMaterials);
+                setupInventoryListener();
             });
             content.appendChild(buyButton);
         }
@@ -20400,10 +20524,114 @@
     }
 
     /**
+     * Compute missing materials for a crafting plan's shopping list against current inventory.
+     * @param {Map} buyItems - Map of itemHrid → { itemName, quantity, unitCost, totalCost }
+     * @returns {Array} Array of { itemHrid, itemName, missing, required, isTradeable }
+     */
+    function computeMissingMaterialsFromBuyItems(buyItems, { includeUntradeable = false } = {}) {
+        const inventory = dataManager.getInventory() || [];
+
+        const missingMaterials = [];
+        for (const [itemHrid, item] of buyItems) {
+            const needed = Math.ceil(item.quantity);
+            const have = inventory
+                .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
+                .reduce((sum, i) => sum + (i.count || 0), 0);
+            const missing = Math.max(0, needed - have);
+            const itemDetails = dataManager.getItemDetails(itemHrid);
+            const isTradeable = itemDetails?.isTradable !== false;
+            if (missing > 0 && (isTradeable || includeUntradeable)) {
+                missingMaterials.push({
+                    itemHrid,
+                    itemName: item.itemName,
+                    missing,
+                    required: needed,
+                    isTradeable,
+                    unitCost: item.unitCost,
+                    totalCost: item.unitCost * missing,
+                });
+            }
+        }
+
+        return missingMaterials;
+    }
+
+    /**
+     * Setup a websocket listener that refreshes the crafting plan marketplace tabs' badges
+     * whenever inventory changes (e.g. after buying a material).
+     */
+    function setupInventoryListener() {
+        if (inventoryUpdateHandler) {
+            webSocketHook.off('*', inventoryUpdateHandler);
+        }
+
+        inventoryUpdateHandler = (data) => {
+            if (
+                data.type?.includes('item') ||
+                data.type?.includes('inventory') ||
+                data.type?.includes('market') ||
+                data.inventory ||
+                data.characterItems
+            ) {
+                updateCraftingPlanTabsOnInventoryChange();
+            }
+        };
+
+        webSocketHook.on('*', inventoryUpdateHandler);
+
+        // Fallback poll in case the purchase message doesn't match the wildcard filter above
+        if (tabsPollInterval) {
+            clearInterval(tabsPollInterval);
+        }
+        tabsPollInterval = setInterval(() => {
+            if (craftingPlanTabs.length === 0) {
+                clearInterval(tabsPollInterval);
+                tabsPollInterval = null;
+                return;
+            }
+            updateCraftingPlanTabsOnInventoryChange();
+        }, 2000);
+        timerRegistry.registerInterval(tabsPollInterval);
+    }
+
+    /**
+     * Recalculate missing materials and refresh the badge on each existing crafting plan tab.
+     */
+    function updateCraftingPlanTabsOnInventoryChange() {
+        if (craftingPlanTabs.length === 0 || !storedBuyItems) {
+            return;
+        }
+
+        const updatedMaterials = computeMissingMaterialsFromBuyItems(storedBuyItems);
+
+        craftingPlanTabs.forEach((tab) => {
+            const itemHrid = tab.getAttribute('data-item-hrid');
+            if (!itemHrid) return;
+            const material = updatedMaterials.find((m) => m.itemHrid === itemHrid);
+            if (material) {
+                updateTabBadge$1(tab, material);
+            } else {
+                // No longer missing (fully bought) - show as sufficient
+                const originalNeeded = storedBuyItems.get(itemHrid);
+                if (originalNeeded) {
+                    updateTabBadge$1(tab, {
+                        itemName: originalNeeded.itemName,
+                        missing: 0,
+                        required: Math.ceil(originalNeeded.quantity),
+                        isTradeable: true,
+                    });
+                }
+            }
+        });
+    }
+
+    /**
      * Create marketplace tabs for crafting plan shopping list materials.
      * @param {Array} missingMaterials - Array of { itemHrid, itemName, missing, required, isTradeable }
      */
     function createCraftingPlanTabs(missingMaterials) {
+        lastMissingMaterials = missingMaterials;
+
         const tabsContainer = document.querySelector('.MuiTabs-flexContainer[role="tablist"]');
         if (!tabsContainer) return;
 
@@ -20437,12 +20665,35 @@
         }
 
         if (!cleanupObserver) {
-            cleanupObserver = setupMarketplaceCleanupObserver(() => {
-                removeMaterialTabs();
-                craftingPlanTabs.length = 0;
-                storedActionHrid = null;
-                storedNumActions = 0;
-            }, craftingPlanTabs);
+            cleanupObserver = setupMarketplaceCleanupObserver(
+                () => {
+                    removeMaterialTabs();
+                    craftingPlanTabs.length = 0;
+                    storedActionHrid = null;
+                    storedNumActions = 0;
+                    storedBuyItems = null;
+                    lastMissingMaterials = [];
+
+                    if (inventoryUpdateHandler) {
+                        webSocketHook.off('*', inventoryUpdateHandler);
+                        inventoryUpdateHandler = null;
+                    }
+                    if (tabsPollInterval) {
+                        clearInterval(tabsPollInterval);
+                        tabsPollInterval = null;
+                    }
+                    autofillManager.clearQuantity();
+                },
+                craftingPlanTabs,
+                () => {
+                    // Custom tabs vanished from DOM (e.g. clicking a tab re-rendered the tab bar
+                    // to show that item's detail view) but the marketplace is still open —
+                    // re-insert the tabs instead of tearing down the inventory listener.
+                    if (storedActionHrid) {
+                        createCraftingPlanTabs(lastMissingMaterials);
+                    }
+                }
+            );
         }
     }
 
@@ -20572,6 +20823,25 @@
             this.inputCleanups = new Map();
 
             timerRegistry.clearAll();
+
+            if (inventoryUpdateHandler) {
+                webSocketHook.off('*', inventoryUpdateHandler);
+                inventoryUpdateHandler = null;
+            }
+            if (tabsPollInterval) {
+                clearInterval(tabsPollInterval);
+                tabsPollInterval = null;
+            }
+            if (cleanupObserver) {
+                cleanupObserver();
+                cleanupObserver = null;
+            }
+            removeMaterialTabs();
+            craftingPlanTabs.length = 0;
+            storedActionHrid = null;
+            storedNumActions = 0;
+            storedBuyItems = null;
+            lastMissingMaterials = [];
 
             this.processedPanels = new WeakSet();
             this.isInitialized = false;
