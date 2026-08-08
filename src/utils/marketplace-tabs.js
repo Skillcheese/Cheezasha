@@ -170,25 +170,38 @@ export function updateTabBadge(tab, material) {
  * Watches for marketplace panel removal and calls cleanup callback
  * @param {Function} onCleanup - Callback when marketplace closes, receives no args
  * @param {Array} tabsArray - Array reference to track tabs (will be checked for length)
+ * @param {Function} [onTabsLost] - Callback when custom tabs vanish from DOM but the marketplace
+ *   panel is still open (e.g. navigating to an item's detail view re-renders the tab bar).
+ *   Lets the caller re-insert its tabs instead of tearing down listeners/context.
  * @returns {Function} Unregister function to stop observing
  */
-export function setupMarketplaceCleanupObserver(onCleanup, tabsArray) {
+export function setupMarketplaceCleanupObserver(onCleanup, tabsArray, onTabsLost) {
     let pollInterval = null;
 
     function poll() {
         if (!tabsArray || tabsArray.length === 0) return;
 
-        // If custom tabs were removed from DOM, clean up
+        const marketplacePanel = document.querySelector('.MarketplacePanel_marketplacePanel__21b7o');
+        const subPanelContainer = marketplacePanel?.closest('.MainPanel_subPanelContainer__1i-H9');
+        const marketplaceOpen =
+            !!marketplacePanel && getComputedStyle(subPanelContainer ?? marketplacePanel).display !== 'none';
+
+        // If custom tabs were removed from DOM (e.g. the tab bar got re-rendered when
+        // navigating to an item's detail view), only treat it as "left marketplace" if the
+        // marketplace panel itself is actually gone/hidden. Otherwise let the caller
+        // re-insert the tabs onto the current tab bar.
         const hasCustomTabsInDOM = tabsArray.some((tab) => document.body.contains(tab));
         if (!hasCustomTabsInDOM) {
-            if (onCleanup) onCleanup();
+            if (marketplaceOpen) {
+                if (onTabsLost) onTabsLost();
+            } else if (onCleanup) {
+                onCleanup();
+            }
             return;
         }
 
         // If marketplace panel is hidden (navigated away), clean up
-        const marketplacePanel = document.querySelector('.MarketplacePanel_marketplacePanel__21b7o');
-        const subPanelContainer = marketplacePanel?.closest('.MainPanel_subPanelContainer__1i-H9');
-        if (subPanelContainer && getComputedStyle(subPanelContainer).display === 'none') {
+        if (!marketplaceOpen) {
             if (onCleanup) onCleanup();
         }
     }

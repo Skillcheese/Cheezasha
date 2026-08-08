@@ -38,9 +38,12 @@ let enhancementDomObserverUnregister = null;
 let processedPanels = new WeakSet();
 let processedEnhancingPanels = new WeakSet();
 let inventoryUpdateHandler = null;
+let tabsPollInterval = null;
 let storedActionHrid = null;
 let storedNumActions = 0;
 let storedEnhancementContext = null;
+let lastMissingMaterials = [];
+let lastStrategyInfo = null;
 const timerRegistry = createTimerRegistry();
 const autofillManager = createAutofillManager('MissingMats-Actions');
 
@@ -64,7 +67,7 @@ const PRODUCTION_TYPES = [
  * Initialize missing materials button feature
  */
 export function initialize() {
-    cleanupObserver = setupMarketplaceCleanupObserver(handleMarketplaceCleanup, currentMaterialsTabs);
+    cleanupObserver = setupMarketplaceCleanupObserver(handleMarketplaceCleanup, currentMaterialsTabs, handleTabsLost);
     autofillManager.initialize();
 
     // Watch for production action panels appearing
@@ -907,6 +910,9 @@ async function handleReturnToAction() {
  * @param {Object|null} strategyInfo - Auto-calculated protection strategy info
  */
 function createMissingMaterialTabs(missingMaterials, strategyInfo = null) {
+    lastMissingMaterials = missingMaterials;
+    lastStrategyInfo = strategyInfo;
+
     const tabsContainer = document.querySelector('.MuiTabs-flexContainer[role="tablist"]');
 
     if (!tabsContainer) {
@@ -983,11 +989,6 @@ function setupInventoryListener() {
 
     // Create new listener that watches for inventory-related messages
     inventoryUpdateHandler = (data) => {
-        // Check if this message might affect inventory
-        // Common message types that update inventory:
-        // - item_added, item_removed, items_updated
-        // - market_buy_complete, market_sell_complete
-        // - Or any message with inventory field
         if (
             data.type?.includes('item') ||
             data.type?.includes('inventory') ||
@@ -1000,6 +1001,21 @@ function setupInventoryListener() {
     };
 
     webSocketHook.on('*', inventoryUpdateHandler);
+
+    // Fallback poll in case the game's purchase-confirmation message doesn't match the
+    // websocket filter above (message type naming isn't guaranteed) - keeps badges honest.
+    if (tabsPollInterval) {
+        clearInterval(tabsPollInterval);
+    }
+    tabsPollInterval = setInterval(() => {
+        if (currentMaterialsTabs.length === 0) {
+            clearInterval(tabsPollInterval);
+            tabsPollInterval = null;
+            return;
+        }
+        updateTabsOnInventoryChange();
+    }, 2000);
+    timerRegistry.registerInterval(tabsPollInterval);
 }
 
 /**
@@ -1033,6 +1049,8 @@ function updateTabsOnInventoryChange() {
     } else {
         return;
     }
+
+    lastMissingMaterials = updatedMaterials;
 
     // Update each existing tab
     currentMaterialsTabs.forEach((tab) => {
@@ -1107,6 +1125,20 @@ function updateTabBadge(tab, material) {
 }
 
 /**
+ * Handle custom tabs vanishing from the DOM while the marketplace is still open
+ * (e.g. clicking a material tab navigates to that item's detail view, which re-renders
+ * the tab bar). Re-inserts the tabs onto the current tab bar instead of tearing down
+ * the inventory listener and stored context, which would otherwise stop live updates.
+ * Called by the marketplace cleanup observer.
+ */
+function handleTabsLost() {
+    if (!storedActionHrid && !storedEnhancementContext) {
+        return;
+    }
+    createMissingMaterialTabs(lastMissingMaterials, lastStrategyInfo);
+}
+
+/**
  * Handle marketplace cleanup (when leaving marketplace)
  * Called by the marketplace cleanup observer
  */
@@ -1120,10 +1152,17 @@ function handleMarketplaceCleanup() {
         inventoryUpdateHandler = null;
     }
 
+    if (tabsPollInterval) {
+        clearInterval(tabsPollInterval);
+        tabsPollInterval = null;
+    }
+
     // Clear stored context — only when genuinely leaving the marketplace
     storedActionHrid = null;
     storedNumActions = 0;
     storedEnhancementContext = null;
+    lastMissingMaterials = [];
+    lastStrategyInfo = null;
     autofillManager.clearQuantity();
 }
 
