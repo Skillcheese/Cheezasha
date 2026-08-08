@@ -7,6 +7,7 @@
 import config from '../../core/config.js';
 import domObserver from '../../core/dom-observer.js';
 import dataManager from '../../core/data-manager.js';
+import webSocketHook from '../../core/websocket.js';
 import { computeBestCraftingPlan } from './crafting-plan-calculator.js';
 import { getItemPrice } from '../../utils/market-data.js';
 import { createCollapsibleSection } from '../../utils/ui-components.js';
@@ -18,6 +19,7 @@ import {
     removeMaterialTabs,
     setupMarketplaceCleanupObserver,
     navigateToMarketplace,
+    updateTabBadge,
 } from '../../utils/marketplace-tabs.js';
 import { createAutofillManager } from '../../utils/marketplace-autofill.js';
 import { calculateActionStats } from '../../utils/action-calculator.js';
@@ -40,6 +42,10 @@ const autofillManager = createAutofillManager('CraftingPlan');
 const timerRegistry = createTimerRegistry();
 let storedActionHrid = null;
 let storedNumActions = 0;
+let storedBuyItems = null;
+let inventoryUpdateHandler = null;
+let tabsPollInterval = null;
+let lastMissingMaterials = [];
 
 const PRODUCTION_TYPES = [
     '/action_types/brewing',
@@ -488,7 +494,10 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
     const buyItems = new Map();
     collectBuyItems(plan, buyItems);
 
-    if (buyItems.size > 0) {
+    // Only list what's actually missing - subtract what's already in inventory
+    const missingBuyItems = computeMissingMaterialsFromBuyItems(buyItems, { includeUntradeable: true });
+
+    if (missingBuyItems.length > 0) {
         const divider = document.createElement('div');
         divider.style.cssText = 'border-top: 1px solid var(--border-color, #333); margin: 6px 0;';
         content.appendChild(divider);
@@ -503,10 +512,10 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
         content.appendChild(shoppingHeader);
 
         // Sort by total cost descending
-        const sortedItems = [...buyItems.values()].sort((a, b) => b.totalCost - a.totalCost);
+        const sortedItems = [...missingBuyItems].sort((a, b) => b.totalCost - a.totalCost);
 
         for (const item of sortedItems) {
-            const qty = Math.ceil(item.quantity);
+            const qty = Math.ceil(item.missing);
             const cost = formatKMB(Math.round(item.totalCost));
             const unit = formatWithSeparator(Math.round(item.unitCost));
             content.appendChild(createRow(`${item.itemName} x${formatWithSeparator(qty)}`, `${cost} (${unit}/ea)`));
@@ -536,32 +545,12 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
             const inputField = findActionInput(panel);
             const numActions = parseInt(inputField?.value, 10) || 1;
 
-            const inventory = dataManager.getInventory() || [];
-
-            const missingMaterials = [];
-            for (const [itemHrid, item] of buyItems) {
-                const needed = Math.ceil(item.quantity);
-                const have = inventory
-                    .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
-                    .reduce((sum, i) => sum + (i.count || 0), 0);
-                const missing = Math.max(0, needed - have);
-                const itemDetails = dataManager.getItemDetails(itemHrid);
-                const isTradeable = itemDetails?.isTradable !== false;
-                if (missing > 0 && isTradeable) {
-                    missingMaterials.push({
-                        itemHrid,
-                        itemName: item.itemName,
-                        missing,
-                        required: needed,
-                        isTradeable,
-                    });
-                }
-            }
-
+            const missingMaterials = computeMissingMaterialsFromBuyItems(buyItems);
             if (missingMaterials.length === 0) return;
 
             storedActionHrid = actionHrid;
             storedNumActions = numActions;
+            storedBuyItems = buyItems;
 
             // Navigate to marketplace via navbar click
             const navButtons = document.querySelectorAll('.NavigationBar_nav__3uuUl');
@@ -585,7 +574,10 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
             }
 
             await new Promise((resolve) => setTimeout(resolve, 200));
-            createCraftingPlanTabs(missingMaterials);
+            // Recalculate fresh (inventory may have changed since the button was rendered)
+            const freshMaterials = computeMissingMaterialsFromBuyItems(buyItems);
+            createCraftingPlanTabs(freshMaterials);
+            setupInventoryListener();
         });
         content.appendChild(buyButton);
     }
@@ -792,10 +784,114 @@ function createReturnTab(referenceTab) {
 }
 
 /**
+ * Compute missing materials for a crafting plan's shopping list against current inventory.
+ * @param {Map} buyItems - Map of itemHrid → { itemName, quantity, unitCost, totalCost }
+ * @returns {Array} Array of { itemHrid, itemName, missing, required, isTradeable }
+ */
+function computeMissingMaterialsFromBuyItems(buyItems, { includeUntradeable = false } = {}) {
+    const inventory = dataManager.getInventory() || [];
+
+    const missingMaterials = [];
+    for (const [itemHrid, item] of buyItems) {
+        const needed = Math.ceil(item.quantity);
+        const have = inventory
+            .filter((i) => i.itemHrid === itemHrid && !i.enhancementLevel)
+            .reduce((sum, i) => sum + (i.count || 0), 0);
+        const missing = Math.max(0, needed - have);
+        const itemDetails = dataManager.getItemDetails(itemHrid);
+        const isTradeable = itemDetails?.isTradable !== false;
+        if (missing > 0 && (isTradeable || includeUntradeable)) {
+            missingMaterials.push({
+                itemHrid,
+                itemName: item.itemName,
+                missing,
+                required: needed,
+                isTradeable,
+                unitCost: item.unitCost,
+                totalCost: item.unitCost * missing,
+            });
+        }
+    }
+
+    return missingMaterials;
+}
+
+/**
+ * Setup a websocket listener that refreshes the crafting plan marketplace tabs' badges
+ * whenever inventory changes (e.g. after buying a material).
+ */
+function setupInventoryListener() {
+    if (inventoryUpdateHandler) {
+        webSocketHook.off('*', inventoryUpdateHandler);
+    }
+
+    inventoryUpdateHandler = (data) => {
+        if (
+            data.type?.includes('item') ||
+            data.type?.includes('inventory') ||
+            data.type?.includes('market') ||
+            data.inventory ||
+            data.characterItems
+        ) {
+            updateCraftingPlanTabsOnInventoryChange();
+        }
+    };
+
+    webSocketHook.on('*', inventoryUpdateHandler);
+
+    // Fallback poll in case the purchase message doesn't match the wildcard filter above
+    if (tabsPollInterval) {
+        clearInterval(tabsPollInterval);
+    }
+    tabsPollInterval = setInterval(() => {
+        if (craftingPlanTabs.length === 0) {
+            clearInterval(tabsPollInterval);
+            tabsPollInterval = null;
+            return;
+        }
+        updateCraftingPlanTabsOnInventoryChange();
+    }, 2000);
+    timerRegistry.registerInterval(tabsPollInterval);
+}
+
+/**
+ * Recalculate missing materials and refresh the badge on each existing crafting plan tab.
+ */
+function updateCraftingPlanTabsOnInventoryChange() {
+    if (craftingPlanTabs.length === 0 || !storedBuyItems) {
+        return;
+    }
+
+    const updatedMaterials = computeMissingMaterialsFromBuyItems(storedBuyItems);
+
+    craftingPlanTabs.forEach((tab) => {
+        const itemHrid = tab.getAttribute('data-item-hrid');
+        if (!itemHrid) return;
+        const material = updatedMaterials.find((m) => m.itemHrid === itemHrid);
+        if (material) {
+            updateTabBadge(tab, material);
+        } else {
+            // No longer missing (fully bought) - show as sufficient
+            const originalNeeded = storedBuyItems.get(itemHrid);
+            if (originalNeeded) {
+                updateTabBadge(tab, {
+                    itemName: originalNeeded.itemName,
+                    missing: 0,
+                    required: Math.ceil(originalNeeded.quantity),
+                    isTradeable: true,
+                });
+            }
+        }
+    });
+}
+
+/**
  * Create marketplace tabs for crafting plan shopping list materials.
  * @param {Array} missingMaterials - Array of { itemHrid, itemName, missing, required, isTradeable }
  */
 function createCraftingPlanTabs(missingMaterials) {
+    lastMissingMaterials = missingMaterials;
+
     const tabsContainer = document.querySelector('.MuiTabs-flexContainer[role="tablist"]');
     if (!tabsContainer) return;
 
@@ -829,12 +925,35 @@ function createCraftingPlanTabs(missingMaterials) {
     }
 
     if (!cleanupObserver) {
-        cleanupObserver = setupMarketplaceCleanupObserver(() => {
-            removeMaterialTabs();
-            craftingPlanTabs.length = 0;
-            storedActionHrid = null;
-            storedNumActions = 0;
-        }, craftingPlanTabs);
+        cleanupObserver = setupMarketplaceCleanupObserver(
+            () => {
+                removeMaterialTabs();
+                craftingPlanTabs.length = 0;
+                storedActionHrid = null;
+                storedNumActions = 0;
+                storedBuyItems = null;
+                lastMissingMaterials = [];
+
+                if (inventoryUpdateHandler) {
+                    webSocketHook.off('*', inventoryUpdateHandler);
+                    inventoryUpdateHandler = null;
+                }
+                if (tabsPollInterval) {
+                    clearInterval(tabsPollInterval);
+                    tabsPollInterval = null;
+                }
+                autofillManager.clearQuantity();
+            },
+            craftingPlanTabs,
+            () => {
+                // Custom tabs vanished from DOM (e.g. clicking a tab re-rendered the tab bar
+                // to show that item's detail view) but the marketplace is still open —
+                // re-insert the tabs instead of tearing down the inventory listener.
+                if (storedActionHrid) {
+                    createCraftingPlanTabs(lastMissingMaterials);
+                }
+            }
+        );
     }
 }
 
@@ -964,6 +1083,25 @@ class CraftingPlanDisplay {
         this.inputCleanups = new Map();
 
         timerRegistry.clearAll();
+
+        if (inventoryUpdateHandler) {
+            webSocketHook.off('*', inventoryUpdateHandler);
+            inventoryUpdateHandler = null;
+        }
+        if (tabsPollInterval) {
+            clearInterval(tabsPollInterval);
+            tabsPollInterval = null;
+        }
+        if (cleanupObserver) {
+            cleanupObserver();
+            cleanupObserver = null;
+        }
+        removeMaterialTabs();
+        craftingPlanTabs.length = 0;
+        storedActionHrid = null;
+        storedNumActions = 0;
+        storedBuyItems = null;
+        lastMissingMaterials = [];
 
         this.processedPanels = new WeakSet();
         this.isInitialized = false;
