@@ -2,18 +2,16 @@
 
 ## [3.7.0](https://github.com/Skillcheese/Cheezasha/compare/v3.6.1...v3.7.0) (2026-08-08)
 
-
 ### Features
 
-* live-refresh required materials display on inventory change ([1515a8a](https://github.com/Skillcheese/Cheezasha/commit/1515a8ac4c49e464b731fe49c8e7a89f4086b40b))
-* live-update crafting plan buy tabs and hide owned materials ([a7e34dd](https://github.com/Skillcheese/Cheezasha/commit/a7e34dd181d610d3f432ad0261dd53fe44e78ba0))
-
+- live-refresh required materials display on inventory change ([1515a8a](https://github.com/Skillcheese/Cheezasha/commit/1515a8ac4c49e464b731fe49c8e7a89f4086b40b))
+- live-update crafting plan buy tabs and hide owned materials ([a7e34dd](https://github.com/Skillcheese/Cheezasha/commit/a7e34dd181d610d3f432ad0261dd53fe44e78ba0))
 
 ### Bug Fixes
 
-* correct upgrade advisor equipment candidates and requirement checks ([a19a418](https://github.com/Skillcheese/Cheezasha/commit/a19a4183ba935bfedcee5f93d8b2a6884da5bb24))
-* keep inventory cache fresh after marketplace purchases ([421671d](https://github.com/Skillcheese/Cheezasha/commit/421671d6d1662b773efe1ebae015a30a31f158b3))
-* keep missing-materials tabs updating after navigating to an item ([c80478f](https://github.com/Skillcheese/Cheezasha/commit/c80478f8697b23ffd255fbd6a6c223c384f98943))
+- correct upgrade advisor equipment candidates and requirement checks ([a19a418](https://github.com/Skillcheese/Cheezasha/commit/a19a4183ba935bfedcee5f93d8b2a6884da5bb24))
+- keep inventory cache fresh after marketplace purchases ([421671d](https://github.com/Skillcheese/Cheezasha/commit/421671d6d1662b773efe1ebae015a30a31f158b3))
+- keep missing-materials tabs updating after navigating to an item ([c80478f](https://github.com/Skillcheese/Cheezasha/commit/c80478f8697b23ffd255fbd6a6c223c384f98943))
 
 ## [3.6.1](https://github.com/Skillcheese/Cheezasha/compare/v3.6.0...v3.6.1) (2026-08-07)
 
