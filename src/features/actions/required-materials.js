@@ -5,6 +5,7 @@
 
 import config from '../../core/config.js';
 import domObserver from '../../core/dom-observer.js';
+import webSocketHook from '../../core/websocket.js';
 import { numberFormatter } from '../../utils/formatters.js';
 import { calculateMaterialRequirements, isArtisanTeaOutOfStock } from '../../utils/material-calculator.js';
 import { findActionInput, attachInputListeners, performInitialUpdate } from '../../utils/action-panel-helper.js';
@@ -15,6 +16,8 @@ class RequiredMaterials {
         this.initialized = false;
         this.observers = [];
         this.processedPanels = new WeakSet();
+        this.openPanels = new Set();
+        this.itemsUpdatedHandler = null;
     }
 
     initialize() {
@@ -28,10 +31,29 @@ class RequiredMaterials {
         );
         this.observers.push(unregister);
 
+        // Re-render "Missing: X" for open panels whenever inventory changes (e.g. buying
+        // materials from the marketplace) - otherwise it stays frozen at whatever it showed
+        // when the quantity input was last typed into.
+        this.itemsUpdatedHandler = () => this.refreshOpenPanels();
+        webSocketHook.on('items_updated', this.itemsUpdatedHandler);
+
         // Process existing panels
         this.processActionPanels();
 
         this.initialized = true;
+    }
+
+    refreshOpenPanels() {
+        for (const panel of this.openPanels) {
+            if (!document.body.contains(panel)) {
+                this.openPanels.delete(panel);
+                continue;
+            }
+            const inputField = findActionInput(panel);
+            if (inputField) {
+                this.updateRequiredMaterials(panel, inputField.value);
+            }
+        }
     }
 
     processActionPanels() {
@@ -50,6 +72,7 @@ class RequiredMaterials {
 
             // Mark as processed
             this.processedPanels.add(panel);
+            this.openPanels.add(panel);
 
             // Attach input listeners using utility
             attachInputListeners(panel, inputField, (value) => {
@@ -246,6 +269,12 @@ class RequiredMaterials {
         this.observers.forEach((unregister) => unregister());
         this.observers = [];
         this.processedPanels = new WeakSet();
+        this.openPanels.clear();
+
+        if (this.itemsUpdatedHandler) {
+            webSocketHook.off('items_updated', this.itemsUpdatedHandler);
+            this.itemsUpdatedHandler = null;
+        }
 
         document.querySelectorAll('.mwi-required-materials').forEach((el) => el.remove());
 
