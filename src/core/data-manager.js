@@ -385,6 +385,27 @@ class DataManager {
 
         // Handle market_listings_updated (market order changes)
         this.webSocketHook.on('market_listings_updated', (data) => {
+            // Market buys/sells deliver the item and coin changes bundled in this same message
+            // (not a separate items_updated message) - merge them the same way items_updated does,
+            // otherwise the inventory cache goes stale after a marketplace purchase.
+            if (data.endCharacterItems && Array.isArray(data.endCharacterItems) && this.characterItems) {
+                for (const item of data.endCharacterItems) {
+                    const index = this.characterItems.findIndex((invItem) => invItem.id === item.id);
+                    if (index !== -1) {
+                        if (item.count === 0) {
+                            this.characterItems.splice(index, 1);
+                        } else {
+                            this.characterItems[index] = { ...this.characterItems[index], ...item };
+                        }
+                    } else if (item.count > 0) {
+                        this.characterItems.push(item);
+                    }
+                }
+
+                this.updateEquipmentMap(data.endCharacterItems);
+                this.emit('items_updated', data);
+            }
+
             if (!this.characterData || !Array.isArray(data?.endMarketListings)) {
                 return;
             }
