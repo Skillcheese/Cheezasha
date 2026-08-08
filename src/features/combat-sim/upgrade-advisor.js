@@ -111,15 +111,15 @@ function getBudgetMatchedBreakpoint(currentLevel, slot, itemHrid, gameData, budg
  * @returns {number} Highest affordable enhancement level with a market listing, or 0
  */
 function getBudgetMatchedItemLevel(hrid, budget) {
-    let bestLevel = 0;
-    for (let level = 1; level <= 20; level++) {
+    let bestLevel = -1;
+    for (let level = 0; level <= 20; level++) {
         const market = getItemPrices(hrid, level);
         if (!market || !(market.ask > 0)) continue;
         if (market.ask <= budget) {
             bestLevel = level;
         }
     }
-    return bestLevel;
+    return Math.max(bestLevel, 0);
 }
 
 /**
@@ -265,17 +265,20 @@ const DTO_SKILL_FIELDS = {
 
 /**
  * Build a skill-level map from a player DTO's own combat-skill fields, falling back to the
- * live character's skills for anything the DTO doesn't carry (non-combat skills). Ability-book
- * requirement checks must use this instead of the live character's skills whenever the DTO
- * being planned against has simulated/edited stats — otherwise editing a stat in the sim editor
- * silently has no effect on what abilities are considered available.
+ * live character's skills for anything the DTO doesn't carry (non-combat skills). Requirement
+ * checks (ability books, equipment) must use this instead of the live character's skills
+ * whenever the DTO being planned against has simulated/edited stats — otherwise editing a
+ * stat in the sim editor's Config tab silently has no effect on what abilities/equipment are
+ * considered available.
  * @param {Object} playerDTO
+ * @param {number} [levelBoost=0] - Levels to add on top of the DTO's own combat-skill values,
+ *  for planning upgrades reachable X levels from now.
  * @returns {Map<string, number>} skillHrid -> level
  */
-function getSkillLevelMapFromDTO(playerDTO) {
-    const map = getCharacterSkillLevelMap();
+function getSkillLevelMapFromDTO(playerDTO, levelBoost = 0) {
+    const map = getCharacterSkillLevelMap(levelBoost);
     for (const [skillHrid, field] of Object.entries(DTO_SKILL_FIELDS)) {
-        if (playerDTO[field] != null) map.set(skillHrid, playerDTO[field]);
+        if (playerDTO[field] != null) map.set(skillHrid, playerDTO[field] + levelBoost);
     }
     return map;
 }
@@ -828,61 +831,9 @@ function buildDirectUpgradeMap(gameData) {
 }
 
 /**
- * Find every item that eventually crafts forward into targetHrid via DIRECT upgrade
- * chains only (i.e. is a strictly-inferior earlier tier in the SAME item line, like
- * Cheese Boots → Verdant Boots). These are excluded from tier candidates since they're
- * objectively worse than what's already equipped. Items with a lower item level that
- * belong to a DIFFERENT, unrelated line (e.g. Shoebill vs. Burble Boots) are not
- * ancestors and remain valid candidates — the sim decides if they're actually better.
- * @param {string} targetHrid
- * @param {Map<string, Set<string>>} directUpgradeMap - itemHrid → Set of direct upgrade output hrids
- * @returns {Set<string>} Hrids that are lower-tier predecessors of targetHrid
- */
-function getSameLineAncestors(targetHrid, directUpgradeMap) {
-    const ancestors = new Set();
-    const queue = [targetHrid];
-    const visited = new Set([targetHrid]);
-
-    while (queue.length) {
-        const current = queue.shift();
-        for (const [hrid, upgrades] of directUpgradeMap.entries()) {
-            if (!upgrades.has(current)) continue;
-            if (visited.has(hrid)) continue;
-            visited.add(hrid);
-            ancestors.add(hrid);
-            queue.push(hrid);
-        }
-    }
-
-    return ancestors;
-}
-
-/**
- * Given a set of candidate items for the same slot, drop any item that has a direct
- * single-item upgrade target also present in the set — keeping only the furthest tier
- * reachable within each same-line chain. Without this, e.g. Cheese/Verdant/Azure Chest
- * would all show up as separate candidates when only Azure (the best reachable one) is
- * actually worth suggesting.
- * @param {Array<{hrid: string}>} items
- * @param {Map<string, Set<string>>} directUpgradeMap
- * @returns {Array<{hrid: string}>}
- */
-function filterToLatestInChain(items, directUpgradeMap) {
-    const hridSet = new Set(items.map((item) => item.hrid));
-    return items.filter((item) => {
-        const upgrades = directUpgradeMap.get(item.hrid);
-        if (!upgrades) return true;
-        for (const upgradeHrid of upgrades) {
-            if (hridSet.has(upgradeHrid)) return false;
-        }
-        return true;
-    });
-}
-
-/**
  * Group candidate items into their same-line chains (e.g. Cheese/Verdant/Azure Chest)
- * and keep only the top N by item level within each line. Unlike filterToLatestInChain
- * (which keeps only the single furthest tier), this preserves lower tiers that may be
+ * and keep only the top N by item level within each line. Unlike keeping only the single
+ * furthest tier, this preserves lower tiers that may be
  * more coin-efficient upgrades, while still bounding how many tiers of the same line get
  * simmed.
  * @param {Array<{hrid: string, itemLevel?: number}>} items
@@ -1057,7 +1008,7 @@ export function generateCandidates(
         const tierProgression = getEquipmentTierProgression(gameData);
         const upgradeMap = buildUpgradeMap(gameData);
         const directUpgradeMap = buildDirectUpgradeMap(gameData);
-        const skillLevelMap = getCharacterSkillLevelMap(equipmentLevelBoost);
+        const skillLevelMap = getSkillLevelMapFromDTO(playerDTO, equipmentLevelBoost);
 
         // Combat style is set by the equipped weapon, not by whatever's currently in
         // each armor/off-hand slot — e.g. boots with +magic accuracy should be filtered
@@ -1095,27 +1046,27 @@ export function generateCandidates(
 
             // Tier/replacement upgrades: every other item in the same slot that meets skill
             // requirements. Not filtered by item level, since a lower-item-level item
-            // (e.g. Shoebill vs. Burble Boots) can still be a real upgrade. Filtered for
-            // damage-style compatibility against the equipped weapon (see isStyleCompatible)
-            // so e.g. a melee player never sees magic/ranged-only items, and deduped so only
-            // the furthest-reachable tier of each same-line crafting chain is kept (e.g.
-            // Cheese → Verdant → Azure Chest only surfaces Azure, not all three).
+            // (e.g. Shoebill vs. Burble Boots) can still be a real upgrade — even a same-line
+            // predecessor of the currently-equipped item isn't excluded, since a cheap ancestor
+            // pushed to a high enhancement level can outperform an expensive current-tier item
+            // left at a low one. Filtered for damage-style compatibility against the equipped
+            // weapon (see isStyleCompatible). All tiers of a same-line crafting chain (e.g.
+            // Cheese/Verdant/Azure Chest) are kept, not just the furthest one — a lower tier
+            // can still be the coin-efficient pick within budget.
             const slotItems = tierProgression[slot];
             const currentName = itemDetails?.name || currentHrid.split('/').pop();
-            const sameLineAncestors = getSameLineAncestors(currentHrid, directUpgradeMap);
             const seenHrids = new Set();
             const rawCandidates = [];
 
             if (slotItems) {
                 for (const item of slotItems) {
                     if (item.hrid === currentHrid) continue;
-                    if (sameLineAncestors.has(item.hrid)) continue;
                     if (!meetsItemLevelRequirements(item.hrid, skillLevelMap, gameData)) continue;
                     const candidateStats = gameData.itemDetailMap[item.hrid]?.equipmentDetail?.combatStats;
                     if (!isStyleCompatible(weaponStats, candidateStats)) continue;
 
                     seenHrids.add(item.hrid);
-                    rawCandidates.push({ hrid: item.hrid, name: item.name });
+                    rawCandidates.push({ hrid: item.hrid, name: item.name, itemLevel: item.itemLevel || 0 });
                 }
             }
 
@@ -1134,11 +1085,15 @@ export function generateCandidates(
                     if (!meetsItemLevelRequirements(upgradeHrid, skillLevelMap, gameData)) continue;
 
                     seenHrids.add(upgradeHrid);
-                    rawCandidates.push({ hrid: upgradeHrid, name: upgradeItem.name });
+                    rawCandidates.push({
+                        hrid: upgradeHrid,
+                        name: upgradeItem.name,
+                        itemLevel: upgradeItem.itemLevel || 0,
+                    });
                 }
             }
 
-            const finalCandidates = filterToLatestInChain(rawCandidates, directUpgradeMap);
+            const finalCandidates = rawCandidates;
             for (const cand of finalCandidates) {
                 const upgradeName = cand.name || cand.hrid.split('/').pop();
                 const upgradeLevel = getBudgetMatchedItemLevel(cand.hrid, enhancementBudget);
