@@ -1534,6 +1534,13 @@ export const settingsGroups = {
                 default: true,
                 help: 'Adds a floating button with a fully customizable gear/skill-level/house/community-buff loadout, and shows the top 3 profit/hr actions per skill for that loadout',
             },
+            allItemsTab: {
+                id: 'allItemsTab',
+                label: 'Crafting skills: Add "All Items" tab',
+                type: 'checkbox',
+                default: true,
+                help: 'Adds an "All Items" tab next to the category tabs (Hands, Feet, etc.) in Cheesesmithing, Crafting, Tailoring, Cooking, and Brewing that shows every recipe from all sub-tabs at once',
+            },
             skillRemainingXP_blackBorder: {
                 id: 'skillRemainingXP_blackBorder',
                 label: 'Remaining XP: Add black text border for better visibility',

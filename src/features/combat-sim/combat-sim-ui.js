@@ -495,6 +495,14 @@ class CombatSimUI {
                 <input type="checkbox" id="mwi-csim-upgrade-reorder" style="margin:0; cursor:pointer;">
                 Try Reordering
             </label>
+            <span id="mwi-csim-upgrade-depth-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;">Search Depth</label>
+                <select id="mwi-csim-upgrade-depth" style="${selectStyle}"
+                    title="Shallow tests the top 15 ranked abilities in every combination (fast). Full tests the top 30, catching more off-meta abilities but can take several minutes.">
+                    <option value="15">Shallow (fast)</option>
+                    <option value="30">Full (slow, more thorough)</option>
+                </select>
+            </span>
             <label style="color:#888; font-size:12px;">Test Hours</label>
             <input id="mwi-csim-upgrade-hours" type="number" min="1" max="1000" step="1" value="${config.getSettingValue('combatSim_upgradeAdvisorHours', 2)}" style="
                 width:55px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
@@ -971,6 +979,7 @@ class CombatSimUI {
             const budgetInput = this.panel.querySelector('#mwi-csim-upgrade-swap-budget');
             const levelBoostGroup = this.panel.querySelector('#mwi-csim-upgrade-level-boost-group');
             const reorderGroup = this.panel.querySelector('#mwi-csim-upgrade-reorder-group');
+            const depthGroup = this.panel.querySelector('#mwi-csim-upgrade-depth-group');
             const isEquipmentMode = e.target.value === 'equipment';
             const isLevelMode = e.target.value === 'ability_level';
             const isSwapMode = e.target.value === 'ability_swap';
@@ -979,6 +988,7 @@ class CombatSimUI {
             budgetGroup.style.display = isLevelMode ? 'none' : 'inline-flex';
             levelBoostGroup.style.display = isEquipmentMode ? 'inline-flex' : 'none';
             reorderGroup.style.display = isSwapMode ? 'inline-flex' : 'none';
+            depthGroup.style.display = isOptimizeMode ? 'inline-flex' : 'none';
             if (isEquipmentMode) {
                 budgetLabel.textContent = 'Max Cost (M coins)';
                 budgetInput.title =
@@ -4632,6 +4642,7 @@ class CombatSimUI {
         const equipmentLevelBoost = Math.max(0, Math.floor(parseFloat(levelBoostInput)) || 0);
         const abilityReorderEnabled =
             upgradeMode === 'ability_swap' && (this.panel.querySelector('#mwi-csim-upgrade-reorder')?.checked || false);
+        const abilityOptimizePoolSize = parseInt(this.panel.querySelector('#mwi-csim-upgrade-depth')?.value) || 15;
 
         if (!zoneHrid) {
             this._setStatus('Select a zone in Configure tab first.');
@@ -4691,6 +4702,7 @@ class CombatSimUI {
                     equipmentLevelBoost,
                     skipBackSlot,
                     abilityReorderEnabled,
+                    abilityOptimizePoolSize,
                 },
                 (() => {
                     const fill = this.panel.querySelector('#mwi-csim-upgrade-progress-fill');

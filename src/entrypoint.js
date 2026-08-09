@@ -640,6 +640,13 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'allItemsTab',
+            name: 'All Items Tab',
+            category: 'Skills',
+            module: UI.allItemsTab,
+            async: false,
+        },
+        {
             key: 'skillOptimizerPopup',
             name: 'Skill Optimizer Popup',
             category: 'Skills',

@@ -42,6 +42,7 @@ import taskAutoReroll from '../features/tasks/task-auto-reroll.js';
 import remainingXP from '../features/skills/remaining-xp.js';
 import xpTracker from '../features/skills/xp-tracker.js';
 import bestRatesPopup from '../features/skills/best-rates-popup.js';
+import allItemsTab from '../features/skills/all-items-tab.js';
 import skillOptimizerPopup from '../features/skill-optimizer/skill-optimizer-ui.js';
 
 // Action features
@@ -126,6 +127,7 @@ cheezashaRoot.UI = {
     remainingXP,
     xpTracker,
     bestRatesPopup,
+    allItemsTab,
     skillOptimizerPopup,
     lootLogStats,
     housePanelObserver,

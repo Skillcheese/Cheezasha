@@ -13,6 +13,7 @@ import {
     getCombatZones,
     getCommunityBuffs,
     getLabyrinthMonsters,
+    applyLoadoutSnapshotToDTO,
 } from './combat-sim-adapter.js';
 import { runLabyrinthSimulation, cancelSimulation, getMaxBatchWorkers } from './combat-sim-runner.js';
 import { findMaxLabyrinthLevel } from './labyrinth-level-finder.js';
@@ -20,6 +21,8 @@ import {
     runLabyrinthUpgradeAnalysis,
     computeSkillingClearRatesFromEditor,
     runSkillingUpgradeAnalysis,
+    optimizeLabyrinthAbilities,
+    optimizeLabyrinthEquipment,
 } from './upgrade-advisor.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatWithSeparator } from '../../utils/formatters.js';
@@ -252,6 +255,16 @@ class LabSimUI {
             </label>
             <input id="mwi-labsim-threshold" type="number" min="1" max="100" value="${config.getSettingValue('labyrinthRecommendTargetRate', 95)}" style="width:44px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
             <span style="color:#888; font-size:12px;">%</span>
+            <label style="color:#888; font-size:12px;" title="Re-optimize each monster's abilities or equipment from scratch (like Combat Sim's Optimize Abilities) on top of its best gear loadout. Significantly slower.">Optimize</label>
+            <select id="mwi-labsim-optimize-mode" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px;">
+                <option value="none">Don't Optimize</option>
+                <option value="abilities">Optimize Abilities</option>
+                <option value="equipment">Optimize Equipment</option>
+            </select>
+            <span id="mwi-labsim-optimize-budget-group" style="display:none; align-items:center; gap:4px;">
+                <label id="mwi-labsim-optimize-budget-label" style="color:#888; font-size:12px;">Budget (M)</label>
+                <input id="mwi-labsim-optimize-budget" type="number" min="0" step="0.1" placeholder="avg" title="Total coin budget (millions) to spend on the optimization. Leave blank to size against the average cost already invested." style="width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
+            </span>
         `;
 
         const maxLevelProgress = document.createElement('div');
@@ -266,6 +279,12 @@ class LabSimUI {
                 <button id="mwi-labsim-stop" style="
                     background:rgba(255,80,80,0.2); color:#f44; border:1px solid rgba(255,80,80,0.4);
                     border-radius:4px; padding:2px 10px; font-size:11px; cursor:pointer; font-weight:600;">Stop</button>
+            </div>
+            <div id="mwi-labsim-progress2-row" style="display:none; margin-top:5px;">
+                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:14px; overflow:hidden; position:relative; border:1px solid #333;">
+                    <div id="mwi-labsim-progress2-fill" style="height:100%; width:0%; background:linear-gradient(90deg, rgba(160,120,255,0.35), #a078ff); border-radius:3px; transition:width 0.2s ease;"></div>
+                    <span id="mwi-labsim-progress2-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:10px; line-height:14px; color:#e0e0e0; font-weight:600;">Ability combos</span>
+                </div>
             </div>
         `;
 
@@ -538,6 +557,12 @@ class LabSimUI {
             levelInput.disabled = e.target.checked;
             levelInput.style.opacity = e.target.checked ? '0.4' : '1';
         });
+        this.panel.querySelector('#mwi-labsim-optimize-mode').addEventListener('change', (e) => {
+            const budgetGroup = this.panel.querySelector('#mwi-labsim-optimize-budget-group');
+            const budgetLabel = this.panel.querySelector('#mwi-labsim-optimize-budget-label');
+            budgetGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
+            budgetLabel.textContent = e.target.value === 'equipment' ? 'Max Cost (M)' : 'Budget (M)';
+        });
 
         // Upgrade listeners
         this.panel.querySelector('#mwi-labsim-upgrade-run').addEventListener('click', () => this._onUpgradeAnalyze());
@@ -786,7 +811,14 @@ class LabSimUI {
             return;
         }
 
-        playerDTOs = [playerDTOs[0]];
+        const baseDTO = playerDTOs[0];
+
+        const optimizeMode = this.panel.querySelector('#mwi-labsim-optimize-mode')?.value || 'none';
+        const optimizeBudgetInput = this.panel.querySelector('#mwi-labsim-optimize-budget')?.value;
+        const optimizeBudget =
+            optimizeBudgetInput && parseFloat(optimizeBudgetInput) > 0
+                ? parseFloat(optimizeBudgetInput) * 1_000_000
+                : null;
 
         const communityBuffs = getCommunityBuffs();
         const zones = getCombatZones();
@@ -801,9 +833,15 @@ class LabSimUI {
         const progressContainer = this.panel.querySelector('#mwi-labsim-progress');
         const progressFill = this.panel.querySelector('#mwi-labsim-progress-fill');
         const progressText = this.panel.querySelector('#mwi-labsim-progress-text');
+        const progress2Row = this.panel.querySelector('#mwi-labsim-progress2-row');
+        const progress2Fill = this.panel.querySelector('#mwi-labsim-progress2-fill');
+        const progress2Text = this.panel.querySelector('#mwi-labsim-progress2-text');
         progressContainer.style.display = 'block';
         progressFill.style.width = '0%';
         progressText.textContent = `0 / ${monsters.length}`;
+        progress2Row.style.display = optimizeMode !== 'none' ? 'block' : 'none';
+        progress2Fill.style.width = '0%';
+        progress2Text.textContent = 'Optimization combos';
 
         const simStartTime = Date.now();
 
@@ -811,6 +849,42 @@ class LabSimUI {
             const percent = Math.round((done / total) * 100);
             progressFill.style.width = `${percent}%`;
             progressText.textContent = `${done} / ${total}${monsterName ? ' — ' + monsterName : ''}`;
+        };
+
+        // Multiple monsters optimize concurrently across the worker pool, each running its own
+        // independent combo search — a single shared {current, total} would flicker as whichever
+        // call last reported overwrote the bar. Instead each concurrent search gets its own slot
+        // (via makeOptimizeProgress()) and the bar shows the combined remaining count across
+        // every search still in flight; a slot is dropped once its search completes.
+        const optimizeProgressSlots = new Map();
+        let optimizeProgressSeq = 0;
+        const renderOptimizeProgress = () => {
+            let sumCurrent = 0;
+            let sumTotal = 0;
+            for (const { current, total } of optimizeProgressSlots.values()) {
+                sumCurrent += current;
+                sumTotal += total;
+            }
+            if (sumTotal === 0) {
+                progress2Fill.style.width = '0%';
+                progress2Text.textContent = 'Optimization combos';
+                return;
+            }
+            const percent = Math.round((sumCurrent / sumTotal) * 100);
+            progress2Fill.style.width = `${percent}%`;
+            progress2Text.textContent = `${sumTotal - sumCurrent} / ${sumTotal} combos left to check`;
+        };
+        const makeOptimizeProgress = () => {
+            const slotId = optimizeProgressSeq++;
+            return ({ current, total }) => {
+                if (current == null || !total) return;
+                if (current >= total) {
+                    optimizeProgressSlots.delete(slotId);
+                } else {
+                    optimizeProgressSlots.set(slotId, { current, total });
+                }
+                renderOptimizeProgress();
+            };
         };
 
         try {
@@ -824,15 +898,18 @@ class LabSimUI {
                     {
                         monsters,
                         gameData,
-                        playerDTOs,
+                        baseDTO,
                         zoneHrid,
                         crates,
                         hours,
                         communityBuffs,
                         labyrinthCombatBuffs,
                         threshold,
+                        optimizeMode,
+                        optimizeBudget,
                     },
-                    onProgress
+                    onProgress,
+                    makeOptimizeProgress
                 );
 
                 this._labyResults = { mode: 'findmax', results };
@@ -842,15 +919,18 @@ class LabSimUI {
                     {
                         monsters,
                         gameData,
-                        playerDTOs,
+                        baseDTO,
                         zoneHrid,
                         roomLevel,
                         crates,
                         hours,
                         communityBuffs,
                         labyrinthCombatBuffs,
+                        optimizeMode,
+                        optimizeBudget,
                     },
-                    onProgress
+                    onProgress,
+                    makeOptimizeProgress
                 );
 
                 this._labyResults = { mode: 'sim', results, roomLevel, hours };
@@ -871,20 +951,60 @@ class LabSimUI {
     }
 
     /**
-     * Run a fixed-level sim for every labyrinth monster in parallel across the shared worker pool.
+     * Look up the loadout name assigned to a monster in the Automation tab
+     * (characterSetting.labyrinthLoadout{Monster}), the same lookup _onMonsterChange() uses.
+     * @param {string} monsterHrid
+     * @returns {string|null}
      * @private
      */
-    async _runAllMonstersSim(params, onProgress) {
+    _getMonsterLoadoutName(monsterHrid) {
+        const monsterId = monsterHrid.split('/').pop();
+        const pascal = monsterId
+            .split('_')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join('');
+        const loadoutId = dataManager.characterData?.characterSetting?.[`labyrinthLoadout${pascal}`];
+        if (!loadoutId) return null;
+        const snapshot = loadoutSnapshot.snapshots[loadoutId];
+        return snapshot?.name || null;
+    }
+
+    /**
+     * Build the player DTO to simulate a given monster with: the loadout assigned to it in the
+     * Automation tab if one is set, otherwise the currently equipped gear.
+     * @param {Object} baseDTO - Player DTO built from live/edited character state
+     * @param {Object} gameData
+     * @param {string} monsterHrid
+     * @returns {{playerDTOs: Object[], loadoutName: string}}
+     * @private
+     */
+    _buildMonsterPlayerDTOs(baseDTO, gameData, monsterHrid) {
+        const loadoutName = this._getMonsterLoadoutName(monsterHrid);
+        if (!loadoutName) return { playerDTOs: [baseDTO], loadoutName: 'Current Gear' };
+
+        const dto = structuredClone(baseDTO);
+        applyLoadoutSnapshotToDTO(dto, loadoutName, gameData);
+        return { playerDTOs: [dto], loadoutName };
+    }
+
+    /**
+     * Run a fixed-level sim for every labyrinth monster against every loadout candidate in
+     * parallel across the shared worker pool, keeping the best-performing loadout per monster.
+     * @private
+     */
+    async _runAllMonstersSim(params, onProgress, makeOptimizeProgress) {
         const {
             monsters,
             gameData,
-            playerDTOs,
+            baseDTO,
             zoneHrid,
             roomLevel,
             crates,
             hours,
             communityBuffs,
             labyrinthCombatBuffs,
+            optimizeMode,
+            optimizeBudget,
         } = params;
         const total = monsters.length;
         let done = 0;
@@ -897,9 +1017,15 @@ class LabSimUI {
                 while (cursor < monsters.length) {
                     const index = cursor++;
                     const monster = monsters[index];
+                    const { playerDTOs: monsterPlayerDTOs, loadoutName } = this._buildMonsterPlayerDTOs(
+                        baseDTO,
+                        gameData,
+                        monster.hrid
+                    );
+
                     const simResult = await runLabyrinthSimulation({
                         gameData,
-                        playerDTOs,
+                        playerDTOs: monsterPlayerDTOs,
                         zoneHrid,
                         monsterHrid: monster.hrid,
                         roomLevel,
@@ -914,13 +1040,55 @@ class LabSimUI {
                     const deaths = simResult.deaths?.player1 || 0;
                     const winRate = attempts > 0 ? encounters / attempts : 0;
 
+                    let best = { winRate, encounters, attempts, deaths, loadoutName };
+
+                    if (optimizeMode === 'abilities' || optimizeMode === 'equipment') {
+                        if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
+                        const optimizer =
+                            optimizeMode === 'abilities' ? optimizeLabyrinthAbilities : optimizeLabyrinthEquipment;
+                        const optimized = await optimizer(
+                            {
+                                playerDTOs: monsterPlayerDTOs,
+                                playerIndex: 0,
+                                gameData,
+                                monsterHrid: monster.hrid,
+                                roomLevel,
+                                crates,
+                                hours,
+                                communityBuffs,
+                                labyrinthCombatBuffs,
+                                budget: optimizeBudget,
+                            },
+                            makeOptimizeProgress?.()
+                        );
+                        if (optimized) {
+                            // Always report what optimization tried, even when it didn't help, so
+                            // the user can see it actually ran instead of silently doing nothing.
+                            best =
+                                optimized.winRate > best.winRate
+                                    ? {
+                                          winRate: optimized.winRate,
+                                          encounters: optimized.encounters,
+                                          attempts: optimized.attempts,
+                                          deaths: optimized.deaths,
+                                          loadoutName: `${loadoutName} + ${optimized.description}`,
+                                      }
+                                    : {
+                                          ...best,
+                                          loadoutName: `${loadoutName} (tried: ${optimized.description} — no improvement)`,
+                                      };
+                        } else {
+                            best = {
+                                ...best,
+                                loadoutName: `${loadoutName} (no ${optimizeMode} optimization candidates found)`,
+                            };
+                        }
+                    }
+
                     results[index] = {
                         monsterHrid: monster.hrid,
                         monsterName: monster.name,
-                        winRate,
-                        encounters,
-                        attempts,
-                        deaths,
+                        ...best,
                     };
                     done++;
                     if (onProgress) onProgress(done, total, monster.name);
@@ -932,20 +1100,23 @@ class LabSimUI {
     }
 
     /**
-     * Binary-search the max beatable level for every labyrinth monster in parallel.
+     * Binary-search the max beatable level for every labyrinth monster, each simulated with the
+     * loadout assigned to it in the Automation tab.
      * @private
      */
-    async _runAllMonstersFindMax(params, onProgress) {
+    async _runAllMonstersFindMax(params, onProgress, makeOptimizeProgress) {
         const {
             monsters,
             gameData,
-            playerDTOs,
+            baseDTO,
             zoneHrid,
             crates,
             hours,
             communityBuffs,
             labyrinthCombatBuffs,
             threshold,
+            optimizeMode,
+            optimizeBudget,
         } = params;
         const total = monsters.length;
         let done = 0;
@@ -958,9 +1129,15 @@ class LabSimUI {
                 while (cursor < monsters.length) {
                     const index = cursor++;
                     const monster = monsters[index];
+                    const { playerDTOs: monsterPlayerDTOs, loadoutName } = this._buildMonsterPlayerDTOs(
+                        baseDTO,
+                        gameData,
+                        monster.hrid
+                    );
+
                     const maxResult = await findMaxLabyrinthLevel({
                         gameData,
-                        playerDTOs,
+                        playerDTOs: monsterPlayerDTOs,
                         zoneHrid,
                         monsterHrid: monster.hrid,
                         crates,
@@ -971,12 +1148,82 @@ class LabSimUI {
                         minLevel: 1,
                     });
 
-                    results[index] = {
-                        monsterHrid: monster.hrid,
-                        monsterName: monster.name,
+                    let best = {
                         maxLevel: maxResult.maxLevel,
                         winRate: maxResult.winRate,
                         steps: maxResult.steps,
+                        loadoutName,
+                    };
+
+                    if (optimizeMode === 'abilities' || optimizeMode === 'equipment') {
+                        if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
+                        // Rank at the best level found so far, or level 1 if even that failed the
+                        // threshold — a 0% mob can still improve, it just needs a valid room level
+                        // to sim against for the ranking pass.
+                        const optimizer =
+                            optimizeMode === 'abilities' ? optimizeLabyrinthAbilities : optimizeLabyrinthEquipment;
+                        const optimized = await optimizer(
+                            {
+                                playerDTOs: monsterPlayerDTOs,
+                                playerIndex: 0,
+                                gameData,
+                                monsterHrid: monster.hrid,
+                                roomLevel: Math.max(best.maxLevel, 1),
+                                crates,
+                                hours,
+                                communityBuffs,
+                                labyrinthCombatBuffs,
+                                budget: optimizeBudget,
+                            },
+                            makeOptimizeProgress?.()
+                        );
+                        if (optimized) {
+                            const modifiedDTO =
+                                optimizeMode === 'abilities'
+                                    ? { ...monsterPlayerDTOs[0], abilities: optimized.abilities }
+                                    : { ...monsterPlayerDTOs[0], equipment: optimized.equipment };
+                            const reMax = await findMaxLabyrinthLevel({
+                                gameData,
+                                playerDTOs: [modifiedDTO],
+                                zoneHrid,
+                                monsterHrid: monster.hrid,
+                                crates,
+                                simHours: hours,
+                                communityBuffs,
+                                labyrinthCombatBuffs,
+                                threshold,
+                                minLevel: 1,
+                            });
+                            // When both are stuck at maxLevel 0, still adopt the swap if it raises
+                            // the win rate — it's the closest thing to progress to show.
+                            const improved =
+                                reMax.maxLevel > best.maxLevel ||
+                                (reMax.maxLevel === best.maxLevel && reMax.winRate > best.winRate);
+                            // Always report what optimization tried, even when it didn't help, so
+                            // the user can see it actually ran instead of silently doing nothing.
+                            best = improved
+                                ? {
+                                      maxLevel: reMax.maxLevel,
+                                      winRate: reMax.winRate,
+                                      steps: reMax.steps,
+                                      loadoutName: `${loadoutName} + ${optimized.description}`,
+                                  }
+                                : {
+                                      ...best,
+                                      loadoutName: `${loadoutName} (tried: ${optimized.description} — no improvement)`,
+                                  };
+                        } else {
+                            best = {
+                                ...best,
+                                loadoutName: `${loadoutName} (no ${optimizeMode} optimization candidates found)`,
+                            };
+                        }
+                    }
+
+                    results[index] = {
+                        monsterHrid: monster.hrid,
+                        monsterName: monster.name,
+                        ...best,
                     };
                     done++;
                     if (onProgress) onProgress(done, total, monster.name);
@@ -1007,6 +1254,7 @@ class LabSimUI {
             <th style="${thStyle}">Win Rate</th>
             <th style="${thStyle}">Encounters</th>
             <th style="${thStyle}">Deaths</th>
+            <th style="${thLeftStyle}">Loadout</th>
         </tr></thead><tbody>`;
 
         for (const r of sorted) {
@@ -1017,6 +1265,7 @@ class LabSimUI {
                 <td style="${tdStyle} color:${color}; font-weight:600;">${winRatePct.toFixed(2)}%</td>
                 <td style="${tdStyle} color:#ccc;">${formatWithSeparator(r.encounters)}</td>
                 <td style="${tdStyle} color:${r.deaths > 0 ? '#f44336' : '#4caf50'};">${formatWithSeparator(r.deaths)}</td>
+                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:320px; white-space:normal; word-break:break-word;">${r.loadoutName}</td>
             </tr>`;
         }
 
@@ -1047,6 +1296,7 @@ class LabSimUI {
             <th style="${thStyle}">Max Level</th>
             <th style="${thStyle}">Win Rate</th>
             <th style="${thStyle}">Skip</th>
+            <th style="${thLeftStyle}">Loadout</th>
         </tr></thead><tbody>`;
 
         for (const r of sorted) {
@@ -1056,6 +1306,7 @@ class LabSimUI {
                 <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
                 <td style="${tdStyle} color:#ccc;">${(r.winRate * 100).toFixed(1)}%</td>
                 <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
+                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:320px; white-space:normal; word-break:break-word;">${r.loadoutName}</td>
             </tr>`;
         }
 
