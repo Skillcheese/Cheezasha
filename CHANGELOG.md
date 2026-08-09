@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.1](https://github.com/Skillcheese/Cheezasha/compare/v3.9.0...v3.9.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* keep tooltips/poppers on-screen and hide all-items tab in combat panel ([d5cecc2](https://github.com/Skillcheese/Cheezasha/commit/d5cecc246459ac05e907c616a9e05995296c34ea))
+
 ## [3.9.0](https://github.com/Skillcheese/Cheezasha/compare/v3.8.0...v3.9.0) (2026-08-09)
 
 ### Features
