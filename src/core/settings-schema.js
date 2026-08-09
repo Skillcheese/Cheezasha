@@ -1677,6 +1677,13 @@ export const settingsGroups = {
                 default: true,
                 help: 'Displays encounters/hour, revenue, experience rates when returning from combat',
             },
+            dpsCalculator: {
+                id: 'dpsCalculator',
+                label: 'Show DPS calculator below your character in combat',
+                type: 'checkbox',
+                default: true,
+                help: 'Displays current-battle DPS and total combat-session DPS below your character card',
+            },
             combatSim: {
                 id: 'combatSim',
                 label: 'Combat Simulator',

@@ -16,6 +16,7 @@ import dungeonTrackerUI from '../features/combat/dungeon-tracker-ui.js';
 import dungeonTrackerChatAnnotations from '../features/combat/dungeon-tracker-chat-annotations.js';
 import combatSummary from '../features/combat/combat-summary.js';
 import combatBattleCounter from '../features/combat/combat-battle-counter.js';
+import dpsCalculator from '../features/combat/dps-calculator.js';
 import labyrinthTracker from '../features/combat/labyrinth-tracker.js';
 import labyrinthBestLevel from '../features/combat/labyrinth-best-level.js';
 import labyrinthShopPrices from '../features/combat/labyrinth-shop-prices.js';
@@ -55,6 +56,7 @@ cheezashaRoot.Combat = {
     dungeonTrackerChatAnnotations,
     combatSummary,
     combatBattleCounter,
+    dpsCalculator,
     labyrinthTracker,
     labyrinthBestLevel,
     labyrinthShopPrices,

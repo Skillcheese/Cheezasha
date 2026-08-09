@@ -428,6 +428,13 @@ function registerFeatures() {
             module: Combat.combatSummary,
             async: false,
         },
+        {
+            key: 'dpsCalculator',
+            name: 'DPS Calculator',
+            category: 'Combat',
+            module: Combat.dpsCalculator,
+            async: false,
+        },
         { key: 'combatStats', name: 'Combat Stats', category: 'Combat', module: Combat.combatStats, async: false },
         {
             key: 'labyrinthTracker',
