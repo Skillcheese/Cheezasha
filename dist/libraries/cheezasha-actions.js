@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.8.0
+ * Version: 3.9.0
  * License: CC-BY-NC-SA-4.0
  */
 
