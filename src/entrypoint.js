@@ -20,7 +20,7 @@ const Combat = window.Cheezasha.Combat;
 const UI = window.Cheezasha.UI;
 
 // Destructure core modules
-const { storage, config, webSocketHook, domObserver, dataManager, featureRegistry } = Core;
+const { storage, config, webSocketHook, domObserver, dataManager, featureRegistry, tooltipObserver } = Core;
 
 const { setupScrollTooltipDismissal } = Utils.dom;
 
@@ -828,6 +828,9 @@ if (isCombatSimulatorPage()) {
 
     // Set up scroll listener to dismiss stuck tooltips
     setupScrollTooltipDismissal();
+
+    // Keep tooltips/poppers on-screen regardless of which features subscribe to them
+    tooltipObserver.initialize();
 
     // Initialize network alert (must be early, before market features)
     Market.networkAlert.initialize();

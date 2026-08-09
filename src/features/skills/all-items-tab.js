@@ -125,6 +125,7 @@ class AllItemsTab {
 
             const content = wrapper.nextElementSibling;
             if (!content || !content.querySelector('[class*="SkillActionGrid_skillActionGrid"]')) return;
+            if (wrapper.closest('[class*="CombatPanel_combatPanel"]')) return;
 
             let btn = tabList.querySelector('.cheezasha-all-items-tab');
             if (!btn) {
