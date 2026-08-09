@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.0](https://github.com/Skillcheese/Cheezasha/compare/v3.8.0...v3.9.0) (2026-08-09)
+
+
+### Features
+
+* add DPS calculator display to combat panel ([a7787df](https://github.com/Skillcheese/Cheezasha/commit/a7787dff27439c6e9439aa31e590ec8a3bbddcb6))
+
 ## [3.8.0](https://github.com/Skillcheese/Cheezasha/compare/v3.7.0...v3.8.0) (2026-08-09)
 
 ### Features
