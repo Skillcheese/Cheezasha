@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.8.0](https://github.com/Skillcheese/Cheezasha/compare/v3.7.0...v3.8.0) (2026-08-09)
+
+### Features
+
+- add all-items skills tab and expand upgrade advisor equipment logic ([ad4d22e](https://github.com/Skillcheese/Cheezasha/commit/ad4d22e6e4325cc9e649de69d25b563716a8ffaa))
+
 ## [3.7.0](https://github.com/Skillcheese/Cheezasha/compare/v3.6.1...v3.7.0) (2026-08-08)
 
 ### Features
