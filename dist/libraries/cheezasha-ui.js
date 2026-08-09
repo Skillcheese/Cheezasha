@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.9.0
+ * Version: 3.9.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -18691,6 +18691,7 @@ ${starCSS}
 
                 const content = wrapper.nextElementSibling;
                 if (!content || !content.querySelector('[class*="SkillActionGrid_skillActionGrid"]')) return;
+                if (wrapper.closest('[class*="CombatPanel_combatPanel"]')) return;
 
                 let btn = tabList.querySelector('.cheezasha-all-items-tab');
                 if (!btn) {
