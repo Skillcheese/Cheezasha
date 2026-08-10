@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.11.0](https://github.com/Skillcheese/Cheezasha/compare/v3.10.3...v3.11.0) (2026-08-10)
+
+### Features
+
+- improve combat-sim upgrade advisor and lab sim ability/skilling tools ([85351be](https://github.com/Skillcheese/Cheezasha/commit/85351be1dce7a532a01937ffe9e4e60f459e5406))
+
 ## [3.10.3](https://github.com/Skillcheese/Cheezasha/compare/v3.10.2...v3.10.3) (2026-08-10)
 
 ### Code Refactoring
