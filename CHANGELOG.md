@@ -2,10 +2,9 @@
 
 ## [3.13.2](https://github.com/Skillcheese/Cheezasha/compare/v3.13.1...v3.13.2) (2026-08-10)
 
-
 ### Bug Fixes
 
-* skip redundant DOM rebuilds in loot log history and required materials ([4044c9c](https://github.com/Skillcheese/Cheezasha/commit/4044c9c569327f27e697a20e7c6e04f3c352ff8f))
+- skip redundant DOM rebuilds in loot log history and required materials ([4044c9c](https://github.com/Skillcheese/Cheezasha/commit/4044c9c569327f27e697a20e7c6e04f3c352ff8f))
 
 ## [3.13.1](https://github.com/Skillcheese/Cheezasha/compare/v3.13.0...v3.13.1) (2026-08-10)
 
