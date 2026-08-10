@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.11.0
+ * Version: 3.12.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -14480,6 +14480,18 @@
 
     const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
+    // Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Revive/Taunt/Provoke
+    // target party members or aggro mechanics that don't exist in a solo sim, and Quick Aid/
+    // Rejuvenate heal a party member other than the caster — never worth an ability-swap/optimize
+    // slot.
+    const SIM_USELESS_ABILITY_HRIDS = new Set([
+        '/abilities/revive',
+        '/abilities/taunt',
+        '/abilities/provoke',
+        '/abilities/quick_aid',
+        '/abilities/rejuvenate',
+    ]);
+
     /**
      * Get the next ability level target (next multiple of 10) above the current level.
      * Used as fallback when no explicit target level is provided.
@@ -15819,7 +15831,7 @@
                         if (equippedAbilityHrids.has(abHrid)) continue;
                         if (abDetail.isSpecialAbility && slotIdx !== 0) continue;
                         if (!abDetail.isSpecialAbility && slotIdx === 0) continue;
-                        if (abHrid === '/abilities/promote') continue;
+                        if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
 
                         const abStyle = getAbilityCombatStyle(abDetail);
                         if (!isAbilityCompatible(abStyle, playerStyle)) continue;
@@ -16045,7 +16057,7 @@
         const specialPool = [];
         const TRACE_HRID = '/abilities/crippling_slash';
         for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
-            if (abHrid === '/abilities/promote') continue;
+            if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
             if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) {
                 if (abHrid === TRACE_HRID) console.log('[UpgradeAdvisor][trace]', abHrid, 'excluded: book requirement');
                 continue;
@@ -16379,7 +16391,7 @@
         const supportPool = [];
         const specialPool = [];
         for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
-            if (abHrid === '/abilities/promote') continue;
+            if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
             if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) continue;
 
             if (abDetail.isSpecialAbility) {
@@ -27571,6 +27583,7 @@
         let bestLevel = 0;
         let bestWinRate = 0;
         let step = 0;
+        const totalSteps = Math.ceil(Math.log2(maxLevel - minLevel + 1)) + 1;
 
         while (low <= high) {
             const mid = Math.floor((low + high) / 2);
@@ -27591,6 +27604,10 @@
             const attempts = simResult.labyAttemptCount || 1;
             const encounters = simResult.encounters || 0;
             const winRate = encounters / attempts;
+
+            if (onProgress) {
+                onProgress({ level: mid, winRate, step, totalSteps, encounters, attempts });
+            }
 
             if (winRate >= threshold) {
                 bestLevel = mid;
@@ -27888,6 +27905,13 @@
                     <span id="mwi-labsim-progress2-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:10px; line-height:14px; color:#e0e0e0; font-weight:600;">Ability combos</span>
                 </div>
                 <div id="mwi-labsim-progress2-detail" style="margin-top:3px; font-size:10px; color:#888; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+            </div>
+            <div id="mwi-labsim-progress3-row" style="display:none; margin-top:5px;">
+                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:14px; overflow:hidden; position:relative; border:1px solid #333;">
+                    <div id="mwi-labsim-progress3-fill" style="height:100%; width:0%; background:linear-gradient(90deg, rgba(255,180,80,0.35), #ffb450); border-radius:3px; transition:width 0.2s ease;"></div>
+                    <span id="mwi-labsim-progress3-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:10px; line-height:14px; color:#e0e0e0; font-weight:600;">Find Max search</span>
+                </div>
+                <div id="mwi-labsim-progress3-detail" style="margin-top:3px; font-size:10px; color:#888; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
             </div>
         `;
 
@@ -28520,6 +28544,10 @@
             const progress2Fill = this.panel.querySelector('#mwi-labsim-progress2-fill');
             const progress2Text = this.panel.querySelector('#mwi-labsim-progress2-text');
             const progress2Detail = this.panel.querySelector('#mwi-labsim-progress2-detail');
+            const progress3Row = this.panel.querySelector('#mwi-labsim-progress3-row');
+            const progress3Fill = this.panel.querySelector('#mwi-labsim-progress3-fill');
+            const progress3Text = this.panel.querySelector('#mwi-labsim-progress3-text');
+            const progress3Detail = this.panel.querySelector('#mwi-labsim-progress3-detail');
             progressContainer.style.display = 'block';
             progressFill.style.width = '0%';
             progressText.textContent = `0 / ${monsters.length}`;
@@ -28527,6 +28555,10 @@
             progress2Fill.style.width = '0%';
             progress2Text.textContent = 'Optimization combos';
             progress2Detail.textContent = '';
+            progress3Row.style.display = this._labyFindMaxMode ? 'block' : 'none';
+            progress3Fill.style.width = '0%';
+            progress3Text.textContent = 'Find Max search';
+            progress3Detail.textContent = '';
 
             const simStartTime = Date.now();
 
@@ -28580,6 +28612,46 @@
                 };
             };
 
+            // Find Max's binary search (and, when combined with optimize, its optimize↔search
+            // refinement rounds) run concurrently per-monster same as optimization above — same
+            // per-slot aggregation so the status line doesn't flicker between monsters, and so it's
+            // visibly still moving (not stuck) even during the many-second gaps between an optimizer
+            // call finishing and the next progress update landing.
+            const findMaxProgressSlots = new Map();
+            let findMaxProgressSeq = 0;
+            const renderFindMaxProgress = () => {
+                let sumCurrent = 0;
+                let sumTotal = 0;
+                const activeDescriptions = new Set();
+                for (const { current, total, description } of findMaxProgressSlots.values()) {
+                    sumCurrent += current;
+                    sumTotal += total;
+                    if (description) activeDescriptions.add(description);
+                }
+                if (sumTotal === 0) {
+                    progress3Fill.style.width = '0%';
+                    progress3Text.textContent = 'Find Max search';
+                    progress3Detail.textContent = '';
+                    return;
+                }
+                const percent = Math.round((sumCurrent / sumTotal) * 100);
+                progress3Fill.style.width = `${percent}%`;
+                progress3Text.textContent = `Find Max search — ${sumCurrent} / ${sumTotal} steps`;
+                progress3Detail.textContent = [...activeDescriptions].join(' · ');
+            };
+            const makeFindMaxProgress = () => {
+                const slotId = findMaxProgressSeq++;
+                return ({ current, total, description }) => {
+                    if (current == null || !total) return;
+                    if (current >= total) {
+                        findMaxProgressSlots.delete(slotId);
+                    } else {
+                        findMaxProgressSlots.set(slotId, { current, total, description });
+                    }
+                    renderFindMaxProgress();
+                };
+            };
+
             try {
                 if (this._labyFindMaxMode) {
                     const threshold =
@@ -28602,7 +28674,8 @@
                             optimizeBudget,
                         },
                         onProgress,
-                        makeOptimizeProgress
+                        makeOptimizeProgress,
+                        makeFindMaxProgress
                     );
 
                     this._labyResults = { mode: 'findmax', results };
@@ -28851,11 +28924,24 @@
             return results;
         }
 
+        /** Max optimize↔search refinement rounds for _findMaxLevelWithPerLevelOptimization. */
+        static MAX_LEVEL_OPTIMIZE_REFINE_ROUNDS = 3;
+
         /**
-         * Binary-search the highest room level where a per-level-optimized loadout still meets the
-         * win-rate threshold. Unlike findMaxLabyrinthLevel (which searches with one fixed loadout),
-         * this re-runs the ability/equipment optimizer at every level the search tries, since the
-         * best loadout for one level isn't necessarily the best loadout for another.
+         * Find the highest room level where a per-level-optimized loadout still meets the win-rate
+         * threshold, without paying for a full optimizer call at every step of the binary search.
+         *
+         * Instead this alternates two cheap-relative-to-each-other steps: (1) optimize the loadout
+         * for the current candidate level, (2) binary-search for the max level *that fixed loadout*
+         * can beat (plain findMaxLabyrinthLevel, no optimizer calls — just sims). If step 2 lands on
+         * the same level step 1 optimized for, the loadout and the level it supports are mutually
+         * consistent and the search has converged; otherwise the new level becomes the next round's
+         * optimize target. This is a fixed-point iteration, not an exhaustive one — it doesn't
+         * re-optimize at every level tried during the binary search, only after each full search
+         * settles on a level — so it costs a handful of optimizer calls (typically 2-3, capped at
+         * MAX_LEVEL_OPTIMIZE_REFINE_ROUNDS) instead of one per binary-search step (~9), while still
+         * correcting the original bug where one loadout optimized for a single level got reused
+         * across every level the search considered.
          * @param {Object} params
          * @param {Object} params.gameData
          * @param {Object[]} params.playerDTOs - Base (un-optimized) player DTOs for this monster
@@ -28871,10 +28957,14 @@
          * @param {number} [params.minLevel=1]
          * @param {number} [params.maxLevel=300]
          * @param {() => Function} [makeOptimizeProgress] - Returns a fresh per-call progress callback
+         * @param {Function} [findMaxProgress] - Reports {current, total, description} for this
+         *  monster's overall refinement progress, so a many-second gap between an optimizer call
+         *  finishing and the next update lands as visible movement, not a stall.
+         * @param {string} [monsterName] - For the progress description.
          * @returns {Promise<{maxLevel: number, winRate: number, optimized: Object|null}>}
          * @private
          */
-        async _findMaxLevelWithPerLevelOptimization(params, makeOptimizeProgress) {
+        async _findMaxLevelWithPerLevelOptimization(params, makeOptimizeProgress, findMaxProgress, monsterName) {
             const {
                 gameData,
                 playerDTOs,
@@ -28891,21 +28981,26 @@
                 maxLevel = 300,
             } = params;
             const optimizer = this._pickOptimizer(optimizeMode);
+            const totalRounds = LabSimUI.MAX_LEVEL_OPTIMIZE_REFINE_ROUNDS;
 
-            let low = minLevel;
-            let high = maxLevel;
-            let best = { maxLevel: 0, winRate: 0, optimized: null };
+            let optimizeTargetLevel = minLevel;
+            let optimized = null;
+            let result = { maxLevel: 0, winRate: 0 };
 
-            while (low <= high) {
-                const mid = Math.floor((low + high) / 2);
+            for (let round = 0; round < totalRounds; round++) {
+                findMaxProgress?.({
+                    current: round,
+                    total: totalRounds + 1,
+                    description: `${monsterName}: round ${round + 1}/${totalRounds} — optimizing for level ${Math.max(optimizeTargetLevel, 1)}`,
+                });
 
-                const optimized = await optimizer(
+                optimized = await optimizer(
                     {
                         playerDTOs,
                         playerIndex: 0,
                         gameData,
                         monsterHrid,
-                        roomLevel: mid,
+                        roomLevel: Math.max(optimizeTargetLevel, 1),
                         crates,
                         hours,
                         communityBuffs,
@@ -28922,30 +29017,36 @@
                       }
                     : playerDTOs[0];
 
-                const simResult = await runLabyrinthSimulation({
-                    gameData,
-                    playerDTOs: [evalDTO],
-                    zoneHrid,
-                    monsterHrid,
-                    roomLevel: mid,
-                    crates,
-                    hours,
-                    communityBuffs,
-                    labyrinthCombatBuffs,
-                });
-                const attempts = simResult.labyAttemptCount || 1;
-                const encounters = simResult.encounters || 0;
-                const winRate = encounters / attempts;
+                result = await findMaxLabyrinthLevel(
+                    {
+                        gameData,
+                        playerDTOs: [evalDTO],
+                        zoneHrid,
+                        monsterHrid,
+                        crates,
+                        simHours: hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs,
+                        threshold,
+                        minLevel,
+                        maxLevel,
+                    },
+                    ({ level }) =>
+                        findMaxProgress?.({
+                            current: round,
+                            total: totalRounds + 1,
+                            description: `${monsterName}: round ${round + 1}/${totalRounds} — testing level ${level}`,
+                        })
+                );
 
-                if (winRate >= threshold) {
-                    best = { maxLevel: mid, winRate, optimized };
-                    low = mid + 1;
-                } else {
-                    high = mid - 1;
-                }
+                // Converged: re-optimizing for the level this round found doesn't change anything
+                // further, or there was nothing to optimize in the first place.
+                if (!optimized || result.maxLevel === optimizeTargetLevel) break;
+                optimizeTargetLevel = result.maxLevel;
             }
 
-            return best;
+            findMaxProgress?.({ current: 1, total: 1 });
+            return { maxLevel: result.maxLevel, winRate: result.winRate, optimized };
         }
 
         /**
@@ -28953,7 +29054,7 @@
          * loadout assigned to it in the Automation tab.
          * @private
          */
-        async _runAllMonstersFindMax(params, onProgress, makeOptimizeProgress) {
+        async _runAllMonstersFindMax(params, onProgress, makeOptimizeProgress, makeFindMaxProgress) {
             const {
                 monsters,
                 gameData,
@@ -29010,7 +29111,9 @@
                                     optimizeBudget,
                                     minLevel: 1,
                                 },
-                                makeOptimizeProgress
+                                makeOptimizeProgress,
+                                makeFindMaxProgress?.(),
+                                monster.name
                             );
 
                             best = optimizedSearch.optimized
@@ -29025,18 +29128,30 @@
                                       loadoutName: `${loadoutName} (no ${optimizeMode} optimization candidates found)`,
                                   };
                         } else {
-                            const maxResult = await findMaxLabyrinthLevel({
-                                gameData,
-                                playerDTOs: monsterPlayerDTOs,
-                                zoneHrid,
-                                monsterHrid: monster.hrid,
-                                crates,
-                                simHours: hours,
-                                communityBuffs,
-                                labyrinthCombatBuffs,
-                                threshold,
-                                minLevel: 1,
-                            });
+                            const findMaxProgress = makeFindMaxProgress?.();
+                            const maxResult = await findMaxLabyrinthLevel(
+                                {
+                                    gameData,
+                                    playerDTOs: monsterPlayerDTOs,
+                                    zoneHrid,
+                                    monsterHrid: monster.hrid,
+                                    crates,
+                                    simHours: hours,
+                                    communityBuffs,
+                                    labyrinthCombatBuffs,
+                                    threshold,
+                                    minLevel: 1,
+                                },
+                                findMaxProgress
+                                    ? ({ level, step, totalSteps }) =>
+                                          findMaxProgress({
+                                              current: step,
+                                              total: totalSteps,
+                                              description: `${monster.name}: testing level ${level}`,
+                                          })
+                                    : undefined
+                            );
+                            findMaxProgress?.({ current: 1, total: 1 });
                             best = {
                                 maxLevel: maxResult.maxLevel,
                                 winRate: maxResult.winRate,
