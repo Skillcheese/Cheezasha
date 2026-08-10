@@ -5,7 +5,7 @@
 
 import { formatKMB } from '../../utils/formatters.js';
 import config from '../../core/config.js';
-import domObserver from '../../core/dom-observer.js';
+import taskPanelWatcher from './task-panel-watcher.js';
 import webSocketHook from '../../core/websocket.js';
 import dataManager from '../../core/data-manager.js';
 import storage from '../../core/storage.js';
@@ -238,27 +238,17 @@ class TaskRerollTracker {
      */
     registerDOMObservers() {
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass(
-            'TaskRerollTracker-TaskList',
-            'TasksPanel_taskList',
-            () => {
-                this.updateAllTaskDisplays();
-            },
-            { debounce: true }
-        );
+        const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+            this.updateAllTaskDisplays();
+        });
         this.unregisterHandlers.push(unregisterTaskList);
 
         // Watch for individual tasks appearing
-        const unregisterTask = domObserver.onClass(
-            'TaskRerollTracker-Task',
-            'RandomTask_randomTask',
-            () => {
-                // Small delay to let task data settle
-                const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
-                this.timerRegistry.registerTimeout(taskTimeout);
-            },
-            { debounce: true }
-        );
+        const unregisterTask = taskPanelWatcher.onTaskNodeAdded(() => {
+            // Small delay to let task data settle
+            const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
+            this.timerRegistry.registerTimeout(taskTimeout);
+        });
         this.unregisterHandlers.push(unregisterTask);
     }
 

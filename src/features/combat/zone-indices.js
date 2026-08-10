@@ -156,16 +156,17 @@ class ZoneIndices {
         const taskNameElements = document.querySelectorAll('div[class*="RandomTask_name"]');
 
         for (const nameElement of taskNameElements) {
-            // Always remove any existing index first (in case task was rerolled)
             const existingIndex = nameElement.querySelector('span.script_taskMapIndex');
-            if (existingIndex) {
-                existingIndex.remove();
-            }
 
-            const taskText = nameElement.textContent;
+            // Task text excluding any index span we've already injected, so re-reading
+            // textContent below isn't polluted by our own "Z5" markup
+            const taskText = existingIndex
+                ? nameElement.textContent.replace(existingIndex.textContent, '')
+                : nameElement.textContent;
 
             // Check if this is a combat task (contains "Kill" or "Defeat")
             if (!taskText.includes('Kill') && !taskText.includes('Defeat')) {
+                if (existingIndex) existingIndex.remove();
                 continue; // Not a combat task, skip
             }
 
@@ -173,6 +174,7 @@ class ZoneIndices {
             // Format: "Defeat - Jerry" or "Kill - Monster Name"
             const match = taskText.match(REGEX_COMBAT_TASK);
             if (!match) {
+                if (existingIndex) existingIndex.remove();
                 continue; // Couldn't parse monster name
             }
 
@@ -180,12 +182,27 @@ class ZoneIndices {
 
             // Find the combat action for this monster
             const zoneIndex = this.getZoneIndexForMonster(monsterName);
+            const desiredText = zoneIndex ? `Z${zoneIndex}` : null;
 
-            if (zoneIndex) {
-                // Add index to the name element
+            // Skip entirely when nothing needs to change — inserting/removing the span
+            // unconditionally here would itself be a DOM mutation, which the shared
+            // MutationObserver would pick up and use to re-trigger this very handler,
+            // creating a self-sustaining loop that never settles.
+            if (existingIndex && existingIndex.textContent === desiredText) {
+                continue;
+            }
+            if (!existingIndex && desiredText === null) {
+                continue;
+            }
+
+            if (existingIndex) {
+                existingIndex.remove();
+            }
+
+            if (desiredText) {
                 nameElement.insertAdjacentHTML(
                     'beforeend',
-                    `<span class="script_taskMapIndex" style="margin-left: 4px; color: ${config.SCRIPT_COLOR_MAIN};">Z${zoneIndex}</span>`
+                    `<span class="script_taskMapIndex" style="margin-left: 4px; color: ${config.SCRIPT_COLOR_MAIN};">${desiredText}</span>`
                 );
             }
         }

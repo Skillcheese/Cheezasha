@@ -6,7 +6,7 @@
 import { GAME } from '../../utils/selectors.js';
 import config from '../../core/config.js';
 import dataManager from '../../core/data-manager.js';
-import domObserver from '../../core/dom-observer.js';
+import taskPanelWatcher from './task-panel-watcher.js';
 import webSocketHook from '../../core/websocket.js';
 import taskIconFilters from './task-icon-filters.js';
 import { createTimerRegistry } from '../../utils/timer-registry.js';
@@ -132,25 +132,15 @@ class TaskIcons {
         this.processAllTaskCards();
 
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass(
-            'TaskIcons-TaskList',
-            'TasksPanel_taskList',
-            () => {
-                this.processAllTaskCards();
-            },
-            { debounce: true }
-        );
+        const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+            this.processAllTaskCards();
+        });
         this.observers.push(unregisterTaskList);
 
         // Watch for individual task cards appearing
-        const unregisterTask = domObserver.onClass(
-            'TaskIcons-Task',
-            'RandomTask_randomTask',
-            () => {
-                this.processAllTaskCards();
-            },
-            { debounce: true }
-        );
+        const unregisterTask = taskPanelWatcher.onTaskNodeAdded(() => {
+            this.processAllTaskCards();
+        });
         this.observers.push(unregisterTask);
 
         // Fetch all sprite URLs from manifest, then inject monster sprite and re-process

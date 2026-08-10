@@ -274,6 +274,7 @@ class TaskSorter {
         }
 
         // Sort the cards
+        const originalOrder = taskCards.slice();
         const sortMode = config.getSettingValue('taskSorter_sortMode', 'skill');
         if (sortMode === 'time') {
             taskCards.sort((a, b) => this.compareTaskCardsByTime(a, b));
@@ -283,8 +284,26 @@ class TaskSorter {
             taskCards.sort((a, b) => this.compareTaskCards(a, b));
         }
 
-        // Re-append in sorted order
-        taskCards.forEach((card) => taskList.appendChild(card));
+        // No-op if already in the desired order — skip touching the DOM entirely
+        const alreadySorted = taskCards.every((card, index) => card === originalOrder[index]);
+        if (alreadySorted) {
+            return;
+        }
+
+        // Re-append only the cards that aren't already in their correct position.
+        // appendChild always triggers a childList mutation even when a node is moved
+        // to a position it effectively already occupies, and every mutation fans out
+        // to every registered DOM observer handler (icons, profit display, reroll
+        // tracker, etc.) — moving every card on every sort snowballs into a lot of
+        // redundant work. Only move nodes whose sibling actually needs to change.
+        let previousCard = null;
+        for (const card of taskCards) {
+            const referenceNode = previousCard ? previousCard.nextElementSibling : taskList.firstElementChild;
+            if (card !== referenceNode) {
+                taskList.insertBefore(card, referenceNode);
+            }
+            previousCard = card;
+        }
 
         // After sorting, React may re-render task cards and remove our icons
         // Clear the processed markers and force icon re-processing

@@ -6,7 +6,7 @@
 
 import config from '../../core/config.js';
 import dataManager from '../../core/data-manager.js';
-import domObserver from '../../core/dom-observer.js';
+import taskPanelWatcher from './task-panel-watcher.js';
 import webSocketHook from '../../core/websocket.js';
 import { setReactInputValue } from '../../utils/react-input.js';
 import { findActionInput } from '../../utils/action-panel-helper.js';
@@ -571,28 +571,18 @@ class TaskProfitDisplay {
      */
     registerDOMObservers() {
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass(
-            'TaskProfitDisplay-TaskList',
-            'TasksPanel_taskList',
-            () => {
-                this.updateTaskProfits();
-                this.updateQueuedIndicators();
-            },
-            { debounce: true }
-        );
+        const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+            this.updateTaskProfits();
+            this.updateQueuedIndicators();
+        });
         this.unregisterHandlers.push(unregisterTaskList);
 
         // Watch for individual tasks appearing
-        const unregisterTask = domObserver.onClass(
-            'TaskProfitDisplay-Task',
-            'RandomTask_randomTask',
-            (taskNode) => {
-                this._setupTaskNode(taskNode);
-                const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
-                this.timerRegistry.registerTimeout(queuedTimeout);
-            },
-            { debounce: true }
-        );
+        const unregisterTask = taskPanelWatcher.onTaskNodeAdded((taskNode) => {
+            this._setupTaskNode(taskNode);
+            const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
+            this.timerRegistry.registerTimeout(queuedTimeout);
+        });
         this.unregisterHandlers.push(unregisterTask);
 
         // Initial scan for task nodes already in the DOM (handles race condition
