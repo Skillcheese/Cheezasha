@@ -23,10 +23,9 @@ describe('DOMObserver debounce', () => {
         vi.useRealTimers();
     });
 
-    test('retains O(1) state under 100,000 continuous events', () => {
-        const callback = vi.fn();
+    test('queues one pending entry per event, coalesced into a single timer', () => {
         const nodes = [];
-        for (let i = 0; i < 100000; i++) {
+        for (let i = 0; i < 1000; i++) {
             nodes.push({ id: i });
         }
 
@@ -36,12 +35,12 @@ describe('DOMObserver debounce', () => {
             domObserver.debouncedCallback(handler, node, {});
         }
 
-        // Only one entry retained, not 100,000
-        expect(domObserver.debouncedLatest.size).toBe(1);
+        // Every event is queued (so a matching node is never dropped), but only one timer runs.
+        expect(domObserver.debouncedPending.get('test-handler').length).toBe(1000);
         expect(domObserver.debounceTimers.size).toBe(1);
     });
 
-    test('callback receives the latest node when timer fires', () => {
+    test('callback fires for every node queued during the window, in order', () => {
         const callback = vi.fn();
         const handler = { name: 'test-latest', debounce: true, debounceDelay: 50, callback };
 
@@ -53,8 +52,9 @@ describe('DOMObserver debounce', () => {
 
         vi.runAllTimers();
 
-        expect(callback).toHaveBeenCalledTimes(1);
-        expect(callback).toHaveBeenCalledWith(last, { type: 'childList' });
+        expect(callback).toHaveBeenCalledTimes(2);
+        expect(callback).toHaveBeenNthCalledWith(1, first, { type: 'childList' });
+        expect(callback).toHaveBeenNthCalledWith(2, last, { type: 'childList' });
     });
 
     test('two handlers maintain independent latest values', () => {
@@ -90,7 +90,7 @@ describe('DOMObserver debounce', () => {
         vi.runAllTimers();
 
         expect(callback).not.toHaveBeenCalled();
-        expect(domObserver.debouncedLatest.has('cancel-test')).toBe(false);
+        expect(domObserver.debouncedPending.has('cancel-test')).toBe(false);
         expect(domObserver.debounceTimers.has('cancel-test')).toBe(false);
     });
 
@@ -104,6 +104,6 @@ describe('DOMObserver debounce', () => {
         domObserver.stop();
 
         expect(domObserver.debounceTimers.size).toBe(0);
-        expect(domObserver.debouncedLatest.size).toBe(0);
+        expect(domObserver.debouncedPending.size).toBe(0);
     });
 });
