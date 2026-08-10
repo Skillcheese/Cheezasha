@@ -9,6 +9,12 @@ import marketAPI from '../../api/marketplace.js';
 import expectedValueCalculator from '../market/expected-value-calculator.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
 import { formatWithSeparator, formatKMB } from '../../utils/formatters.js';
+import assetManifest from '../../utils/asset-manifest.js';
+import {
+    buildItemSquareHtml,
+    buildAbilitySquareHtml,
+    setupResultSquareInteractions,
+} from '../../utils/result-square.js';
 import {
     buildGameDataPayload,
     buildAllPlayerDTOs,
@@ -1088,6 +1094,66 @@ class CombatSimUI {
         this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
         this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
         this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
+        this._setupResultSquareInteractions();
+    }
+
+    /**
+     * Wire up hover-tooltip/click-menu interactions for item/ability squares rendered in the
+     * Upgrade, Optimize Food, Optimize Coffee, and Ultimate Sim result tables (see
+     * _buildItemSquares / _renderUpgradeResults / _displayFoodResults / _displayCoffeeResults /
+     * _renderUltimateResults). Delegated on the whole panel so it keeps working across the
+     * innerHTML rebuilds each result render does.
+     * @private
+     */
+    _setupResultSquareInteractions() {
+        this._resultSquareCleanup = setupResultSquareInteractions(this.panel, {
+            getItemDetailMap: () => this._gameDataForSquares?.itemDetailMap,
+            getAbilityDetailMap: () => this._gameDataForSquares?.abilityDetailMap,
+            getLevelExperienceTable: () => this._gameDataForSquares?.levelExperienceTable,
+        });
+    }
+
+    /**
+     * Build the inline item/ability square HTML for a candidate upgrade/combo item, resolving
+     * sprite icon names/URLs the same way the shared Lab Sim result squares do.
+     * @param {string} hrid - Item or ability hrid.
+     * @param {number} [level] - Enhancement level (items) or ability level.
+     * @param {boolean} [isAbility]
+     * @returns {string}
+     * @private
+     */
+    _buildResultSquareHtml(hrid, level = 0, isAbility = false) {
+        if (!hrid) return '';
+        const spriteUrl = isAbility ? this._abilitiesSpriteUrl : this._itemsSpriteUrl;
+        if (!spriteUrl) return '';
+        const iconName = isAbility
+            ? hrid.split('/').pop()
+            : hrid.startsWith('/ability_books/')
+              ? 'ability_book'
+              : hrid === '/consumables/coin'
+                ? 'coin'
+                : hrid.split('/').pop();
+        return isAbility
+            ? buildAbilitySquareHtml(hrid, iconName, level, spriteUrl)
+            : buildItemSquareHtml(hrid, iconName, level, spriteUrl);
+    }
+
+    /**
+     * Ensure sprite URLs and the gameData used by result-square tooltips are loaded, caching
+     * both for reuse across the Upgrade/Optimize Food/Optimize Coffee/Ultimate Sim result
+     * renders. Safe to call before every render — resolves instantly once cached.
+     * @param {Object} [gameData]
+     * @private
+     */
+    async _ensureResultSquareAssets(gameData) {
+        if (gameData) this._gameDataForSquares = gameData;
+        if (this._itemsSpriteUrl && this._abilitiesSpriteUrl) return;
+        const [itemsSpriteUrl, abilitiesSpriteUrl] = await Promise.all([
+            assetManifest.getSpriteUrl('items'),
+            assetManifest.getSpriteUrl('abilities'),
+        ]);
+        this._itemsSpriteUrl = itemsSpriteUrl;
+        this._abilitiesSpriteUrl = abilitiesSpriteUrl;
     }
 
     /**
@@ -3559,6 +3625,7 @@ class CombatSimUI {
             setStatus('No game data available.');
             return;
         }
+        await this._ensureResultSquareAssets(gameData);
 
         const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
         if (!playerDTOs.length) {
@@ -3664,9 +3731,11 @@ class CombatSimUI {
                 const rowWeight = i === 0 ? '700' : '400';
                 const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
                 const triggerDesc = describeFoodTriggers(r);
+                const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                 return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
                         <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${squaresHtml}
                             ${r.label}
                             ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
                         </td>
@@ -3716,6 +3785,7 @@ class CombatSimUI {
             setStatus('No game data available.');
             return;
         }
+        await this._ensureResultSquareAssets(gameData);
 
         const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
         if (!playerDTOs.length) {
@@ -3830,8 +3900,9 @@ class CombatSimUI {
                     const rowColor = i === 0 ? '#4caf50' : '#ccc';
                     const rowWeight = i === 0 ? '700' : '400';
                     const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                    const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                     const cells = [
-                        `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
+                        `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${squaresHtml}${r.label}</td>`,
                         `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
                     ];
                     if (showXP)
@@ -3911,6 +3982,7 @@ class CombatSimUI {
             setStatus('No character data available.');
             return;
         }
+        await this._ensureResultSquareAssets(buildGameDataPayload());
 
         this._usimRunning = true;
         this._usimAborted = false;
@@ -4015,8 +4087,14 @@ class CombatSimUI {
         const rows = history
             .map((h) => {
                 const foodLabel = h.food?.label || 'None';
+                const foodSquaresHtml = (h.food?.combo || [])
+                    .map((item) => this._buildResultSquareHtml(item.hrid))
+                    .join('');
                 const foodTriggerDesc = h.food ? describeFoodTriggers(h.food) : null;
                 const coffeeLabel = h.coffee?.label || 'None';
+                const coffeeSquaresHtml = (h.coffee?.combo || [])
+                    .map((item) => this._buildResultSquareHtml(item.hrid))
+                    .join('');
                 const bestZoneName = h.bestZone?.zone?.name || '?';
                 const bestTier = h.bestZone?.zone?.difficultyTier ?? '?';
                 const xp = formatKMB(Math.round(h.bestZone?.xpPerHour || 0));
@@ -4025,10 +4103,11 @@ class CombatSimUI {
                     <tr style="border-bottom:1px solid #1a1a1a;">
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${h.iteration + 1}</td>
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">
+                            ${foodSquaresHtml}
                             ${foodLabel}
                             ${foodTriggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${foodTriggerDesc}</div>` : ''}
                         </td>
-                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeSquaresHtml}${coffeeLabel}</td>
                         <td style="padding:4px 4px; font-size:11px; color:${ACCENT}; font-weight:600;">${bestZoneName} (T${bestTier})</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${xp}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${profit}</td>
@@ -4119,9 +4198,11 @@ class CombatSimUI {
                 const rowWeight = i === 0 ? '700' : '400';
                 const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
                 const triggerDesc = describeFoodTriggers(r);
+                const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                 return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
                         <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${squaresHtml}
                             ${r.label}
                             ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
                         </td>
@@ -4274,9 +4355,10 @@ class CombatSimUI {
                 const rowColor = i === 0 ? '#4caf50' : '#ccc';
                 const rowWeight = i === 0 ? '700' : '400';
                 const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                 return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
-                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${squaresHtml}${r.label}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.xpPerHour))}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.profitPerHour))}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatKMB(Math.round(r.mixedScore))}</td>
@@ -4338,6 +4420,10 @@ class CombatSimUI {
         this._foodAborted = true;
         this._coffeeAborted = true;
         this._usimAborted = true;
+        if (this._resultSquareCleanup) {
+            this._resultSquareCleanup();
+            this._resultSquareCleanup = null;
+        }
         if (this.panel) {
             unregisterFloatingPanel(this.panel);
             this.panel.remove();
@@ -4654,6 +4740,7 @@ class CombatSimUI {
             this._setStatus('No game data available.');
             return;
         }
+        await this._ensureResultSquareAssets(gameData);
 
         // Get player DTOs (edited or live)
         let playerDTOs;
@@ -4779,21 +4866,31 @@ class CombatSimUI {
             { key: 'deathsPerHour', label: 'DPH' },
         ];
 
-        const rows = results.results.map((r) => ({
-            description: r.candidate.description,
-            cost: r.cost,
-            goldDps: r.goldPer.dps,
-            goldXp: r.goldPer.xp,
-            goldProfit: r.goldPer.profit,
-            dps: r.metrics.dps,
-            dpsDeltaPct: r.deltas.dps,
-            xpPerHour: r.metrics.xpPerHour,
-            xpDeltaPct: r.deltas.xp,
-            profitPerHour: r.metrics.profitPerHour,
-            profitDeltaPct: r.deltas.profit,
-            encountersPerHour: r.metrics.encountersPerHour,
-            deathsPerHour: r.metrics.deathsPerHour,
-        }));
+        const rows = results.results.map((r) => {
+            const candidate = r.candidate || {};
+            const isAbility = (candidate.type || '').startsWith('ability');
+            const squareHtml = this._buildResultSquareHtml(
+                candidate.upgradeHrid,
+                candidate.upgradeLevel || 0,
+                isAbility
+            );
+            return {
+                description: r.candidate.description,
+                squareHtml,
+                cost: r.cost,
+                goldDps: r.goldPer.dps,
+                goldXp: r.goldPer.xp,
+                goldProfit: r.goldPer.profit,
+                dps: r.metrics.dps,
+                dpsDeltaPct: r.deltas.dps,
+                xpPerHour: r.metrics.xpPerHour,
+                xpDeltaPct: r.deltas.xp,
+                profitPerHour: r.metrics.profitPerHour,
+                profitDeltaPct: r.deltas.profit,
+                encountersPerHour: r.metrics.encountersPerHour,
+                deathsPerHour: r.metrics.deathsPerHour,
+            };
+        });
 
         // Sort
         if (this._upgradeSortCol) {
@@ -4845,7 +4942,7 @@ class CombatSimUI {
                         let style = tdStyle;
                         switch (col.key) {
                             case 'description':
-                                display = row.description;
+                                display = `${row.squareHtml || ''}${row.description}`;
                                 break;
                             case 'cost':
                                 display = formatKMB(row.cost);

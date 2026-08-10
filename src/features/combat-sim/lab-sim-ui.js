@@ -25,14 +25,15 @@ import {
     optimizeLabyrinthEquipment,
     optimizeLabyrinthEverything,
     isLabyrinthResultBetter,
-    COMBAT_STATS,
 } from './upgrade-advisor.js';
 import { registerFloatingPanel, unregisterFloatingPanel, bringPanelToFront } from '../../utils/panel-z-index.js';
-import { getEnhancementMultiplier } from '../../utils/enhancement-multipliers.js';
 import { formatWithSeparator } from '../../utils/formatters.js';
 import assetManifest from '../../utils/asset-manifest.js';
-import { navigateToMarketplace } from '../../utils/marketplace-tabs.js';
-import { findActionForItem, getGameObject } from '../../utils/item-navigation.js';
+import {
+    buildItemSquareHtml,
+    buildAbilitySquareHtml,
+    setupResultSquareInteractions,
+} from '../../utils/result-square.js';
 import { SimEditor } from './sim-editor.js';
 import labyrinthClearRate from '../combat/labyrinth-clear-rate.js';
 import loadoutSnapshot from '../combat/loadout-snapshot.js';
@@ -45,45 +46,6 @@ const ACCENT_BTN_BG = 'rgba(74, 158, 255, 0.2)';
 const ACCENT_BTN_BORDER = 'rgba(74, 158, 255, 0.4)';
 /** Win rate above which a monster is already "good enough" and optimization is skipped. */
 const OPTIMIZE_SKIP_WIN_RATE = 0.9;
-
-/**
- * Convert a game hrid ("/equipment_types/main_hand", "/skills/magic") into its display label
- * ("Main Hand", "Magic") — matches the plain title-casing the game itself uses for these.
- * @param {string} hrid
- * @returns {string}
- */
-function hridToLabel(hrid) {
-    if (!hrid) return '';
-    return hrid
-        .split('/')
-        .pop()
-        .split('_')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-}
-
-/**
- * Format a combat stat's raw numeric value the way the game's item tooltip does: values stored
- * as fractions (< 1 in magnitude, e.g. 0.6 magicAccuracy) render as a percentage; values stored
- * as whole numbers (e.g. 20 waterResistance) render as a plain signed number.
- * @param {number} value
- * @returns {string}
- */
-function formatStatValue(value) {
-    const sign = value > 0 ? '+' : '';
-    if (Math.abs(value) < 1) return `${sign}${(value * 100).toFixed(1)}%`;
-    return `${sign}${value}`;
-}
-
-/**
- * Convert a camelCase stat key ("magicAccuracy") into its display label ("Magic Accuracy").
- * @param {string} key
- * @returns {string}
- */
-function camelToLabel(key) {
-    const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
 
 /**
  * @param {number} seconds
@@ -667,252 +629,15 @@ class LabSimUI {
 
     /**
      * Wire up the ability and item squares rendered in results tables (see
-     * _makeLoadoutCellFormatter): hover shows an info tooltip for both (content/fields modeled
-     * on the real hover tooltip shown for an ability slot in the live combat bar, and on an
-     * item's stat tooltip), and click additionally opens an action menu for items. Uses
-     * delegated listeners on the whole panel — the results table is rebuilt via innerHTML on
-     * every sim run, so per-element listeners would be lost each time — plus reused popup
-     * elements instead of building one per square.
+     * _makeLoadoutCellFormatter) via the shared result-square utility: hover shows an info
+     * tooltip, and click additionally opens an action menu for items.
      * @private
      */
     _setupResultSquareInteractions() {
-        const popupStyle = `
-            display: none; position: fixed; z-index: 999999;
-            background: rgba(187, 197, 241, 0.95); border-radius: 4px; color: #000;
-            box-shadow: 2px 2px 10px 6px rgba(0,0,0,0.3);
-        `;
-
-        const tooltip = document.createElement('div');
-        // Font/size/line-height/max-width measured directly off the game's own MuiTooltip
-        // ability tooltip (font-family Roboto/Helvetica/Arial, 14px body, 500 weight, 19.25px
-        // line-height, 318px max-width) so this reads as the same tooltip, not a reskin.
-        tooltip.id = 'mwi-labsim-square-tooltip';
-        tooltip.style.cssText = `${popupStyle} max-width: 318px; padding: 6px 8px; font-family: Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; line-height: 19.25px; letter-spacing: 0.15px; pointer-events: none;`;
-        document.body.appendChild(tooltip);
-        this._abilitySquareTooltipEl = tooltip;
-
-        const menu = document.createElement('div');
-        menu.id = 'mwi-labsim-item-menu';
-        menu.style.cssText = `
-            display: none; position: fixed; z-index: 999999; min-width: 160px; padding: 4px; font-size: 12px;
-            background: #12121f; border: 1px solid ${ACCENT_BORDER}; border-radius: 6px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-        `;
-        document.body.appendChild(menu);
-        this._itemSquareMenuEl = menu;
-
-        const positionPopup = (popup, square) => {
-            const rect = square.getBoundingClientRect();
-            popup.style.display = 'block';
-            let left = rect.left;
-            const maxLeft = window.innerWidth - popup.offsetWidth - 8;
-            if (left > maxLeft) left = Math.max(8, maxLeft);
-            popup.style.top = `${rect.bottom + 6}px`;
-            popup.style.left = `${left}px`;
-        };
-
-        this.panel.addEventListener('mouseover', (e) => {
-            const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-            if (!square || square.contains(e.relatedTarget)) return;
-
-            if (square.classList.contains('mwi-labsim-ability-square')) {
-                tooltip.innerHTML = this._buildAbilityTooltipHtml(square);
-            } else {
-                tooltip.innerHTML = this._buildItemTooltipHtml(square);
-            }
-            positionPopup(tooltip, square);
-        });
-        this.panel.addEventListener('mouseout', (e) => {
-            const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-            if (!square || square.contains(e.relatedTarget)) return;
-            tooltip.style.display = 'none';
-        });
-
-        this.panel.addEventListener('click', (e) => {
-            const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-            if (!square) {
-                menu.style.display = 'none';
-                return;
-            }
-            e.stopPropagation();
-
-            const isAbility = square.classList.contains('mwi-labsim-ability-square');
-            const hrid = isAbility ? square.dataset.abilityHrid : square.dataset.itemHrid;
-            const itemLevel = isAbility ? 0 : parseInt(square.dataset.itemLevel) || 0;
-            if (menu.style.display !== 'none' && menu.dataset.forHrid === hrid) {
-                menu.style.display = 'none';
-                return;
-            }
-            if (isAbility) {
-                this._renderAbilitySquareMenu(menu, hrid);
-            } else {
-                this._renderItemSquareMenu(menu, hrid, itemLevel);
-            }
-            menu.dataset.forHrid = hrid;
-            positionPopup(menu, square);
-        });
-        this._resultSquareDocClickHandler = (e) => {
-            if (!e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square')) menu.style.display = 'none';
-        };
-        document.addEventListener('click', this._resultSquareDocClickHandler);
-    }
-
-    /**
-     * Build the ability hover tooltip's HTML. Field set/order mirrors the real hover tooltip
-     * shown for an ability slot in the live combat bar (Name, Level, Total Experience, Exp to
-     * Level Up, Description, Cooldown, Cast Time, MP Cost) — confirmed directly against the game.
-     * The resolved per-caster "Effect" numbers shown in the real tooltip aren't reproduced here
-     * since that requires the same magnitude-scaling math the combat engine uses internally.
-     * @param {HTMLElement} square
-     * @returns {string}
-     * @private
-     */
-    _buildAbilityTooltipHtml(square) {
-        const hrid = square.dataset.abilityHrid;
-        const level = square.dataset.abilityLevel ? parseInt(square.dataset.abilityLevel) : null;
-        const detail = this._abilityDetailMapForTooltips?.[hrid];
-        const name = detail?.name || hrid?.split('/').pop() || 'Unknown Ability';
-        const xpTable = this._levelExperienceTableForTooltips;
-
-        let html = `<div style="font-size:16px;">${name}</div>`;
-        if (level) {
-            html += `<div>Level: ${level}</div>`;
-            if (xpTable?.[level] != null) {
-                html += `<div>Total Experience: ${formatWithSeparator(xpTable[level])}</div>`;
-                if (xpTable[level + 1] != null) {
-                    html += `<div>Exp to Level Up: ${formatWithSeparator(xpTable[level + 1] - xpTable[level])}</div>`;
-                }
-            }
-        }
-        // Durations/cooldowns are stored in nanoseconds internally (see ONE_SECOND = 1e9 in the
-        // combat engine), not milliseconds — dividing by 1000 left a pile of extra zeros.
-        let details = '';
-        if (detail?.description) details += `<div>Description: ${detail.description}</div>`;
-        if (detail?.cooldownDuration) details += `<div>Cooldown: ${(detail.cooldownDuration / 1e9).toFixed(1)}s</div>`;
-        if (detail?.castDuration) details += `<div>Cast Time: ${(detail.castDuration / 1e9).toFixed(1)}s</div>`;
-        if (detail?.manaCost) details += `<div>MP Cost: ${detail.manaCost} MP</div>`;
-        if (details) html += `<div style="margin-top:8px;">${details}</div>`;
-        return html;
-    }
-
-    /**
-     * Build the item hover tooltip's HTML, matching the real inventory item tooltip's field
-     * set/order (Name, Type, Requires, Combat Style, Damage Type, Attack Interval, Auto Attack
-     * Damage, then the combat stat lines, Primary Training) — confirmed directly against the
-     * game's own equipment tooltip. Stats that scale with enhancement are shown at the square's
-     * enhancement level using the same multiplier the real game applies (getEnhancementMultiplier).
-     * Doesn't reproduce the real tooltip's live market price/enhancement-path sections, since
-     * those require fetching current market data.
-     * @param {HTMLElement} square
-     * @returns {string}
-     * @private
-     */
-    _buildItemTooltipHtml(square) {
-        const hrid = square.dataset.itemHrid;
-        const itemLevel = parseInt(square.dataset.itemLevel) || 0;
-        const detail = this._itemDetailMapForTooltips?.[hrid];
-        const name = detail?.name || hrid?.split('/').pop() || 'Unknown Item';
-        const eq = detail?.equipmentDetail;
-
-        let html = `<div style="font-size:16px;">${name}</div>`;
-        if (itemLevel > 0) html += `<div>+${itemLevel}</div>`;
-
-        let details = '';
-        if (eq?.type) details += `<div>Type: ${hridToLabel(eq.type)}</div>`;
-        for (const req of eq?.levelRequirements || []) {
-            if (!req.skillHrid) continue;
-            details += `<div>Requires: ${req.level} ${hridToLabel(req.skillHrid)}</div>`;
-        }
-        const combatStyles = eq?.combatStats?.combatStyleHrids;
-        if (combatStyles?.length) details += `<div>Combat Style: ${combatStyles.map(hridToLabel).join(', ')}</div>`;
-        if (eq?.combatStats?.damageType) details += `<div>Damage Type: ${hridToLabel(eq.combatStats.damageType)}</div>`;
-        if (eq?.combatStats?.attackInterval) {
-            details += `<div>Attack Interval: ${(eq.combatStats.attackInterval / 1e9).toFixed(1)}s</div>`;
-        }
-        if (eq?.combatStats?.autoAttackDamage) {
-            details += `<div>Auto Attack Damage: ${formatStatValue(eq.combatStats.autoAttackDamage)}</div>`;
-        }
-
-        const stats = eq?.combatStats;
-        const enhancementBonuses = eq?.combatEnhancementBonuses || {};
-        if (stats) {
-            for (const key of COMBAT_STATS) {
-                const baseValue = stats[key];
-                if (!baseValue) continue;
-                const value =
-                    itemLevel > 0 && key in enhancementBonuses
-                        ? baseValue * getEnhancementMultiplier(detail, itemLevel)
-                        : baseValue;
-                details += `<div>${camelToLabel(key)}: ${formatStatValue(value)}</div>`;
-            }
-        }
-        if (eq?.combatStats?.primaryTraining) {
-            details += `<div>Primary Training: ${hridToLabel(eq.combatStats.primaryTraining)}</div>`;
-        }
-        if (details) html += `<div style="margin-top:8px;">${details}</div>`;
-        return html;
-    }
-
-    /**
-     * Build the ability square's click menu — just "View Marketplace", opened to the ability's
-     * book item (abilities are learned by consuming a book item whose hrid is the same path
-     * under /items/ instead of /abilities/, per ability-cost-calculator.js).
-     * @param {HTMLElement} menu
-     * @param {string} abilityHrid
-     * @private
-     */
-    _renderAbilitySquareMenu(menu, abilityHrid) {
-        const btnStyle =
-            'display:block; width:100%; text-align:left; background:transparent; border:none; color:#e0e0e0; padding:6px 8px; font-size:12px; cursor:pointer; border-radius:4px;';
-        const bookItemHrid = abilityHrid.replace('/abilities/', '/items/');
-
-        menu.innerHTML = `<button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>`;
-        menu.querySelectorAll('button').forEach((btn) => {
-            btn.addEventListener('mouseenter', () => (btn.style.background = ACCENT_BG));
-            btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-            btn.addEventListener('click', () => {
-                menu.style.display = 'none';
-                navigateToMarketplace(bookItemHrid, 0);
-            });
-        });
-    }
-
-    /**
-     * Build the item square's click menu: the subset of the game's real item context menu that
-     * makes sense for a read-only report — View Marketplace, Open Item Dictionary, View Action
-     * (only shown if an action actually produces/gathers this item) — confirmed against the live
-     * inventory item menu. "Link to Chat" is deliberately omitted: it links a real owned item
-     * from your inventory, and these are hypothetical candidate items you don't actually have.
-     * @param {HTMLElement} menu
-     * @param {string} hrid
-     * @param {number} itemLevel - Enhancement level to open the marketplace to (parsed from the
-     *  candidate's own "+CUR → +NEW" / "(+NEW)" text; 0 if none was found).
-     * @private
-     */
-    _renderItemSquareMenu(menu, hrid, itemLevel) {
-        const btnStyle =
-            'display:block; width:100%; text-align:left; background:transparent; border:none; color:#e0e0e0; padding:6px 8px; font-size:12px; cursor:pointer; border-radius:4px;';
-        const actionInfo = findActionForItem(hrid);
-
-        menu.innerHTML = `
-            <button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>
-            <button data-menu-action="dictionary" style="${btnStyle}">Open Item Dictionary</button>
-            ${actionInfo ? `<button data-menu-action="action" style="${btnStyle}">View Action</button>` : ''}
-        `;
-        menu.querySelectorAll('button').forEach((btn) => {
-            btn.addEventListener('mouseenter', () => (btn.style.background = ACCENT_BG));
-            btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-            btn.addEventListener('click', () => {
-                menu.style.display = 'none';
-                const action = btn.dataset.menuAction;
-                if (action === 'marketplace') {
-                    navigateToMarketplace(hrid, itemLevel);
-                } else if (action === 'dictionary') {
-                    getGameObject()?.handleOpenItemDictionary?.(hrid);
-                } else if (action === 'action' && actionInfo) {
-                    getGameObject()?.handleGoToAction?.(actionInfo.actionHrid);
-                }
-            });
+        this._resultSquareCleanup = setupResultSquareInteractions(this.panel, {
+            getItemDetailMap: () => this._itemDetailMapForTooltips,
+            getAbilityDetailMap: () => this._abilityDetailMapForTooltips,
+            getLevelExperienceTable: () => this._levelExperienceTableForTooltips,
         });
     }
 
@@ -1821,13 +1546,7 @@ class LabSimUI {
                     // Colors/shape match the game's own ability square (rgb(44,46,69) bg,
                     // 4px radius) — confirmed against the live Abilities panel's
                     // .Ability_ability element.
-                    const ref = `${spriteUrl}#${info.iconName}`;
-                    html += `<span class="mwi-labsim-ability-square" data-ability-hrid="${info.hrid}"${level ? ` data-ability-level="${level}"` : ''} style="display:inline-flex; position:relative; width:36px; height:36px; vertical-align:-10px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
-                    html += `<svg width="36" height="36"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
-                    if (level) {
-                        html += `<span style="position:absolute; bottom:-1px; right:-1px; font-size:11px; line-height:1; background:rgba(0,0,0,0.8); color:#e7e7e7; padding:1px 3px 0; border-radius:2px; pointer-events:none;">${level}</span>`;
-                    }
-                    html += '</span>';
+                    html += buildAbilitySquareHtml(info.hrid, info.iconName, level, spriteUrl);
                 } else if (info?.type === 'items' && spriteUrl) {
                     // Items also render as a clickable square (same colors as the ability
                     // square, matching the game's inventory slot look), with its own click menu
@@ -1840,10 +1559,7 @@ class LabSimUI {
                     const trailing = text.slice(pattern.lastIndex, pattern.lastIndex + 40);
                     const enhMatch = trailing.match(/^ \+\d+ → \+(\d+)/) || trailing.match(/^ \(\+(\d+)\)/);
                     const itemLevel = enhMatch ? enhMatch[1] : '0';
-                    const ref = `${spriteUrl}#${info.iconName}`;
-                    html += `<span class="mwi-labsim-item-square" data-item-hrid="${info.hrid}" data-item-level="${itemLevel}" style="display:inline-flex; position:relative; width:32px; height:32px; vertical-align:-9px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
-                    html += `<svg width="32" height="32"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
-                    html += '</span>';
+                    html += buildItemSquareHtml(info.hrid, info.iconName, itemLevel, spriteUrl);
                 } else if (spriteUrl) {
                     const ref = `${spriteUrl}#${info.iconName}`;
                     html += `<svg width="14" height="14" style="flex-shrink:0; vertical-align:-3px; margin-right:2px;"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
@@ -2680,17 +2396,9 @@ class LabSimUI {
             clearInterval(this.elapsedTimer);
             this.elapsedTimer = null;
         }
-        if (this._abilitySquareTooltipEl) {
-            this._abilitySquareTooltipEl.remove();
-            this._abilitySquareTooltipEl = null;
-        }
-        if (this._itemSquareMenuEl) {
-            this._itemSquareMenuEl.remove();
-            this._itemSquareMenuEl = null;
-        }
-        if (this._resultSquareDocClickHandler) {
-            document.removeEventListener('click', this._resultSquareDocClickHandler);
-            this._resultSquareDocClickHandler = null;
+        if (this._resultSquareCleanup) {
+            this._resultSquareCleanup();
+            this._resultSquareCleanup = null;
         }
         if (this.panel) {
             unregisterFloatingPanel(this.panel);
