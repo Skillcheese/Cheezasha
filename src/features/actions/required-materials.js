@@ -88,10 +88,6 @@ class RequiredMaterials {
     }
 
     updateRequiredMaterials(panel, amount) {
-        // Remove existing displays and artisan warning
-        const existingDisplays = panel.querySelectorAll('.mwi-required-materials, .mwi-artisan-warning');
-        existingDisplays.forEach((el) => el.remove());
-
         const numActions = parseInt(amount) || 0;
         const isIndeterminate = numActions <= 0;
 
@@ -118,8 +114,29 @@ class RequiredMaterials {
             return;
         }
 
+        // Skip the rebuild when nothing has actually changed since the last render. This is
+        // re-invoked on every items_updated event for every open panel (i.e. roughly every
+        // action tick), so without this guard it tears down and rebuilds unconditionally even
+        // when the required/missing amounts are identical.
+        const artisanOutOfStock = isArtisanTeaOutOfStock(actionHrid);
+        const signature = JSON.stringify({
+            actionHrid,
+            isIndeterminate,
+            placeholderLabel,
+            materials,
+            artisanOutOfStock,
+        });
+        if (panel.dataset.mwiRequiredMaterialsSignature === signature) {
+            return;
+        }
+        panel.dataset.mwiRequiredMaterialsSignature = signature;
+
+        // Remove existing displays and artisan warning
+        const existingDisplays = panel.querySelectorAll('.mwi-required-materials, .mwi-artisan-warning');
+        existingDisplays.forEach((el) => el.remove());
+
         // Warn if artisan tea is slotted but out of stock
-        if (isArtisanTeaOutOfStock(actionHrid)) {
+        if (artisanOutOfStock) {
             const warning = document.createElement('div');
             warning.className = 'mwi-artisan-warning';
             warning.style.cssText = 'color:#f0a830; font-size:11px; text-align:center; padding:3px 0 1px 0;';

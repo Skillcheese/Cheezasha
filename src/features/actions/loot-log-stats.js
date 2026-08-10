@@ -26,6 +26,7 @@ class LootLogStats {
         this.historyEnabled = false;
         this.historicalBatchSize = 20;
         this.historicalRendered = 0;
+        this.lastHistorySignature = null;
     }
 
     /**
@@ -564,17 +565,27 @@ class LootLogStats {
         const container = document.querySelector('.LootLogPanel_actionLoots__3oTid');
         if (!container) return;
 
-        // Remove existing historical section
-        const existing = container.querySelector('.mwi-loot-log-history');
-        if (existing) existing.remove();
-
         if (!this.currentLootLogData) return;
 
         // Build set of current IDs
         const currentIds = new Set(this.currentLootLogData.map((e) => e.characterActionId));
 
+        // Skip the rebuild entirely when the underlying data hasn't changed since last render.
+        // This is re-triggered on every loot_log_updated message and on the container's own
+        // onClass observer (which our own rebuild below re-fires by appending a subtree), so
+        // without this guard it tears down and rebuilds the whole history block redundantly.
+        const signature = Array.from(currentIds).sort().join(',');
+        if (this.lastHistorySignature === signature && container.querySelector('.mwi-loot-log-history')) {
+            return;
+        }
+
+        // Remove existing historical section
+        const existing = container.querySelector('.mwi-loot-log-history');
+        if (existing) existing.remove();
+
         // Get historical entries not in current set
         const historicalEntries = await lootLogHistory.getHistoricalEntries(currentIds);
+        this.lastHistorySignature = signature;
         if (historicalEntries.length === 0) return;
 
         // Create separator
@@ -894,6 +905,7 @@ class LootLogStats {
         this.itemsSpriteUrl = null;
         this.actionsSpriteUrl = null;
         this.historicalRendered = 0;
+        this.lastHistorySignature = null;
         this.initialized = false;
     }
 }
