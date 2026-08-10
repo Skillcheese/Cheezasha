@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.12.0
+ * Version: 3.13.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -6705,6 +6705,14 @@
 
                             // Dispatch to all registered handlers
                             this.handlers.forEach((handler) => {
+                                // Cheap pre-filter (class-name check) before paying for debounce
+                                // bookkeeping (Map writes, clearTimeout/setTimeout) — without this,
+                                // every added node anywhere on the page pays that cost for every
+                                // debounced handler regardless of relevance, which is the dominant
+                                // cost under heavy DOM churn (e.g. the task panel).
+                                if (handler.shouldQueue && !handler.shouldQueue(node)) {
+                                    return;
+                                }
                                 try {
                                     if (handler.debounce) {
                                         this.debouncedCallback(handler, node, mutation);
@@ -6814,6 +6822,8 @@
          * @param {Object} options - Optional configuration
          * @param {boolean} options.debounce - Enable debouncing (default: false)
          * @param {number} options.debounceDelay - Debounce delay in ms (default: 50)
+         * @param {Function} [options.shouldQueue] - Cheap pre-filter (node) => boolean, checked
+         *   before any debounce bookkeeping so irrelevant nodes never touch the queue
          * @returns {Function} Unregister function
          */
         register(name, callback, options = {}) {
@@ -6822,6 +6832,7 @@
                 callback,
                 debounce: options.debounce || false,
                 debounceDelay: options.debounceDelay,
+                shouldQueue: options.shouldQueue,
             };
             this.handlers.push(handler);
 
@@ -6854,18 +6865,18 @@
         onClass(name, classNames, callback, options = {}) {
             const classArray = Array.isArray(classNames) ? classNames : [classNames];
 
+            const nodeMatchesClass = (node) => {
+                const className = typeof node.className === 'string' ? node.className : '';
+                return classArray.some((targetClass) => className.includes(targetClass));
+            };
+
             return this.register(
                 name,
                 (node) => {
-                    // Safely get className as string (handles SVG elements)
-                    const className = typeof node.className === 'string' ? node.className : '';
-
                     // Check if node matches any of the target classes
-                    for (const targetClass of classArray) {
-                        if (className.includes(targetClass)) {
-                            callback(node);
-                            return; // Only call once per node
-                        }
+                    if (nodeMatchesClass(node)) {
+                        callback(node);
+                        return; // Only call once per node
                     }
 
                     // Also check descendants when a container subtree is inserted.
@@ -6879,7 +6890,13 @@
                         }
                     }
                 },
-                options
+                {
+                    ...options,
+                    // Skip debounce-queue bookkeeping entirely for nodes that neither match
+                    // nor could contain a match (leaf nodes with no children) — see the
+                    // dispatch-loop comment in start() for why this matters.
+                    shouldQueue: (node) => nodeMatchesClass(node) || node.childElementCount > 0,
+                }
             );
         }
 

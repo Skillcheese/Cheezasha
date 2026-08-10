@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.12.0
+ * Version: 3.13.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -163,16 +163,17 @@
             const taskNameElements = document.querySelectorAll('div[class*="RandomTask_name"]');
 
             for (const nameElement of taskNameElements) {
-                // Always remove any existing index first (in case task was rerolled)
                 const existingIndex = nameElement.querySelector('span.script_taskMapIndex');
-                if (existingIndex) {
-                    existingIndex.remove();
-                }
 
-                const taskText = nameElement.textContent;
+                // Task text excluding any index span we've already injected, so re-reading
+                // textContent below isn't polluted by our own "Z5" markup
+                const taskText = existingIndex
+                    ? nameElement.textContent.replace(existingIndex.textContent, '')
+                    : nameElement.textContent;
 
                 // Check if this is a combat task (contains "Kill" or "Defeat")
                 if (!taskText.includes('Kill') && !taskText.includes('Defeat')) {
+                    if (existingIndex) existingIndex.remove();
                     continue; // Not a combat task, skip
                 }
 
@@ -180,6 +181,7 @@
                 // Format: "Defeat - Jerry" or "Kill - Monster Name"
                 const match = taskText.match(REGEX_COMBAT_TASK);
                 if (!match) {
+                    if (existingIndex) existingIndex.remove();
                     continue; // Couldn't parse monster name
                 }
 
@@ -187,12 +189,27 @@
 
                 // Find the combat action for this monster
                 const zoneIndex = this.getZoneIndexForMonster(monsterName);
+                const desiredText = zoneIndex ? `Z${zoneIndex}` : null;
 
-                if (zoneIndex) {
-                    // Add index to the name element
+                // Skip entirely when nothing needs to change — inserting/removing the span
+                // unconditionally here would itself be a DOM mutation, which the shared
+                // MutationObserver would pick up and use to re-trigger this very handler,
+                // creating a self-sustaining loop that never settles.
+                if (existingIndex && existingIndex.textContent === desiredText) {
+                    continue;
+                }
+                if (!existingIndex && desiredText === null) {
+                    continue;
+                }
+
+                if (existingIndex) {
+                    existingIndex.remove();
+                }
+
+                if (desiredText) {
                     nameElement.insertAdjacentHTML(
                         'beforeend',
-                        `<span class="script_taskMapIndex" style="margin-left: 4px; color: ${config.SCRIPT_COLOR_MAIN};">Z${zoneIndex}</span>`
+                        `<span class="script_taskMapIndex" style="margin-left: 4px; color: ${config.SCRIPT_COLOR_MAIN};">${desiredText}</span>`
                     );
                 }
             }
@@ -14480,11 +14497,15 @@
 
     const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
-    // Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Revive/Taunt/Provoke
-    // target party members or aggro mechanics that don't exist in a solo sim, and Quick Aid/
-    // Rejuvenate heal a party member other than the caster — never worth an ability-swap/optimize
-    // slot.
+    // Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Promote is a
+    // monster-only mechanic (chess-piece "Enchanted" monsters promoting to Rook/Knight/Bishop, see
+    // combat-simulator.js's processAbilityPromoteEffect) that isn't actually player-equippable, but
+    // still shows up in abilityDetailMap with no ability-book requirement to filter it out.
+    // Revive/Taunt/Provoke target party members or aggro mechanics that don't exist in a solo sim,
+    // and Quick Aid/Rejuvenate heal a party member other than the caster — never worth an
+    // ability-swap/optimize slot.
     const SIM_USELESS_ABILITY_HRIDS = new Set([
+        '/abilities/promote',
         '/abilities/revive',
         '/abilities/taunt',
         '/abilities/provoke',
@@ -16681,14 +16702,17 @@
                         const attempts = simResult.labyAttemptCount || 1;
                         const encounters = simResult.encounters || 0;
                         const deaths = simResult.deaths?.player1 || 0;
+                        const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
                         const winRate = encounters / attempts;
+                        const candidateResult = { winRate, attempts, encounters, deaths, totalDamageDealt };
 
-                        if (!runBest || winRate > runBest.winRate) {
+                        // Below clearing, win rate alone can't tell combos apart — fall back to
+                        // damage dealt / deaths (see isLabyrinthResultBetter) so a combo that clearly
+                        // hits harder or dies less still gets adopted even while every option is
+                        // still stuck at 0% clears.
+                        if (!runBest || isLabyrinthResultBetter(candidateResult, runBest)) {
                             runBest = {
-                                winRate,
-                                attempts,
-                                encounters,
-                                deaths,
+                                ...candidateResult,
                                 abilities,
                                 description: label,
                                 cost: candidate.cost,
@@ -16700,7 +16724,7 @@
                     }
                 })
             );
-            if (runBest && (!best || runBest.winRate > best.winRate)) best = runBest;
+            if (runBest && (!best || isLabyrinthResultBetter(runBest, best))) best = runBest;
         }
 
         return best;
@@ -16948,7 +16972,7 @@
                 totalCost += result.cost;
                 best = await runStageSim();
             } else {
-                equipmentChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+                equipmentChanges.push(`${stageLabel}: no improvement`);
             }
         };
 
@@ -16973,14 +16997,16 @@
                 abilityChanges.push(`${stageLabel}: no improvement found`);
                 return;
             }
-            if (result.winRate > best.winRate) {
+            // Below clearing, win rate alone can't tell ability combos apart — same fallback to
+            // damage dealt / deaths as the equipment stage above (see isLabyrinthResultBetter).
+            if (isLabyrinthResultBetter(result, best)) {
                 currentDTOs = currentDTOs.slice();
                 currentDTOs[playerIndex] = { ...currentDTOs[playerIndex], abilities: result.abilities };
                 abilityChanges.push(`${stageLabel}:\n${indentLines(result.description)}`);
                 totalCost += result.cost;
                 best = await runStageSim();
             } else {
-                abilityChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+                abilityChanges.push(`${stageLabel}: no improvement`);
             }
         };
 
@@ -28748,12 +28774,11 @@
          * @private
          */
         _formatOptimizedLoadoutName(loadoutName, optimizeMode, optimized, improved) {
+            if (!improved) return `${loadoutName} (no improvement found)`;
             if (optimizeMode === 'everything') {
-                return `${loadoutName} ${improved ? '(improved)' : '(no net improvement)'}\n${optimized.description}`;
+                return `${loadoutName} (improved)\n${optimized.description}`;
             }
-            return improved
-                ? `${loadoutName}\n+ ${optimized.description}`
-                : `${loadoutName}\n(tried: ${optimized.description} — no improvement)`;
+            return `${loadoutName}\n+ ${optimized.description}`;
         }
 
         /**

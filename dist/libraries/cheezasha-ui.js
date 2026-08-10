@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.12.0
+ * Version: 3.13.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -5716,6 +5716,87 @@ ${starCSS}
     const chatHistoryExtender = new ChatHistoryExtender();
 
     /**
+     * Task Panel Watcher
+     * Single shared domObserver registration for the two task-panel DOM signals that
+     * multiple features need (task list appearing, individual task cards appearing).
+     * Several features used to each register their own onClass watcher for the same
+     * two class names, which meant every task-panel re-render triggered N independent
+     * debounce cycles and N independent full re-scans instead of one.
+     */
+
+
+    class TaskPanelWatcher {
+        constructor() {
+            this.listListeners = new Set();
+            this.taskListeners = new Set();
+            this.started = false;
+        }
+
+        /**
+         * Start the underlying domObserver registrations (idempotent, lazy).
+         * @private
+         */
+        _start() {
+            if (this.started) return;
+            this.started = true;
+
+            domObserver.onClass(
+                'TaskPanelWatcher-TaskList',
+                'TasksPanel_taskList',
+                (node) => {
+                    this.listListeners.forEach((callback) => {
+                        try {
+                            callback(node);
+                        } catch (error) {
+                            console.error('[TaskPanelWatcher] Task list listener failed:', error);
+                        }
+                    });
+                },
+                { debounce: true }
+            );
+
+            domObserver.onClass(
+                'TaskPanelWatcher-Task',
+                'RandomTask_randomTask',
+                (node) => {
+                    this.taskListeners.forEach((callback) => {
+                        try {
+                            callback(node);
+                        } catch (error) {
+                            console.error('[TaskPanelWatcher] Task node listener failed:', error);
+                        }
+                    });
+                },
+                { debounce: true }
+            );
+        }
+
+        /**
+         * Subscribe to the task list container appearing/re-rendering.
+         * @param {Function} callback - Called with the matching DOM node
+         * @returns {Function} Unsubscribe function
+         */
+        onTaskListChange(callback) {
+            this._start();
+            this.listListeners.add(callback);
+            return () => this.listListeners.delete(callback);
+        }
+
+        /**
+         * Subscribe to individual task card nodes appearing.
+         * @param {Function} callback - Called with the matching DOM node
+         * @returns {Function} Unsubscribe function
+         */
+        onTaskNodeAdded(callback) {
+            this._start();
+            this.taskListeners.add(callback);
+            return () => this.taskListeners.delete(callback);
+        }
+    }
+
+    const taskPanelWatcher = new TaskPanelWatcher();
+
+    /**
      * Gathering Profit Calculator
      *
      * Calculates comprehensive profit/hour for gathering actions (Foraging, Woodcutting, Milking) including:
@@ -8588,28 +8669,18 @@ ${starCSS}
          */
         registerDOMObservers() {
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass(
-                'TaskProfitDisplay-TaskList',
-                'TasksPanel_taskList',
-                () => {
-                    this.updateTaskProfits();
-                    this.updateQueuedIndicators();
-                },
-                { debounce: true }
-            );
+            const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+                this.updateTaskProfits();
+                this.updateQueuedIndicators();
+            });
             this.unregisterHandlers.push(unregisterTaskList);
 
             // Watch for individual tasks appearing
-            const unregisterTask = domObserver.onClass(
-                'TaskProfitDisplay-Task',
-                'RandomTask_randomTask',
-                (taskNode) => {
-                    this._setupTaskNode(taskNode);
-                    const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
-                    this.timerRegistry.registerTimeout(queuedTimeout);
-                },
-                { debounce: true }
-            );
+            const unregisterTask = taskPanelWatcher.onTaskNodeAdded((taskNode) => {
+                this._setupTaskNode(taskNode);
+                const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
+                this.timerRegistry.registerTimeout(queuedTimeout);
+            });
             this.unregisterHandlers.push(unregisterTask);
 
             // Initial scan for task nodes already in the DOM (handles race condition
@@ -10634,27 +10705,17 @@ ${starCSS}
          */
         registerDOMObservers() {
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass(
-                'TaskRerollTracker-TaskList',
-                'TasksPanel_taskList',
-                () => {
-                    this.updateAllTaskDisplays();
-                },
-                { debounce: true }
-            );
+            const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+                this.updateAllTaskDisplays();
+            });
             this.unregisterHandlers.push(unregisterTaskList);
 
             // Watch for individual tasks appearing
-            const unregisterTask = domObserver.onClass(
-                'TaskRerollTracker-Task',
-                'RandomTask_randomTask',
-                () => {
-                    // Small delay to let task data settle
-                    const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
-                    this.timerRegistry.registerTimeout(taskTimeout);
-                },
-                { debounce: true }
-            );
+            const unregisterTask = taskPanelWatcher.onTaskNodeAdded(() => {
+                // Small delay to let task data settle
+                const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
+                this.timerRegistry.registerTimeout(taskTimeout);
+            });
             this.unregisterHandlers.push(unregisterTask);
         }
 
@@ -11695,25 +11756,15 @@ ${starCSS}
             this.processAllTaskCards();
 
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass(
-                'TaskIcons-TaskList',
-                'TasksPanel_taskList',
-                () => {
-                    this.processAllTaskCards();
-                },
-                { debounce: true }
-            );
+            const unregisterTaskList = taskPanelWatcher.onTaskListChange(() => {
+                this.processAllTaskCards();
+            });
             this.observers.push(unregisterTaskList);
 
             // Watch for individual task cards appearing
-            const unregisterTask = domObserver.onClass(
-                'TaskIcons-Task',
-                'RandomTask_randomTask',
-                () => {
-                    this.processAllTaskCards();
-                },
-                { debounce: true }
-            );
+            const unregisterTask = taskPanelWatcher.onTaskNodeAdded(() => {
+                this.processAllTaskCards();
+            });
             this.observers.push(unregisterTask);
 
             // Fetch all sprite URLs from manifest, then inject monster sprite and re-process
@@ -13465,6 +13516,7 @@ ${starCSS}
             }
 
             // Sort the cards
+            const originalOrder = taskCards.slice();
             const sortMode = config.getSettingValue('taskSorter_sortMode', 'skill');
             if (sortMode === 'time') {
                 taskCards.sort((a, b) => this.compareTaskCardsByTime(a, b));
@@ -13474,8 +13526,26 @@ ${starCSS}
                 taskCards.sort((a, b) => this.compareTaskCards(a, b));
             }
 
-            // Re-append in sorted order
-            taskCards.forEach((card) => taskList.appendChild(card));
+            // No-op if already in the desired order — skip touching the DOM entirely
+            const alreadySorted = taskCards.every((card, index) => card === originalOrder[index]);
+            if (alreadySorted) {
+                return;
+            }
+
+            // Re-append only the cards that aren't already in their correct position.
+            // appendChild always triggers a childList mutation even when a node is moved
+            // to a position it effectively already occupies, and every mutation fans out
+            // to every registered DOM observer handler (icons, profit display, reroll
+            // tracker, etc.) — moving every card on every sort snowballs into a lot of
+            // redundant work. Only move nodes whose sibling actually needs to change.
+            let previousCard = null;
+            for (const card of taskCards) {
+                const referenceNode = previousCard ? previousCard.nextElementSibling : taskList.firstElementChild;
+                if (card !== referenceNode) {
+                    taskList.insertBefore(card, referenceNode);
+                }
+                previousCard = card;
+            }
 
             // After sorting, React may re-render task cards and remove our icons
             // Clear the processed markers and force icon re-processing
