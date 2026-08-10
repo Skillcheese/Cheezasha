@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.10.0
+ * Version: 3.10.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -298,9 +298,14 @@
             this.isInitialized = true;
 
             // Register with centralized observer to watch for alchemy panel
-            this.unregisterObserver = domObserver.onClass('AlchemyItemDimming', 'ItemSelector_menu__12sEM', () => {
-                this.processAlchemyItems();
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'AlchemyItemDimming',
+                'ItemSelector_menu__12sEM',
+                () => {
+                    this.processAlchemyItems();
+                },
+                { debounce: true }
+            );
 
             // Process any existing items on page
             this.processAlchemyItems();
@@ -503,7 +508,8 @@
                 'NavigationBar_currentExperience',
                 (progressBar) => {
                     this.setupProgressBarObserver(progressBar);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
         }
@@ -676,7 +682,8 @@
                         this.addLinks(container);
                         this.addedContainers.add(container);
                     }
-                }
+                },
+                { debounce: true }
             );
 
             // Check for existing container immediately
@@ -884,10 +891,15 @@
             this._applyOrder();
 
             // Re-apply whenever React re-renders the tab container
-            const unregister = domObserver.onClass('TabReorder', 'TabsComponent_tabsContainer', () => {
-                // Small delay to let Cheezasha tab injection happen first
-                setTimeout(() => this._applyOrder(), 50);
-            });
+            const unregister = domObserver.onClass(
+                'TabReorder',
+                'TabsComponent_tabsContainer',
+                () => {
+                    // Small delay to let Cheezasha tab injection happen first
+                    setTimeout(() => this._applyOrder(), 50);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
         }
 
@@ -1560,17 +1572,27 @@
             this.isInitialized = true;
 
             // Watch for uncollected (gray) collection tiles added to the DOM
-            const unregisterTiles = domObserver.onClass('CollectionNavigation', 'Collection_collection', (tile) => {
-                this.handleCollectionTile(tile);
-            });
+            const unregisterTiles = domObserver.onClass(
+                'CollectionNavigation',
+                'Collection_collection',
+                (tile) => {
+                    this.handleCollectionTile(tile);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTiles);
 
             // Watch for the collection panel appearing so we can attach a rescan observer
             // (covers filter checkbox toggles that show/hide existing tiles without re-adding them)
-            const unregisterPanel = domObserver.onClass('CollectionNavigation', 'Collection_collections', (panel) => {
-                this.attachPanelObserver(panel);
-                this.rescanGrayTiles(panel);
-            });
+            const unregisterPanel = domObserver.onClass(
+                'CollectionNavigation',
+                'Collection_collections',
+                (panel) => {
+                    this.attachPanelObserver(panel);
+                    this.rescanGrayTiles(panel);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterPanel);
 
             // Also attach to any panel already in the DOM
@@ -1580,9 +1602,14 @@
             }
 
             // Watch for collected item popovers (MuiTooltip containing Collection_actionMenu)
-            const unregisterTooltips = domObserver.onClass('CollectionNavigation', 'MuiTooltip-popper', (tooltipEl) => {
-                this.handleTooltip(tooltipEl);
-            });
+            const unregisterTooltips = domObserver.onClass(
+                'CollectionNavigation',
+                'MuiTooltip-popper',
+                (tooltipEl) => {
+                    this.handleTooltip(tooltipEl);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTooltips);
 
             // Process any tiles already in the DOM
@@ -2435,7 +2462,8 @@ ${starCSS}
                     const collectionsPanel = node.closest('.AchievementsPanel_collections__qA6CY');
                     if (!collectionsPanel) return;
                     this._rerenderPanel(node);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregPanel);
 
@@ -2446,7 +2474,8 @@ ${starCSS}
                     'SkillActionGrid_skillActionGrid__1tJFk',
                     (node) => {
                         this._addSkillingBadges(node);
-                    }
+                    },
+                    { debounce: true }
                 );
                 this.unregisterHandlers.push(unregSkilling);
             }
@@ -3101,11 +3130,16 @@ ${starCSS}
             this.setupGameCore();
             this.initialized = true;
 
-            this.unregisterObserver = domObserver.onClass('ChatCommands', 'Chat_chatInputContainer', (container) => {
-                const input = container.querySelector('input');
-                if (!input || input === this.chatInput) return;
-                this.attachToInput(input);
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'ChatCommands',
+                'Chat_chatInputContainer',
+                (container) => {
+                    const input = container.querySelector('input');
+                    if (!input || input === this.chatInput) return;
+                    this.attachToInput(input);
+                },
+                { debounce: true }
+            );
 
             // Attach to any already-present input
             const existing = document.querySelector('[class*="Chat_chatInputContainer"] input');
@@ -3899,7 +3933,8 @@ ${starCSS}
                 'Chat_tabsComponentContainer',
                 (tabsContainer) => {
                     this.setupTabBadges(tabsContainer);
-                }
+                },
+                { debounce: true }
             );
 
             // Check for existing tabs
@@ -4424,10 +4459,15 @@ ${starCSS}
             this.timerRegistry.registerInterval(pingTimer);
 
             // Inject pop-out button next to the ▼ collapse button in the chat tabs row
-            this.unregisterObserver = domObserver.onClass('PopOutChat', 'Chat_tabsComponentContainer', (container) => {
-                const parent = container.parentElement;
-                if (parent) this._injectButton(parent);
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'PopOutChat',
+                'Chat_tabsComponentContainer',
+                (container) => {
+                    const parent = container.parentElement;
+                    if (parent) this._injectButton(parent);
+                },
+                { debounce: true }
+            );
 
             // Handle existing container
             const existing = document.querySelector('[class*="Chat_tabsComponentContainer"]');
@@ -5641,7 +5681,9 @@ ${starCSS}
             };
 
             // Watch for new chat tab containers
-            const unregister = domObserver.onClass('ChatHistoryExtender', 'ChatHistory_chatHistory', attachHandler);
+            const unregister = domObserver.onClass('ChatHistoryExtender', 'ChatHistory_chatHistory', attachHandler, {
+                debounce: true,
+            });
             this.unregisterHandlers.push(unregister);
 
             // Attach to any already-open containers
@@ -8546,18 +8588,28 @@ ${starCSS}
          */
         registerDOMObservers() {
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass('TaskProfitDisplay-TaskList', 'TasksPanel_taskList', () => {
-                this.updateTaskProfits();
-                this.updateQueuedIndicators();
-            });
+            const unregisterTaskList = domObserver.onClass(
+                'TaskProfitDisplay-TaskList',
+                'TasksPanel_taskList',
+                () => {
+                    this.updateTaskProfits();
+                    this.updateQueuedIndicators();
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTaskList);
 
             // Watch for individual tasks appearing
-            const unregisterTask = domObserver.onClass('TaskProfitDisplay-Task', 'RandomTask_randomTask', (taskNode) => {
-                this._setupTaskNode(taskNode);
-                const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
-                this.timerRegistry.registerTimeout(queuedTimeout);
-            });
+            const unregisterTask = domObserver.onClass(
+                'TaskProfitDisplay-Task',
+                'RandomTask_randomTask',
+                (taskNode) => {
+                    this._setupTaskNode(taskNode);
+                    const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
+                    this.timerRegistry.registerTimeout(queuedTimeout);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTask);
 
             // Initial scan for task nodes already in the DOM (handles race condition
@@ -10582,17 +10634,27 @@ ${starCSS}
          */
         registerDOMObservers() {
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass('TaskRerollTracker-TaskList', 'TasksPanel_taskList', () => {
-                this.updateAllTaskDisplays();
-            });
+            const unregisterTaskList = domObserver.onClass(
+                'TaskRerollTracker-TaskList',
+                'TasksPanel_taskList',
+                () => {
+                    this.updateAllTaskDisplays();
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTaskList);
 
             // Watch for individual tasks appearing
-            const unregisterTask = domObserver.onClass('TaskRerollTracker-Task', 'RandomTask_randomTask', () => {
-                // Small delay to let task data settle
-                const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
-                this.timerRegistry.registerTimeout(taskTimeout);
-            });
+            const unregisterTask = domObserver.onClass(
+                'TaskRerollTracker-Task',
+                'RandomTask_randomTask',
+                () => {
+                    // Small delay to let task data settle
+                    const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
+                    this.timerRegistry.registerTimeout(taskTimeout);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterTask);
         }
 
@@ -11633,15 +11695,25 @@ ${starCSS}
             this.processAllTaskCards();
 
             // Watch for task list appearing
-            const unregisterTaskList = domObserver.onClass('TaskIcons-TaskList', 'TasksPanel_taskList', () => {
-                this.processAllTaskCards();
-            });
+            const unregisterTaskList = domObserver.onClass(
+                'TaskIcons-TaskList',
+                'TasksPanel_taskList',
+                () => {
+                    this.processAllTaskCards();
+                },
+                { debounce: true }
+            );
             this.observers.push(unregisterTaskList);
 
             // Watch for individual task cards appearing
-            const unregisterTask = domObserver.onClass('TaskIcons-Task', 'RandomTask_randomTask', () => {
-                this.processAllTaskCards();
-            });
+            const unregisterTask = domObserver.onClass(
+                'TaskIcons-Task',
+                'RandomTask_randomTask',
+                () => {
+                    this.processAllTaskCards();
+                },
+                { debounce: true }
+            );
             this.observers.push(unregisterTask);
 
             // Fetch all sprite URLs from manifest, then inject monster sprite and re-process
@@ -12386,9 +12458,14 @@ ${starCSS}
             this.cowbellThreshold = await storage.get('taskCapCowbellThreshold', 'settings', 32);
 
             // Watch for task cards appearing
-            const unregister = domObserver.onClass('TaskRerollProtection', 'RandomTask_randomTask', (taskNode) => {
-                setTimeout(() => this._processTaskCard(taskNode), 150);
-            });
+            const unregister = domObserver.onClass(
+                'TaskRerollProtection',
+                'RandomTask_randomTask',
+                (taskNode) => {
+                    setTimeout(() => this._processTaskCard(taskNode), 150);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Re-process on quest updates (task content may change after reroll)
@@ -12404,7 +12481,8 @@ ${starCSS}
                 'TasksPanel_taskSlotCount',
                 (panel) => {
                     this._injectConfigButton(panel);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregisterPanel);
 
@@ -13170,7 +13248,8 @@ ${starCSS}
                 'TasksPanel_taskSlotCount', // Just the class name, not [class*="..."]
                 (headerElement) => {
                     this.addSortButton(headerElement);
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -13566,7 +13645,8 @@ ${starCSS}
                 'TasksPanel_taskSlotCount',
                 (headerElement) => {
                     this.addHighlightButton(headerElement);
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -13939,9 +14019,14 @@ ${starCSS}
             this.injectButton();
 
             // Watch for Tasks panel appearing
-            const unregister = domObserver.onClass('TaskStatistics', 'TasksPanel_tabsComponentContainer', () => {
-                this.injectButton();
-            });
+            const unregister = domObserver.onClass(
+                'TaskStatistics',
+                'TasksPanel_tabsComponentContainer',
+                () => {
+                    this.injectButton();
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
         }
 
@@ -14592,7 +14677,8 @@ ${starCSS}
             this.unregisterObserver = domObserver.onClass(
                 'TaskClaimCollector',
                 'TasksPanel_taskSlotCount',
-                (headerElement) => this._onTaskPanelAppeared(headerElement)
+                (headerElement) => this._onTaskPanelAppeared(headerElement),
+                { debounce: true }
             );
 
             this.initialized = true;
@@ -14729,9 +14815,14 @@ ${starCSS}
             const saved = await storage.getJSON(getStorageKey$2(), 'settings', []);
             this.autoRerollHrids = new Set(saved);
 
-            const unregister = domObserver.onClass('TaskAutoReroll', 'RandomTask_randomTask', (taskNode) => {
-                setTimeout(() => this._processTaskCard(taskNode), 150);
-            });
+            const unregister = domObserver.onClass(
+                'TaskAutoReroll',
+                'RandomTask_randomTask',
+                (taskNode) => {
+                    setTimeout(() => this._processTaskCard(taskNode), 150);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             const questHandler = () => {
@@ -14740,9 +14831,14 @@ ${starCSS}
             webSocketHook.on('quests_updated', questHandler);
             this.unregisterHandlers.push(() => webSocketHook.off('quests_updated', questHandler));
 
-            const unregisterPanel = domObserver.onClass('TaskAutoReroll-Panel', 'TasksPanel_taskSlotCount', (panel) => {
-                this._injectConfigButton(panel);
-            });
+            const unregisterPanel = domObserver.onClass(
+                'TaskAutoReroll-Panel',
+                'TasksPanel_taskSlotCount',
+                (panel) => {
+                    this._injectConfigButton(panel);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterPanel);
         }
 
@@ -15178,7 +15274,8 @@ ${starCSS}
                 'NavigationBar_currentExperience',
                 (progressBar) => {
                     this.setupProgressBarObserver(progressBar);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterObservers.push(unregisterNav);
 
@@ -19744,8 +19841,11 @@ ${starCSS}
             });
 
             // Watch for loot log elements in DOM
-            const unregisterObserver = domObserver.onClass('LootLogStats', 'LootLogPanel_actionLoot__32gl_', (element) =>
-                this.processLootLogElement(element)
+            const unregisterObserver = domObserver.onClass(
+                'LootLogStats',
+                'LootLogPanel_actionLoot__32gl_',
+                (element) => this.processLootLogElement(element),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregisterObserver);
 
@@ -19754,7 +19854,8 @@ ${starCSS}
                 const unregisterHistoryObserver = domObserver.onClass(
                     'LootLogHistory',
                     'LootLogPanel_actionLoots__3oTid',
-                    () => this.renderHistoricalEntries()
+                    () => this.renderHistoricalEntries(),
+                    { debounce: true }
                 );
                 this.unregisterHandlers.push(unregisterHistoryObserver);
             }
@@ -20980,13 +21081,18 @@ ${starCSS}
              * Sets up watching for buy modals to appear and auto-fills them
              */
             initialize() {
-                observerUnregister = domObserver.onClass(observerId, 'Modal_modalContainer', (modal) => {
-                    handleBuyModal(modal, activeQuantity, pendingCalculation);
-                    // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
-                    if (activeQuantity !== null && !pendingCalculation) {
-                        activeQuantity = null;
-                    }
-                });
+                observerUnregister = domObserver.onClass(
+                    observerId,
+                    'Modal_modalContainer',
+                    (modal) => {
+                        handleBuyModal(modal, activeQuantity, pendingCalculation);
+                        // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
+                        if (activeQuantity !== null && !pendingCalculation) {
+                            activeQuantity = null;
+                        }
+                    },
+                    { debounce: true }
+                );
             },
 
             /**
@@ -22180,7 +22286,8 @@ ${starCSS}
                 'HousePanel_modalContent',
                 (modalContent) => {
                     this.handleHouseModal(modalContent);
-                }
+                },
+                { debounce: true }
             );
             this.cleanupRegistry.registerCleanup(unregisterModal);
         }
@@ -22766,11 +22873,16 @@ ${starCSS}
     // ─── Public API ─────────────────────────────────────────────────
 
     function initialize() {
-        domObserver.onClass('ScrollSimulatorUI', 'LoadoutsPanel_buttonsContainer', (node) => {
-            const panel = node.closest('[class*="LoadoutsPanel_selectedLoadout"]') || node.parentElement;
-            const navButtons = panel?.querySelector('[class*="LoadoutsPanel_navButtons"]');
-            if (navButtons) injectButton(navButtons);
-        });
+        domObserver.onClass(
+            'ScrollSimulatorUI',
+            'LoadoutsPanel_buttonsContainer',
+            (node) => {
+                const panel = node.closest('[class*="LoadoutsPanel_selectedLoadout"]') || node.parentElement;
+                const navButtons = panel?.querySelector('[class*="LoadoutsPanel_navButtons"]');
+                if (navButtons) injectButton(navButtons);
+            },
+            { debounce: true }
+        );
 
         config.onSettingChange('simulateScrollEffects', (enabled) => {
             if (!enabled) {
@@ -26343,19 +26455,24 @@ ${starCSS}
             this.isInitialized = true;
 
             // Watch for individual source items being added to the dictionary
-            const unregister = domObserver.onClass('TransmuteRates', 'ItemDictionary_item', (elem) => {
-                // When a new source item appears, find the parent section and inject rates
-                const section = elem.closest('[class*="ItemDictionary_transmutedFrom"]');
+            const unregister = domObserver.onClass(
+                'TransmuteRates',
+                'ItemDictionary_item',
+                (elem) => {
+                    // When a new source item appears, find the parent section and inject rates
+                    const section = elem.closest('[class*="ItemDictionary_transmutedFrom"]');
 
-                if (section) {
-                    // Debounce to avoid injecting multiple times as items are added
-                    clearTimeout(this.injectTimeout);
-                    this.injectTimeout = setTimeout(() => {
-                        this.injectRates(section);
-                    }, 50);
-                    this.timerRegistry.registerTimeout(this.injectTimeout);
-                }
-            });
+                    if (section) {
+                        // Debounce to avoid injecting multiple times as items are added
+                        clearTimeout(this.injectTimeout);
+                        this.injectTimeout = setTimeout(() => {
+                            this.injectRates(section);
+                        }, 50);
+                        this.timerRegistry.registerTimeout(this.injectTimeout);
+                    }
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Check if dictionary is already open
@@ -26542,14 +26659,19 @@ ${starCSS}
             this.isInitialized = true;
 
             // Watch for Item Dictionary modal title to appear
-            const unregister = domObserver.onClass('ViewActionButton', 'ItemDictionary_title', (titleElem) => {
-                // Debounce to avoid injecting multiple times
-                clearTimeout(this.injectTimeout);
-                this.injectTimeout = setTimeout(() => {
-                    this.injectButton(titleElem);
-                }, 50);
-                this.timerRegistry.registerTimeout(this.injectTimeout);
-            });
+            const unregister = domObserver.onClass(
+                'ViewActionButton',
+                'ItemDictionary_title',
+                (titleElem) => {
+                    // Debounce to avoid injecting multiple times
+                    clearTimeout(this.injectTimeout);
+                    this.injectTimeout = setTimeout(() => {
+                        this.injectButton(titleElem);
+                    }, 50);
+                    this.timerRegistry.registerTimeout(this.injectTimeout);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Check if dictionary is already open
@@ -26559,9 +26681,14 @@ ${starCSS}
             }
 
             // Watch for item action menu popups (e.g. clicking an item within an action)
-            const unregisterPopup = domObserver.onClass('ViewActionButton_popup', 'Item_actionMenu', (actionMenu) => {
-                this.injectPopupButton(actionMenu);
-            });
+            const unregisterPopup = domObserver.onClass(
+                'ViewActionButton_popup',
+                'Item_actionMenu',
+                (actionMenu) => {
+                    this.injectPopupButton(actionMenu);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterPopup);
         }
 
@@ -32219,7 +32346,8 @@ ${starCSS}
                 'SkillActionDetail_primaryItemSelectorContainer',
                 (itemSelectorContainer) => {
                     this._injectShieldButton(itemSelectorContainer);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
 
@@ -32351,8 +32479,16 @@ ${starCSS}
                 this.unregisterHandlers.push(() => tabGoldObserver.disconnect());
             }
 
-            // Update gold summary on inventory changes
-            const onItemsUpdated = () => this._updateGoldSummary(alchemyComponent);
+            // Update gold summary on inventory changes, but only while this alchemy panel instance
+            // is still mounted — otherwise this listener leaks and keeps recomputing on every
+            // inventory update (e.g. combat loot) long after the panel was closed.
+            const onItemsUpdated = () => {
+                if (!document.body.contains(alchemyComponent)) {
+                    dataManager.off('items_updated', onItemsUpdated);
+                    return;
+                }
+                this._updateGoldSummary(alchemyComponent);
+            };
             dataManager.on('items_updated', onItemsUpdated);
             this.unregisterHandlers.push(() => dataManager.off('items_updated', onItemsUpdated));
 
@@ -35750,8 +35886,11 @@ ${starCSS}
             this.isInitialized = true;
             this._buildPanel();
 
-            const unregister = domObserver.onClass('XPHCalculator', 'EnhancingPanel_enhancingPanel', (panel) =>
-                this._injectButton(panel)
+            const unregister = domObserver.onClass(
+                'XPHCalculator',
+                'EnhancingPanel_enhancingPanel',
+                (panel) => this._injectButton(panel),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
 
@@ -36373,8 +36512,11 @@ ${starCSS}
             this.isInitialized = true;
             this._buildPanel();
 
-            const unregister = domObserver.onClass('ProfitCalculator', 'EnhancingPanel_enhancingPanel', (panel) =>
-                this._injectButton(panel)
+            const unregister = domObserver.onClass(
+                'ProfitCalculator',
+                'EnhancingPanel_enhancingPanel',
+                (panel) => this._injectButton(panel),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
 
@@ -38148,13 +38290,19 @@ ${starCSS}
             if (!config.getSetting('guildXPDisplay', true)) return;
 
             // Watch for Guild panel tabs
-            const unregOverview = domObserver.onClass('GuildXPDisplay-Overview', 'GuildPanel_dataGrid', (el) =>
-                this._renderOverview(el)
+            const unregOverview = domObserver.onClass(
+                'GuildXPDisplay-Overview',
+                'GuildPanel_dataGrid',
+                (el) => this._renderOverview(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregOverview);
 
-            const unregMembers = domObserver.onClass('GuildXPDisplay-Members', 'GuildPanel_membersTable', (el) =>
-                this._renderMembers(el)
+            const unregMembers = domObserver.onClass(
+                'GuildXPDisplay-Members',
+                'GuildPanel_membersTable',
+                (el) => this._renderMembers(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregMembers);
 
@@ -38164,12 +38312,16 @@ ${starCSS}
                 'LeaderboardPanel_leaderboardTable',
                 (el) => {
                     if (el.closest('[class*="GuildPanel"]')) this._renderGuildLeaderboard(el);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterObservers.push(unregLeaderboard);
 
-            const unregTrials = domObserver.onClass('GuildXPDisplay-Trials', 'GuildPanel_trialsContent', (el) =>
-                this._renderTrialSignups(el)
+            const unregTrials = domObserver.onClass(
+                'GuildXPDisplay-Trials',
+                'GuildPanel_trialsContent',
+                (el) => this._renderTrialSignups(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregTrials);
 
@@ -39015,25 +39167,35 @@ ${starCSS}
 
             this.autofillManager.initialize();
 
-            const unregister = domObserver.onClass('GuildCreditValue', 'GuildPanel_exchangeModalContent', (el) =>
-                this._render(el)
+            const unregister = domObserver.onClass(
+                'GuildCreditValue',
+                'GuildPanel_exchangeModalContent',
+                (el) => this._render(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregister);
 
-            const unregisterShrine = domObserver.onClass('GuildCreditValue-Shrine', 'GuildPanel_guildModalContent', (el) =>
-                this._renderShrine(el)
+            const unregisterShrine = domObserver.onClass(
+                'GuildCreditValue-Shrine',
+                'GuildPanel_guildModalContent',
+                (el) => this._renderShrine(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregisterShrine);
 
-            const unregisterTrial = domObserver.onClass('GuildCreditValue-Trial', 'GuildPanel_signupModal', (el) =>
-                this._renderTrialSignup(el)
+            const unregisterTrial = domObserver.onClass(
+                'GuildCreditValue-Trial',
+                'GuildPanel_signupModal',
+                (el) => this._renderTrialSignup(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregisterTrial);
 
             const unregisterTileSummary = domObserver.onClass(
                 'GuildCreditValue-TileSummary',
                 'GuildPanel_tileSummary',
-                (el) => this._renderTrialTier(el)
+                (el) => this._renderTrialTier(el),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregisterTileSummary);
 
@@ -40173,7 +40335,8 @@ ${starCSS}
                 'LeaderboardPanel_leaderboardTable',
                 (el) => {
                     if (!el.closest('[class*="GuildPanel"]')) this._renderLeaderboard(el);
-                }
+                },
+                { debounce: true }
             );
             this.unregisterObservers.push(unregLeaderboard);
 

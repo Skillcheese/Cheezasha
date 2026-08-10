@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.10.0
+ * Version: 3.10.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -4897,7 +4897,8 @@
                 'GatheringProductionSkillPanel_title__3VihQ',
                 (titleElement) => {
                     this.injectFilterInput(titleElement);
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregisterTitleObserver);
@@ -6320,7 +6321,8 @@
                 if (panel) {
                     handleActionPanel(panel);
                 }
-            }
+            },
+            { debounce: true }
         );
 
         domObserver.onClass(
@@ -6329,7 +6331,8 @@
             (panel) => {
                 handleEnhancingPanel(panel);
                 registerEnhancingPanelWatcher(panel);
-            }
+            },
+            { debounce: true }
         );
 
         // NEW: Observe for skill action grid tiles (the clickable action tiles on gathering/production pages)
@@ -6338,7 +6341,8 @@
             'SkillAction_skillAction__1esCp',
             (actionTile) => {
                 handleSkillActionTile(actionTile);
-            }
+            },
+            { debounce: true }
         );
     }
 
@@ -8714,7 +8718,8 @@
                     this.injectQueueTimes(queueMenu);
 
                     this.setupQueueMenuObserver(queueMenu);
-                }
+                },
+                { debounce: true }
             );
 
             this.cleanupRegistry.registerCleanup(() => {
@@ -9053,7 +9058,8 @@
                     this.createDisplayPanel();
                     this.setupActionNameObserver(actionNameElement);
                     this.updateDisplay();
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -11404,9 +11410,14 @@
             this.actionCompletedHandler = () => this._onActionCompleted();
             dataManager.on('action_completed', this.actionCompletedHandler);
 
-            this.unregisterObserver = domObserver.onClass('ActionCountdown', 'ProgressBar_text', (el) => {
-                this._onProgressBarText(el);
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'ActionCountdown',
+                'ProgressBar_text',
+                (el) => {
+                    this._onProgressBarText(el);
+                },
+                { debounce: true }
+            );
 
             const existing = document.querySelector('[class*="ProgressBar_text"]');
             if (existing) {
@@ -13032,7 +13043,8 @@
                 'SkillActionDetail_skillActionDetail',
                 (detailPanel) => {
                     this.attachToActionPanel(detailPanel);
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -15184,25 +15196,30 @@
          */
         setupObserver() {
             // Watch for skill action panels (in skill screen, not detail modal)
-            this.unregisterObserver = domObserver.onClass('MaxProduceable', 'SkillAction_skillAction', (actionPanel) => {
-                const isNew = !this.actionElements.has(actionPanel);
-                this.injectMaxProduceable(actionPanel);
+            this.unregisterObserver = domObserver.onClass(
+                'MaxProduceable',
+                'SkillAction_skillAction',
+                (actionPanel) => {
+                    const isNew = !this.actionElements.has(actionPanel);
+                    this.injectMaxProduceable(actionPanel);
 
-                // Only schedule a profit recalculation for genuinely new panels.
-                // Panels that are already registered are being re-added by the sort
-                // reorder (DocumentFragment move), not navigated to fresh — scheduling
-                // updateAllCounts for them creates the sort→observer→updateAllCounts→sort
-                // infinite loop that causes continuous flashing and CPU waste.
-                if (!isNew) return;
+                    // Only schedule a profit recalculation for genuinely new panels.
+                    // Panels that are already registered are being re-added by the sort
+                    // reorder (DocumentFragment move), not navigated to fresh — scheduling
+                    // updateAllCounts for them creates the sort→observer→updateAllCounts→sort
+                    // infinite loop that causes continuous flashing and CPU waste.
+                    if (!isNew) return;
 
-                // Schedule profit calculation after panels settle
-                // This prevents 20-50 simultaneous API calls during character switch
-                clearTimeout(this.profitCalcTimeout);
-                this.profitCalcTimeout = setTimeout(() => {
-                    this.updateAllCounts();
-                }, 50); // Wait 50ms after last panel appears for better responsiveness
-                this.timerRegistry.registerTimeout(this.profitCalcTimeout);
-            });
+                    // Schedule profit calculation after panels settle
+                    // This prevents 20-50 simultaneous API calls during character switch
+                    clearTimeout(this.profitCalcTimeout);
+                    this.profitCalcTimeout = setTimeout(() => {
+                        this.updateAllCounts();
+                    }, 50); // Wait 50ms after last panel appears for better responsiveness
+                    this.timerRegistry.registerTimeout(this.profitCalcTimeout);
+                },
+                { debounce: true }
+            );
 
             // Check for existing action panels that may already be open
             const existingPanels = document.querySelectorAll('[class*="SkillAction_skillAction"]');
@@ -16194,9 +16211,14 @@
          */
         setupObserver() {
             // Watch for skill action panels (in skill screen, not detail modal)
-            this.unregisterObserver = domObserver.onClass('GatheringStats', 'SkillAction_skillAction', (actionPanel) => {
-                this.injectGatheringStats(actionPanel);
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'GatheringStats',
+                'SkillAction_skillAction',
+                (actionPanel) => {
+                    this.injectGatheringStats(actionPanel);
+                },
+                { debounce: true }
+            );
 
             // Check for existing action panels that may already be open
             const existingPanels = document.querySelectorAll('[class*="SkillAction_skillAction"]');
@@ -16862,7 +16884,8 @@
             const unregister = domObserver.onClass(
                 'RequiredMaterials-ActionPanel',
                 'SkillActionDetail_skillActionDetail',
-                () => this.processActionPanels()
+                () => this.processActionPanels(),
+                { debounce: true }
             );
             this.observers.push(unregister);
 
@@ -17296,13 +17319,18 @@
              * Sets up watching for buy modals to appear and auto-fills them
              */
             initialize() {
-                observerUnregister = domObserver.onClass(observerId, 'Modal_modalContainer', (modal) => {
-                    handleBuyModal(modal, activeQuantity, pendingCalculation);
-                    // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
-                    if (activeQuantity !== null && !pendingCalculation) {
-                        activeQuantity = null;
-                    }
-                });
+                observerUnregister = domObserver.onClass(
+                    observerId,
+                    'Modal_modalContainer',
+                    (modal) => {
+                        handleBuyModal(modal, activeQuantity, pendingCalculation);
+                        // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
+                        if (activeQuantity !== null && !pendingCalculation) {
+                            activeQuantity = null;
+                        }
+                    },
+                    { debounce: true }
+                );
             },
 
             /**
@@ -17613,14 +17641,16 @@
         domObserverUnregister$1 = domObserver.onClass(
             'MissingMaterialsButton-ActionPanel',
             'SkillActionDetail_skillActionDetail',
-            () => processActionPanels$1()
+            () => processActionPanels$1(),
+            { debounce: true }
         );
 
         // Watch for enhancement panels appearing
         enhancementDomObserverUnregister = domObserver.onClass(
             'MissingMaterialsButton-EnhancingPanel',
             'SkillActionDetail_enhancingComponent__17bOx',
-            (panel) => processEnhancingPanel(panel)
+            (panel) => processEnhancingPanel(panel),
+            { debounce: true }
         );
 
         // Process existing panels
@@ -18994,8 +19024,11 @@
 
             this.isInitialized = true;
 
-            const unregister = domObserver.onClass('BudgetCalculator', 'SkillActionDetail_skillActionDetail', () =>
-                this._processActionPanels()
+            const unregister = domObserver.onClass(
+                'BudgetCalculator',
+                'SkillActionDetail_skillActionDetail',
+                () => this._processActionPanels(),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
 
@@ -19630,8 +19663,11 @@
     let processedPanels = new WeakSet();
 
     function initialize() {
-        domObserverUnregister = domObserver.onClass('CostSummary-ActionPanel', 'SkillActionDetail_skillActionDetail', () =>
-            processActionPanels()
+        domObserverUnregister = domObserver.onClass(
+            'CostSummary-ActionPanel',
+            'SkillActionDetail_skillActionDetail',
+            () => processActionPanels(),
+            { debounce: true }
         );
         processActionPanels();
     }
@@ -20794,8 +20830,11 @@
             this.isInitialized = true;
             autofillManager.initialize();
 
-            const unregister = domObserver.onClass('CraftingPlan', 'SkillActionDetail_skillActionDetail', () =>
-                this._processActionPanels()
+            const unregister = domObserver.onClass(
+                'CraftingPlan',
+                'SkillActionDetail_skillActionDetail',
+                () => this._processActionPanels(),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregister);
         }
@@ -21972,7 +22011,8 @@
                 'GatheringProductionSkillPanel_label',
                 (labelElement) => {
                     this.checkAndInjectButtons(labelElement);
-                }
+                },
+                { debounce: true }
             );
 
             // Observe for alchemy panel labels (different class from other skills)
@@ -21981,7 +22021,8 @@
                 'AlchemyPanel_label',
                 (labelElement) => {
                     this.checkAndInjectButtons(labelElement);
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregisterLabelObserver);
@@ -23192,8 +23233,11 @@
         // ─── Tile observer ────────────────────────────────────────────────────────
 
         _setupTileObserver() {
-            const unregister = domObserver.onClass('InventoryCountDisplay-Tile', 'SkillAction_skillAction', (actionPanel) =>
-                this._injectTile(actionPanel)
+            const unregister = domObserver.onClass(
+                'InventoryCountDisplay-Tile',
+                'SkillAction_skillAction',
+                (actionPanel) => this._injectTile(actionPanel),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregister);
 
@@ -23273,7 +23317,8 @@
             const unregister = domObserver.onClass(
                 'InventoryCountDisplay-Detail',
                 'SkillActionDetail_regularComponent',
-                (panel) => this._injectDetail(panel)
+                (panel) => this._injectDetail(panel),
+                { debounce: true }
             );
             this.unregisterObservers.push(unregister);
 
@@ -23580,11 +23625,16 @@
         initialize() {
             if (!config.getSetting('actions_pinnedPage')) return;
 
-            this.unregisterObserver = domObserver.onClass('PinnedActionsPage', 'NavigationBar_nav', () => {
-                if (!this.navInjected) {
-                    this.injectNavButton();
-                }
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'PinnedActionsPage',
+                'NavigationBar_nav',
+                () => {
+                    if (!this.navInjected) {
+                        this.injectNavButton();
+                    }
+                },
+                { debounce: true }
+            );
 
             const existingNav = document.querySelector('[class*="NavigationBar_nav"]');
             if (existingNav && !this.navInjected) {
@@ -24750,19 +24800,24 @@
             const unregister = domObserver.onClass(
                 'DrinkTimer',
                 'GatheringProductionSkillPanel_consumablesContainer',
-                (el) => this._updatePanel(el)
+                (el) => this._updatePanel(el),
+                { debounce: true }
             );
             this.observers.push(unregister);
 
-            const unregisterAlchemy = domObserver.onClass('DrinkTimer-Alchemy', 'AlchemyPanel_consumablesContainer', (el) =>
-                this._updatePanel(el)
+            const unregisterAlchemy = domObserver.onClass(
+                'DrinkTimer-Alchemy',
+                'AlchemyPanel_consumablesContainer',
+                (el) => this._updatePanel(el),
+                { debounce: true }
             );
             this.observers.push(unregisterAlchemy);
 
             const unregisterEnhancing = domObserver.onClass(
                 'DrinkTimer-Enhancing',
                 'EnhancingPanel_consumablesContainer',
-                (el) => this._updatePanel(el)
+                (el) => this._updatePanel(el),
+                { debounce: true }
             );
             this.observers.push(unregisterEnhancing);
 
@@ -24925,7 +24980,7 @@
                 // Debounce to avoid excessive updates
                 clearTimeout(this.equipmentChangeTimeout);
                 this.equipmentChangeTimeout = setTimeout(() => {
-                    if (this.isActive) {
+                    if (this.displayElement?.parentNode) {
                         // Clear fingerprint to force update since equipment affects calculations
                         this.lastFingerprint = null;
                         this.checkAndUpdateDisplay();
@@ -24938,7 +24993,7 @@
             this.consumablesChangeHandler = () => {
                 clearTimeout(this.consumablesChangeTimeout);
                 this.consumablesChangeTimeout = setTimeout(() => {
-                    if (this.isActive) {
+                    if (this.displayElement?.parentNode) {
                         this.lastFingerprint = null;
                         this.checkAndUpdateDisplay();
                     }
@@ -24961,7 +25016,8 @@
                     this.checkAndUpdateDisplay();
                     // Setup content observer when alchemy component appears
                     this.setupContentObserver(alchemyComponent);
-                }
+                },
+                { debounce: true }
             );
 
             // Initial check for existing panel

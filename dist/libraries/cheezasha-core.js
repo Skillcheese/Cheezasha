@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.10.0
+ * Version: 3.10.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -3895,9 +3895,17 @@
             // Parse message type first to determine deduplication strategy
             let messageType;
             try {
-                // Quick parse to get type (avoid full parse for duplicates)
-                const typeMatch = message.match(/"type":"([^"]+)"/);
-                messageType = typeMatch ? typeMatch[1] : null;
+                // Quick scan to get type (avoid full parse for duplicates, and avoid the regex
+                // match-array allocation on every single message — this runs multiple times a
+                // second during combat).
+                const typeKeyIndex = message.indexOf('"type":"');
+                if (typeKeyIndex === -1) {
+                    messageType = null;
+                } else {
+                    const valueStart = typeKeyIndex + 8;
+                    const valueEnd = message.indexOf('"', valueStart);
+                    messageType = valueEnd === -1 ? null : message.substring(valueStart, valueEnd);
+                }
             } catch {
                 // If regex fails, skip deduplication and process normally
                 messageType = null;
@@ -4839,8 +4847,9 @@
                                 // count 0 means removed from this location (e.g. equipped from inventory)
                                 this.characterItems.splice(index, 1);
                             } else {
-                                // Update existing item (count and location may have changed, e.g. unequip)
-                                this.characterItems[index] = { ...this.characterItems[index], ...item };
+                                // Update existing item in-place (count and location may have changed, e.g.
+                                // unequip). Avoids allocating a fresh object per item on every inventory tick.
+                                Object.assign(this.characterItems[index], item);
                             }
                         } else if (item.count > 0) {
                             // New item in inventory or equipment slot
@@ -4866,7 +4875,7 @@
                             if (item.count === 0) {
                                 this.characterItems.splice(index, 1);
                             } else {
-                                this.characterItems[index] = { ...this.characterItems[index], ...item };
+                                Object.assign(this.characterItems[index], item);
                             }
                         } else if (item.count > 0) {
                             this.characterItems.push(item);
@@ -7383,9 +7392,14 @@
             }
 
             // 2. Watch for header to appear (handles SPA navigation)
-            const unregister = domObserver.onClass('NetworkAlert', 'Header_totalLevel', (elem) => {
-                this.prepareContainer(elem);
-            });
+            const unregister = domObserver.onClass(
+                'NetworkAlert',
+                'Header_totalLevel',
+                (elem) => {
+                    this.prepareContainer(elem);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
         }
 

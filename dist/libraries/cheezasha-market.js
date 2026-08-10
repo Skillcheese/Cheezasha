@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.10.0
+ * Version: 3.10.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -6014,7 +6014,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_itemFilterContainer',
                 (filterContainer) => {
                     this.injectFilterUI(filterContainer);
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregister);
@@ -6025,7 +6026,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_marketItems',
                 (_marketItemsContainer) => {
                     this.applyFilters();
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregisterItems);
@@ -6402,7 +6404,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_itemFilterContainer',
                 (filterContainer) => {
                     this.injectSortUI(filterContainer);
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregister);
@@ -6423,24 +6426,30 @@ self.onmessage = function (e) {
                     if (this.sortButton) {
                         this.sortButton.textContent = 'Sort by Profit';
                     }
-                }
+                },
+                { debounce: true }
             );
 
             this.unregisterHandlers.push(unregisterNav);
 
             // Watch for tab changes within marketplace (items container gets replaced)
-            const unregisterItems = domObserver.onClass('market-sort-items', 'MarketplacePanel_marketItems', () => {
-                // Items container appeared/changed - reset sort state
-                this.profitCache.clear();
-                this.originalOrder = [];
-                this.hasSorted = false;
-                this.sortDirection = 'desc';
-                if (this.sortButton) {
-                    this.sortButton.textContent = 'Sort by Profit';
-                }
-                // Remove profit indicators from any stale elements
-                document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
-            });
+            const unregisterItems = domObserver.onClass(
+                'market-sort-items',
+                'MarketplacePanel_marketItems',
+                () => {
+                    // Items container appeared/changed - reset sort state
+                    this.profitCache.clear();
+                    this.originalOrder = [];
+                    this.hasSorted = false;
+                    this.sortDirection = 'desc';
+                    if (this.sortButton) {
+                        this.sortButton.textContent = 'Sort by Profit';
+                    }
+                    // Remove profit indicators from any stale elements
+                    document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
+                },
+                { debounce: true }
+            );
 
             this.unregisterHandlers.push(unregisterItems);
 
@@ -6864,21 +6873,26 @@ self.onmessage = function (e) {
          */
         registerDOMObservers() {
             // Watch for order modals appearing
-            const unregister = domObserver.onClass('auto-fill-price', 'Modal_modalContainer', (modal) => {
-                // Check if this is a marketplace order modal (not instant buy/sell)
-                const header = modal.querySelector('div[class*="MarketplacePanel_header"]');
-                if (!header) return;
+            const unregister = domObserver.onClass(
+                'auto-fill-price',
+                'Modal_modalContainer',
+                (modal) => {
+                    // Check if this is a marketplace order modal (not instant buy/sell)
+                    const header = modal.querySelector('div[class*="MarketplacePanel_header"]');
+                    if (!header) return;
 
-                const headerText = header.textContent.trim();
+                    const headerText = header.textContent.trim();
 
-                // Skip instant buy/sell modals (contain "Now" in title)
-                if (headerText.includes(' Now')) {
-                    return;
-                }
+                    // Skip instant buy/sell modals (contain "Now" in title)
+                    if (headerText.includes(' Now')) {
+                        return;
+                    }
 
-                // Handle the order modal
-                this.handleOrderModal(modal);
-            });
+                    // Handle the order modal
+                    this.handleOrderModal(modal);
+                },
+                { debounce: true }
+            );
 
             this.unregisterHandlers.push(unregister);
         }
@@ -7148,7 +7162,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_marketItems',
                 (marketContainer) => {
                     this.updateItemCounts(marketContainer);
-                }
+                },
+                { debounce: true }
             );
 
             // Check for existing market container
@@ -7739,7 +7754,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_orderBooksContainer',
                 (container) => {
                     this.processOrderBook(container);
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -7753,7 +7769,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_myListingsTableContainer__2s6pm',
                 (container) => {
                     this.checkForExpiredListings(container);
-                }
+                },
+                { debounce: true }
             );
         }
 
@@ -8488,7 +8505,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_myListingsTable',
                 (tableNode) => {
                     this.scheduleTableRefresh(tableNode);
-                }
+                },
+                { debounce: true }
             );
 
             this.cleanupRegistry.registerCleanup(() => {
@@ -9619,7 +9637,8 @@ self.onmessage = function (e) {
                 'MarketplacePanel_orderBooksContainer',
                 (container) => {
                     this.processOrderBook(container);
-                }
+                },
+                { debounce: true }
             );
 
             this.cleanupRegistry.registerCleanup(() => {
@@ -9891,9 +9910,14 @@ self.onmessage = function (e) {
             }
 
             // 2. Watch for future additions (handles SPA navigation, page reloads)
-            this.unregisterObserver = domObserver.onClass('MarketOrderTotals', 'Header_totalLevel', (totalLevelElem) => {
-                this.injectDisplay(totalLevelElem);
-            });
+            this.unregisterObserver = domObserver.onClass(
+                'MarketOrderTotals',
+                'Header_totalLevel',
+                (totalLevelElem) => {
+                    this.injectDisplay(totalLevelElem);
+                },
+                { debounce: true }
+            );
         }
 
         /**
@@ -14798,9 +14822,14 @@ self.onmessage = function (e) {
             }
 
             // 2. Watch for header to appear (handles SPA navigation)
-            const unregister = domObserver.onClass('NetworkAlert', 'Header_totalLevel', (elem) => {
-                this.prepareContainer(elem);
-            });
+            const unregister = domObserver.onClass(
+                'NetworkAlert',
+                'Header_totalLevel',
+                (elem) => {
+                    this.prepareContainer(elem);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
         }
 
@@ -14931,19 +14960,29 @@ self.onmessage = function (e) {
             this.isInitialized = true;
 
             // Watch for item action menu popups
-            const unregister = domObserver.onClass('MarketplaceShortcuts', 'Item_actionMenu', (actionMenu) => {
-                this.injectDropdown(actionMenu);
-            });
+            const unregister = domObserver.onClass(
+                'MarketplaceShortcuts',
+                'Item_actionMenu',
+                (actionMenu) => {
+                    this.injectDropdown(actionMenu);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Watch for marketplace modals to autofill quantity and inject quick input buttons
-            const unregisterModal = domObserver.onClass('MarketplaceShortcuts_modal', 'Modal_modalContainer', (modal) => {
-                this.autofillQuantity(modal);
-                this.injectQuickInputButtons(modal);
-                this.injectMultiplierButtons(modal);
-                this.injectOwnedCount(modal);
-                this.focusQuantityInput(modal);
-            });
+            const unregisterModal = domObserver.onClass(
+                'MarketplaceShortcuts_modal',
+                'Modal_modalContainer',
+                (modal) => {
+                    this.autofillQuantity(modal);
+                    this.injectQuickInputButtons(modal);
+                    this.injectMultiplierButtons(modal);
+                    this.injectOwnedCount(modal);
+                    this.focusQuantityInput(modal);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregisterModal);
         }
 
@@ -15967,8 +16006,11 @@ self.onmessage = function (e) {
         if (isActive) return;
         if (!config.getSetting('sellQueue')) return;
 
-        tooltipObserverUnregister = domObserver.onClass('SellQueue-Tooltip', 'MuiTooltip-popper', (el) =>
-            handleTooltipAppear(el)
+        tooltipObserverUnregister = domObserver.onClass(
+            'SellQueue-Tooltip',
+            'MuiTooltip-popper',
+            (el) => handleTooltipAppear(el),
+            { debounce: true }
         );
 
         contextMenuHandler = (event) => {
@@ -22904,9 +22946,14 @@ self.onmessage = function (e) {
             }
 
             // 2. Watch for future additions (handles SPA navigation, page reloads)
-            const unregister = domObserver.onClass('NetworthHeader', 'Header_totalLevel', (elem) => {
-                this.renderHeader(elem);
-            });
+            const unregister = domObserver.onClass(
+                'NetworthHeader',
+                'Header_totalLevel',
+                (elem) => {
+                    this.renderHeader(elem);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             this.isInitialized = true;
@@ -23066,9 +23113,14 @@ self.onmessage = function (e) {
             }
 
             // 2. Watch for future additions (handles SPA navigation, inventory panel reloads)
-            const unregister = domObserver.onClass('NetworthInv', 'Inventory_items', (elem) => {
-                this.renderPanel(elem);
-            });
+            const unregister = domObserver.onClass(
+                'NetworthInv',
+                'Inventory_items',
+                (elem) => {
+                    this.renderPanel(elem);
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             this.isInitialized = true;
@@ -24230,9 +24282,14 @@ self.onmessage = function (e) {
             }
 
             // Watch for inventory panel
-            const unregister = domObserver.onClass('InventoryBadgeManager', 'Inventory_items', (elem) => {
-                this.currentInventoryElem = elem;
-            });
+            const unregister = domObserver.onClass(
+                'InventoryBadgeManager',
+                'Inventory_items',
+                (elem) => {
+                    this.currentInventoryElem = elem;
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Watch for MuiTooltip-popperInteractive closing (item click popup) and re-render badges.
@@ -24903,11 +24960,16 @@ self.onmessage = function (e) {
             }
 
             // Watch for inventory panel (for future opens/reloads)
-            const unregister = domObserver.onClass('InventorySort', 'Inventory_items', (elem) => {
-                this.currentInventoryElem = elem;
-                this.injectSortControls(elem);
-                this.applyCurrentSort();
-            });
+            const unregister = domObserver.onClass(
+                'InventorySort',
+                'Inventory_items',
+                (elem) => {
+                    this.currentInventoryElem = elem;
+                    this.injectSortControls(elem);
+                    this.applyCurrentSort();
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Store handler reference for cleanup with debouncing
@@ -25441,10 +25503,15 @@ self.onmessage = function (e) {
             }
 
             // Watch for inventory panel
-            const unregister = domObserver.onClass('InventoryBadgePrices', 'Inventory_items', (elem) => {
-                this.currentInventoryElem = elem;
-                this.updateBadges();
-            });
+            const unregister = domObserver.onClass(
+                'InventoryBadgePrices',
+                'Inventory_items',
+                (elem) => {
+                    this.currentInventoryElem = elem;
+                    this.updateBadges();
+                },
+                { debounce: true }
+            );
             this.unregisterHandlers.push(unregister);
 
             // Register with badge manager for coordinated rendering
@@ -27677,9 +27744,14 @@ self.onmessage = function (e) {
             // Inject tab button into character panel tab bar
             this._tryInjectTabButton();
 
-            const unregister = domObserver.onClass('CustomTabs', 'TabsComponent_tabsContainer', () => {
-                this._tryInjectTabButton();
-            });
+            const unregister = domObserver.onClass(
+                'CustomTabs',
+                'TabsComponent_tabsContainer',
+                () => {
+                    this._tryInjectTabButton();
+                },
+                { debounce: true }
+            );
             this._unregisterHandlers.push(unregister);
 
             if (!this._tabBtn) {
@@ -27730,9 +27802,14 @@ self.onmessage = function (e) {
             this._unregisterHandlers.push(unregisterSort);
 
             // Inject "Add to Tab" button into item action menus
-            const unregisterItemAction = domObserver.onClass('CustomTabs_itemAction', 'Item_actionMenu', (menu) => {
-                this._injectAddToTabButton(menu);
-            });
+            const unregisterItemAction = domObserver.onClass(
+                'CustomTabs_itemAction',
+                'Item_actionMenu',
+                (menu) => {
+                    this._injectAddToTabButton(menu);
+                },
+                { debounce: true }
+            );
             this._unregisterHandlers.push(unregisterItemAction);
 
             // Subscribe to loadout snapshot updates for auto-sync of loadout bindings
