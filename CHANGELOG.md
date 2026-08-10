@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.13.1](https://github.com/Skillcheese/Cheezasha/compare/v3.13.0...v3.13.1) (2026-08-10)
+
+### Bug Fixes
+
+- eliminate more input-lag sources from unfiltered/redundant DOM observers ([3c9d825](https://github.com/Skillcheese/Cheezasha/commit/3c9d82546cc28c6875f5365dc189d72a729256bd))
+
 ## [3.13.0](https://github.com/Skillcheese/Cheezasha/compare/v3.12.0...v3.13.0) (2026-08-10)
 
 ### Features
