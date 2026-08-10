@@ -438,7 +438,8 @@ class EstimatedListingAge {
             'MarketplacePanel_orderBooksContainer',
             (container) => {
                 this.processOrderBook(container);
-            }
+            },
+            { debounce: true }
         );
     }
 
@@ -452,7 +453,8 @@ class EstimatedListingAge {
             'MarketplacePanel_myListingsTableContainer__2s6pm',
             (container) => {
                 this.checkForExpiredListings(container);
-            }
+            },
+            { debounce: true }
         );
     }
 

@@ -33,11 +33,16 @@ class ChatCommands {
         this.setupGameCore();
         this.initialized = true;
 
-        this.unregisterObserver = domObserver.onClass('ChatCommands', 'Chat_chatInputContainer', (container) => {
-            const input = container.querySelector('input');
-            if (!input || input === this.chatInput) return;
-            this.attachToInput(input);
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'ChatCommands',
+            'Chat_chatInputContainer',
+            (container) => {
+                const input = container.querySelector('input');
+                if (!input || input === this.chatInput) return;
+                this.attachToInput(input);
+            },
+            { debounce: true }
+        );
 
         // Attach to any already-present input
         const existing = document.querySelector('[class*="Chat_chatInputContainer"] input');

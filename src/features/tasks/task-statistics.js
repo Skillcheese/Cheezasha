@@ -51,9 +51,14 @@ class TaskStatistics {
         this.injectButton();
 
         // Watch for Tasks panel appearing
-        const unregister = domObserver.onClass('TaskStatistics', 'TasksPanel_tabsComponentContainer', () => {
-            this.injectButton();
-        });
+        const unregister = domObserver.onClass(
+            'TaskStatistics',
+            'TasksPanel_tabsComponentContainer',
+            () => {
+                this.injectButton();
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
     }
 

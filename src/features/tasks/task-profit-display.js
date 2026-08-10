@@ -571,18 +571,28 @@ class TaskProfitDisplay {
      */
     registerDOMObservers() {
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass('TaskProfitDisplay-TaskList', 'TasksPanel_taskList', () => {
-            this.updateTaskProfits();
-            this.updateQueuedIndicators();
-        });
+        const unregisterTaskList = domObserver.onClass(
+            'TaskProfitDisplay-TaskList',
+            'TasksPanel_taskList',
+            () => {
+                this.updateTaskProfits();
+                this.updateQueuedIndicators();
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTaskList);
 
         // Watch for individual tasks appearing
-        const unregisterTask = domObserver.onClass('TaskProfitDisplay-Task', 'RandomTask_randomTask', (taskNode) => {
-            this._setupTaskNode(taskNode);
-            const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
-            this.timerRegistry.registerTimeout(queuedTimeout);
-        });
+        const unregisterTask = domObserver.onClass(
+            'TaskProfitDisplay-Task',
+            'RandomTask_randomTask',
+            (taskNode) => {
+                this._setupTaskNode(taskNode);
+                const queuedTimeout = setTimeout(() => this.updateQueuedIndicators(), 150);
+                this.timerRegistry.registerTimeout(queuedTimeout);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTask);
 
         // Initial scan for task nodes already in the DOM (handles race condition

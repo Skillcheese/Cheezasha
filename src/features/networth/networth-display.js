@@ -85,9 +85,14 @@ class NetworthHeaderDisplay {
         }
 
         // 2. Watch for future additions (handles SPA navigation, page reloads)
-        const unregister = domObserver.onClass('NetworthHeader', 'Header_totalLevel', (elem) => {
-            this.renderHeader(elem);
-        });
+        const unregister = domObserver.onClass(
+            'NetworthHeader',
+            'Header_totalLevel',
+            (elem) => {
+                this.renderHeader(elem);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         this.isInitialized = true;
@@ -247,9 +252,14 @@ class NetworthInventoryDisplay {
         }
 
         // 2. Watch for future additions (handles SPA navigation, inventory panel reloads)
-        const unregister = domObserver.onClass('NetworthInv', 'Inventory_items', (elem) => {
-            this.renderPanel(elem);
-        });
+        const unregister = domObserver.onClass(
+            'NetworthInv',
+            'Inventory_items',
+            (elem) => {
+                this.renderPanel(elem);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         this.isInitialized = true;

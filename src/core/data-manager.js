@@ -368,8 +368,9 @@ class DataManager {
                             // count 0 means removed from this location (e.g. equipped from inventory)
                             this.characterItems.splice(index, 1);
                         } else {
-                            // Update existing item (count and location may have changed, e.g. unequip)
-                            this.characterItems[index] = { ...this.characterItems[index], ...item };
+                            // Update existing item in-place (count and location may have changed, e.g.
+                            // unequip). Avoids allocating a fresh object per item on every inventory tick.
+                            Object.assign(this.characterItems[index], item);
                         }
                     } else if (item.count > 0) {
                         // New item in inventory or equipment slot
@@ -395,7 +396,7 @@ class DataManager {
                         if (item.count === 0) {
                             this.characterItems.splice(index, 1);
                         } else {
-                            this.characterItems[index] = { ...this.characterItems[index], ...item };
+                            Object.assign(this.characterItems[index], item);
                         }
                     } else if (item.count > 0) {
                         this.characterItems.push(item);

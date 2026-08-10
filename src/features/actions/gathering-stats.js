@@ -112,9 +112,14 @@ class GatheringStats {
      */
     setupObserver() {
         // Watch for skill action panels (in skill screen, not detail modal)
-        this.unregisterObserver = domObserver.onClass('GatheringStats', 'SkillAction_skillAction', (actionPanel) => {
-            this.injectGatheringStats(actionPanel);
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'GatheringStats',
+            'SkillAction_skillAction',
+            (actionPanel) => {
+                this.injectGatheringStats(actionPanel);
+            },
+            { debounce: true }
+        );
 
         // Check for existing action panels that may already be open
         const existingPanels = document.querySelectorAll('[class*="SkillAction_skillAction"]');

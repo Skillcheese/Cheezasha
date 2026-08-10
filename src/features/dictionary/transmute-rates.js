@@ -61,19 +61,24 @@ class TransmuteRates {
         this.isInitialized = true;
 
         // Watch for individual source items being added to the dictionary
-        const unregister = domObserver.onClass('TransmuteRates', 'ItemDictionary_item', (elem) => {
-            // When a new source item appears, find the parent section and inject rates
-            const section = elem.closest('[class*="ItemDictionary_transmutedFrom"]');
+        const unregister = domObserver.onClass(
+            'TransmuteRates',
+            'ItemDictionary_item',
+            (elem) => {
+                // When a new source item appears, find the parent section and inject rates
+                const section = elem.closest('[class*="ItemDictionary_transmutedFrom"]');
 
-            if (section) {
-                // Debounce to avoid injecting multiple times as items are added
-                clearTimeout(this.injectTimeout);
-                this.injectTimeout = setTimeout(() => {
-                    this.injectRates(section);
-                }, 50);
-                this.timerRegistry.registerTimeout(this.injectTimeout);
-            }
-        });
+                if (section) {
+                    // Debounce to avoid injecting multiple times as items are added
+                    clearTimeout(this.injectTimeout);
+                    this.injectTimeout = setTimeout(() => {
+                        this.injectRates(section);
+                    }, 50);
+                    this.timerRegistry.registerTimeout(this.injectTimeout);
+                }
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Check if dictionary is already open

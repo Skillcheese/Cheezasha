@@ -77,10 +77,15 @@ class InventoryBadgePrices {
         }
 
         // Watch for inventory panel
-        const unregister = domObserver.onClass('InventoryBadgePrices', 'Inventory_items', (elem) => {
-            this.currentInventoryElem = elem;
-            this.updateBadges();
-        });
+        const unregister = domObserver.onClass(
+            'InventoryBadgePrices',
+            'Inventory_items',
+            (elem) => {
+                this.currentInventoryElem = elem;
+                this.updateBadges();
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Register with badge manager for coordinated rendering

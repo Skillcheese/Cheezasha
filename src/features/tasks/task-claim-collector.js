@@ -28,7 +28,8 @@ class TaskClaimCollector {
         this.unregisterObserver = domObserver.onClass(
             'TaskClaimCollector',
             'TasksPanel_taskSlotCount',
-            (headerElement) => this._onTaskPanelAppeared(headerElement)
+            (headerElement) => this._onTaskPanelAppeared(headerElement),
+            { debounce: true }
         );
 
         this.initialized = true;

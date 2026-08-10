@@ -42,7 +42,8 @@ class ExternalLinks {
                     this.addLinks(container);
                     this.addedContainers.add(container);
                 }
-            }
+            },
+            { debounce: true }
         );
 
         // Check for existing container immediately

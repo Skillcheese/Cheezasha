@@ -287,8 +287,11 @@ function initialize() {
     if (isActive) return;
     if (!config.getSetting('sellQueue')) return;
 
-    tooltipObserverUnregister = domObserver.onClass('SellQueue-Tooltip', 'MuiTooltip-popper', (el) =>
-        handleTooltipAppear(el)
+    tooltipObserverUnregister = domObserver.onClass(
+        'SellQueue-Tooltip',
+        'MuiTooltip-popper',
+        (el) => handleTooltipAppear(el),
+        { debounce: true }
     );
 
     contextMenuHandler = (event) => {

@@ -58,10 +58,15 @@ class TabReorder {
         this._applyOrder();
 
         // Re-apply whenever React re-renders the tab container
-        const unregister = domObserver.onClass('TabReorder', 'TabsComponent_tabsContainer', () => {
-            // Small delay to let Cheezasha tab injection happen first
-            setTimeout(() => this._applyOrder(), 50);
-        });
+        const unregister = domObserver.onClass(
+            'TabReorder',
+            'TabsComponent_tabsContainer',
+            () => {
+                // Small delay to let Cheezasha tab injection happen first
+                setTimeout(() => this._applyOrder(), 50);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
     }
 

@@ -33,14 +33,19 @@ class ViewActionButton {
         this.isInitialized = true;
 
         // Watch for Item Dictionary modal title to appear
-        const unregister = domObserver.onClass('ViewActionButton', 'ItemDictionary_title', (titleElem) => {
-            // Debounce to avoid injecting multiple times
-            clearTimeout(this.injectTimeout);
-            this.injectTimeout = setTimeout(() => {
-                this.injectButton(titleElem);
-            }, 50);
-            this.timerRegistry.registerTimeout(this.injectTimeout);
-        });
+        const unregister = domObserver.onClass(
+            'ViewActionButton',
+            'ItemDictionary_title',
+            (titleElem) => {
+                // Debounce to avoid injecting multiple times
+                clearTimeout(this.injectTimeout);
+                this.injectTimeout = setTimeout(() => {
+                    this.injectButton(titleElem);
+                }, 50);
+                this.timerRegistry.registerTimeout(this.injectTimeout);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Check if dictionary is already open
@@ -50,9 +55,14 @@ class ViewActionButton {
         }
 
         // Watch for item action menu popups (e.g. clicking an item within an action)
-        const unregisterPopup = domObserver.onClass('ViewActionButton_popup', 'Item_actionMenu', (actionMenu) => {
-            this.injectPopupButton(actionMenu);
-        });
+        const unregisterPopup = domObserver.onClass(
+            'ViewActionButton_popup',
+            'Item_actionMenu',
+            (actionMenu) => {
+                this.injectPopupButton(actionMenu);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterPopup);
     }
 

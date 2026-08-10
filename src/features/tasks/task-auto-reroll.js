@@ -36,9 +36,14 @@ class TaskAutoReroll {
         const saved = await storage.getJSON(getStorageKey(), 'settings', []);
         this.autoRerollHrids = new Set(saved);
 
-        const unregister = domObserver.onClass('TaskAutoReroll', 'RandomTask_randomTask', (taskNode) => {
-            setTimeout(() => this._processTaskCard(taskNode), 150);
-        });
+        const unregister = domObserver.onClass(
+            'TaskAutoReroll',
+            'RandomTask_randomTask',
+            (taskNode) => {
+                setTimeout(() => this._processTaskCard(taskNode), 150);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         const questHandler = () => {
@@ -47,9 +52,14 @@ class TaskAutoReroll {
         webSocketHook.on('quests_updated', questHandler);
         this.unregisterHandlers.push(() => webSocketHook.off('quests_updated', questHandler));
 
-        const unregisterPanel = domObserver.onClass('TaskAutoReroll-Panel', 'TasksPanel_taskSlotCount', (panel) => {
-            this._injectConfigButton(panel);
-        });
+        const unregisterPanel = domObserver.onClass(
+            'TaskAutoReroll-Panel',
+            'TasksPanel_taskSlotCount',
+            (panel) => {
+                this._injectConfigButton(panel);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterPanel);
     }
 

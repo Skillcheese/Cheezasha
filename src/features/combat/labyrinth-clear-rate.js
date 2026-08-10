@@ -68,8 +68,11 @@ class LabyrinthClearRate {
         this.liveProgressHandler = (data) => this.onLiveProgress(data);
         webSocketHook.on('labyrinth_room_progress', this.liveProgressHandler);
 
-        const unregister = domObserver.onClass('LabyrinthClearRate', 'LabyrinthPanel_skipThreshold', () =>
-            this.injectOverlays()
+        const unregister = domObserver.onClass(
+            'LabyrinthClearRate',
+            'LabyrinthPanel_skipThreshold',
+            () => this.injectOverlays(),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 

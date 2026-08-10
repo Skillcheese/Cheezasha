@@ -238,17 +238,27 @@ class TaskRerollTracker {
      */
     registerDOMObservers() {
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass('TaskRerollTracker-TaskList', 'TasksPanel_taskList', () => {
-            this.updateAllTaskDisplays();
-        });
+        const unregisterTaskList = domObserver.onClass(
+            'TaskRerollTracker-TaskList',
+            'TasksPanel_taskList',
+            () => {
+                this.updateAllTaskDisplays();
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTaskList);
 
         // Watch for individual tasks appearing
-        const unregisterTask = domObserver.onClass('TaskRerollTracker-Task', 'RandomTask_randomTask', () => {
-            // Small delay to let task data settle
-            const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
-            this.timerRegistry.registerTimeout(taskTimeout);
-        });
+        const unregisterTask = domObserver.onClass(
+            'TaskRerollTracker-Task',
+            'RandomTask_randomTask',
+            () => {
+                // Small delay to let task data settle
+                const taskTimeout = setTimeout(() => this.updateAllTaskDisplays(), 100);
+                this.timerRegistry.registerTimeout(taskTimeout);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTask);
     }
 

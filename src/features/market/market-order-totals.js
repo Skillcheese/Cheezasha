@@ -73,9 +73,14 @@ class MarketOrderTotals {
         }
 
         // 2. Watch for future additions (handles SPA navigation, page reloads)
-        this.unregisterObserver = domObserver.onClass('MarketOrderTotals', 'Header_totalLevel', (totalLevelElem) => {
-            this.injectDisplay(totalLevelElem);
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'MarketOrderTotals',
+            'Header_totalLevel',
+            (totalLevelElem) => {
+                this.injectDisplay(totalLevelElem);
+            },
+            { debounce: true }
+        );
     }
 
     /**

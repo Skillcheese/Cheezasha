@@ -554,9 +554,14 @@ export default class CustomTabsUI {
         // Inject tab button into character panel tab bar
         this._tryInjectTabButton();
 
-        const unregister = domObserver.onClass('CustomTabs', 'TabsComponent_tabsContainer', () => {
-            this._tryInjectTabButton();
-        });
+        const unregister = domObserver.onClass(
+            'CustomTabs',
+            'TabsComponent_tabsContainer',
+            () => {
+                this._tryInjectTabButton();
+            },
+            { debounce: true }
+        );
         this._unregisterHandlers.push(unregister);
 
         if (!this._tabBtn) {
@@ -607,9 +612,14 @@ export default class CustomTabsUI {
         this._unregisterHandlers.push(unregisterSort);
 
         // Inject "Add to Tab" button into item action menus
-        const unregisterItemAction = domObserver.onClass('CustomTabs_itemAction', 'Item_actionMenu', (menu) => {
-            this._injectAddToTabButton(menu);
-        });
+        const unregisterItemAction = domObserver.onClass(
+            'CustomTabs_itemAction',
+            'Item_actionMenu',
+            (menu) => {
+                this._injectAddToTabButton(menu);
+            },
+            { debounce: true }
+        );
         this._unregisterHandlers.push(unregisterItemAction);
 
         // Subscribe to loadout snapshot updates for auto-sync of loadout bindings

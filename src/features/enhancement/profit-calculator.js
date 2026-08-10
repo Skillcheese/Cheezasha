@@ -324,8 +324,11 @@ class ProfitCalculator {
         this.isInitialized = true;
         this._buildPanel();
 
-        const unregister = domObserver.onClass('ProfitCalculator', 'EnhancingPanel_enhancingPanel', (panel) =>
-            this._injectButton(panel)
+        const unregister = domObserver.onClass(
+            'ProfitCalculator',
+            'EnhancingPanel_enhancingPanel',
+            (panel) => this._injectButton(panel),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 

@@ -41,9 +41,14 @@ class ActionCountdown {
         this.actionCompletedHandler = () => this._onActionCompleted();
         dataManager.on('action_completed', this.actionCompletedHandler);
 
-        this.unregisterObserver = domObserver.onClass('ActionCountdown', 'ProgressBar_text', (el) => {
-            this._onProgressBarText(el);
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'ActionCountdown',
+            'ProgressBar_text',
+            (el) => {
+                this._onProgressBarText(el);
+            },
+            { debounce: true }
+        );
 
         const existing = document.querySelector('[class*="ProgressBar_text"]');
         if (existing) {

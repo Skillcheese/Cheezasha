@@ -74,7 +74,8 @@ class SkillExperiencePercentage {
             'NavigationBar_currentExperience',
             (progressBar) => {
                 this.setupProgressBarObserver(progressBar);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
     }

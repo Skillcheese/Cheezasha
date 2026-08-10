@@ -172,13 +172,18 @@ export function createAutofillManager(observerId) {
          * Sets up watching for buy modals to appear and auto-fills them
          */
         initialize() {
-            observerUnregister = domObserver.onClass(observerId, 'Modal_modalContainer', (modal) => {
-                handleBuyModal(modal, activeQuantity, pendingCalculation);
-                // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
-                if (activeQuantity !== null && !pendingCalculation) {
-                    activeQuantity = null;
-                }
-            });
+            observerUnregister = domObserver.onClass(
+                observerId,
+                'Modal_modalContainer',
+                (modal) => {
+                    handleBuyModal(modal, activeQuantity, pendingCalculation);
+                    // Clear static quantity after use (one-shot) — pendingCalculation persists intentionally
+                    if (activeQuantity !== null && !pendingCalculation) {
+                        activeQuantity = null;
+                    }
+                },
+                { debounce: true }
+            );
         },
 
         /**

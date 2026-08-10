@@ -35,9 +35,14 @@ class AlchemyItemDimming {
         this.isInitialized = true;
 
         // Register with centralized observer to watch for alchemy panel
-        this.unregisterObserver = domObserver.onClass('AlchemyItemDimming', 'ItemSelector_menu__12sEM', () => {
-            this.processAlchemyItems();
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'AlchemyItemDimming',
+            'ItemSelector_menu__12sEM',
+            () => {
+                this.processAlchemyItems();
+            },
+            { debounce: true }
+        );
 
         // Process any existing items on page
         this.processAlchemyItems();

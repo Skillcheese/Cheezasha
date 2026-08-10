@@ -47,7 +47,8 @@ class RemainingXP {
             'NavigationBar_currentExperience',
             (progressBar) => {
                 this.setupProgressBarObserver(progressBar);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterObservers.push(unregisterNav);
 

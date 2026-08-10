@@ -222,9 +222,17 @@ class WebSocketHook {
         // Parse message type first to determine deduplication strategy
         let messageType;
         try {
-            // Quick parse to get type (avoid full parse for duplicates)
-            const typeMatch = message.match(/"type":"([^"]+)"/);
-            messageType = typeMatch ? typeMatch[1] : null;
+            // Quick scan to get type (avoid full parse for duplicates, and avoid the regex
+            // match-array allocation on every single message — this runs multiple times a
+            // second during combat).
+            const typeKeyIndex = message.indexOf('"type":"');
+            if (typeKeyIndex === -1) {
+                messageType = null;
+            } else {
+                const valueStart = typeKeyIndex + 8;
+                const valueEnd = message.indexOf('"', valueStart);
+                messageType = valueEnd === -1 ? null : message.substring(valueStart, valueEnd);
+            }
         } catch {
             // If regex fails, skip deduplication and process normally
             messageType = null;

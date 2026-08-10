@@ -24,9 +24,14 @@ class LabSim {
 
         labSimUI.buildPanel();
 
-        const unregister = domObserver.onClass('LabSimButton', 'LabyrinthPanel_tabsComponentContainer', (node) => {
-            this._injectButton(node);
-        });
+        const unregister = domObserver.onClass(
+            'LabSimButton',
+            'LabyrinthPanel_tabsComponentContainer',
+            (node) => {
+                this._injectButton(node);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         const existingPanel = document.querySelector('[class*="LabyrinthPanel_tabsComponentContainer"]');

@@ -132,15 +132,25 @@ class TaskIcons {
         this.processAllTaskCards();
 
         // Watch for task list appearing
-        const unregisterTaskList = domObserver.onClass('TaskIcons-TaskList', 'TasksPanel_taskList', () => {
-            this.processAllTaskCards();
-        });
+        const unregisterTaskList = domObserver.onClass(
+            'TaskIcons-TaskList',
+            'TasksPanel_taskList',
+            () => {
+                this.processAllTaskCards();
+            },
+            { debounce: true }
+        );
         this.observers.push(unregisterTaskList);
 
         // Watch for individual task cards appearing
-        const unregisterTask = domObserver.onClass('TaskIcons-Task', 'RandomTask_randomTask', () => {
-            this.processAllTaskCards();
-        });
+        const unregisterTask = domObserver.onClass(
+            'TaskIcons-Task',
+            'RandomTask_randomTask',
+            () => {
+                this.processAllTaskCards();
+            },
+            { debounce: true }
+        );
         this.observers.push(unregisterTask);
 
         // Fetch all sprite URLs from manifest, then inject monster sprite and re-process

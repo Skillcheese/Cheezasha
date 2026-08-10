@@ -129,7 +129,8 @@ class AlchemyActionProtection {
             'SkillActionDetail_primaryItemSelectorContainer',
             (itemSelectorContainer) => {
                 this._injectShieldButton(itemSelectorContainer);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 
@@ -261,8 +262,16 @@ class AlchemyActionProtection {
             this.unregisterHandlers.push(() => tabGoldObserver.disconnect());
         }
 
-        // Update gold summary on inventory changes
-        const onItemsUpdated = () => this._updateGoldSummary(alchemyComponent);
+        // Update gold summary on inventory changes, but only while this alchemy panel instance
+        // is still mounted — otherwise this listener leaks and keeps recomputing on every
+        // inventory update (e.g. combat loot) long after the panel was closed.
+        const onItemsUpdated = () => {
+            if (!document.body.contains(alchemyComponent)) {
+                dataManager.off('items_updated', onItemsUpdated);
+                return;
+            }
+            this._updateGoldSummary(alchemyComponent);
+        };
         dataManager.on('items_updated', onItemsUpdated);
         this.unregisterHandlers.push(() => dataManager.off('items_updated', onItemsUpdated));
 

@@ -54,7 +54,8 @@ class MarketFilter {
             'MarketplacePanel_itemFilterContainer',
             (filterContainer) => {
                 this.injectFilterUI(filterContainer);
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregister);
@@ -65,7 +66,8 @@ class MarketFilter {
             'MarketplacePanel_marketItems',
             (_marketItemsContainer) => {
                 this.applyFilters();
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregisterItems);

@@ -131,7 +131,8 @@ function setupMutationObserver() {
             if (panel) {
                 handleActionPanel(panel);
             }
-        }
+        },
+        { debounce: true }
     );
 
     const unregisterEnhancingObserver = domObserver.onClass(
@@ -140,7 +141,8 @@ function setupMutationObserver() {
         (panel) => {
             handleEnhancingPanel(panel);
             registerEnhancingPanelWatcher(panel);
-        }
+        },
+        { debounce: true }
     );
 
     // NEW: Observe for skill action grid tiles (the clickable action tiles on gathering/production pages)
@@ -149,7 +151,8 @@ function setupMutationObserver() {
         'SkillAction_skillAction__1esCp',
         (actionTile) => {
             handleSkillActionTile(actionTile);
-        }
+        },
+        { debounce: true }
     );
 
     unregisterHandlers = [unregisterModalObserver, unregisterEnhancingObserver, unregisterSkillActionObserver];

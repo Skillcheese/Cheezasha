@@ -268,7 +268,8 @@ class ActionTimeDisplay {
                 this.injectQueueTimes(queueMenu);
 
                 this.setupQueueMenuObserver(queueMenu);
-            }
+            },
+            { debounce: true }
         );
 
         this.cleanupRegistry.registerCleanup(() => {
@@ -607,7 +608,8 @@ class ActionTimeDisplay {
                 this.createDisplayPanel();
                 this.setupActionNameObserver(actionNameElement);
                 this.updateDisplay();
-            }
+            },
+            { debounce: true }
         );
     }
 

@@ -35,8 +35,11 @@ let domObserverUnregister = null;
 let processedPanels = new WeakSet();
 
 export function initialize() {
-    domObserverUnregister = domObserver.onClass('CostSummary-ActionPanel', 'SkillActionDetail_skillActionDetail', () =>
-        processActionPanels()
+    domObserverUnregister = domObserver.onClass(
+        'CostSummary-ActionPanel',
+        'SkillActionDetail_skillActionDetail',
+        () => processActionPanels(),
+        { debounce: true }
     );
     processActionPanels();
 }

@@ -42,7 +42,8 @@ class ActionFilter {
             'GatheringProductionSkillPanel_title__3VihQ',
             (titleElement) => {
                 this.injectFilterInput(titleElement);
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregisterTitleObserver);

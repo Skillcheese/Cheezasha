@@ -51,7 +51,8 @@ class OutputTotals {
             'SkillActionDetail_skillActionDetail',
             (detailPanel) => {
                 this.attachToActionPanel(detailPanel);
-            }
+            },
+            { debounce: true }
         );
     }
 

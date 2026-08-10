@@ -54,17 +54,27 @@ class CollectionNavigation {
         this.isInitialized = true;
 
         // Watch for uncollected (gray) collection tiles added to the DOM
-        const unregisterTiles = domObserver.onClass('CollectionNavigation', 'Collection_collection', (tile) => {
-            this.handleCollectionTile(tile);
-        });
+        const unregisterTiles = domObserver.onClass(
+            'CollectionNavigation',
+            'Collection_collection',
+            (tile) => {
+                this.handleCollectionTile(tile);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTiles);
 
         // Watch for the collection panel appearing so we can attach a rescan observer
         // (covers filter checkbox toggles that show/hide existing tiles without re-adding them)
-        const unregisterPanel = domObserver.onClass('CollectionNavigation', 'Collection_collections', (panel) => {
-            this.attachPanelObserver(panel);
-            this.rescanGrayTiles(panel);
-        });
+        const unregisterPanel = domObserver.onClass(
+            'CollectionNavigation',
+            'Collection_collections',
+            (panel) => {
+                this.attachPanelObserver(panel);
+                this.rescanGrayTiles(panel);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterPanel);
 
         // Also attach to any panel already in the DOM
@@ -74,9 +84,14 @@ class CollectionNavigation {
         }
 
         // Watch for collected item popovers (MuiTooltip containing Collection_actionMenu)
-        const unregisterTooltips = domObserver.onClass('CollectionNavigation', 'MuiTooltip-popper', (tooltipEl) => {
-            this.handleTooltip(tooltipEl);
-        });
+        const unregisterTooltips = domObserver.onClass(
+            'CollectionNavigation',
+            'MuiTooltip-popper',
+            (tooltipEl) => {
+                this.handleTooltip(tooltipEl);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterTooltips);
 
         // Process any tiles already in the DOM

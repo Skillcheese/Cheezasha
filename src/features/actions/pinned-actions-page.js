@@ -127,11 +127,16 @@ class PinnedActionsPage {
     initialize() {
         if (!config.getSetting('actions_pinnedPage')) return;
 
-        this.unregisterObserver = domObserver.onClass('PinnedActionsPage', 'NavigationBar_nav', () => {
-            if (!this.navInjected) {
-                this.injectNavButton();
-            }
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'PinnedActionsPage',
+            'NavigationBar_nav',
+            () => {
+                if (!this.navInjected) {
+                    this.injectNavButton();
+                }
+            },
+            { debounce: true }
+        );
 
         const existingNav = document.querySelector('[class*="NavigationBar_nav"]');
         if (existingNav && !this.navInjected) {

@@ -41,19 +41,29 @@ class MarketplaceShortcuts {
         this.isInitialized = true;
 
         // Watch for item action menu popups
-        const unregister = domObserver.onClass('MarketplaceShortcuts', 'Item_actionMenu', (actionMenu) => {
-            this.injectDropdown(actionMenu);
-        });
+        const unregister = domObserver.onClass(
+            'MarketplaceShortcuts',
+            'Item_actionMenu',
+            (actionMenu) => {
+                this.injectDropdown(actionMenu);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Watch for marketplace modals to autofill quantity and inject quick input buttons
-        const unregisterModal = domObserver.onClass('MarketplaceShortcuts_modal', 'Modal_modalContainer', (modal) => {
-            this.autofillQuantity(modal);
-            this.injectQuickInputButtons(modal);
-            this.injectMultiplierButtons(modal);
-            this.injectOwnedCount(modal);
-            this.focusQuantityInput(modal);
-        });
+        const unregisterModal = domObserver.onClass(
+            'MarketplaceShortcuts_modal',
+            'Modal_modalContainer',
+            (modal) => {
+                this.autofillQuantity(modal);
+                this.injectQuickInputButtons(modal);
+                this.injectMultiplierButtons(modal);
+                this.injectOwnedCount(modal);
+                this.focusQuantityInput(modal);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregisterModal);
     }
 

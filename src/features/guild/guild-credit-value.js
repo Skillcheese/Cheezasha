@@ -104,25 +104,35 @@ class GuildCreditValue {
 
         this.autofillManager.initialize();
 
-        const unregister = domObserver.onClass('GuildCreditValue', 'GuildPanel_exchangeModalContent', (el) =>
-            this._render(el)
+        const unregister = domObserver.onClass(
+            'GuildCreditValue',
+            'GuildPanel_exchangeModalContent',
+            (el) => this._render(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregister);
 
-        const unregisterShrine = domObserver.onClass('GuildCreditValue-Shrine', 'GuildPanel_guildModalContent', (el) =>
-            this._renderShrine(el)
+        const unregisterShrine = domObserver.onClass(
+            'GuildCreditValue-Shrine',
+            'GuildPanel_guildModalContent',
+            (el) => this._renderShrine(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregisterShrine);
 
-        const unregisterTrial = domObserver.onClass('GuildCreditValue-Trial', 'GuildPanel_signupModal', (el) =>
-            this._renderTrialSignup(el)
+        const unregisterTrial = domObserver.onClass(
+            'GuildCreditValue-Trial',
+            'GuildPanel_signupModal',
+            (el) => this._renderTrialSignup(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregisterTrial);
 
         const unregisterTileSummary = domObserver.onClass(
             'GuildCreditValue-TileSummary',
             'GuildPanel_tileSummary',
-            (el) => this._renderTrialTier(el)
+            (el) => this._renderTrialTier(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregisterTileSummary);
 

@@ -58,9 +58,14 @@ class InventoryBadgeManager {
         }
 
         // Watch for inventory panel
-        const unregister = domObserver.onClass('InventoryBadgeManager', 'Inventory_items', (elem) => {
-            this.currentInventoryElem = elem;
-        });
+        const unregister = domObserver.onClass(
+            'InventoryBadgeManager',
+            'Inventory_items',
+            (elem) => {
+                this.currentInventoryElem = elem;
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Watch for MuiTooltip-popperInteractive closing (item click popup) and re-render badges.

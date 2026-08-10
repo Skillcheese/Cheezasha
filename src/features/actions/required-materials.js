@@ -27,7 +27,8 @@ class RequiredMaterials {
         const unregister = domObserver.onClass(
             'RequiredMaterials-ActionPanel',
             'SkillActionDetail_skillActionDetail',
-            () => this.processActionPanels()
+            () => this.processActionPanels(),
+            { debounce: true }
         );
         this.observers.push(unregister);
 

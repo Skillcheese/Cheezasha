@@ -973,8 +973,11 @@ class CraftingPlanDisplay {
         this.isInitialized = true;
         autofillManager.initialize();
 
-        const unregister = domObserver.onClass('CraftingPlan', 'SkillActionDetail_skillActionDetail', () =>
-            this._processActionPanels()
+        const unregister = domObserver.onClass(
+            'CraftingPlan',
+            'SkillActionDetail_skillActionDetail',
+            () => this._processActionPanels(),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
     }

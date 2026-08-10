@@ -27,7 +27,8 @@ class LeaderboardXPDisplay {
             'LeaderboardPanel_leaderboardTable',
             (el) => {
                 if (!el.closest('[class*="GuildPanel"]')) this._renderLeaderboard(el);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterObservers.push(unregLeaderboard);
 

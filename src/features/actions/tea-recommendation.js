@@ -112,7 +112,8 @@ class TeaRecommendation {
             'GatheringProductionSkillPanel_label',
             (labelElement) => {
                 this.checkAndInjectButtons(labelElement);
-            }
+            },
+            { debounce: true }
         );
 
         // Observe for alchemy panel labels (different class from other skills)
@@ -121,7 +122,8 @@ class TeaRecommendation {
             'AlchemyPanel_label',
             (labelElement) => {
                 this.checkAndInjectButtons(labelElement);
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregisterLabelObserver);

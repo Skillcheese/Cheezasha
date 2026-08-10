@@ -47,8 +47,11 @@ class LootLogStats {
         });
 
         // Watch for loot log elements in DOM
-        const unregisterObserver = domObserver.onClass('LootLogStats', 'LootLogPanel_actionLoot__32gl_', (element) =>
-            this.processLootLogElement(element)
+        const unregisterObserver = domObserver.onClass(
+            'LootLogStats',
+            'LootLogPanel_actionLoot__32gl_',
+            (element) => this.processLootLogElement(element),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregisterObserver);
 
@@ -57,7 +60,8 @@ class LootLogStats {
             const unregisterHistoryObserver = domObserver.onClass(
                 'LootLogHistory',
                 'LootLogPanel_actionLoots__3oTid',
-                () => this.renderHistoricalEntries()
+                () => this.renderHistoricalEntries(),
+                { debounce: true }
             );
             this.unregisterHandlers.push(unregisterHistoryObserver);
         }

@@ -63,11 +63,17 @@ class DpsCalculator {
         this.onActionsUpdated = (data) => this._onActionsUpdated(data);
         dataManager.on('actions_updated', this.onActionsUpdated);
 
-        this.unregisterPlayersObserver = domObserver.onClass('DpsCalculator', PLAYERS_AREA_SELECTOR, (node) =>
-            this._injectPanel(node)
+        this.unregisterPlayersObserver = domObserver.onClass(
+            'DpsCalculator',
+            PLAYERS_AREA_SELECTOR,
+            (node) => this._injectPanel(node),
+            { debounce: true }
         );
-        this.unregisterMonstersObserver = domObserver.onClass('DpsCalculatorMonsters', MONSTERS_AREA_SELECTOR, (node) =>
-            this._watchMonstersArea(node)
+        this.unregisterMonstersObserver = domObserver.onClass(
+            'DpsCalculatorMonsters',
+            MONSTERS_AREA_SELECTOR,
+            (node) => this._watchMonstersArea(node),
+            { debounce: true }
         );
 
         this.timerRegistry = createTimerRegistry();

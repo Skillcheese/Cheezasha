@@ -188,13 +188,19 @@ class GuildXPDisplay {
         if (!config.getSetting('guildXPDisplay', true)) return;
 
         // Watch for Guild panel tabs
-        const unregOverview = domObserver.onClass('GuildXPDisplay-Overview', 'GuildPanel_dataGrid', (el) =>
-            this._renderOverview(el)
+        const unregOverview = domObserver.onClass(
+            'GuildXPDisplay-Overview',
+            'GuildPanel_dataGrid',
+            (el) => this._renderOverview(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregOverview);
 
-        const unregMembers = domObserver.onClass('GuildXPDisplay-Members', 'GuildPanel_membersTable', (el) =>
-            this._renderMembers(el)
+        const unregMembers = domObserver.onClass(
+            'GuildXPDisplay-Members',
+            'GuildPanel_membersTable',
+            (el) => this._renderMembers(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregMembers);
 
@@ -204,12 +210,16 @@ class GuildXPDisplay {
             'LeaderboardPanel_leaderboardTable',
             (el) => {
                 if (el.closest('[class*="GuildPanel"]')) this._renderGuildLeaderboard(el);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterObservers.push(unregLeaderboard);
 
-        const unregTrials = domObserver.onClass('GuildXPDisplay-Trials', 'GuildPanel_trialsContent', (el) =>
-            this._renderTrialSignups(el)
+        const unregTrials = domObserver.onClass(
+            'GuildXPDisplay-Trials',
+            'GuildPanel_trialsContent',
+            (el) => this._renderTrialSignups(el),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregTrials);
 

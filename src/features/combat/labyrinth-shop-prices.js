@@ -30,7 +30,8 @@ class LabyrinthShopPrices {
         const unregister = domObserver.onClass(
             'LabyrinthShopPrices',
             'LabyrinthPanel_tabsComponentContainer',
-            (container) => this.attachShopClickListener(container)
+            (container) => this.attachShopClickListener(container),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 
@@ -38,7 +39,8 @@ class LabyrinthShopPrices {
         const unregisterGrid = domObserver.onClass(
             'LabyrinthShopPrices_buyableGrid',
             'LabyrinthPanel_buyableGrid',
-            () => this.refreshAll()
+            () => this.refreshAll(),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregisterGrid);
 

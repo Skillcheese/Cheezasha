@@ -91,7 +91,8 @@ class QueueLengthEstimator {
             'MarketplacePanel_orderBooksContainer',
             (container) => {
                 this.processOrderBook(container);
-            }
+            },
+            { debounce: true }
         );
 
         this.cleanupRegistry.registerCleanup(() => {

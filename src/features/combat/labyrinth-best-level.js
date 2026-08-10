@@ -33,7 +33,8 @@ class LabyrinthBestLevel {
         const unregister = domObserver.onClass(
             'LabyrinthBestLevel',
             'LabyrinthPanel_tabsComponentContainer',
-            (container) => this.attachAutomationClickListener(container)
+            (container) => this.attachAutomationClickListener(container),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 
@@ -41,7 +42,8 @@ class LabyrinthBestLevel {
         const unregisterSkip = domObserver.onClass(
             'LabyrinthBestLevel_skipThreshold',
             'LabyrinthPanel_skipThreshold',
-            () => this.refreshAll()
+            () => this.refreshAll(),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregisterSkip);
 

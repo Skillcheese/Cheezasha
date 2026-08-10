@@ -291,8 +291,11 @@ class BudgetCalculator {
 
         this.isInitialized = true;
 
-        const unregister = domObserver.onClass('BudgetCalculator', 'SkillActionDetail_skillActionDetail', () =>
-            this._processActionPanels()
+        const unregister = domObserver.onClass(
+            'BudgetCalculator',
+            'SkillActionDetail_skillActionDetail',
+            () => this._processActionPanels(),
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregister);
 

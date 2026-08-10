@@ -134,8 +134,11 @@ class InventoryCountDisplay {
     // ─── Tile observer ────────────────────────────────────────────────────────
 
     _setupTileObserver() {
-        const unregister = domObserver.onClass('InventoryCountDisplay-Tile', 'SkillAction_skillAction', (actionPanel) =>
-            this._injectTile(actionPanel)
+        const unregister = domObserver.onClass(
+            'InventoryCountDisplay-Tile',
+            'SkillAction_skillAction',
+            (actionPanel) => this._injectTile(actionPanel),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregister);
 
@@ -215,7 +218,8 @@ class InventoryCountDisplay {
         const unregister = domObserver.onClass(
             'InventoryCountDisplay-Detail',
             'SkillActionDetail_regularComponent',
-            (panel) => this._injectDetail(panel)
+            (panel) => this._injectDetail(panel),
+            { debounce: true }
         );
         this.unregisterObservers.push(unregister);
 

@@ -45,7 +45,8 @@ class HousePanelObserver {
             'HousePanel_modalContent',
             (modalContent) => {
                 this.handleHouseModal(modalContent);
-            }
+            },
+            { debounce: true }
         );
         this.cleanupRegistry.registerCleanup(unregisterModal);
     }

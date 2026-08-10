@@ -208,10 +208,15 @@ class PopOutChat {
         this.timerRegistry.registerInterval(pingTimer);
 
         // Inject pop-out button next to the ▼ collapse button in the chat tabs row
-        this.unregisterObserver = domObserver.onClass('PopOutChat', 'Chat_tabsComponentContainer', (container) => {
-            const parent = container.parentElement;
-            if (parent) this._injectButton(parent);
-        });
+        this.unregisterObserver = domObserver.onClass(
+            'PopOutChat',
+            'Chat_tabsComponentContainer',
+            (container) => {
+                const parent = container.parentElement;
+                if (parent) this._injectButton(parent);
+            },
+            { debounce: true }
+        );
 
         // Handle existing container
         const existing = document.querySelector('[class*="Chat_tabsComponentContainer"]');

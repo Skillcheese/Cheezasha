@@ -95,11 +95,16 @@ class InventorySort {
         }
 
         // Watch for inventory panel (for future opens/reloads)
-        const unregister = domObserver.onClass('InventorySort', 'Inventory_items', (elem) => {
-            this.currentInventoryElem = elem;
-            this.injectSortControls(elem);
-            this.applyCurrentSort();
-        });
+        const unregister = domObserver.onClass(
+            'InventorySort',
+            'Inventory_items',
+            (elem) => {
+                this.currentInventoryElem = elem;
+                this.injectSortControls(elem);
+                this.applyCurrentSort();
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Store handler reference for cleanup with debouncing

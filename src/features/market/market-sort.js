@@ -59,7 +59,8 @@ class MarketSort {
             'MarketplacePanel_itemFilterContainer',
             (filterContainer) => {
                 this.injectSortUI(filterContainer);
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregister);
@@ -80,24 +81,30 @@ class MarketSort {
                 if (this.sortButton) {
                     this.sortButton.textContent = 'Sort by Profit';
                 }
-            }
+            },
+            { debounce: true }
         );
 
         this.unregisterHandlers.push(unregisterNav);
 
         // Watch for tab changes within marketplace (items container gets replaced)
-        const unregisterItems = domObserver.onClass('market-sort-items', 'MarketplacePanel_marketItems', () => {
-            // Items container appeared/changed - reset sort state
-            this.profitCache.clear();
-            this.originalOrder = [];
-            this.hasSorted = false;
-            this.sortDirection = 'desc';
-            if (this.sortButton) {
-                this.sortButton.textContent = 'Sort by Profit';
-            }
-            // Remove profit indicators from any stale elements
-            document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
-        });
+        const unregisterItems = domObserver.onClass(
+            'market-sort-items',
+            'MarketplacePanel_marketItems',
+            () => {
+                // Items container appeared/changed - reset sort state
+                this.profitCache.clear();
+                this.originalOrder = [];
+                this.hasSorted = false;
+                this.sortDirection = 'desc';
+                if (this.sortButton) {
+                    this.sortButton.textContent = 'Sort by Profit';
+                }
+                // Remove profit indicators from any stale elements
+                document.querySelectorAll('.cheezasha-profit-indicator').forEach((el) => el.remove());
+            },
+            { debounce: true }
+        );
 
         this.unregisterHandlers.push(unregisterItems);
 

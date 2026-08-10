@@ -176,7 +176,8 @@ class ListingPriceDisplay {
             'MarketplacePanel_myListingsTable',
             (tableNode) => {
                 this.scheduleTableRefresh(tableNode);
-            }
+            },
+            { debounce: true }
         );
 
         this.cleanupRegistry.registerCleanup(() => {

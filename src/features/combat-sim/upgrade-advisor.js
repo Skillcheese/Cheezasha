@@ -740,7 +740,7 @@ export function getEquipmentTierProgression(gameData) {
 }
 
 /** Combat-relevant stats that affect simulation outcomes */
-const COMBAT_STATS = new Set([
+export const COMBAT_STATS = new Set([
     'stabAccuracy',
     'slashAccuracy',
     'smashAccuracy',

@@ -74,14 +74,16 @@ export function initialize() {
     domObserverUnregister = domObserver.onClass(
         'MissingMaterialsButton-ActionPanel',
         'SkillActionDetail_skillActionDetail',
-        () => processActionPanels()
+        () => processActionPanels(),
+        { debounce: true }
     );
 
     // Watch for enhancement panels appearing
     enhancementDomObserverUnregister = domObserver.onClass(
         'MissingMaterialsButton-EnhancingPanel',
         'SkillActionDetail_enhancingComponent__17bOx',
-        (panel) => processEnhancingPanel(panel)
+        (panel) => processEnhancingPanel(panel),
+        { debounce: true }
     );
 
     // Process existing panels

@@ -24,19 +24,24 @@ class DrinkTimer {
         const unregister = domObserver.onClass(
             'DrinkTimer',
             'GatheringProductionSkillPanel_consumablesContainer',
-            (el) => this._updatePanel(el)
+            (el) => this._updatePanel(el),
+            { debounce: true }
         );
         this.observers.push(unregister);
 
-        const unregisterAlchemy = domObserver.onClass('DrinkTimer-Alchemy', 'AlchemyPanel_consumablesContainer', (el) =>
-            this._updatePanel(el)
+        const unregisterAlchemy = domObserver.onClass(
+            'DrinkTimer-Alchemy',
+            'AlchemyPanel_consumablesContainer',
+            (el) => this._updatePanel(el),
+            { debounce: true }
         );
         this.observers.push(unregisterAlchemy);
 
         const unregisterEnhancing = domObserver.onClass(
             'DrinkTimer-Enhancing',
             'EnhancingPanel_consumablesContainer',
-            (el) => this._updatePanel(el)
+            (el) => this._updatePanel(el),
+            { debounce: true }
         );
         this.observers.push(unregisterEnhancing);
 

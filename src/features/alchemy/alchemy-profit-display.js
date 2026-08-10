@@ -52,7 +52,7 @@ class AlchemyProfitDisplay {
             // Debounce to avoid excessive updates
             clearTimeout(this.equipmentChangeTimeout);
             this.equipmentChangeTimeout = setTimeout(() => {
-                if (this.isActive) {
+                if (this.displayElement?.parentNode) {
                     // Clear fingerprint to force update since equipment affects calculations
                     this.lastFingerprint = null;
                     this.checkAndUpdateDisplay();
@@ -65,7 +65,7 @@ class AlchemyProfitDisplay {
         this.consumablesChangeHandler = () => {
             clearTimeout(this.consumablesChangeTimeout);
             this.consumablesChangeTimeout = setTimeout(() => {
-                if (this.isActive) {
+                if (this.displayElement?.parentNode) {
                     this.lastFingerprint = null;
                     this.checkAndUpdateDisplay();
                 }
@@ -88,7 +88,8 @@ class AlchemyProfitDisplay {
                 this.checkAndUpdateDisplay();
                 // Setup content observer when alchemy component appears
                 this.setupContentObserver(alchemyComponent);
-            }
+            },
+            { debounce: true }
         );
 
         // Initial check for existing panel

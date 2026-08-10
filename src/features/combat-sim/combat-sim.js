@@ -34,9 +34,14 @@ class CombatSim {
         combatSimUI.buildPanel();
 
         // Watch for the combat panel appearing and inject the button
-        const unregister = domObserver.onClass('CombatSimButton', 'CombatPanel_combatPanel', (node) => {
-            this._injectButton(node);
-        });
+        const unregister = domObserver.onClass(
+            'CombatSimButton',
+            'CombatPanel_combatPanel',
+            (node) => {
+                this._injectButton(node);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Try to inject into an already-visible combat panel

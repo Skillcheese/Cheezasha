@@ -350,11 +350,16 @@ function injectButton(navButtons) {
 // ─── Public API ─────────────────────────────────────────────────
 
 function initialize() {
-    domObserver.onClass('ScrollSimulatorUI', 'LoadoutsPanel_buttonsContainer', (node) => {
-        const panel = node.closest('[class*="LoadoutsPanel_selectedLoadout"]') || node.parentElement;
-        const navButtons = panel?.querySelector('[class*="LoadoutsPanel_navButtons"]');
-        if (navButtons) injectButton(navButtons);
-    });
+    domObserver.onClass(
+        'ScrollSimulatorUI',
+        'LoadoutsPanel_buttonsContainer',
+        (node) => {
+            const panel = node.closest('[class*="LoadoutsPanel_selectedLoadout"]') || node.parentElement;
+            const navButtons = panel?.querySelector('[class*="LoadoutsPanel_navButtons"]');
+            if (navButtons) injectButton(navButtons);
+        },
+        { debounce: true }
+    );
 
     config.onSettingChange('simulateScrollEffects', (enabled) => {
         if (!enabled) {

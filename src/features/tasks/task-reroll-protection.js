@@ -50,9 +50,14 @@ class TaskRerollProtection {
         this.cowbellThreshold = await storage.get('taskCapCowbellThreshold', 'settings', 32);
 
         // Watch for task cards appearing
-        const unregister = domObserver.onClass('TaskRerollProtection', 'RandomTask_randomTask', (taskNode) => {
-            setTimeout(() => this._processTaskCard(taskNode), 150);
-        });
+        const unregister = domObserver.onClass(
+            'TaskRerollProtection',
+            'RandomTask_randomTask',
+            (taskNode) => {
+                setTimeout(() => this._processTaskCard(taskNode), 150);
+            },
+            { debounce: true }
+        );
         this.unregisterHandlers.push(unregister);
 
         // Re-process on quest updates (task content may change after reroll)
@@ -68,7 +73,8 @@ class TaskRerollProtection {
             'TasksPanel_taskSlotCount',
             (panel) => {
                 this._injectConfigButton(panel);
-            }
+            },
+            { debounce: true }
         );
         this.unregisterHandlers.push(unregisterPanel);
 

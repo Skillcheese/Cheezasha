@@ -57,7 +57,8 @@ class TaskSorter {
             'TasksPanel_taskSlotCount', // Just the class name, not [class*="..."]
             (headerElement) => {
                 this.addSortButton(headerElement);
-            }
+            },
+            { debounce: true }
         );
     }
 

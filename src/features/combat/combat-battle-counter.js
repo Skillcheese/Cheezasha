@@ -45,8 +45,11 @@ class CombatBattleCounter {
         this._onActionsUpdated = (data) => this._checkCombatEnded(data);
         dataManager.on('actions_updated', this._onActionsUpdated);
 
-        this.unregisterObserver = domObserver.onClass('CombatBattleCounter', 'Header_actionName', () =>
-            this._injectOrUpdate()
+        this.unregisterObserver = domObserver.onClass(
+            'CombatBattleCounter',
+            'Header_actionName',
+            () => this._injectOrUpdate(),
+            { debounce: true }
         );
 
         this.initialized = true;

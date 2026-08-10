@@ -261,7 +261,9 @@ class ChatHistoryExtender {
         };
 
         // Watch for new chat tab containers
-        const unregister = domObserver.onClass('ChatHistoryExtender', 'ChatHistory_chatHistory', attachHandler);
+        const unregister = domObserver.onClass('ChatHistoryExtender', 'ChatHistory_chatHistory', attachHandler, {
+            debounce: true,
+        });
         this.unregisterHandlers.push(unregister);
 
         // Attach to any already-open containers

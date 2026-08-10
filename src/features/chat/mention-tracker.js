@@ -46,7 +46,8 @@ class MentionTracker {
             'Chat_tabsComponentContainer',
             (tabsContainer) => {
                 this.setupTabBadges(tabsContainer);
-            }
+            },
+            { debounce: true }
         );
 
         // Check for existing tabs

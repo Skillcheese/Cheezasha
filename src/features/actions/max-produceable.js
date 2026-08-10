@@ -135,25 +135,30 @@ class MaxProduceable {
      */
     setupObserver() {
         // Watch for skill action panels (in skill screen, not detail modal)
-        this.unregisterObserver = domObserver.onClass('MaxProduceable', 'SkillAction_skillAction', (actionPanel) => {
-            const isNew = !this.actionElements.has(actionPanel);
-            this.injectMaxProduceable(actionPanel);
+        this.unregisterObserver = domObserver.onClass(
+            'MaxProduceable',
+            'SkillAction_skillAction',
+            (actionPanel) => {
+                const isNew = !this.actionElements.has(actionPanel);
+                this.injectMaxProduceable(actionPanel);
 
-            // Only schedule a profit recalculation for genuinely new panels.
-            // Panels that are already registered are being re-added by the sort
-            // reorder (DocumentFragment move), not navigated to fresh — scheduling
-            // updateAllCounts for them creates the sort→observer→updateAllCounts→sort
-            // infinite loop that causes continuous flashing and CPU waste.
-            if (!isNew) return;
+                // Only schedule a profit recalculation for genuinely new panels.
+                // Panels that are already registered are being re-added by the sort
+                // reorder (DocumentFragment move), not navigated to fresh — scheduling
+                // updateAllCounts for them creates the sort→observer→updateAllCounts→sort
+                // infinite loop that causes continuous flashing and CPU waste.
+                if (!isNew) return;
 
-            // Schedule profit calculation after panels settle
-            // This prevents 20-50 simultaneous API calls during character switch
-            clearTimeout(this.profitCalcTimeout);
-            this.profitCalcTimeout = setTimeout(() => {
-                this.updateAllCounts();
-            }, 50); // Wait 50ms after last panel appears for better responsiveness
-            this.timerRegistry.registerTimeout(this.profitCalcTimeout);
-        });
+                // Schedule profit calculation after panels settle
+                // This prevents 20-50 simultaneous API calls during character switch
+                clearTimeout(this.profitCalcTimeout);
+                this.profitCalcTimeout = setTimeout(() => {
+                    this.updateAllCounts();
+                }, 50); // Wait 50ms after last panel appears for better responsiveness
+                this.timerRegistry.registerTimeout(this.profitCalcTimeout);
+            },
+            { debounce: true }
+        );
 
         // Check for existing action panels that may already be open
         const existingPanels = document.querySelectorAll('[class*="SkillAction_skillAction"]');
