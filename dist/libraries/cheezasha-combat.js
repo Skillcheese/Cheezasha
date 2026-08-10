@@ -1,12 +1,93 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.13.0
+ * Version: 3.13.1
  * License: CC-BY-NC-SA-4.0
  */
 
 (function (config, dataManager, domObserver, webSocketHook, storage, timerRegistry_js, domObserverHelpers_js, formatters_js, marketAPI, expectedValueCalculator, reactInput_js, enhancementMultipliers_js, profitHelpers_js, marketData_js, enhancementCalculator_js, enhancementConfig_js, teaParser_js, abilityCostCalculator_js, equipmentParser_js, efficiency_js, experienceParser_js, bonusRevenueCalculator_js, alchemyProfitCalculator, dom, houseCostCalculator_js) {
     'use strict';
+
+    /**
+     * Task Panel Watcher
+     * Single shared domObserver registration for the two task-panel DOM signals that
+     * multiple features need (task list appearing, individual task cards appearing).
+     * Several features used to each register their own onClass watcher for the same
+     * two class names, which meant every task-panel re-render triggered N independent
+     * debounce cycles and N independent full re-scans instead of one.
+     */
+
+
+    class TaskPanelWatcher {
+        constructor() {
+            this.listListeners = new Set();
+            this.taskListeners = new Set();
+            this.started = false;
+        }
+
+        /**
+         * Start the underlying domObserver registrations (idempotent, lazy).
+         * @private
+         */
+        _start() {
+            if (this.started) return;
+            this.started = true;
+
+            domObserver.onClass(
+                'TaskPanelWatcher-TaskList',
+                'TasksPanel_taskList',
+                (node) => {
+                    this.listListeners.forEach((callback) => {
+                        try {
+                            callback(node);
+                        } catch (error) {
+                            console.error('[TaskPanelWatcher] Task list listener failed:', error);
+                        }
+                    });
+                },
+                { debounce: true }
+            );
+
+            domObserver.onClass(
+                'TaskPanelWatcher-Task',
+                'RandomTask_randomTask',
+                (node) => {
+                    this.taskListeners.forEach((callback) => {
+                        try {
+                            callback(node);
+                        } catch (error) {
+                            console.error('[TaskPanelWatcher] Task node listener failed:', error);
+                        }
+                    });
+                },
+                { debounce: true }
+            );
+        }
+
+        /**
+         * Subscribe to the task list container appearing/re-rendering.
+         * @param {Function} callback - Called with the matching DOM node
+         * @returns {Function} Unsubscribe function
+         */
+        onTaskListChange(callback) {
+            this._start();
+            this.listListeners.add(callback);
+            return () => this.listListeners.delete(callback);
+        }
+
+        /**
+         * Subscribe to individual task card nodes appearing.
+         * @param {Function} callback - Called with the matching DOM node
+         * @returns {Function} Unsubscribe function
+         */
+        onTaskNodeAdded(callback) {
+            this._start();
+            this.taskListeners.add(callback);
+            return () => this.taskListeners.delete(callback);
+        }
+    }
+
+    const taskPanelWatcher = new TaskPanelWatcher();
 
     /**
      * Combat Zone Indices
@@ -81,19 +162,29 @@
                 this.buildMonsterZoneCache();
             }
 
-            // Register with centralized observer with debouncing enabled
-            this.unregisterObserver = domObserver.register(
-                'ZoneIndices',
-                () => {
-                    if (this.taskMapIndexEnabled) {
-                        this.addTaskIndices();
-                    }
-                    if (this.mapIndexEnabled) {
-                        this.addMapIndices();
-                    }
-                },
-                { debounce: true, debounceDelay: 100 } // Use centralized debouncing
-            );
+            // Register scoped to the class names that actually matter here — the previous
+            // unfiltered domObserver.register() fired this handler's full-document
+            // querySelectorAll scans on every DOM mutation anywhere on the page (scroll-list
+            // recycling, unrelated tab switches, etc.), not just when task/map content changed.
+            const unregisterFns = [];
+
+            if (this.taskMapIndexEnabled) {
+                unregisterFns.push(taskPanelWatcher.onTaskListChange(() => this.addTaskIndices()));
+                unregisterFns.push(taskPanelWatcher.onTaskNodeAdded(() => this.addTaskIndices()));
+            }
+
+            if (this.mapIndexEnabled) {
+                unregisterFns.push(
+                    domObserver.onClass(
+                        'ZoneIndices-MapTabs',
+                        'CombatPanel_tabsComponentContainer',
+                        () => this.addMapIndices(),
+                        { debounce: true, debounceDelay: 100 }
+                    )
+                );
+            }
+
+            this.unregisterObserver = () => unregisterFns.forEach((fn) => fn());
 
             // Process existing elements
             if (this.taskMapIndexEnabled) {
@@ -404,11 +495,6 @@
         });
         if (allUses.length > 0 && validUses.length === 0) return;
 
-        // DOM and data are ready — clear stale overlays and re-inject
-        for (const el of equipDiv.querySelectorAll(`.${OVERLAY_CLASS}`)) {
-            el.remove();
-        }
-
         const enhancementMap = buildEnhancementLevelMap();
 
         for (const use of validUses) {
@@ -417,35 +503,44 @@
             if (!fragment) continue;
             const itemHrid = `/items/${fragment}`;
 
-            const enhLevel = enhancementMap.get(itemHrid) ?? 0;
-            if (enhLevel === 0) continue;
-
             // DOM: use → svg → Item_iconContainer → Item_item__
             const svg = use.closest('svg');
             if (!svg) continue;
             const itemDiv = svg.parentElement?.parentElement;
             if (!itemDiv) continue;
 
-            // Skip if already annotated
-            if (itemDiv.querySelector(`.${OVERLAY_CLASS}`)) continue;
+            const enhLevel = enhancementMap.get(itemHrid) ?? 0;
+            const desiredText = enhLevel > 0 ? `+${enhLevel}` : null;
+            const existingOverlay = itemDiv.querySelector(`.${OVERLAY_CLASS}`);
 
-            itemDiv.style.position = 'relative';
-            const overlay = document.createElement('div');
-            overlay.className = OVERLAY_CLASS;
-            overlay.textContent = `+${enhLevel}`;
-            overlay.style.cssText = `
-            z-index: 1;
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            text-align: right;
-            color: ${config.COLOR_ACCENT};
-            font-size: 10px;
-            font-weight: bold;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000;
-            pointer-events: none;
-        `;
-            itemDiv.appendChild(overlay);
+            // Skip entirely when nothing needs to change — unconditionally clearing and
+            // re-adding here would itself be a DOM mutation, which the shared MutationObserver
+            // would pick up and use to re-trigger this very handler, creating a self-sustaining
+            // loop that never settles (see zone-indices.js for the same bug and its fix).
+            if (existingOverlay && existingOverlay.textContent === desiredText) continue;
+            if (!existingOverlay && desiredText === null) continue;
+
+            if (existingOverlay) existingOverlay.remove();
+
+            if (desiredText) {
+                itemDiv.style.position = 'relative';
+                const overlay = document.createElement('div');
+                overlay.className = OVERLAY_CLASS;
+                overlay.textContent = desiredText;
+                overlay.style.cssText = `
+                z-index: 1;
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                text-align: right;
+                color: ${config.COLOR_ACCENT};
+                font-size: 10px;
+                font-weight: bold;
+                text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000;
+                pointer-events: none;
+            `;
+                itemDiv.appendChild(overlay);
+            }
         }
     }
 
@@ -463,8 +558,13 @@
     function initialize$3() {
         if (!config.getSetting('loadoutEnhancementDisplay')) return;
 
-        unregisterHandler = domObserver.register(
+        // Scoped to loadout/item-container class names — the previous unfiltered
+        // domObserver.register() ran this handler's DOM scan on every mutation anywhere on the
+        // page (scroll-list recycling, unrelated tab switches, etc.), not just when the loadout
+        // panel's equipment icons actually appeared.
+        unregisterHandler = domObserver.onClass(
             'LoadoutEnhancementDisplay',
+            ['LoadoutsPanel_equipment', 'Item_itemContainer'],
             () => {
                 annotateLoadout();
             },

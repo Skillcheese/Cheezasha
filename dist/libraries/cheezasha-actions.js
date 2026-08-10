@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.13.0
+ * Version: 3.13.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -2086,6 +2086,18 @@
 
         // Check if we already added profit display
         const existingProfit = panel.querySelector('#mwi-foraging-profit');
+
+        // Skip the (expensive) DOM rebuild below entirely when nothing about the computed
+        // profit actually changed since last render. This is called on every items_updated/
+        // consumables_updated event — i.e. roughly every action tick — so without this guard
+        // the whole panel tears down and rebuilds several times a minute even when the numbers
+        // are identical.
+        const signature = JSON.stringify(profitData);
+        if (existingProfit && existingProfit.dataset.mwiSignature === signature) {
+            dataManager.clearScrollSimulation(gatheringActionType);
+            return;
+        }
+
         const openSectionTitles = new Set();
         if (existingProfit) {
             existingProfit.querySelectorAll('.mwi-section-header').forEach((header) => {
@@ -2537,6 +2549,7 @@
         profitSection.setAttribute('data-mwi-profit-display', 'true');
         profitSection.dataset.mwiActionHrid = actionHrid;
         profitSection.dataset.mwiActionType = 'gathering';
+        profitSection.dataset.mwiSignature = signature;
 
         // Get the summary div to update it dynamically
         const profitSummaryDiv = profitSection.querySelector('.mwi-section-header + div');
@@ -2673,6 +2686,17 @@
 
         // Check if we already added profit display
         const existingProfit = panel.querySelector('#mwi-production-profit');
+
+        // Skip the (expensive) DOM rebuild below entirely when nothing about the computed
+        // profit actually changed since last render. This is called on every items_updated/
+        // consumables_updated event — i.e. roughly every action tick — so without this guard
+        // the whole panel tears down and rebuilds several times a minute even when the numbers
+        // are identical.
+        const signature = JSON.stringify(profitData);
+        if (existingProfit && existingProfit.dataset.mwiSignature === signature) {
+            return;
+        }
+
         const openSectionTitles = new Set();
         if (existingProfit) {
             existingProfit.querySelectorAll('.mwi-section-header').forEach((header) => {
@@ -3166,6 +3190,7 @@
         profitSection.setAttribute('data-mwi-profit-display', 'true');
         profitSection.dataset.mwiActionHrid = actionHrid;
         profitSection.dataset.mwiActionType = 'production';
+        profitSection.dataset.mwiSignature = signature;
         const profitSummaryDiv = profitSection.querySelector('.mwi-section-header + div');
 
         // Set up listener to update summary with total profit when input changes
