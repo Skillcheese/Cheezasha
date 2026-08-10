@@ -2,10 +2,9 @@
 
 ## [3.10.3](https://github.com/Skillcheese/Cheezasha/compare/v3.10.2...v3.10.3) (2026-08-10)
 
-
 ### Code Refactoring
 
-* extract shared result-square rendering into utils/result-square.js ([220895f](https://github.com/Skillcheese/Cheezasha/commit/220895f02626571c38a05f79eb70ab4f11bd2a96))
+- extract shared result-square rendering into utils/result-square.js ([220895f](https://github.com/Skillcheese/Cheezasha/commit/220895f02626571c38a05f79eb70ab4f11bd2a96))
 
 ## [3.10.2](https://github.com/Skillcheese/Cheezasha/compare/v3.10.1...v3.10.2) (2026-08-10)
 
