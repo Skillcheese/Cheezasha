@@ -4866,14 +4866,22 @@ class CombatSimUI {
             { key: 'deathsPerHour', label: 'DPH' },
         ];
 
-        const rows = results.results.map((r) => {
+        let rows = results.results.map((r) => {
             const candidate = r.candidate || {};
             const isAbility = (candidate.type || '').startsWith('ability');
-            const squareHtml = this._buildResultSquareHtml(
-                candidate.upgradeHrid,
-                candidate.upgradeLevel || 0,
-                isAbility
-            );
+            const addedSlots = candidate.addedSlots && Object.values(candidate.addedSlots);
+            let squareHtml;
+            if (candidate.reorderAbilities?.length) {
+                squareHtml = candidate.reorderAbilities
+                    .map((a) => this._buildResultSquareHtml(a.hrid, a.level || 0, true))
+                    .join('');
+            } else if (addedSlots?.length) {
+                squareHtml = addedSlots
+                    .map((slot) => this._buildResultSquareHtml(slot.hrid, slot.enhancementLevel || 0, false))
+                    .join('');
+            } else {
+                squareHtml = this._buildResultSquareHtml(candidate.upgradeHrid, candidate.upgradeLevel || 0, isAbility);
+            }
             return {
                 description: r.candidate.description,
                 squareHtml,
@@ -4892,20 +4900,27 @@ class CombatSimUI {
             };
         });
 
-        // Sort
-        if (this._upgradeSortCol) {
-            const col = this._upgradeSortCol;
-            const asc = this._upgradeSortAsc;
-            rows.sort((a, b) => {
-                const va = a[col] ?? 0;
-                const vb = b[col] ?? 0;
-                if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                if (va === Infinity && vb === Infinity) return 0;
-                if (va === Infinity) return asc ? 1 : -1;
-                if (vb === Infinity) return asc ? -1 : 1;
-                return asc ? va - vb : vb - va;
-            });
-        }
+        // Sort (default to best gold/0.1% DPS first when the user hasn't picked a column, so the
+        // top-100 cap below keeps the most relevant rows instead of an arbitrary generation-order
+        // slice).
+        const sortCol = this._upgradeSortCol || 'goldDps';
+        const sortAsc = this._upgradeSortCol ? this._upgradeSortAsc : true;
+        rows.sort((a, b) => {
+            const va = a[sortCol] ?? 0;
+            const vb = b[sortCol] ?? 0;
+            if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            if (va === Infinity && vb === Infinity) return 0;
+            if (va === Infinity) return sortAsc ? 1 : -1;
+            if (vb === Infinity) return sortAsc ? -1 : 1;
+            return sortAsc ? va - vb : vb - va;
+        });
+
+        // Cap displayed rows — ability-optimize sweeps in particular can produce thousands of
+        // candidates, and rendering an item/ability square per row for all of them badly lags
+        // the results table. Only the top 50 (by the current sort) are shown.
+        const MAX_UPGRADE_ROWS = 50;
+        const truncated = rows.length > MAX_UPGRADE_ROWS;
+        rows = rows.slice(0, MAX_UPGRADE_ROWS);
 
         // Best (lowest non-Infinity) value per gold/0.1% column, for highlighting
         const bestVals = {};
@@ -4988,6 +5003,7 @@ class CombatSimUI {
             </div>
             <div style="margin-top:6px; color:#666; font-size:10px;">
                 Baseline: DPS ${formatKMB(baseline.dps)} | EXP ${formatKMB(baseline.xpPerHour)} | Profit ${formatKMB(baseline.profitPerHour)} | EPH ${baseline.encountersPerHour.toFixed(1)} | DPH ${baseline.deathsPerHour.toFixed(1)}
+                ${truncated ? `<br>Showing top ${MAX_UPGRADE_ROWS} of ${results.results.length} candidates.` : ''}
             </div>
         `;
 

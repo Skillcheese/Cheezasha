@@ -863,85 +863,6 @@ function buildUpgradeMap(gameData) {
 }
 
 /**
- * Build a map of DIRECT single-item upgrade chains only (action.upgradeItemHrid), e.g.
- * Cheese Boots → Verdant Boots. Deliberately excludes combination recipes (multiple
- * different inputItems combined, like Philosopher's-style crafts) — those don't mean
- * one input is a strictly-inferior version of the output, just an ingredient of it, so
- * they must not be used to exclude candidates as "same line".
- * @param {Object} gameData
- * @returns {Map<string, Set<string>>} itemHrid → Set of direct upgrade output hrids
- */
-function buildDirectUpgradeMap(gameData) {
-    const map = new Map();
-
-    for (const action of Object.values(gameData.actionDetailMap)) {
-        if (!action.upgradeItemHrid || !action.outputItems?.length) continue;
-        const outputHrid = action.outputItems[0].itemHrid;
-
-        const outputItem = gameData.itemDetailMap[outputHrid];
-        if (!outputItem?.equipmentDetail?.type) continue;
-        const upgradeItem = gameData.itemDetailMap[action.upgradeItemHrid];
-        if (!upgradeItem?.equipmentDetail?.type) continue;
-
-        if (!map.has(action.upgradeItemHrid)) map.set(action.upgradeItemHrid, new Set());
-        map.get(action.upgradeItemHrid).add(outputHrid);
-    }
-
-    return map;
-}
-
-/**
- * Group candidate items into their same-line chains (e.g. Cheese/Verdant/Azure Chest)
- * and keep only the top N by item level within each line. Unlike keeping only the single
- * furthest tier, this preserves lower tiers that may be
- * more coin-efficient upgrades, while still bounding how many tiers of the same line get
- * simmed.
- * @param {Array<{hrid: string, itemLevel?: number}>} items
- * @param {Map<string, Set<string>>} directUpgradeMap
- * @param {number} n - Max items to keep per line
- * @returns {Array<{hrid: string}>}
- */
-function groupTopNPerLine(items, directUpgradeMap, n) {
-    const hridSet = new Set(items.map((item) => item.hrid));
-    const parent = new Map(items.map((item) => [item.hrid, item.hrid]));
-
-    function find(hrid) {
-        while (parent.get(hrid) !== hrid) {
-            parent.set(hrid, parent.get(parent.get(hrid)));
-            hrid = parent.get(hrid);
-        }
-        return hrid;
-    }
-    function union(a, b) {
-        const rootA = find(a);
-        const rootB = find(b);
-        if (rootA !== rootB) parent.set(rootA, rootB);
-    }
-
-    for (const item of items) {
-        const upgrades = directUpgradeMap.get(item.hrid);
-        if (!upgrades) continue;
-        for (const upgradeHrid of upgrades) {
-            if (hridSet.has(upgradeHrid)) union(item.hrid, upgradeHrid);
-        }
-    }
-
-    const lines = new Map();
-    for (const item of items) {
-        const root = find(item.hrid);
-        if (!lines.has(root)) lines.set(root, []);
-        lines.get(root).push(item);
-    }
-
-    const out = [];
-    for (const line of lines.values()) {
-        line.sort((a, b) => (b.itemLevel || 0) - (a.itemLevel || 0));
-        out.push(...line.slice(0, n));
-    }
-    return out;
-}
-
-/**
  * Get the primary damage style of an item's combat stats.
  * @param {Object} combatStats - Item combat stats
  * @returns {string} 'slash', 'stab', 'smash', 'ranged', 'magic', or 'unknown'
@@ -1093,7 +1014,6 @@ export function generateCandidates(
         const enhancementBudget = equipmentBudget != null && equipmentBudget > 0 ? equipmentBudget : 1_000_000;
         const tierProgression = getEquipmentTierProgression(gameData);
         const upgradeMap = buildUpgradeMap(gameData);
-        const directUpgradeMap = buildDirectUpgradeMap(gameData);
         const skillLevelMap = getSkillLevelMapFromDTO(playerDTO, equipmentLevelBoost);
 
         // Combat style is set by the equipped weapon, not by whatever's currently in
@@ -1225,12 +1145,10 @@ export function generateCandidates(
                     rawMainHands.push({ hrid: itemHrid, itemLevel: item.itemLevel || 0 });
                 }
 
-                // Keep up to the top 3 tiers of each weapon line (e.g. Cheese/Verdant/Azure)
-                // rather than only the furthest tier — a lower tier can be the more
-                // coin-efficient upgrade — while still bounding the sim combination count.
-                const mainHands = groupTopNPerLine(rawMainHands, directUpgradeMap, 3);
-
-                for (const { hrid: itemHrid } of mainHands) {
+                // Consider every eligible main-hand weapon, not just the furthest tier of each
+                // line — a lower tier can be the more coin-efficient upgrade, and this mirrors
+                // the same-slot tier/replacement loop above, which is likewise unbounded.
+                for (const { hrid: itemHrid } of rawMainHands) {
                     const item = gameData.itemDetailMap[itemHrid];
 
                     // Find candidate off-hands at this tier (a small handful of distinct
@@ -3334,37 +3252,112 @@ export function computeSkillingClearRatesFromEditor(
     gameData,
     skillEquipmentMap = {}
 ) {
-    const results = [];
+    return LABYRINTH_SKILLS.map((skillHrid) =>
+        computeSkillingClearForSkill(skillHrid, roomLevel, editorDTO, crateHrids, gameData, skillEquipmentMap)
+    );
+}
 
-    for (const skillHrid of LABYRINTH_SKILLS) {
-        const skillId = skillHrid.replace('/skills/', '');
-        const actionTypeHrid = `/action_types/${skillId}`;
-        const dtoKey = SKILLING_DTO_KEYS[skillHrid];
-        const baseLevel = editorDTO[dtoKey] || 1;
+/**
+ * Compute a single skill's clear result from editor state at a given room level. Shared by
+ * computeSkillingClearRatesFromEditor (all skills at one level) and findMaxSkillingLevels
+ * (one skill across many levels, via binary search).
+ * @param {string} skillHrid
+ * @param {number} roomLevel
+ * @param {Object} editorDTO - Player DTO from editor
+ * @param {string[]} crateHrids - Selected crate HRIDs
+ * @param {Object} gameData - From buildGameDataPayload()
+ * @param {Object} [skillEquipmentMap] - Per-skill equipment overrides
+ * @returns {Object} Clear result with stats
+ */
+function computeSkillingClearForSkill(skillHrid, roomLevel, editorDTO, crateHrids, gameData, skillEquipmentMap = {}) {
+    const skillId = skillHrid.replace('/skills/', '');
+    const actionTypeHrid = `/action_types/${skillId}`;
+    const dtoKey = SKILLING_DTO_KEYS[skillHrid];
+    const baseLevel = editorDTO[dtoKey] || 1;
 
-        const editorState = {
-            equipment: skillEquipmentMap[skillHrid] || editorDTO.equipment,
-            houseRooms: editorDTO.houseRooms,
-            tokenUpgrades: editorDTO.tokenUpgrades,
-            communityBuffLevels: editorDTO.communityBuffLevels,
-        };
+    const editorState = {
+        equipment: skillEquipmentMap[skillHrid] || editorDTO.equipment,
+        houseRooms: editorDTO.houseRooms,
+        tokenUpgrades: editorDTO.tokenUpgrades,
+        communityBuffLevels: editorDTO.communityBuffLevels,
+    };
 
-        const overrides = buildOverridesForSkill(editorState, actionTypeHrid, crateHrids, gameData);
-        const metrics = labyrinthClearRate.getSkillingMetricsFromOverrides(skillId, actionTypeHrid, overrides);
+    const overrides = buildOverridesForSkill(editorState, actionTypeHrid, crateHrids, gameData);
+    const metrics = labyrinthClearRate.getSkillingMetricsFromOverrides(skillId, actionTypeHrid, overrides);
 
-        let result;
-        if (skillHrid === '/skills/enhancing') {
-            result = labyrinthClearRate.computeEnhancingClearWithParams(metrics, baseLevel, roomLevel);
-        } else {
-            result = labyrinthClearRate.computeSkillingClearWithParams(metrics, baseLevel, roomLevel);
-        }
-        result.skillHrid = skillHrid;
-        result.skillId = skillId;
-        result.skillName = skillId.charAt(0).toUpperCase() + skillId.slice(1);
-        results.push(result);
+    let result;
+    if (skillHrid === '/skills/enhancing') {
+        result = labyrinthClearRate.computeEnhancingClearWithParams(metrics, baseLevel, roomLevel);
+    } else {
+        result = labyrinthClearRate.computeSkillingClearWithParams(metrics, baseLevel, roomLevel);
     }
+    result.skillHrid = skillHrid;
+    result.skillId = skillId;
+    result.skillName = skillId.charAt(0).toUpperCase() + skillId.slice(1);
+    return result;
+}
 
-    return results;
+/**
+ * Binary search each labyrinth skill for the highest room level where its clear chance is still
+ * >= threshold. Unlike the combat "Find Max" search (which needs a stochastic simulation per
+ * level), skilling clear chance is a deterministic formula of (baseLevel, roomLevel) that's
+ * monotonically non-increasing in roomLevel — success chance and required progress both get
+ * worse as the room level rises — so a plain binary search over computeSkillingClearForSkill()
+ * is exact and needs no simulation.
+ * @param {Object} editorDTO - Player DTO from editor
+ * @param {string[]} crateHrids - Selected crate HRIDs
+ * @param {Object} gameData - From buildGameDataPayload()
+ * @param {Object} [skillEquipmentMap] - Per-skill equipment overrides
+ * @param {number} [threshold=0.95] - Clear chance threshold (0-1)
+ * @param {number} [minLevel=1] - Minimum room level to search
+ * @param {number} [maxLevel=300] - Maximum room level to search
+ * @returns {Array<Object>} Per-skill results: clear result at the found max level, plus
+ *  `maxLevel` (0 if no level in range meets the threshold).
+ */
+export function findMaxSkillingLevels(
+    editorDTO,
+    crateHrids,
+    gameData,
+    skillEquipmentMap = {},
+    threshold = 0.95,
+    minLevel = 1,
+    maxLevel = 300
+) {
+    return LABYRINTH_SKILLS.map((skillHrid) => {
+        let low = minLevel;
+        let high = maxLevel;
+        let best = computeSkillingClearForSkill(
+            skillHrid,
+            minLevel,
+            editorDTO,
+            crateHrids,
+            gameData,
+            skillEquipmentMap
+        );
+        best.maxLevel = 0;
+
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const result = computeSkillingClearForSkill(
+                skillHrid,
+                mid,
+                editorDTO,
+                crateHrids,
+                gameData,
+                skillEquipmentMap
+            );
+
+            if (result.clearChance >= threshold) {
+                best = result;
+                best.maxLevel = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+
+        return best;
+    });
 }
 
 /**
