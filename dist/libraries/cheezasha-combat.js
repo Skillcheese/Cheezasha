@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.9.1
+ * Version: 3.10.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -14315,6 +14315,66 @@
      * @param {string} weaponStyle - From getPlayerCombatStyle()
      * @returns {boolean}
      */
+    const ELEMENTAL_DAMAGE_TYPE_LABELS = {
+        '/damage_types/fire': 'Fire',
+        '/damage_types/water': 'Water',
+        '/damage_types/nature': 'Nature',
+    };
+
+    /**
+     * Find same-tier magic weapons that differ only by element (damageType), for a given equipped
+     * magic weapon. Magic item names/hrids don't encode element in a parseable way (e.g. "Crimson
+     * Staff" vs "Azure Staff"), so siblings are matched by identical magicDamage/magicAccuracy and
+     * level requirement, differing only in combatStats.damageType.
+     * @param {string} weaponHrid
+     * @param {Object} gameData
+     * @returns {Array<{hrid: string, damageType: string}>} Includes the original weapon itself.
+     */
+    function getElementalWeaponVariants(weaponHrid, gameData) {
+        const base = gameData.itemDetailMap[weaponHrid];
+        const baseStats = base?.equipmentDetail?.combatStats;
+        if (!baseStats || !ELEMENTAL_DAMAGE_TYPE_LABELS[baseStats.damageType]) return [];
+
+        const slot = base.equipmentDetail.type;
+        const baseLevelReq =
+            (base.equipmentDetail.levelRequirements || []).find((r) => r.skillHrid === '/skills/magic')?.level ?? null;
+
+        const variants = [{ hrid: weaponHrid, damageType: baseStats.damageType }];
+        for (const [hrid, detail] of Object.entries(gameData.itemDetailMap)) {
+            if (hrid === weaponHrid) continue;
+            const stats = detail?.equipmentDetail?.combatStats;
+            if (!stats || detail.equipmentDetail.type !== slot) continue;
+            if (!ELEMENTAL_DAMAGE_TYPE_LABELS[stats.damageType] || stats.damageType === baseStats.damageType) continue;
+            if (Math.abs((stats.magicDamage || 0) - (baseStats.magicDamage || 0)) > 0.01) continue;
+            if (Math.abs((stats.magicAccuracy || 0) - (baseStats.magicAccuracy || 0)) > 0.01) continue;
+            const levelReq =
+                (detail.equipmentDetail.levelRequirements || []).find((r) => r.skillHrid === '/skills/magic')?.level ??
+                null;
+            if (levelReq !== baseLevelReq) continue;
+            variants.push({ hrid, damageType: stats.damageType });
+        }
+        return variants;
+    }
+
+    /**
+     * Compare two labyrinth sim results to decide whether `candidate` is an improvement over
+     * `baseline`. Win rate is the primary signal, but when a monster can't be cleared at all yet
+     * (both tie, typically at 0%), win rate alone can't distinguish weapons/gear that are actually
+     * doing more damage or dying less from ones that aren't — so this falls back to total damage
+     * dealt, then fewer deaths, letting an equipment search still surface which loadout best exploits
+     * a monster's weaknesses even before it's beatable.
+     * @param {{winRate: number, totalDamageDealt?: number, deaths?: number}} candidate
+     * @param {{winRate: number, totalDamageDealt?: number, deaths?: number}} baseline
+     * @returns {boolean}
+     */
+    function isLabyrinthResultBetter(candidate, baseline) {
+        if (candidate.winRate !== baseline.winRate) return candidate.winRate > baseline.winRate;
+        const candidateDamage = candidate.totalDamageDealt || 0;
+        const baselineDamage = baseline.totalDamageDealt || 0;
+        if (candidateDamage !== baselineDamage) return candidateDamage > baselineDamage;
+        return (candidate.deaths ?? Infinity) < (baseline.deaths ?? Infinity);
+    }
+
     function isAbilityCompatible(abilityStyle, weaponStyle) {
         // Universal abilities work for everyone
         if (abilityStyle === 'universal') return true;
@@ -15158,6 +15218,15 @@
                     }
                 }
             }
+
+            // Final budget guard over every candidate type. Per-candidate generation above sizes
+            // *levels* to budget (e.g. getBudgetMatchedItemLevel picks the highest affordable
+            // enhancement level) but can still silently fall back to level 0 when nothing is
+            // affordable, and cross-slot two_hand<->main+off_hand swaps never checked cost at all —
+            // both could slip a candidate whose real market price is far over budget past the caller.
+            // Re-checking actual cost here (the same calculateUpgradeCost() the caller uses to price
+            // the pick) is what actually guarantees nothing over budget gets recommended.
+            return candidates.filter((c) => calculateUpgradeCost(c, gameData) <= enhancementBudget);
         } else if (mode === 'ability_level' || mode === 'ability_swap') {
             const playerStyle = getPlayerCombatStyle(playerDTO, gameData);
             const equippedAbilityHrids = new Set(playerDTO.abilities.filter((a) => a).map((a) => a.hrid));
@@ -16050,80 +16119,113 @@
         const zoneHrid =
             Object.keys(gameData.actionDetailMap).find((k) => k.includes('/actions/combat/')) || '/actions/combat/fly';
 
-        const candidates = await generateLabyrinthAbilityOptimizeCandidates(
-            {
-                playerDTOs,
-                playerIndex,
-                gameData,
-                zoneHrid,
-                monsterHrid,
-                roomLevel,
-                crates,
-                hours,
-                communityBuffs,
-                labyrinthCombatBuffs,
-                budget,
-                poolSize,
-            },
-            onProgress
-        );
-        if (!candidates.length) return null;
+        const basePlayerDTO = playerDTOs[playerIndex];
+        const equippedWeaponHrid =
+            basePlayerDTO.equipment['/equipment_types/main_hand']?.hrid ||
+            basePlayerDTO.equipment['/equipment_types/two_hand']?.hrid ||
+            null;
+        const weaponSlot = basePlayerDTO.equipment['/equipment_types/two_hand'] ? 'two_hand' : 'main_hand';
+        // Magic weapons share stats across elements (fire/water/nature) but aren't named after their
+        // element, so the same ability combo can score differently depending which staff is worn —
+        // try every same-tier elemental variant and keep whichever performs best.
+        const elementalVariants = equippedWeaponHrid ? getElementalWeaponVariants(equippedWeaponHrid, gameData) : [];
+        const weaponRuns = elementalVariants.length > 1 ? elementalVariants : [null];
 
-        const playerDTO = playerDTOs[playerIndex];
         let best = null;
-        let cursor = 0;
-        let comboDone = 0;
-        const comboTotal = candidates.length;
-        const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidates.length));
-        await Promise.all(
-            Array.from({ length: workerCount }, async () => {
-                while (cursor < candidates.length) {
-                    const candidate = candidates[cursor++];
-                    onProgress?.({
-                        current: comboDone,
-                        total: comboTotal,
-                        description: `Testing combo: ${candidate.description}`,
-                    });
+        for (const variant of weaponRuns) {
+            const elementLabel = variant ? ELEMENTAL_DAMAGE_TYPE_LABELS[variant.damageType] : null;
+            const runPlayerDTOs = playerDTOs.slice();
+            if (variant) {
+                runPlayerDTOs[playerIndex] = {
+                    ...basePlayerDTO,
+                    equipment: {
+                        ...basePlayerDTO.equipment,
+                        [`/equipment_types/${weaponSlot}`]: {
+                            ...basePlayerDTO.equipment[`/equipment_types/${weaponSlot}`],
+                            hrid: variant.hrid,
+                        },
+                    },
+                };
+            }
+            const playerDTO = runPlayerDTOs[playerIndex];
 
-                    const abilities = playerDTO.abilities.slice();
-                    candidate.reorderSlots.forEach((slotIdx, i) => {
-                        abilities[slotIdx] = candidate.reorderAbilities[i];
-                    });
-                    const modifiedDTOs = playerDTOs.slice();
-                    modifiedDTOs[playerIndex] = { ...playerDTO, abilities };
+            const candidates = await generateLabyrinthAbilityOptimizeCandidates(
+                {
+                    playerDTOs: runPlayerDTOs,
+                    playerIndex,
+                    gameData,
+                    zoneHrid,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs,
+                    budget,
+                    poolSize,
+                },
+                (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
+            );
+            if (!candidates.length) continue;
 
-                    const simResult = await runLabyrinthSimulation({
-                        gameData,
-                        playerDTOs: modifiedDTOs,
-                        zoneHrid,
-                        monsterHrid,
-                        roomLevel,
-                        crates,
-                        hours,
-                        communityBuffs,
-                        labyrinthCombatBuffs,
-                    });
-                    const attempts = simResult.labyAttemptCount || 1;
-                    const encounters = simResult.encounters || 0;
-                    const deaths = simResult.deaths?.player1 || 0;
-                    const winRate = encounters / attempts;
+            let cursor = 0;
+            let comboDone = 0;
+            let runBest = null;
+            const comboTotal = candidates.length;
+            const workerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidates.length));
+            await Promise.all(
+                Array.from({ length: workerCount }, async () => {
+                    while (cursor < candidates.length) {
+                        const candidate = candidates[cursor++];
+                        const label = elementLabel ? `[${elementLabel}] ${candidate.description}` : candidate.description;
+                        onProgress?.({
+                            current: comboDone,
+                            total: comboTotal,
+                            description: `Testing combo: ${label}`,
+                        });
 
-                    if (!best || winRate > best.winRate) {
-                        best = {
-                            winRate,
-                            attempts,
-                            encounters,
-                            deaths,
-                            abilities,
-                            description: candidate.description,
-                            cost: candidate.cost,
-                        };
+                        const abilities = playerDTO.abilities.slice();
+                        candidate.reorderSlots.forEach((slotIdx, i) => {
+                            abilities[slotIdx] = candidate.reorderAbilities[i];
+                        });
+                        const modifiedDTOs = runPlayerDTOs.slice();
+                        modifiedDTOs[playerIndex] = { ...playerDTO, abilities };
+
+                        const simResult = await runLabyrinthSimulation({
+                            gameData,
+                            playerDTOs: modifiedDTOs,
+                            zoneHrid,
+                            monsterHrid,
+                            roomLevel,
+                            crates,
+                            hours,
+                            communityBuffs,
+                            labyrinthCombatBuffs,
+                        });
+                        const attempts = simResult.labyAttemptCount || 1;
+                        const encounters = simResult.encounters || 0;
+                        const deaths = simResult.deaths?.player1 || 0;
+                        const winRate = encounters / attempts;
+
+                        if (!runBest || winRate > runBest.winRate) {
+                            runBest = {
+                                winRate,
+                                attempts,
+                                encounters,
+                                deaths,
+                                abilities,
+                                description: label,
+                                cost: candidate.cost,
+                                weaponHrid: variant ? variant.hrid : equippedWeaponHrid,
+                            };
+                        }
+                        comboDone++;
+                        onProgress?.({ current: comboDone, total: comboTotal, description: label });
                     }
-                    comboDone++;
-                    onProgress?.({ current: comboDone, total: comboTotal, description: candidate.description });
-                }
-            })
-        );
+                })
+            );
+            if (runBest && (!best || runBest.winRate > best.winRate)) best = runBest;
+        }
 
         return best;
     }
@@ -16190,7 +16292,8 @@
             const attempts = simResult.labyAttemptCount || 1;
             const encounters = simResult.encounters || 0;
             const deaths = simResult.deaths?.player1 || 0;
-            return { winRate: encounters / attempts, attempts, encounters, deaths };
+            const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
+            return { winRate: encounters / attempts, attempts, encounters, deaths, totalDamageDealt };
         };
 
         // Mutates `equipment` in place with just this candidate's slot change(s), so multiple
@@ -16229,10 +16332,10 @@
                     });
 
                     const result = await runEquipmentSim(buildCandidateEquipment(candidate));
-                    if (result.winRate > baseline.winRate) {
+                    if (isLabyrinthResultBetter(result, baseline)) {
                         const slotKey = candidate.type === 'cross_slot' ? 'cross_slot' : candidate.slot;
                         const existing = bestPerSlot.get(slotKey);
-                        if (!existing || result.winRate > existing.result.winRate) {
+                        if (!existing || isLabyrinthResultBetter(result, existing.result)) {
                             bestPerSlot.set(slotKey, { candidate, result });
                         }
                     }
@@ -16262,9 +16365,165 @@
             attempts: finalResult.attempts,
             encounters: finalResult.encounters,
             deaths: finalResult.deaths,
+            totalDamageDealt: finalResult.totalDamageDealt,
             equipment: combinedEquipment,
-            description: parts.join(', '),
+            description: parts.join('\n'),
             cost: totalCost,
+        };
+    }
+
+    /**
+     * Find the best combined equipment+ability loadout for a single labyrinth monster/room level by
+     * alternating the two optimizers: equipment (bare abilities) → abilities (on that gear) →
+     * equipment again (on those abilities, to catch gear picks the first pass couldn't see with the
+     * old kit) → abilities again (final polish) — each stage only keeps its change if it beats the
+     * best result seen so far, so a stage that finds nothing new leaves the loadout untouched.
+     * @param {Object} params - { playerDTOs, playerIndex, gameData, monsterHrid, roomLevel, crates,
+     *  hours, communityBuffs, labyrinthCombatBuffs, budget, poolSize }
+     * @param {Function} [onProgress] - Called with { current, total, description }
+     * @returns {Promise<{winRate: number, attempts: number, encounters: number, deaths: number,
+     *  equipment: Object, abilities: Array, description: string, cost: number}|null>}
+     */
+    async function optimizeLabyrinthEverything(params, onProgress) {
+        const {
+            playerDTOs,
+            playerIndex,
+            gameData,
+            monsterHrid,
+            roomLevel,
+            crates,
+            hours,
+            communityBuffs,
+            labyrinthCombatBuffs,
+            budget,
+            poolSize,
+        } = params;
+
+        const zoneHrid =
+            Object.keys(gameData.actionDetailMap).find((k) => k.includes('/actions/combat/')) || '/actions/combat/fly';
+
+        let currentDTOs = playerDTOs.slice();
+        const equipmentChanges = [];
+        const abilityChanges = [];
+        let totalCost = 0;
+
+        const runStageSim = async () => {
+            const simResult = await runLabyrinthSimulation({
+                gameData,
+                playerDTOs: currentDTOs,
+                zoneHrid,
+                monsterHrid,
+                roomLevel,
+                crates,
+                hours,
+                communityBuffs,
+                labyrinthCombatBuffs,
+            });
+            const attempts = simResult.labyAttemptCount || 1;
+            const encounters = simResult.encounters || 0;
+            const deaths = simResult.deaths?.player1 || 0;
+            const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
+            return { winRate: encounters / attempts, attempts, encounters, deaths, totalDamageDealt };
+        };
+
+        let best = await runStageSim();
+
+        // Replace each stage's own combo-level description (e.g. "Testing: Fireball Lv10") with just
+        // the stage label — showing the constantly-changing combo text in the UI made the progress
+        // detail line flicker/spaz as dozens of monsters reported different combos in parallel. The
+        // stage label only changes 4 times per monster, so it stays readable.
+        const wrapProgress = (stageLabel) => (p) => onProgress?.({ ...p, description: stageLabel });
+
+        // Two-space indents every line of a (possibly multi-line) sub-description, so the final
+        // report reads as a nested outline instead of one unbroken run-on sentence.
+        const indentLines = (text) =>
+            text
+                .split('\n')
+                .map((line) => `  ${line}`)
+                .join('\n');
+
+        const applyEquipmentStage = async (stageLabel) => {
+            const result = await optimizeLabyrinthEquipment(
+                {
+                    playerDTOs: currentDTOs,
+                    playerIndex,
+                    gameData,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs,
+                    budget,
+                },
+                wrapProgress(stageLabel)
+            );
+            if (!result) {
+                equipmentChanges.push(`${stageLabel}: no improvement found`);
+                return;
+            }
+            // Below clearing, win rate alone can't tell weapons apart (see isLabyrinthResultBetter) —
+            // fall back to damage dealt / deaths so a gear swap that clearly hits harder or dies less
+            // still gets adopted even while every option is still stuck at 0% clears.
+            if (isLabyrinthResultBetter(result, best)) {
+                currentDTOs = currentDTOs.slice();
+                currentDTOs[playerIndex] = { ...currentDTOs[playerIndex], equipment: result.equipment };
+                equipmentChanges.push(`${stageLabel}:\n${indentLines(result.description)}`);
+                totalCost += result.cost;
+                best = await runStageSim();
+            } else {
+                equipmentChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+            }
+        };
+
+        const applyAbilitiesStage = async (stageLabel) => {
+            const result = await optimizeLabyrinthAbilities(
+                {
+                    playerDTOs: currentDTOs,
+                    playerIndex,
+                    gameData,
+                    monsterHrid,
+                    roomLevel,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs,
+                    budget,
+                    poolSize,
+                },
+                wrapProgress(stageLabel)
+            );
+            if (!result) {
+                abilityChanges.push(`${stageLabel}: no improvement found`);
+                return;
+            }
+            if (result.winRate > best.winRate) {
+                currentDTOs = currentDTOs.slice();
+                currentDTOs[playerIndex] = { ...currentDTOs[playerIndex], abilities: result.abilities };
+                abilityChanges.push(`${stageLabel}:\n${indentLines(result.description)}`);
+                totalCost += result.cost;
+                best = await runStageSim();
+            } else {
+                abilityChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+            }
+        };
+
+        await applyEquipmentStage('Equipment 1/4');
+        await applyAbilitiesStage('Abilities 2/4');
+        await applyEquipmentStage('Equipment 3/4');
+        await applyAbilitiesStage('Abilities 4/4');
+
+        const finalDTO = currentDTOs[playerIndex];
+        return {
+            winRate: best.winRate,
+            attempts: best.attempts,
+            encounters: best.encounters,
+            deaths: best.deaths,
+            totalDamageDealt: best.totalDamageDealt,
+            equipment: finalDTO.equipment,
+            abilities: finalDTO.abilities,
+            cost: totalCost,
+            description: `Equipment:\n${indentLines(equipmentChanges.join('\n'))}\nAbilities:\n${indentLines(abilityChanges.join('\n'))}`,
         };
     }
 
@@ -26711,6 +26970,8 @@
     const ACCENT_BG = 'rgba(74, 158, 255, 0.12)';
     const ACCENT_BTN_BG = 'rgba(74, 158, 255, 0.2)';
     const ACCENT_BTN_BORDER = 'rgba(74, 158, 255, 0.4)';
+    /** Win rate above which a monster is already "good enough" and optimization is skipped. */
+    const OPTIMIZE_SKIP_WIN_RATE = 0.9;
 
     /**
      * @param {number} seconds
@@ -26935,11 +27196,26 @@
                 <option value="none">Don't Optimize</option>
                 <option value="abilities">Optimize Abilities</option>
                 <option value="equipment">Optimize Equipment</option>
+                <option value="everything">Optimize Everything (4-pass)</option>
             </select>
             <span id="mwi-labsim-optimize-budget-group" style="display:none; align-items:center; gap:4px;">
                 <label id="mwi-labsim-optimize-budget-label" style="color:#888; font-size:12px;">Budget (M)</label>
                 <input id="mwi-labsim-optimize-budget" type="number" min="0" step="0.1" placeholder="avg" title="Total coin budget (millions) to spend on the optimization. Leave blank to size against the average cost already invested." style="width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
             </span>
+            <label style="color:#888; font-size:12px;" title="Only simulate/optimize monsters whose Automation-tab loadout assignment matches the selected loadout.">Loadout</label>
+            <select id="mwi-labsim-loadout-filter" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; max-width:140px;">
+                <option value="">All Loadouts</option>
+            </select>
+        `;
+
+            const monsterFilterSection = document.createElement('div');
+            monsterFilterSection.id = 'mwi-labsim-monster-filter-section';
+            monsterFilterSection.style.cssText = 'padding:6px 14px; border-bottom:1px solid #222; flex-shrink:0;';
+            monsterFilterSection.innerHTML = `
+            <div id="mwi-labsim-monster-filter-toggle" style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:4px; cursor:pointer; user-select:none;">
+                <span style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Mobs (optional filter)
+            </div>
+            <div id="mwi-labsim-monster-filter-grid" style="display:none; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:3px 10px;"></div>
         `;
 
             const maxLevelProgress = document.createElement('div');
@@ -26960,6 +27236,7 @@
                     <div id="mwi-labsim-progress2-fill" style="height:100%; width:0%; background:linear-gradient(90deg, rgba(160,120,255,0.35), #a078ff); border-radius:3px; transition:width 0.2s ease;"></div>
                     <span id="mwi-labsim-progress2-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:10px; line-height:14px; color:#e0e0e0; font-weight:600;">Ability combos</span>
                 </div>
+                <div id="mwi-labsim-progress2-detail" style="margin-top:3px; font-size:10px; color:#888; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
             </div>
         `;
 
@@ -26968,6 +27245,7 @@
             maxLevelResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
 
             maxLevelContent.appendChild(maxLevelControls);
+            maxLevelContent.appendChild(monsterFilterSection);
             maxLevelContent.appendChild(maxLevelProgress);
             maxLevelContent.appendChild(maxLevelResults);
 
@@ -27260,6 +27538,18 @@
             });
 
             this._populateMonsters();
+            this._populateLoadoutFilter();
+            this._populateMonsterFilter();
+            this.panel.querySelector('#mwi-labsim-loadout-filter').addEventListener('change', () => {
+                this._populateMonsterFilter();
+            });
+            this.panel.querySelector('#mwi-labsim-monster-filter-toggle').addEventListener('click', () => {
+                const grid = this.panel.querySelector('#mwi-labsim-monster-filter-grid');
+                const toggle = this.panel.querySelector('#mwi-labsim-monster-filter-toggle');
+                const collapsed = grid.style.display !== 'none';
+                grid.style.display = collapsed ? 'none' : 'grid';
+                toggle.querySelector('span').innerHTML = collapsed ? '&#9654;' : '&#9660;';
+            });
         }
 
         /** @private */
@@ -27275,6 +27565,64 @@
                 option.textContent = monster.name;
                 select.appendChild(option);
             }
+        }
+
+        /**
+         * Populate the Max Level tab's loadout filter with the distinct loadout names actually
+         * assigned to labyrinth monsters in the Automation tab, so the user can restrict a sim/
+         * optimize run to only the monsters that use one specific loadout. Preserves the current
+         * selection across re-population if it's still valid.
+         * @private
+         */
+        _populateLoadoutFilter() {
+            const select = this.panel?.querySelector('#mwi-labsim-loadout-filter');
+            if (!select) return;
+
+            const previous = select.value;
+            const monsters = getLabyrinthMonsters();
+            const loadoutNames = [...new Set(monsters.map((m) => this._getMonsterLoadoutName(m.hrid)).filter(Boolean))];
+            loadoutNames.sort((a, b) => a.localeCompare(b));
+
+            select.innerHTML = '<option value="">All Loadouts</option>';
+            for (const name of loadoutNames) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            }
+            if (loadoutNames.includes(previous)) select.value = previous;
+        }
+
+        /**
+         * Populate the Max Level tab's mob filter with a checkbox per monster under the currently
+         * selected loadout filter (or every labyrinth monster if "All Loadouts" is selected), so the
+         * user can further restrict a run to one or a few specific mobs instead of the whole loadout.
+         * Rendered as a fixed checkbox grid (not a scrolling listbox) so every mob is visible at
+         * once. Preserves any checks that are still valid options after re-population.
+         * @private
+         */
+        _populateMonsterFilter() {
+            const grid = this.panel?.querySelector('#mwi-labsim-monster-filter-grid');
+            if (!grid) return;
+
+            const previouslyChecked = new Set(
+                [...grid.querySelectorAll('input[type="checkbox"]:checked')].map((cb) => cb.value)
+            );
+            const loadoutFilter = this.panel.querySelector('#mwi-labsim-loadout-filter')?.value || '';
+            let monsters = getLabyrinthMonsters();
+            if (loadoutFilter) {
+                monsters = monsters.filter((m) => this._getMonsterLoadoutName(m.hrid) === loadoutFilter);
+            }
+
+            grid.innerHTML = monsters
+                .map(
+                    (monster) => `
+            <label style="display:flex; align-items:center; gap:4px; color:#ccc; font-size:11px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${monster.name}">
+                <input type="checkbox" value="${monster.hrid}" style="margin:0; cursor:pointer; flex-shrink:0;"${previouslyChecked.has(monster.hrid) ? ' checked' : ''}>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${monster.name}</span>
+            </label>`
+                )
+                .join('');
         }
 
         /** @private */
@@ -27421,6 +27769,8 @@
             } else if (tab === 'maxlevel') {
                 maxLevelContent.style.display = 'flex';
                 tabMaxLevel.style.cssText = activeStyle;
+                this._populateLoadoutFilter();
+                this._populateMonsterFilter();
             } else if (tab === 'upgrade') {
                 upgradeContent.style.display = 'flex';
                 tabUpgrade.style.cssText = activeStyle;
@@ -27463,9 +27813,25 @@
                 return;
             }
 
-            const monsters = getLabyrinthMonsters();
+            const loadoutFilter = this.panel.querySelector('#mwi-labsim-loadout-filter')?.value || '';
+            const selectedMonsterHrids = [
+                ...this.panel.querySelectorAll('#mwi-labsim-monster-filter-grid input[type="checkbox"]:checked'),
+            ].map((cb) => cb.value);
+            let monsters = getLabyrinthMonsters();
+            if (loadoutFilter) {
+                monsters = monsters.filter((m) => this._getMonsterLoadoutName(m.hrid) === loadoutFilter);
+            }
+            if (selectedMonsterHrids.length) {
+                monsters = monsters.filter((m) => selectedMonsterHrids.includes(m.hrid));
+            }
             if (!monsters.length) {
-                this._setStatus('No labyrinth monsters found.');
+                this._setStatus(
+                    selectedMonsterHrids.length
+                        ? 'No selected mobs match the current loadout filter.'
+                        : loadoutFilter
+                          ? `No labyrinth monsters use the "${loadoutFilter}" loadout.`
+                          : 'No labyrinth monsters found.'
+                );
                 return;
             }
 
@@ -27511,12 +27877,14 @@
             const progress2Row = this.panel.querySelector('#mwi-labsim-progress2-row');
             const progress2Fill = this.panel.querySelector('#mwi-labsim-progress2-fill');
             const progress2Text = this.panel.querySelector('#mwi-labsim-progress2-text');
+            const progress2Detail = this.panel.querySelector('#mwi-labsim-progress2-detail');
             progressContainer.style.display = 'block';
             progressFill.style.width = '0%';
             progressText.textContent = `0 / ${monsters.length}`;
             progress2Row.style.display = optimizeMode !== 'none' ? 'block' : 'none';
             progress2Fill.style.width = '0%';
             progress2Text.textContent = 'Optimization combos';
+            progress2Detail.textContent = '';
 
             const simStartTime = Date.now();
 
@@ -27533,6 +27901,7 @@
             // every search still in flight; a slot is dropped once its search completes.
             const optimizeProgressSlots = new Map();
             let optimizeProgressSeq = 0;
+            let lastOptimizeDescription = '';
             const renderOptimizeProgress = () => {
                 let sumCurrent = 0;
                 let sumTotal = 0;
@@ -27543,21 +27912,24 @@
                 if (sumTotal === 0) {
                     progress2Fill.style.width = '0%';
                     progress2Text.textContent = 'Optimization combos';
+                    progress2Detail.textContent = '';
                     return;
                 }
                 const percent = Math.round((sumCurrent / sumTotal) * 100);
                 progress2Fill.style.width = `${percent}%`;
                 progress2Text.textContent = `${sumTotal - sumCurrent} / ${sumTotal} combos left to check`;
+                progress2Detail.textContent = lastOptimizeDescription;
             };
             const makeOptimizeProgress = () => {
                 const slotId = optimizeProgressSeq++;
-                return ({ current, total }) => {
+                return ({ current, total, description }) => {
                     if (current == null || !total) return;
                     if (current >= total) {
                         optimizeProgressSlots.delete(slotId);
                     } else {
                         optimizeProgressSlots.set(slotId, { current, total });
                     }
+                    if (description) lastOptimizeDescription = description;
                     renderOptimizeProgress();
                 };
             };
@@ -27645,6 +28017,39 @@
         }
 
         /**
+         * Build the loadout-column text describing an optimize attempt's outcome. 'everything' mode
+         * already returns a full multi-line, per-stage report (see optimizeLabyrinthEverything), so
+         * it's shown as-is rather than wrapped in the generic "+ X" / "(tried: X — no improvement)"
+         * phrasing used for the single-stage abilities/equipment modes.
+         * @param {string} loadoutName - Base loadout name assigned to the monster
+         * @param {string} optimizeMode - 'abilities' | 'equipment' | 'everything'
+         * @param {Object} optimized - Result from the optimizer (has .description, .winRate)
+         * @param {boolean} improved - Whether optimized.winRate beat the pre-optimize baseline
+         * @returns {string}
+         * @private
+         */
+        _formatOptimizedLoadoutName(loadoutName, optimizeMode, optimized, improved) {
+            if (optimizeMode === 'everything') {
+                return `${loadoutName} ${improved ? '(improved)' : '(no net improvement)'}\n${optimized.description}`;
+            }
+            return improved
+                ? `${loadoutName}\n+ ${optimized.description}`
+                : `${loadoutName}\n(tried: ${optimized.description} — no improvement)`;
+        }
+
+        /**
+         * Resolve the optimizer function for the panel's optimize-mode select.
+         * @param {string} optimizeMode - 'abilities' | 'equipment' | 'everything'
+         * @returns {Function}
+         * @private
+         */
+        _pickOptimizer(optimizeMode) {
+            if (optimizeMode === 'abilities') return optimizeLabyrinthAbilities;
+            if (optimizeMode === 'everything') return optimizeLabyrinthEverything;
+            return optimizeLabyrinthEquipment;
+        }
+
+        /**
          * Build the player DTO to simulate a given monster with: the loadout assigned to it in the
          * Automation tab if one is set, otherwise the currently equipped gear.
          * @param {Object} baseDTO - Player DTO built from live/edited character state
@@ -27713,14 +28118,26 @@
                         const attempts = simResult.labyAttemptCount || 0;
                         const encounters = simResult.encounters || 0;
                         const deaths = simResult.deaths?.player1 || 0;
+                        const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
                         const winRate = attempts > 0 ? encounters / attempts : 0;
 
-                        let best = { winRate, encounters, attempts, deaths, loadoutName };
+                        let best = { winRate, encounters, attempts, deaths, totalDamageDealt, loadoutName };
 
-                        if (optimizeMode === 'abilities' || optimizeMode === 'equipment') {
+                        const shouldOptimize =
+                            (optimizeMode === 'abilities' ||
+                                optimizeMode === 'equipment' ||
+                                optimizeMode === 'everything') &&
+                            winRate < OPTIMIZE_SKIP_WIN_RATE;
+                        if (optimizeMode !== 'none' && winRate >= OPTIMIZE_SKIP_WIN_RATE) {
+                            best = {
+                                ...best,
+                                loadoutName: `${loadoutName} (already ≥${OPTIMIZE_SKIP_WIN_RATE * 100}%, skipped optimize)`,
+                            };
+                        }
+
+                        if (shouldOptimize) {
                             if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
-                            const optimizer =
-                                optimizeMode === 'abilities' ? optimizeLabyrinthAbilities : optimizeLabyrinthEquipment;
+                            const optimizer = this._pickOptimizer(optimizeMode);
                             const optimized = await optimizer(
                                 {
                                     playerDTOs: monsterPlayerDTOs,
@@ -27739,19 +28156,33 @@
                             if (optimized) {
                                 // Always report what optimization tried, even when it didn't help, so
                                 // the user can see it actually ran instead of silently doing nothing.
-                                best =
-                                    optimized.winRate > best.winRate
-                                        ? {
-                                              winRate: optimized.winRate,
-                                              encounters: optimized.encounters,
-                                              attempts: optimized.attempts,
-                                              deaths: optimized.deaths,
-                                              loadoutName: `${loadoutName} + ${optimized.description}`,
-                                          }
-                                        : {
-                                              ...best,
-                                              loadoutName: `${loadoutName} (tried: ${optimized.description} — no improvement)`,
-                                          };
+                                // Falls back to damage dealt / deaths when win rate alone can't tell
+                                // two options apart (e.g. neither clears yet) — see
+                                // isLabyrinthResultBetter.
+                                const improved = isLabyrinthResultBetter(optimized, best);
+                                best = improved
+                                    ? {
+                                          winRate: optimized.winRate,
+                                          encounters: optimized.encounters,
+                                          attempts: optimized.attempts,
+                                          deaths: optimized.deaths,
+                                          totalDamageDealt: optimized.totalDamageDealt,
+                                          loadoutName: this._formatOptimizedLoadoutName(
+                                              loadoutName,
+                                              optimizeMode,
+                                              optimized,
+                                              true
+                                          ),
+                                      }
+                                    : {
+                                          ...best,
+                                          loadoutName: this._formatOptimizedLoadoutName(
+                                              loadoutName,
+                                              optimizeMode,
+                                              optimized,
+                                              false
+                                          ),
+                                      };
                             } else {
                                 best = {
                                     ...best,
@@ -27830,13 +28261,12 @@
                             loadoutName,
                         };
 
-                        if (optimizeMode === 'abilities' || optimizeMode === 'equipment') {
+                        if (optimizeMode === 'abilities' || optimizeMode === 'equipment' || optimizeMode === 'everything') {
                             if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
                             // Rank at the best level found so far, or level 1 if even that failed the
                             // threshold — a 0% mob can still improve, it just needs a valid room level
                             // to sim against for the ranking pass.
-                            const optimizer =
-                                optimizeMode === 'abilities' ? optimizeLabyrinthAbilities : optimizeLabyrinthEquipment;
+                            const optimizer = this._pickOptimizer(optimizeMode);
                             const optimized = await optimizer(
                                 {
                                     playerDTOs: monsterPlayerDTOs,
@@ -27853,10 +28283,11 @@
                                 makeOptimizeProgress?.()
                             );
                             if (optimized) {
-                                const modifiedDTO =
-                                    optimizeMode === 'abilities'
-                                        ? { ...monsterPlayerDTOs[0], abilities: optimized.abilities }
-                                        : { ...monsterPlayerDTOs[0], equipment: optimized.equipment };
+                                const modifiedDTO = {
+                                    ...monsterPlayerDTOs[0],
+                                    ...(optimized.abilities ? { abilities: optimized.abilities } : {}),
+                                    ...(optimized.equipment ? { equipment: optimized.equipment } : {}),
+                                };
                                 const reMax = await findMaxLabyrinthLevel({
                                     gameData,
                                     playerDTOs: [modifiedDTO],
@@ -27881,11 +28312,21 @@
                                           maxLevel: reMax.maxLevel,
                                           winRate: reMax.winRate,
                                           steps: reMax.steps,
-                                          loadoutName: `${loadoutName} + ${optimized.description}`,
+                                          loadoutName: this._formatOptimizedLoadoutName(
+                                              loadoutName,
+                                              optimizeMode,
+                                              optimized,
+                                              true
+                                          ),
                                       }
                                     : {
                                           ...best,
-                                          loadoutName: `${loadoutName} (tried: ${optimized.description} — no improvement)`,
+                                          loadoutName: this._formatOptimizedLoadoutName(
+                                              loadoutName,
+                                              optimizeMode,
+                                              optimized,
+                                              false
+                                          ),
                                       };
                             } else {
                                 best = {
@@ -27907,6 +28348,20 @@
             );
 
             return results;
+        }
+
+        /**
+         * Escape HTML and turn '\n' into '<br>' so multi-line loadout/optimize descriptions (e.g.
+         * from optimizeLabyrinthEverything's per-stage report) render as separate lines instead of
+         * one unbroken run-on string in a results table cell.
+         * @param {string} text
+         * @returns {string}
+         * @private
+         */
+        _formatMultilineCell(text) {
+            const div = document.createElement('div');
+            div.textContent = text ?? '';
+            return div.innerHTML.replace(/\n/g, '<br>');
         }
 
         /** @private */
@@ -27940,7 +28395,7 @@
                 <td style="${tdStyle} color:${color}; font-weight:600;">${winRatePct.toFixed(2)}%</td>
                 <td style="${tdStyle} color:#ccc;">${formatters_js.formatWithSeparator(r.encounters)}</td>
                 <td style="${tdStyle} color:${r.deaths > 0 ? '#f44336' : '#4caf50'};">${formatters_js.formatWithSeparator(r.deaths)}</td>
-                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:320px; white-space:normal; word-break:break-word;">${r.loadoutName}</td>
+                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:360px; white-space:normal; word-break:break-word; line-height:1.5;">${this._formatMultilineCell(r.loadoutName)}</td>
             </tr>`;
             }
 
@@ -27981,7 +28436,7 @@
                 <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
                 <td style="${tdStyle} color:#ccc;">${(r.winRate * 100).toFixed(1)}%</td>
                 <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
-                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:320px; white-space:normal; word-break:break-word;">${r.loadoutName}</td>
+                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:360px; white-space:normal; word-break:break-word; line-height:1.5;">${this._formatMultilineCell(r.loadoutName)}</td>
             </tr>`;
             }
 
