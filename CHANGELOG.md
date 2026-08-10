@@ -2,10 +2,9 @@
 
 ## [3.10.2](https://github.com/Skillcheese/Cheezasha/compare/v3.10.1...v3.10.2) (2026-08-10)
 
-
 ### Bug Fixes
 
-* queue all nodes during a debounce window instead of only the latest ([91a3336](https://github.com/Skillcheese/Cheezasha/commit/91a33367012f9945130bc13075f43343765eb9b8))
+- queue all nodes during a debounce window instead of only the latest ([91a3336](https://github.com/Skillcheese/Cheezasha/commit/91a33367012f9945130bc13075f43343765eb9b8))
 
 ## [3.10.1](https://github.com/Skillcheese/Cheezasha/compare/v3.10.0...v3.10.1) (2026-08-10)
 
