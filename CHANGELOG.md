@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.12.0](https://github.com/Skillcheese/Cheezasha/compare/v3.11.0...v3.12.0) (2026-08-10)
+
+
+### Features
+
+* rename lab sim tab, add skilling find-max, and improve upgrade advisor ([b0cbf8d](https://github.com/Skillcheese/Cheezasha/commit/b0cbf8d1400201d309b9fc933170d55d13c696ae))
+
 ## [3.11.0](https://github.com/Skillcheese/Cheezasha/compare/v3.10.3...v3.11.0) (2026-08-10)
 
 ### Features
