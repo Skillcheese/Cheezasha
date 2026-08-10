@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.1](https://github.com/Skillcheese/Cheezasha/compare/v3.10.0...v3.10.1) (2026-08-10)
+
+
+### Performance Improvements
+
+* debounce DOM observer callbacks and avoid regex allocation in websocket hot path ([1885d44](https://github.com/Skillcheese/Cheezasha/commit/1885d44ed70134f6daa8e162b67497f897efd325))
+
 ## [3.10.0](https://github.com/Skillcheese/Cheezasha/compare/v3.9.1...v3.10.0) (2026-08-10)
 
 ### Features
