@@ -25,6 +25,18 @@ const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
 const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
+// Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Revive/Taunt/Provoke
+// target party members or aggro mechanics that don't exist in a solo sim, and Quick Aid/
+// Rejuvenate heal a party member other than the caster — never worth an ability-swap/optimize
+// slot.
+const SIM_USELESS_ABILITY_HRIDS = new Set([
+    '/abilities/revive',
+    '/abilities/taunt',
+    '/abilities/provoke',
+    '/abilities/quick_aid',
+    '/abilities/rejuvenate',
+]);
+
 /**
  * Get the next ability level target (next multiple of 10) above the current level.
  * Used as fallback when no explicit target level is provided.
@@ -1364,7 +1376,7 @@ export function generateCandidates(
                     if (equippedAbilityHrids.has(abHrid)) continue;
                     if (abDetail.isSpecialAbility && slotIdx !== 0) continue;
                     if (!abDetail.isSpecialAbility && slotIdx === 0) continue;
-                    if (abHrid === '/abilities/promote') continue;
+                    if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
 
                     const abStyle = getAbilityCombatStyle(abDetail);
                     if (!isAbilityCompatible(abStyle, playerStyle)) continue;
@@ -1590,7 +1602,7 @@ async function generateAbilityOptimizeCandidates(params, onProgress, abortSignal
     const specialPool = [];
     const TRACE_HRID = '/abilities/crippling_slash';
     for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
-        if (abHrid === '/abilities/promote') continue;
+        if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
         if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) {
             if (abHrid === TRACE_HRID) console.log('[UpgradeAdvisor][trace]', abHrid, 'excluded: book requirement');
             continue;
@@ -1924,7 +1936,7 @@ async function generateLabyrinthAbilityOptimizeCandidates(params, onProgress) {
     const supportPool = [];
     const specialPool = [];
     for (const [abHrid, abDetail] of Object.entries(gameData.abilityDetailMap)) {
-        if (abHrid === '/abilities/promote') continue;
+        if (SIM_USELESS_ABILITY_HRIDS.has(abHrid)) continue;
         if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) continue;
 
         if (abDetail.isSpecialAbility) {
