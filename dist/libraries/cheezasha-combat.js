@@ -1,11 +1,11 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.10.2
+ * Version: 3.10.3
  * License: CC-BY-NC-SA-4.0
  */
 
-(function (config, dataManager, domObserver, webSocketHook, storage, timerRegistry_js, domObserverHelpers_js, formatters_js, marketAPI, expectedValueCalculator, reactInput_js, profitHelpers_js, marketData_js, enhancementCalculator_js, enhancementConfig_js, teaParser_js, abilityCostCalculator_js, equipmentParser_js, efficiency_js, experienceParser_js, bonusRevenueCalculator_js, alchemyProfitCalculator, enhancementMultipliers_js, dom, houseCostCalculator_js) {
+(function (config, dataManager, domObserver, webSocketHook, storage, timerRegistry_js, domObserverHelpers_js, formatters_js, marketAPI, expectedValueCalculator, reactInput_js, enhancementMultipliers_js, profitHelpers_js, marketData_js, enhancementCalculator_js, enhancementConfig_js, teaParser_js, abilityCostCalculator_js, equipmentParser_js, efficiency_js, experienceParser_js, bonusRevenueCalculator_js, alchemyProfitCalculator, dom, houseCostCalculator_js) {
     'use strict';
 
     /**
@@ -13397,6 +13397,531 @@
         }
     }
 
+    /**
+     * Asset Manifest Utility
+     *
+     * Fetches the game's asset-manifest.json to resolve current webpack hashed
+     * sprite URLs without hardcoding hashes that break on game updates.
+     */
+
+    const MANIFEST_URL = 'https://www.milkywayidle.com/asset-manifest.json';
+
+    // Sprite keys to extract from the manifest (key → sprite name)
+    const SPRITE_KEYS = {
+        actions: 'actions_sprite',
+        items: 'items_sprite',
+        monsters: 'combat_monsters_sprite',
+        misc: 'misc_sprite',
+        abilities: 'abilities_sprite',
+    };
+
+    let manifestPromise = null;
+    let cachedUrls = null;
+
+    /**
+     * Fetch and parse the asset manifest, returning a map of sprite name → URL.
+     * Result is cached for the lifetime of the page.
+     * @returns {Promise<Object>} Map of sprite key → full URL
+     */
+    async function fetchManifest() {
+        if (cachedUrls) return cachedUrls;
+        if (manifestPromise) return manifestPromise;
+
+        manifestPromise = (async () => {
+            try {
+                const response = await fetch(MANIFEST_URL);
+                if (!response.ok) {
+                    console.warn('[AssetManifest] Failed to fetch manifest:', response.status);
+                    return {};
+                }
+
+                const manifest = await response.json();
+                const files = manifest.files || manifest; // handle both formats
+
+                const urls = {};
+                for (const [key, spriteName] of Object.entries(SPRITE_KEYS)) {
+                    // Find the entry whose key contains the sprite name and ends in .svg
+                    const entry = Object.entries(files).find(([k]) => k.includes(spriteName) && k.endsWith('.svg'));
+                    if (entry) {
+                        // Values may be relative paths like /static/media/...
+                        urls[key] = entry[1];
+                    }
+                }
+
+                cachedUrls = urls;
+                return urls;
+            } catch (error) {
+                console.warn('[AssetManifest] Error fetching manifest:', error);
+                return {};
+            }
+        })();
+
+        return manifestPromise;
+    }
+
+    /**
+     * Get a specific sprite URL by key.
+     * @param {'actions'|'items'|'monsters'|'misc'|'abilities'} key
+     * @returns {Promise<string|null>}
+     */
+    async function getSpriteUrl(key) {
+        const urls = await fetchManifest();
+        return urls[key] || null;
+    }
+
+    var assetManifest = {
+        fetchManifest,
+        getSpriteUrl,
+    };
+
+    /**
+     * Marketplace Custom Tabs Utility
+     * Provides shared functionality for creating and managing custom marketplace tabs
+     * Used by missing materials features (actions, houses, etc.)
+     */
+
+
+    /**
+     * Get game object via React fiber
+     * @returns {Object|null} Game component instance
+     */
+    function getGameObject$1() {
+        const rootEl = document.getElementById('root');
+        const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
+        if (!rootFiber) return null;
+
+        function find(fiber) {
+            if (!fiber) return null;
+            if (fiber.stateNode?.handleGoToMarketplace) return fiber.stateNode;
+            return find(fiber.child) || find(fiber.sibling);
+        }
+
+        return find(rootFiber);
+    }
+
+    /**
+     * Navigate to marketplace for a specific item
+     * @param {string} itemHrid - Item HRID to navigate to
+     * @param {number} enhancementLevel - Enhancement level (default 0)
+     */
+    function navigateToMarketplace(itemHrid, enhancementLevel = 0) {
+        const game = getGameObject$1();
+        if (game?.handleGoToMarketplace) {
+            game.handleGoToMarketplace(itemHrid, enhancementLevel);
+        }
+        // Silently fail if game API unavailable - feature still provides value without auto-navigation
+    }
+
+    /**
+     * Item Navigation Utilities
+     * Handles Alt+click navigation to crafting/gathering actions or item dictionary
+     */
+
+
+    /**
+     * Get game object via React fiber tree traversal
+     * @returns {Object|null} Game component instance
+     */
+    function getGameObject() {
+        const rootEl = document.getElementById('root');
+        const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
+        if (!rootFiber) return null;
+
+        function find(fiber) {
+            if (!fiber) return null;
+            if (fiber.stateNode?.handleGoToMarketplace) return fiber.stateNode;
+            return find(fiber.child) || find(fiber.sibling);
+        }
+
+        return find(rootFiber);
+    }
+
+    /**
+     * Find which action produces a given item
+     * Prioritizes production actions over gathering actions
+     * @param {string} itemHrid - Item HRID to search for
+     * @returns {Object|null} { actionHrid, type: 'production'|'gathering' } or null
+     */
+    function findActionForItem(itemHrid) {
+        const gameData = dataManager.getInitClientData();
+        if (!gameData?.actionDetailMap) {
+            return null;
+        }
+
+        const itemSlug = itemHrid.split('/').pop();
+
+        // First pass: Look for production actions (outputItems)
+        const productionMatches = [];
+        for (const [actionHrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (action.outputItems?.some((item) => item.itemHrid === itemHrid)) {
+                productionMatches.push(actionHrid);
+            }
+        }
+        if (productionMatches.length > 0) {
+            const exact = productionMatches.find((a) => a.split('/').pop() === itemSlug);
+            return { actionHrid: exact || productionMatches[0], type: 'production' };
+        }
+
+        // Second pass: Look for gathering actions (dropTable)
+        const gatheringMatches = [];
+        for (const [actionHrid, action] of Object.entries(gameData.actionDetailMap)) {
+            if (action.dropTable?.some((drop) => drop.itemHrid === itemHrid)) {
+                gatheringMatches.push(actionHrid);
+            }
+        }
+        if (gatheringMatches.length > 0) {
+            const exact = gatheringMatches.find((a) => a.split('/').pop() === itemSlug);
+            return { actionHrid: exact || gatheringMatches[0], type: 'gathering' };
+        }
+
+        return null;
+    }
+
+    /**
+     * Result Square Utility
+     *
+     * Shared "square icon with click menu" rendering used across combat-sim result tables
+     * (lab sim, upgrade advisor, food/coffee optimizer, ultimate sim): a small sprite-icon box
+     * (matching the game's own inventory/ability slot look) with an optional level badge, that on
+     * hover shows an info tooltip and on click (items only) opens an action menu (View Marketplace /
+     * Open Item Dictionary / View Action).
+     *
+     * Extracted from the combat-sim "Lab Sim" panel so any results panel can reuse the same markup
+     * and interaction wiring without re-implementing the tooltip/menu machinery per feature.
+     */
+
+
+    const ACCENT_BORDER$3 = 'rgba(74, 158, 255, 0.5)';
+    const ACCENT_BG$3 = 'rgba(74, 158, 255, 0.12)';
+
+    /** Combat stat keys shown (in order) in the item tooltip's stat block. */
+    const RESULT_SQUARE_COMBAT_STATS = [
+        'stabAccuracy',
+        'stabDamage',
+        'slashAccuracy',
+        'slashDamage',
+        'bluntAccuracy',
+        'bluntDamage',
+        'rangedAccuracy',
+        'rangedDamage',
+        'magicAccuracy',
+        'magicDamage',
+        'defenseArmor',
+        'evasion',
+        'armor',
+        'waterResistance',
+        'fireResistance',
+        'natureResistance',
+        'earthResistance',
+        'lightningResistance',
+        'stunResistance',
+        'attackSpeed',
+        'castSpeed',
+        'maxHitpoints',
+        'maxManapoints',
+        'lifeSteal',
+        'critChance',
+        'critDamage',
+    ];
+
+    /**
+     * Convert a game hrid ("/equipment_types/main_hand", "/skills/magic") into its display label
+     * ("Main Hand", "Magic") — matches the plain title-casing the game itself uses for these.
+     * @param {string} hrid
+     * @returns {string}
+     */
+    function hridToLabel(hrid) {
+        if (!hrid) return '';
+        return hrid
+            .split('/')
+            .pop()
+            .split('_')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
+    }
+
+    /**
+     * Format a combat stat's raw numeric value the way the game's item tooltip does: values stored
+     * as fractions (< 1 in magnitude, e.g. 0.6 magicAccuracy) render as a percentage; values stored
+     * as whole numbers (e.g. 20 waterResistance) render as a plain signed number.
+     * @param {number} value
+     * @returns {string}
+     */
+    function formatStatValue(value) {
+        const sign = value > 0 ? '+' : '';
+        if (Math.abs(value) < 1) return `${sign}${(value * 100).toFixed(1)}%`;
+        return `${sign}${value}`;
+    }
+
+    /**
+     * Convert a camelCase stat key ("magicAccuracy") into its display label ("Magic Accuracy").
+     * @param {string} key
+     * @returns {string}
+     */
+    function camelToLabel(key) {
+        const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+    }
+
+    /**
+     * Build the HTML for a clickable "item square" — icon + optional enhancement-level badge,
+     * styled to match the game's own inventory slot (rgb(44,46,69) bg, 4px radius).
+     * @param {string} hrid - Item hrid.
+     * @param {string} iconName - Sprite fragment id within the items sprite sheet.
+     * @param {number} level - Enhancement level (0 for none).
+     * @param {string} spriteUrl - Base sprite sheet URL (from assetManifest.getSpriteUrl('items')).
+     * @returns {string}
+     */
+    function buildItemSquareHtml(hrid, iconName, level, spriteUrl) {
+        const itemLevel = level || 0;
+        const ref = `${spriteUrl}#${iconName}`;
+        let html = `<span class="mwi-result-item-square" data-item-hrid="${hrid}" data-item-level="${itemLevel}" style="display:inline-flex; position:relative; width:32px; height:32px; vertical-align:-9px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
+        html += `<svg width="32" height="32"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
+        html += '</span>';
+        return html;
+    }
+
+    /**
+     * Build the HTML for a clickable "ability square" — icon + optional level badge, styled to
+     * match the game's own ability slot (rgb(44,46,69) bg, 4px radius).
+     * @param {string} hrid - Ability hrid.
+     * @param {string} iconName - Sprite fragment id within the abilities sprite sheet.
+     * @param {number|null} level - Ability level, or falsy to omit the badge.
+     * @param {string} spriteUrl - Base sprite sheet URL (from assetManifest.getSpriteUrl('abilities')).
+     * @returns {string}
+     */
+    function buildAbilitySquareHtml(hrid, iconName, level, spriteUrl) {
+        const ref = `${spriteUrl}#${iconName}`;
+        let html = `<span class="mwi-result-ability-square" data-ability-hrid="${hrid}"${level ? ` data-ability-level="${level}"` : ''} style="display:inline-flex; position:relative; width:36px; height:36px; vertical-align:-10px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
+        html += `<svg width="36" height="36"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
+        if (level) {
+            html += `<span style="position:absolute; bottom:-1px; right:-1px; font-size:11px; line-height:1; background:rgba(0,0,0,0.8); color:#e7e7e7; padding:1px 3px 0; border-radius:2px; pointer-events:none;">${level}</span>`;
+        }
+        html += '</span>';
+        return html;
+    }
+
+    /**
+     * Wire up hover-tooltip + click-menu interactions for `.mwi-result-item-square` /
+     * `.mwi-result-ability-square` elements rendered anywhere inside `container`, using event
+     * delegation so it keeps working across innerHTML re-renders of the results table.
+     *
+     * @param {HTMLElement} container - Root element to delegate mouseover/click listeners on
+     *  (results are rebuilt via innerHTML, so per-square listeners would be lost each render).
+     * @param {Object} options
+     * @param {() => Object} options.getItemDetailMap - Returns the current gameData.itemDetailMap.
+     * @param {() => Object} options.getAbilityDetailMap - Returns the current gameData.abilityDetailMap.
+     * @param {() => Array} [options.getLevelExperienceTable] - Returns gameData.levelExperienceTable.
+     * @returns {() => void} Cleanup function — removes the tooltip/menu elements and listeners.
+     */
+    function setupResultSquareInteractions(container, options) {
+        const { getItemDetailMap, getAbilityDetailMap, getLevelExperienceTable } = options;
+        const itemSelector = '.mwi-result-item-square';
+        const abilitySelector = '.mwi-result-ability-square';
+        const bothSelector = `${itemSelector}, ${abilitySelector}`;
+
+        const popupStyle = `
+        display: none; position: fixed; z-index: 999999;
+        background: rgba(187, 197, 241, 0.95); border-radius: 4px; color: #000;
+        box-shadow: 2px 2px 10px 6px rgba(0,0,0,0.3);
+    `;
+
+        const tooltip = document.createElement('div');
+        tooltip.className = 'mwi-result-square-tooltip';
+        tooltip.style.cssText = `${popupStyle} max-width: 318px; padding: 6px 8px; font-family: Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; line-height: 19.25px; letter-spacing: 0.15px; pointer-events: none;`;
+        document.body.appendChild(tooltip);
+
+        const menu = document.createElement('div');
+        menu.className = 'mwi-result-square-menu';
+        menu.style.cssText = `
+        display: none; position: fixed; z-index: 999999; min-width: 160px; padding: 4px; font-size: 12px;
+        background: #12121f; border: 1px solid ${ACCENT_BORDER$3}; border-radius: 6px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    `;
+        document.body.appendChild(menu);
+
+        const positionPopup = (popup, square) => {
+            const rect = square.getBoundingClientRect();
+            popup.style.display = 'block';
+            let left = rect.left;
+            const maxLeft = window.innerWidth - popup.offsetWidth - 8;
+            if (left > maxLeft) left = Math.max(8, maxLeft);
+            popup.style.top = `${rect.bottom + 6}px`;
+            popup.style.left = `${left}px`;
+        };
+
+        const buildAbilityTooltipHtml = (square) => {
+            const hrid = square.dataset.abilityHrid;
+            const level = square.dataset.abilityLevel ? parseInt(square.dataset.abilityLevel) : null;
+            const detail = getAbilityDetailMap?.()?.[hrid];
+            const name = detail?.name || hrid?.split('/').pop() || 'Unknown Ability';
+            const xpTable = getLevelExperienceTable?.();
+
+            let html = `<div style="font-size:16px;">${name}</div>`;
+            if (level) {
+                html += `<div>Level: ${level}</div>`;
+                if (xpTable?.[level] != null) {
+                    html += `<div>Total Experience: ${formatters_js.formatWithSeparator(xpTable[level])}</div>`;
+                    if (xpTable[level + 1] != null) {
+                        html += `<div>Exp to Level Up: ${formatters_js.formatWithSeparator(xpTable[level + 1] - xpTable[level])}</div>`;
+                    }
+                }
+            }
+            let details = '';
+            if (detail?.description) details += `<div>Description: ${detail.description}</div>`;
+            if (detail?.cooldownDuration) details += `<div>Cooldown: ${(detail.cooldownDuration / 1e9).toFixed(1)}s</div>`;
+            if (detail?.castDuration) details += `<div>Cast Time: ${(detail.castDuration / 1e9).toFixed(1)}s</div>`;
+            if (detail?.manaCost) details += `<div>MP Cost: ${detail.manaCost} MP</div>`;
+            if (details) html += `<div style="margin-top:8px;">${details}</div>`;
+            return html;
+        };
+
+        const buildItemTooltipHtml = (square) => {
+            const hrid = square.dataset.itemHrid;
+            const itemLevel = parseInt(square.dataset.itemLevel) || 0;
+            const detail = getItemDetailMap?.()?.[hrid];
+            const name = detail?.name || hrid?.split('/').pop() || 'Unknown Item';
+            const eq = detail?.equipmentDetail;
+
+            let html = `<div style="font-size:16px;">${name}</div>`;
+            if (itemLevel > 0) html += `<div>+${itemLevel}</div>`;
+
+            let details = '';
+            if (eq?.type) details += `<div>Type: ${hridToLabel(eq.type)}</div>`;
+            for (const req of eq?.levelRequirements || []) {
+                if (!req.skillHrid) continue;
+                details += `<div>Requires: ${req.level} ${hridToLabel(req.skillHrid)}</div>`;
+            }
+            const combatStyles = eq?.combatStats?.combatStyleHrids;
+            if (combatStyles?.length) details += `<div>Combat Style: ${combatStyles.map(hridToLabel).join(', ')}</div>`;
+            if (eq?.combatStats?.damageType) details += `<div>Damage Type: ${hridToLabel(eq.combatStats.damageType)}</div>`;
+            if (eq?.combatStats?.attackInterval) {
+                details += `<div>Attack Interval: ${(eq.combatStats.attackInterval / 1e9).toFixed(1)}s</div>`;
+            }
+            if (eq?.combatStats?.autoAttackDamage) {
+                details += `<div>Auto Attack Damage: ${formatStatValue(eq.combatStats.autoAttackDamage)}</div>`;
+            }
+
+            const stats = eq?.combatStats;
+            const enhancementBonuses = eq?.combatEnhancementBonuses || {};
+            if (stats) {
+                for (const key of RESULT_SQUARE_COMBAT_STATS) {
+                    const baseValue = stats[key];
+                    if (!baseValue) continue;
+                    const value =
+                        itemLevel > 0 && key in enhancementBonuses
+                            ? baseValue * enhancementMultipliers_js.getEnhancementMultiplier(detail, itemLevel)
+                            : baseValue;
+                    details += `<div>${camelToLabel(key)}: ${formatStatValue(value)}</div>`;
+                }
+            }
+            if (eq?.combatStats?.primaryTraining) {
+                details += `<div>Primary Training: ${hridToLabel(eq.combatStats.primaryTraining)}</div>`;
+            }
+            if (details) html += `<div style="margin-top:8px;">${details}</div>`;
+            return html;
+        };
+
+        const btnStyle =
+            'display:block; width:100%; text-align:left; background:transparent; border:none; color:#e0e0e0; padding:6px 8px; font-size:12px; cursor:pointer; border-radius:4px;';
+
+        const wireMenuButtons = () => {
+            menu.querySelectorAll('button').forEach((btn) => {
+                btn.addEventListener('mouseenter', () => (btn.style.background = ACCENT_BG$3));
+                btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
+            });
+        };
+
+        const renderAbilitySquareMenu = (abilityHrid) => {
+            const bookItemHrid = abilityHrid.replace('/abilities/', '/items/');
+            menu.innerHTML = `<button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>`;
+            wireMenuButtons();
+            menu.querySelectorAll('button').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    menu.style.display = 'none';
+                    navigateToMarketplace(bookItemHrid, 0);
+                });
+            });
+        };
+
+        const renderItemSquareMenu = (hrid, itemLevel) => {
+            const actionInfo = findActionForItem(hrid);
+            menu.innerHTML = `
+            <button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>
+            <button data-menu-action="dictionary" style="${btnStyle}">Open Item Dictionary</button>
+            ${actionInfo ? `<button data-menu-action="action" style="${btnStyle}">View Action</button>` : ''}
+        `;
+            wireMenuButtons();
+            menu.querySelectorAll('button').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    menu.style.display = 'none';
+                    const action = btn.dataset.menuAction;
+                    if (action === 'marketplace') {
+                        navigateToMarketplace(hrid, itemLevel);
+                    } else if (action === 'dictionary') {
+                        getGameObject()?.handleOpenItemDictionary?.(hrid);
+                    } else if (action === 'action' && actionInfo) {
+                        getGameObject()?.handleGoToAction?.(actionInfo.actionHrid);
+                    }
+                });
+            });
+        };
+
+        const onMouseOver = (e) => {
+            const square = e.target.closest(bothSelector);
+            if (!square || square.contains(e.relatedTarget)) return;
+            tooltip.innerHTML = square.matches(abilitySelector)
+                ? buildAbilityTooltipHtml(square)
+                : buildItemTooltipHtml(square);
+            positionPopup(tooltip, square);
+        };
+        const onMouseOut = (e) => {
+            const square = e.target.closest(bothSelector);
+            if (!square || square.contains(e.relatedTarget)) return;
+            tooltip.style.display = 'none';
+        };
+        const onClick = (e) => {
+            const square = e.target.closest(bothSelector);
+            if (!square) {
+                menu.style.display = 'none';
+                return;
+            }
+            e.stopPropagation();
+
+            const isAbility = square.matches(abilitySelector);
+            const hrid = isAbility ? square.dataset.abilityHrid : square.dataset.itemHrid;
+            const itemLevel = isAbility ? 0 : parseInt(square.dataset.itemLevel) || 0;
+            if (menu.style.display !== 'none' && menu.dataset.forHrid === hrid) {
+                menu.style.display = 'none';
+                return;
+            }
+            if (isAbility) {
+                renderAbilitySquareMenu(hrid);
+            } else {
+                renderItemSquareMenu(hrid, itemLevel);
+            }
+            menu.dataset.forHrid = hrid;
+            positionPopup(menu, square);
+        };
+        const onDocClick = (e) => {
+            if (!e.target.closest(bothSelector)) menu.style.display = 'none';
+        };
+
+        container.addEventListener('mouseover', onMouseOver);
+        container.addEventListener('mouseout', onMouseOut);
+        container.addEventListener('click', onClick);
+        document.addEventListener('click', onDocClick);
+
+        return () => {
+            container.removeEventListener('mouseover', onMouseOver);
+            container.removeEventListener('mouseout', onMouseOut);
+            container.removeEventListener('click', onClick);
+            document.removeEventListener('click', onDocClick);
+            tooltip.remove();
+            menu.remove();
+        };
+    }
+
     var MULTI_WORKER_SCRIPT = "(function () {\n    'use strict';\n\n    /**\n     * Multi-Worker Entry for All-Zones Simulation\n     *\n     * This file is bundled into a string and runs inside a Worker (the \"coordinator\").\n     * It receives all zones to simulate and processes them via a task queue against a\n     * persistent pool of child simulation workers. Child workers are spawned from a Blob URL\n     * created from the simulation worker script passed in the init message.\n     *\n     * This matches Shykai's architecture: worker-spawned workers get different\n     * CPU scheduling from the browser than main-thread-spawned workers.\n     *\n     * The coordinator itself is also kept alive and reused across multiple 'start_all_zones'\n     * calls (see all-zones-runner.js) rather than being torn down after each one — Ultimate Sim\n     * runs this same all-zones pass repeatedly (once per iteration) against the same gameData, so\n     * reusing both the coordinator and its child worker pool avoids re-paying worker boot and\n     * gameData clone cost on every iteration. gameData and the worker script are only included in\n     * a message when they differ from what's already cached (by object identity), both here and at\n     * the child-worker level.\n     *\n     * When useEarlyExit is true, only T0 is seeded per zone initially. After each tier\n     * completes, a zone_tier_result message is sent to the main thread. The main thread\n     * compares XP/hr and profit/hr and responds with zone_tier_decision { skip }. If skip\n     * is false, the next tier is enqueued; if true, remaining tiers for that zone are skipped.\n     */\n\n    let simWorkerBlobURL = null;\n    let cachedWorkerScript = null;\n    let cachedGameData = null;\n    let taskIdCounter = 0;\n\n    // Persistent child worker pool, reused across tasks within a run and across separate\n    // 'start_all_zones' calls on this same coordinator instance. Grows as needed, never shrinks.\n    const childPool = []; // { worker, busy, lastGameData, onProgress }\n\n    // Pending early-exit decisions: zoneHrid → resolve function\n    const pendingDecisions = new Map();\n\n    /**\n     * Get or create the Blob URL for child simulation workers, from the cached worker script.\n     * @returns {string}\n     */\n    function ensureWorkerURL() {\n        if (!simWorkerBlobURL) {\n            const blob = new Blob([cachedWorkerScript], { type: 'application/javascript' });\n            simWorkerBlobURL = URL.createObjectURL(blob);\n        }\n        return simWorkerBlobURL;\n    }\n\n    /**\n     * Get an idle pooled child worker, creating a new one if none are idle.\n     * @param {string} workerURL\n     * @returns {{worker: Worker, busy: boolean, lastGameData: Object|null, onProgress: Function|null}}\n     */\n    function getIdleChild(workerURL) {\n        const idle = childPool.find((s) => !s.busy);\n        if (idle) return idle;\n        const slot = { worker: new Worker(workerURL), busy: false, lastGameData: null, onProgress: null };\n        childPool.push(slot);\n        return slot;\n    }\n\n    /**\n     * Run one simulation task on a pooled child worker slot, posting gameData only when it differs\n     * from what that worker already has cached.\n     * @param {Object} slot\n     * @param {Object} message - start_simulation message (including gameData)\n     * @returns {Promise<Object>} simResult\n     */\n    function runTaskOnChild(slot, message) {\n        return new Promise((resolve, reject) => {\n            slot.busy = true;\n\n            slot.worker.onmessage = (event) => {\n                const msg = event.data;\n                if (msg.taskId !== message.taskId) return;\n\n                if (msg.type === 'progress') {\n                    if (slot.onProgress) slot.onProgress(msg.progress);\n                } else if (msg.type === 'result') {\n                    slot.busy = false;\n                    resolve(msg.simResult);\n                } else if (msg.type === 'error') {\n                    slot.busy = false;\n                    reject(new Error(msg.error));\n                }\n            };\n\n            slot.worker.onerror = (error) => {\n                slot.busy = false;\n                reject(new Error(error.message || 'Worker error'));\n            };\n\n            let payload = message;\n            if (slot.lastGameData === message.gameData) {\n                const { gameData: _omit, ...rest } = message;\n                payload = rest;\n            } else {\n                slot.lastGameData = message.gameData;\n            }\n            slot.worker.postMessage(payload);\n        });\n    }\n\n    onmessage = async function (event) {\n        const { type } = event.data;\n\n        if (type === 'start_all_zones') {\n            const { workerScript, gameData, playerDTOs, zones, simulationTimeLimit, extraBuffs, maxWorkers, useEarlyExit } =\n                event.data;\n\n            if (workerScript) cachedWorkerScript = workerScript;\n            if (gameData) cachedGameData = gameData;\n            const effectiveGameData = gameData || cachedGameData;\n            const workerURL = ensureWorkerURL();\n\n            const results = new Array(zones.length);\n\n            // Per-zone progress tracking\n            const zoneProgress = new Array(zones.length).fill(0);\n            const reportProgress = () => {\n                const total = zoneProgress.reduce((sum, p) => sum + p, 0);\n                postMessage({ type: 'progress', progress: total / zones.length });\n            };\n\n            // zoneInfoMap groups tiers by zone for early exit tracking\n            const zoneInfoMap = new Map(); // zoneHrid → { tiers: [{tier, index}], nextIdx }\n\n            // Build initial task queue\n            let taskQueue;\n            if (useEarlyExit) {\n                // Group zones by hrid, sort tiers ascending within each group\n                for (let i = 0; i < zones.length; i++) {\n                    const { zoneHrid, difficultyTier } = zones[i];\n                    if (!zoneInfoMap.has(zoneHrid)) {\n                        zoneInfoMap.set(zoneHrid, { tiers: [], nextIdx: 0 });\n                    }\n                    zoneInfoMap.get(zoneHrid).tiers.push({ tier: difficultyTier, index: i });\n                }\n                for (const info of zoneInfoMap.values()) {\n                    info.tiers.sort((a, b) => a.tier - b.tier);\n                }\n\n                // Seed only the first (lowest) tier per zone\n                taskQueue = [];\n                for (const [zoneHrid, info] of zoneInfoMap) {\n                    const first = info.tiers[0];\n                    taskQueue.push({ zoneHrid, difficultyTier: first.tier, index: first.index });\n                    info.nextIdx = 1;\n                }\n            } else {\n                taskQueue = [...zones.map((zone, index) => ({ ...zone, index }))];\n            }\n\n            const poolSize = Math.min(maxWorkers, taskQueue.length || 1);\n            // Grow the persistent pool up to this run's concurrency need; never shrink it back down.\n            while (childPool.length < poolSize) {\n                childPool.push({ worker: new Worker(workerURL), busy: false, lastGameData: null, onProgress: null });\n            }\n\n            const processQueue = async () => {\n                while (taskQueue.length > 0) {\n                    const task = taskQueue.shift();\n                    if (!task) continue;\n                    const taskId = ++taskIdCounter;\n\n                    const slot = getIdleChild(workerURL);\n                    slot.onProgress = (p) => {\n                        zoneProgress[task.index] = p;\n                        reportProgress();\n                    };\n\n                    let simResult = null;\n                    try {\n                        simResult = await runTaskOnChild(slot, {\n                            type: 'start_simulation',\n                            taskId,\n                            gameData: effectiveGameData,\n                            playerDTOs,\n                            zoneHrid: task.zoneHrid,\n                            difficultyTier: task.difficultyTier,\n                            simulationTimeLimit,\n                            extraBuffs,\n                        });\n                    } catch (error) {\n                        console.error(`[MultiWorker] Zone ${task.zoneHrid} T${task.difficultyTier} failed:`, error);\n                    }\n\n                    results[task.index] = simResult;\n                    zoneProgress[task.index] = 100;\n                    reportProgress();\n\n                    // Early exit: send tier result to main thread and await go/skip decision\n                    if (useEarlyExit && simResult) {\n                        const zoneInfo = zoneInfoMap.get(task.zoneHrid);\n                        if (zoneInfo && zoneInfo.nextIdx < zoneInfo.tiers.length) {\n                            postMessage({\n                                type: 'zone_tier_result',\n                                zoneHrid: task.zoneHrid,\n                                tier: task.difficultyTier,\n                                index: task.index,\n                                simResult,\n                            });\n\n                            const skip = await new Promise((resolve) => {\n                                pendingDecisions.set(task.zoneHrid, resolve);\n                            });\n\n                            if (skip) {\n                                // Mark remaining tiers for this zone as skipped (null result)\n                                for (let i = zoneInfo.nextIdx; i < zoneInfo.tiers.length; i++) {\n                                    results[zoneInfo.tiers[i].index] = null;\n                                    zoneProgress[zoneInfo.tiers[i].index] = 100;\n                                }\n                                zoneInfo.nextIdx = zoneInfo.tiers.length;\n                                reportProgress();\n                            } else {\n                                // Enqueue the next tier\n                                const next = zoneInfo.tiers[zoneInfo.nextIdx];\n                                zoneInfo.nextIdx++;\n                                taskQueue.push({\n                                    zoneHrid: task.zoneHrid,\n                                    difficultyTier: next.tier,\n                                    index: next.index,\n                                });\n                            }\n                        }\n                    }\n                }\n            };\n\n            try {\n                await Promise.all(\n                    Array(poolSize)\n                        .fill()\n                        .map(() => processQueue())\n                );\n                postMessage({ type: 'all_zones_result', results });\n            } catch (error) {\n                postMessage({ type: 'error', error: error.message || String(error) });\n            }\n\n            // Deliberately no cleanup here: the child pool and blob URL persist so the next\n            // start_all_zones message (e.g. the next Ultimate Sim iteration) can reuse them.\n        } else if (type === 'zone_tier_decision') {\n            // Main thread responded to an early-exit zone_tier_result\n            const { zoneHrid, skip } = event.data;\n            const resolve = pendingDecisions.get(zoneHrid);\n            if (resolve) {\n                pendingDecisions.delete(zoneHrid);\n                resolve(skip);\n            }\n        }\n    };\n\n})();\n";
 
     /**
@@ -22976,6 +23501,66 @@
             this._populateGenericZoneSelect('mwi-csim-optfood-zone', 'mwi-csim-optfood-tier');
             this._populateGenericZoneSelect('mwi-csim-optcoffee-zone', 'mwi-csim-optcoffee-tier');
             this._populateGenericZoneSelect('mwi-csim-usim-zone', 'mwi-csim-usim-tier', true);
+            this._setupResultSquareInteractions();
+        }
+
+        /**
+         * Wire up hover-tooltip/click-menu interactions for item/ability squares rendered in the
+         * Upgrade, Optimize Food, Optimize Coffee, and Ultimate Sim result tables (see
+         * _buildItemSquares / _renderUpgradeResults / _displayFoodResults / _displayCoffeeResults /
+         * _renderUltimateResults). Delegated on the whole panel so it keeps working across the
+         * innerHTML rebuilds each result render does.
+         * @private
+         */
+        _setupResultSquareInteractions() {
+            this._resultSquareCleanup = setupResultSquareInteractions(this.panel, {
+                getItemDetailMap: () => this._gameDataForSquares?.itemDetailMap,
+                getAbilityDetailMap: () => this._gameDataForSquares?.abilityDetailMap,
+                getLevelExperienceTable: () => this._gameDataForSquares?.levelExperienceTable,
+            });
+        }
+
+        /**
+         * Build the inline item/ability square HTML for a candidate upgrade/combo item, resolving
+         * sprite icon names/URLs the same way the shared Lab Sim result squares do.
+         * @param {string} hrid - Item or ability hrid.
+         * @param {number} [level] - Enhancement level (items) or ability level.
+         * @param {boolean} [isAbility]
+         * @returns {string}
+         * @private
+         */
+        _buildResultSquareHtml(hrid, level = 0, isAbility = false) {
+            if (!hrid) return '';
+            const spriteUrl = isAbility ? this._abilitiesSpriteUrl : this._itemsSpriteUrl;
+            if (!spriteUrl) return '';
+            const iconName = isAbility
+                ? hrid.split('/').pop()
+                : hrid.startsWith('/ability_books/')
+                  ? 'ability_book'
+                  : hrid === '/consumables/coin'
+                    ? 'coin'
+                    : hrid.split('/').pop();
+            return isAbility
+                ? buildAbilitySquareHtml(hrid, iconName, level, spriteUrl)
+                : buildItemSquareHtml(hrid, iconName, level, spriteUrl);
+        }
+
+        /**
+         * Ensure sprite URLs and the gameData used by result-square tooltips are loaded, caching
+         * both for reuse across the Upgrade/Optimize Food/Optimize Coffee/Ultimate Sim result
+         * renders. Safe to call before every render — resolves instantly once cached.
+         * @param {Object} [gameData]
+         * @private
+         */
+        async _ensureResultSquareAssets(gameData) {
+            if (gameData) this._gameDataForSquares = gameData;
+            if (this._itemsSpriteUrl && this._abilitiesSpriteUrl) return;
+            const [itemsSpriteUrl, abilitiesSpriteUrl] = await Promise.all([
+                assetManifest.getSpriteUrl('items'),
+                assetManifest.getSpriteUrl('abilities'),
+            ]);
+            this._itemsSpriteUrl = itemsSpriteUrl;
+            this._abilitiesSpriteUrl = abilitiesSpriteUrl;
         }
 
         /**
@@ -25447,6 +26032,7 @@
                 setStatus('No game data available.');
                 return;
             }
+            await this._ensureResultSquareAssets(gameData);
 
             const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
             if (!playerDTOs.length) {
@@ -25552,9 +26138,11 @@
                     const rowWeight = i === 0 ? '700' : '400';
                     const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
                     const triggerDesc = describeFoodTriggers(r);
+                    const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                     return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
                         <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${squaresHtml}
                             ${r.label}
                             ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
                         </td>
@@ -25604,6 +26192,7 @@
                 setStatus('No game data available.');
                 return;
             }
+            await this._ensureResultSquareAssets(gameData);
 
             const { playerDTOs, selfHrid, baseIndex } = await this._getConfiguredPlayerDTOs();
             if (!playerDTOs.length) {
@@ -25718,8 +26307,9 @@
                         const rowColor = i === 0 ? '#4caf50' : '#ccc';
                         const rowWeight = i === 0 ? '700' : '400';
                         const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                        const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                         const cells = [
-                            `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>`,
+                            `<td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${squaresHtml}${r.label}</td>`,
                             `<td style="padding:4px 4px; font-size:11px; text-align:right; white-space:nowrap; color:${rowColor}; font-weight:${rowWeight};">${valueFmt(r[valueKey])}</td>`,
                         ];
                         if (showXP)
@@ -25799,6 +26389,7 @@
                 setStatus('No character data available.');
                 return;
             }
+            await this._ensureResultSquareAssets(buildGameDataPayload());
 
             this._usimRunning = true;
             this._usimAborted = false;
@@ -25903,8 +26494,14 @@
             const rows = history
                 .map((h) => {
                     const foodLabel = h.food?.label || 'None';
+                    const foodSquaresHtml = (h.food?.combo || [])
+                        .map((item) => this._buildResultSquareHtml(item.hrid))
+                        .join('');
                     const foodTriggerDesc = h.food ? describeFoodTriggers(h.food) : null;
                     const coffeeLabel = h.coffee?.label || 'None';
+                    const coffeeSquaresHtml = (h.coffee?.combo || [])
+                        .map((item) => this._buildResultSquareHtml(item.hrid))
+                        .join('');
                     const bestZoneName = h.bestZone?.zone?.name || '?';
                     const bestTier = h.bestZone?.zone?.difficultyTier ?? '?';
                     const xp = formatters_js.formatKMB(Math.round(h.bestZone?.xpPerHour || 0));
@@ -25913,10 +26510,11 @@
                     <tr style="border-bottom:1px solid #1a1a1a;">
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">${h.iteration + 1}</td>
                         <td style="padding:4px 4px; font-size:11px; color:#ccc;">
+                            ${foodSquaresHtml}
                             ${foodLabel}
                             ${foodTriggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${foodTriggerDesc}</div>` : ''}
                         </td>
-                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeLabel}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:#ccc;">${coffeeSquaresHtml}${coffeeLabel}</td>
                         <td style="padding:4px 4px; font-size:11px; color:${ACCENT$1}; font-weight:600;">${bestZoneName} (T${bestTier})</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${xp}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:#999;">${profit}</td>
@@ -26007,9 +26605,11 @@
                     const rowWeight = i === 0 ? '700' : '400';
                     const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
                     const triggerDesc = describeFoodTriggers(r);
+                    const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                     return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
                         <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">
+                            ${squaresHtml}
                             ${r.label}
                             ${triggerDesc ? `<div style="font-size:10px; color:#888; font-weight:400;">${triggerDesc}</div>` : ''}
                         </td>
@@ -26162,9 +26762,10 @@
                     const rowColor = i === 0 ? '#4caf50' : '#ccc';
                     const rowWeight = i === 0 ? '700' : '400';
                     const rowBg = i === 0 ? 'background:rgba(76,175,80,0.08);' : '';
+                    const squaresHtml = (r.combo || []).map((item) => this._buildResultSquareHtml(item.hrid)).join('');
                     return `
                     <tr style="border-bottom:1px solid #1a1a1a; ${rowBg}">
-                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${r.label}</td>
+                        <td style="padding:4px 4px; font-size:11px; color:${rowColor}; font-weight:${rowWeight};">${squaresHtml}${r.label}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.xpPerHour))}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.profitPerHour))}</td>
                         <td style="padding:4px 4px; font-size:11px; text-align:right; color:${rowColor}; font-weight:${rowWeight};">${formatters_js.formatKMB(Math.round(r.mixedScore))}</td>
@@ -26226,6 +26827,10 @@
             this._foodAborted = true;
             this._coffeeAborted = true;
             this._usimAborted = true;
+            if (this._resultSquareCleanup) {
+                this._resultSquareCleanup();
+                this._resultSquareCleanup = null;
+            }
             if (this.panel) {
                 unregisterFloatingPanel(this.panel);
                 this.panel.remove();
@@ -26542,6 +27147,7 @@
                 this._setStatus('No game data available.');
                 return;
             }
+            await this._ensureResultSquareAssets(gameData);
 
             // Get player DTOs (edited or live)
             let playerDTOs;
@@ -26667,21 +27273,31 @@
                 { key: 'deathsPerHour', label: 'DPH' },
             ];
 
-            const rows = results.results.map((r) => ({
-                description: r.candidate.description,
-                cost: r.cost,
-                goldDps: r.goldPer.dps,
-                goldXp: r.goldPer.xp,
-                goldProfit: r.goldPer.profit,
-                dps: r.metrics.dps,
-                dpsDeltaPct: r.deltas.dps,
-                xpPerHour: r.metrics.xpPerHour,
-                xpDeltaPct: r.deltas.xp,
-                profitPerHour: r.metrics.profitPerHour,
-                profitDeltaPct: r.deltas.profit,
-                encountersPerHour: r.metrics.encountersPerHour,
-                deathsPerHour: r.metrics.deathsPerHour,
-            }));
+            const rows = results.results.map((r) => {
+                const candidate = r.candidate || {};
+                const isAbility = (candidate.type || '').startsWith('ability');
+                const squareHtml = this._buildResultSquareHtml(
+                    candidate.upgradeHrid,
+                    candidate.upgradeLevel || 0,
+                    isAbility
+                );
+                return {
+                    description: r.candidate.description,
+                    squareHtml,
+                    cost: r.cost,
+                    goldDps: r.goldPer.dps,
+                    goldXp: r.goldPer.xp,
+                    goldProfit: r.goldPer.profit,
+                    dps: r.metrics.dps,
+                    dpsDeltaPct: r.deltas.dps,
+                    xpPerHour: r.metrics.xpPerHour,
+                    xpDeltaPct: r.deltas.xp,
+                    profitPerHour: r.metrics.profitPerHour,
+                    profitDeltaPct: r.deltas.profit,
+                    encountersPerHour: r.metrics.encountersPerHour,
+                    deathsPerHour: r.metrics.deathsPerHour,
+                };
+            });
 
             // Sort
             if (this._upgradeSortCol) {
@@ -26733,7 +27349,7 @@
                             let style = tdStyle;
                             switch (col.key) {
                                 case 'description':
-                                    display = row.description;
+                                    display = `${row.squareHtml || ''}${row.description}`;
                                     break;
                                 case 'cost':
                                     display = formatters_js.formatKMB(row.cost);
@@ -26984,186 +27600,6 @@
     }
 
     /**
-     * Asset Manifest Utility
-     *
-     * Fetches the game's asset-manifest.json to resolve current webpack hashed
-     * sprite URLs without hardcoding hashes that break on game updates.
-     */
-
-    const MANIFEST_URL = 'https://www.milkywayidle.com/asset-manifest.json';
-
-    // Sprite keys to extract from the manifest (key → sprite name)
-    const SPRITE_KEYS = {
-        actions: 'actions_sprite',
-        items: 'items_sprite',
-        monsters: 'combat_monsters_sprite',
-        misc: 'misc_sprite',
-        abilities: 'abilities_sprite',
-    };
-
-    let manifestPromise = null;
-    let cachedUrls = null;
-
-    /**
-     * Fetch and parse the asset manifest, returning a map of sprite name → URL.
-     * Result is cached for the lifetime of the page.
-     * @returns {Promise<Object>} Map of sprite key → full URL
-     */
-    async function fetchManifest() {
-        if (cachedUrls) return cachedUrls;
-        if (manifestPromise) return manifestPromise;
-
-        manifestPromise = (async () => {
-            try {
-                const response = await fetch(MANIFEST_URL);
-                if (!response.ok) {
-                    console.warn('[AssetManifest] Failed to fetch manifest:', response.status);
-                    return {};
-                }
-
-                const manifest = await response.json();
-                const files = manifest.files || manifest; // handle both formats
-
-                const urls = {};
-                for (const [key, spriteName] of Object.entries(SPRITE_KEYS)) {
-                    // Find the entry whose key contains the sprite name and ends in .svg
-                    const entry = Object.entries(files).find(([k]) => k.includes(spriteName) && k.endsWith('.svg'));
-                    if (entry) {
-                        // Values may be relative paths like /static/media/...
-                        urls[key] = entry[1];
-                    }
-                }
-
-                cachedUrls = urls;
-                return urls;
-            } catch (error) {
-                console.warn('[AssetManifest] Error fetching manifest:', error);
-                return {};
-            }
-        })();
-
-        return manifestPromise;
-    }
-
-    /**
-     * Get a specific sprite URL by key.
-     * @param {'actions'|'items'|'monsters'|'misc'|'abilities'} key
-     * @returns {Promise<string|null>}
-     */
-    async function getSpriteUrl(key) {
-        const urls = await fetchManifest();
-        return urls[key] || null;
-    }
-
-    var assetManifest = {
-        fetchManifest,
-        getSpriteUrl,
-    };
-
-    /**
-     * Marketplace Custom Tabs Utility
-     * Provides shared functionality for creating and managing custom marketplace tabs
-     * Used by missing materials features (actions, houses, etc.)
-     */
-
-
-    /**
-     * Get game object via React fiber
-     * @returns {Object|null} Game component instance
-     */
-    function getGameObject$1() {
-        const rootEl = document.getElementById('root');
-        const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
-        if (!rootFiber) return null;
-
-        function find(fiber) {
-            if (!fiber) return null;
-            if (fiber.stateNode?.handleGoToMarketplace) return fiber.stateNode;
-            return find(fiber.child) || find(fiber.sibling);
-        }
-
-        return find(rootFiber);
-    }
-
-    /**
-     * Navigate to marketplace for a specific item
-     * @param {string} itemHrid - Item HRID to navigate to
-     * @param {number} enhancementLevel - Enhancement level (default 0)
-     */
-    function navigateToMarketplace(itemHrid, enhancementLevel = 0) {
-        const game = getGameObject$1();
-        if (game?.handleGoToMarketplace) {
-            game.handleGoToMarketplace(itemHrid, enhancementLevel);
-        }
-        // Silently fail if game API unavailable - feature still provides value without auto-navigation
-    }
-
-    /**
-     * Item Navigation Utilities
-     * Handles Alt+click navigation to crafting/gathering actions or item dictionary
-     */
-
-
-    /**
-     * Get game object via React fiber tree traversal
-     * @returns {Object|null} Game component instance
-     */
-    function getGameObject() {
-        const rootEl = document.getElementById('root');
-        const rootFiber = rootEl?._reactRootContainer?.current || rootEl?._reactRootContainer?._internalRoot?.current;
-        if (!rootFiber) return null;
-
-        function find(fiber) {
-            if (!fiber) return null;
-            if (fiber.stateNode?.handleGoToMarketplace) return fiber.stateNode;
-            return find(fiber.child) || find(fiber.sibling);
-        }
-
-        return find(rootFiber);
-    }
-
-    /**
-     * Find which action produces a given item
-     * Prioritizes production actions over gathering actions
-     * @param {string} itemHrid - Item HRID to search for
-     * @returns {Object|null} { actionHrid, type: 'production'|'gathering' } or null
-     */
-    function findActionForItem(itemHrid) {
-        const gameData = dataManager.getInitClientData();
-        if (!gameData?.actionDetailMap) {
-            return null;
-        }
-
-        const itemSlug = itemHrid.split('/').pop();
-
-        // First pass: Look for production actions (outputItems)
-        const productionMatches = [];
-        for (const [actionHrid, action] of Object.entries(gameData.actionDetailMap)) {
-            if (action.outputItems?.some((item) => item.itemHrid === itemHrid)) {
-                productionMatches.push(actionHrid);
-            }
-        }
-        if (productionMatches.length > 0) {
-            const exact = productionMatches.find((a) => a.split('/').pop() === itemSlug);
-            return { actionHrid: exact || productionMatches[0], type: 'production' };
-        }
-
-        // Second pass: Look for gathering actions (dropTable)
-        const gatheringMatches = [];
-        for (const [actionHrid, action] of Object.entries(gameData.actionDetailMap)) {
-            if (action.dropTable?.some((drop) => drop.itemHrid === itemHrid)) {
-                gatheringMatches.push(actionHrid);
-            }
-        }
-        if (gatheringMatches.length > 0) {
-            const exact = gatheringMatches.find((a) => a.split('/').pop() === itemSlug);
-            return { actionHrid: exact || gatheringMatches[0], type: 'gathering' };
-        }
-
-        return null;
-    }
-
-    /**
      * Lab Sim UI
      * Floating panel for configuring and running labyrinth simulations.
      * Four tabs: Configure (editor + crate selectors), Max Level, Upgrade, Skilling.
@@ -27178,45 +27614,6 @@
     const ACCENT_BTN_BORDER = 'rgba(74, 158, 255, 0.4)';
     /** Win rate above which a monster is already "good enough" and optimization is skipped. */
     const OPTIMIZE_SKIP_WIN_RATE = 0.9;
-
-    /**
-     * Convert a game hrid ("/equipment_types/main_hand", "/skills/magic") into its display label
-     * ("Main Hand", "Magic") — matches the plain title-casing the game itself uses for these.
-     * @param {string} hrid
-     * @returns {string}
-     */
-    function hridToLabel(hrid) {
-        if (!hrid) return '';
-        return hrid
-            .split('/')
-            .pop()
-            .split('_')
-            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-            .join(' ');
-    }
-
-    /**
-     * Format a combat stat's raw numeric value the way the game's item tooltip does: values stored
-     * as fractions (< 1 in magnitude, e.g. 0.6 magicAccuracy) render as a percentage; values stored
-     * as whole numbers (e.g. 20 waterResistance) render as a plain signed number.
-     * @param {number} value
-     * @returns {string}
-     */
-    function formatStatValue(value) {
-        const sign = value > 0 ? '+' : '';
-        if (Math.abs(value) < 1) return `${sign}${(value * 100).toFixed(1)}%`;
-        return `${sign}${value}`;
-    }
-
-    /**
-     * Convert a camelCase stat key ("magicAccuracy") into its display label ("Magic Accuracy").
-     * @param {string} key
-     * @returns {string}
-     */
-    function camelToLabel(key) {
-        const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-        return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-    }
 
     /**
      * @param {number} seconds
@@ -27800,252 +28197,15 @@
 
         /**
          * Wire up the ability and item squares rendered in results tables (see
-         * _makeLoadoutCellFormatter): hover shows an info tooltip for both (content/fields modeled
-         * on the real hover tooltip shown for an ability slot in the live combat bar, and on an
-         * item's stat tooltip), and click additionally opens an action menu for items. Uses
-         * delegated listeners on the whole panel — the results table is rebuilt via innerHTML on
-         * every sim run, so per-element listeners would be lost each time — plus reused popup
-         * elements instead of building one per square.
+         * _makeLoadoutCellFormatter) via the shared result-square utility: hover shows an info
+         * tooltip, and click additionally opens an action menu for items.
          * @private
          */
         _setupResultSquareInteractions() {
-            const popupStyle = `
-            display: none; position: fixed; z-index: 999999;
-            background: rgba(187, 197, 241, 0.95); border-radius: 4px; color: #000;
-            box-shadow: 2px 2px 10px 6px rgba(0,0,0,0.3);
-        `;
-
-            const tooltip = document.createElement('div');
-            // Font/size/line-height/max-width measured directly off the game's own MuiTooltip
-            // ability tooltip (font-family Roboto/Helvetica/Arial, 14px body, 500 weight, 19.25px
-            // line-height, 318px max-width) so this reads as the same tooltip, not a reskin.
-            tooltip.id = 'mwi-labsim-square-tooltip';
-            tooltip.style.cssText = `${popupStyle} max-width: 318px; padding: 6px 8px; font-family: Roboto, Helvetica, Arial, sans-serif; font-size: 14px; font-weight: 500; line-height: 19.25px; letter-spacing: 0.15px; pointer-events: none;`;
-            document.body.appendChild(tooltip);
-            this._abilitySquareTooltipEl = tooltip;
-
-            const menu = document.createElement('div');
-            menu.id = 'mwi-labsim-item-menu';
-            menu.style.cssText = `
-            display: none; position: fixed; z-index: 999999; min-width: 160px; padding: 4px; font-size: 12px;
-            background: #12121f; border: 1px solid ${ACCENT_BORDER}; border-radius: 6px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-        `;
-            document.body.appendChild(menu);
-            this._itemSquareMenuEl = menu;
-
-            const positionPopup = (popup, square) => {
-                const rect = square.getBoundingClientRect();
-                popup.style.display = 'block';
-                let left = rect.left;
-                const maxLeft = window.innerWidth - popup.offsetWidth - 8;
-                if (left > maxLeft) left = Math.max(8, maxLeft);
-                popup.style.top = `${rect.bottom + 6}px`;
-                popup.style.left = `${left}px`;
-            };
-
-            this.panel.addEventListener('mouseover', (e) => {
-                const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-                if (!square || square.contains(e.relatedTarget)) return;
-
-                if (square.classList.contains('mwi-labsim-ability-square')) {
-                    tooltip.innerHTML = this._buildAbilityTooltipHtml(square);
-                } else {
-                    tooltip.innerHTML = this._buildItemTooltipHtml(square);
-                }
-                positionPopup(tooltip, square);
-            });
-            this.panel.addEventListener('mouseout', (e) => {
-                const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-                if (!square || square.contains(e.relatedTarget)) return;
-                tooltip.style.display = 'none';
-            });
-
-            this.panel.addEventListener('click', (e) => {
-                const square = e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square');
-                if (!square) {
-                    menu.style.display = 'none';
-                    return;
-                }
-                e.stopPropagation();
-
-                const isAbility = square.classList.contains('mwi-labsim-ability-square');
-                const hrid = isAbility ? square.dataset.abilityHrid : square.dataset.itemHrid;
-                const itemLevel = isAbility ? 0 : parseInt(square.dataset.itemLevel) || 0;
-                if (menu.style.display !== 'none' && menu.dataset.forHrid === hrid) {
-                    menu.style.display = 'none';
-                    return;
-                }
-                if (isAbility) {
-                    this._renderAbilitySquareMenu(menu, hrid);
-                } else {
-                    this._renderItemSquareMenu(menu, hrid, itemLevel);
-                }
-                menu.dataset.forHrid = hrid;
-                positionPopup(menu, square);
-            });
-            this._resultSquareDocClickHandler = (e) => {
-                if (!e.target.closest('.mwi-labsim-ability-square, .mwi-labsim-item-square')) menu.style.display = 'none';
-            };
-            document.addEventListener('click', this._resultSquareDocClickHandler);
-        }
-
-        /**
-         * Build the ability hover tooltip's HTML. Field set/order mirrors the real hover tooltip
-         * shown for an ability slot in the live combat bar (Name, Level, Total Experience, Exp to
-         * Level Up, Description, Cooldown, Cast Time, MP Cost) — confirmed directly against the game.
-         * The resolved per-caster "Effect" numbers shown in the real tooltip aren't reproduced here
-         * since that requires the same magnitude-scaling math the combat engine uses internally.
-         * @param {HTMLElement} square
-         * @returns {string}
-         * @private
-         */
-        _buildAbilityTooltipHtml(square) {
-            const hrid = square.dataset.abilityHrid;
-            const level = square.dataset.abilityLevel ? parseInt(square.dataset.abilityLevel) : null;
-            const detail = this._abilityDetailMapForTooltips?.[hrid];
-            const name = detail?.name || hrid?.split('/').pop() || 'Unknown Ability';
-            const xpTable = this._levelExperienceTableForTooltips;
-
-            let html = `<div style="font-size:16px;">${name}</div>`;
-            if (level) {
-                html += `<div>Level: ${level}</div>`;
-                if (xpTable?.[level] != null) {
-                    html += `<div>Total Experience: ${formatters_js.formatWithSeparator(xpTable[level])}</div>`;
-                    if (xpTable[level + 1] != null) {
-                        html += `<div>Exp to Level Up: ${formatters_js.formatWithSeparator(xpTable[level + 1] - xpTable[level])}</div>`;
-                    }
-                }
-            }
-            // Durations/cooldowns are stored in nanoseconds internally (see ONE_SECOND = 1e9 in the
-            // combat engine), not milliseconds — dividing by 1000 left a pile of extra zeros.
-            let details = '';
-            if (detail?.description) details += `<div>Description: ${detail.description}</div>`;
-            if (detail?.cooldownDuration) details += `<div>Cooldown: ${(detail.cooldownDuration / 1e9).toFixed(1)}s</div>`;
-            if (detail?.castDuration) details += `<div>Cast Time: ${(detail.castDuration / 1e9).toFixed(1)}s</div>`;
-            if (detail?.manaCost) details += `<div>MP Cost: ${detail.manaCost} MP</div>`;
-            if (details) html += `<div style="margin-top:8px;">${details}</div>`;
-            return html;
-        }
-
-        /**
-         * Build the item hover tooltip's HTML, matching the real inventory item tooltip's field
-         * set/order (Name, Type, Requires, Combat Style, Damage Type, Attack Interval, Auto Attack
-         * Damage, then the combat stat lines, Primary Training) — confirmed directly against the
-         * game's own equipment tooltip. Stats that scale with enhancement are shown at the square's
-         * enhancement level using the same multiplier the real game applies (getEnhancementMultiplier).
-         * Doesn't reproduce the real tooltip's live market price/enhancement-path sections, since
-         * those require fetching current market data.
-         * @param {HTMLElement} square
-         * @returns {string}
-         * @private
-         */
-        _buildItemTooltipHtml(square) {
-            const hrid = square.dataset.itemHrid;
-            const itemLevel = parseInt(square.dataset.itemLevel) || 0;
-            const detail = this._itemDetailMapForTooltips?.[hrid];
-            const name = detail?.name || hrid?.split('/').pop() || 'Unknown Item';
-            const eq = detail?.equipmentDetail;
-
-            let html = `<div style="font-size:16px;">${name}</div>`;
-            if (itemLevel > 0) html += `<div>+${itemLevel}</div>`;
-
-            let details = '';
-            if (eq?.type) details += `<div>Type: ${hridToLabel(eq.type)}</div>`;
-            for (const req of eq?.levelRequirements || []) {
-                if (!req.skillHrid) continue;
-                details += `<div>Requires: ${req.level} ${hridToLabel(req.skillHrid)}</div>`;
-            }
-            const combatStyles = eq?.combatStats?.combatStyleHrids;
-            if (combatStyles?.length) details += `<div>Combat Style: ${combatStyles.map(hridToLabel).join(', ')}</div>`;
-            if (eq?.combatStats?.damageType) details += `<div>Damage Type: ${hridToLabel(eq.combatStats.damageType)}</div>`;
-            if (eq?.combatStats?.attackInterval) {
-                details += `<div>Attack Interval: ${(eq.combatStats.attackInterval / 1e9).toFixed(1)}s</div>`;
-            }
-            if (eq?.combatStats?.autoAttackDamage) {
-                details += `<div>Auto Attack Damage: ${formatStatValue(eq.combatStats.autoAttackDamage)}</div>`;
-            }
-
-            const stats = eq?.combatStats;
-            const enhancementBonuses = eq?.combatEnhancementBonuses || {};
-            if (stats) {
-                for (const key of COMBAT_STATS) {
-                    const baseValue = stats[key];
-                    if (!baseValue) continue;
-                    const value =
-                        itemLevel > 0 && key in enhancementBonuses
-                            ? baseValue * enhancementMultipliers_js.getEnhancementMultiplier(detail, itemLevel)
-                            : baseValue;
-                    details += `<div>${camelToLabel(key)}: ${formatStatValue(value)}</div>`;
-                }
-            }
-            if (eq?.combatStats?.primaryTraining) {
-                details += `<div>Primary Training: ${hridToLabel(eq.combatStats.primaryTraining)}</div>`;
-            }
-            if (details) html += `<div style="margin-top:8px;">${details}</div>`;
-            return html;
-        }
-
-        /**
-         * Build the ability square's click menu — just "View Marketplace", opened to the ability's
-         * book item (abilities are learned by consuming a book item whose hrid is the same path
-         * under /items/ instead of /abilities/, per ability-cost-calculator.js).
-         * @param {HTMLElement} menu
-         * @param {string} abilityHrid
-         * @private
-         */
-        _renderAbilitySquareMenu(menu, abilityHrid) {
-            const btnStyle =
-                'display:block; width:100%; text-align:left; background:transparent; border:none; color:#e0e0e0; padding:6px 8px; font-size:12px; cursor:pointer; border-radius:4px;';
-            const bookItemHrid = abilityHrid.replace('/abilities/', '/items/');
-
-            menu.innerHTML = `<button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>`;
-            menu.querySelectorAll('button').forEach((btn) => {
-                btn.addEventListener('mouseenter', () => (btn.style.background = ACCENT_BG));
-                btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-                btn.addEventListener('click', () => {
-                    menu.style.display = 'none';
-                    navigateToMarketplace(bookItemHrid, 0);
-                });
-            });
-        }
-
-        /**
-         * Build the item square's click menu: the subset of the game's real item context menu that
-         * makes sense for a read-only report — View Marketplace, Open Item Dictionary, View Action
-         * (only shown if an action actually produces/gathers this item) — confirmed against the live
-         * inventory item menu. "Link to Chat" is deliberately omitted: it links a real owned item
-         * from your inventory, and these are hypothetical candidate items you don't actually have.
-         * @param {HTMLElement} menu
-         * @param {string} hrid
-         * @param {number} itemLevel - Enhancement level to open the marketplace to (parsed from the
-         *  candidate's own "+CUR → +NEW" / "(+NEW)" text; 0 if none was found).
-         * @private
-         */
-        _renderItemSquareMenu(menu, hrid, itemLevel) {
-            const btnStyle =
-                'display:block; width:100%; text-align:left; background:transparent; border:none; color:#e0e0e0; padding:6px 8px; font-size:12px; cursor:pointer; border-radius:4px;';
-            const actionInfo = findActionForItem(hrid);
-
-            menu.innerHTML = `
-            <button data-menu-action="marketplace" style="${btnStyle}">View Marketplace</button>
-            <button data-menu-action="dictionary" style="${btnStyle}">Open Item Dictionary</button>
-            ${actionInfo ? `<button data-menu-action="action" style="${btnStyle}">View Action</button>` : ''}
-        `;
-            menu.querySelectorAll('button').forEach((btn) => {
-                btn.addEventListener('mouseenter', () => (btn.style.background = ACCENT_BG));
-                btn.addEventListener('mouseleave', () => (btn.style.background = 'transparent'));
-                btn.addEventListener('click', () => {
-                    menu.style.display = 'none';
-                    const action = btn.dataset.menuAction;
-                    if (action === 'marketplace') {
-                        navigateToMarketplace(hrid, itemLevel);
-                    } else if (action === 'dictionary') {
-                        getGameObject()?.handleOpenItemDictionary?.(hrid);
-                    } else if (action === 'action' && actionInfo) {
-                        getGameObject()?.handleGoToAction?.(actionInfo.actionHrid);
-                    }
-                });
+            this._resultSquareCleanup = setupResultSquareInteractions(this.panel, {
+                getItemDetailMap: () => this._itemDetailMapForTooltips,
+                getAbilityDetailMap: () => this._abilityDetailMapForTooltips,
+                getLevelExperienceTable: () => this._levelExperienceTableForTooltips,
             });
         }
 
@@ -28954,13 +29114,7 @@
                         // Colors/shape match the game's own ability square (rgb(44,46,69) bg,
                         // 4px radius) — confirmed against the live Abilities panel's
                         // .Ability_ability element.
-                        const ref = `${spriteUrl}#${info.iconName}`;
-                        html += `<span class="mwi-labsim-ability-square" data-ability-hrid="${info.hrid}"${level ? ` data-ability-level="${level}"` : ''} style="display:inline-flex; position:relative; width:36px; height:36px; vertical-align:-10px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
-                        html += `<svg width="36" height="36"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
-                        if (level) {
-                            html += `<span style="position:absolute; bottom:-1px; right:-1px; font-size:11px; line-height:1; background:rgba(0,0,0,0.8); color:#e7e7e7; padding:1px 3px 0; border-radius:2px; pointer-events:none;">${level}</span>`;
-                        }
-                        html += '</span>';
+                        html += buildAbilitySquareHtml(info.hrid, info.iconName, level, spriteUrl);
                     } else if (info?.type === 'items' && spriteUrl) {
                         // Items also render as a clickable square (same colors as the ability
                         // square, matching the game's inventory slot look), with its own click menu
@@ -28973,10 +29127,7 @@
                         const trailing = text.slice(pattern.lastIndex, pattern.lastIndex + 40);
                         const enhMatch = trailing.match(/^ \+\d+ → \+(\d+)/) || trailing.match(/^ \(\+(\d+)\)/);
                         const itemLevel = enhMatch ? enhMatch[1] : '0';
-                        const ref = `${spriteUrl}#${info.iconName}`;
-                        html += `<span class="mwi-labsim-item-square" data-item-hrid="${info.hrid}" data-item-level="${itemLevel}" style="display:inline-flex; position:relative; width:32px; height:32px; vertical-align:-9px; margin:0 2px; border-radius:4px; background:rgb(44,46,69); overflow:hidden; cursor:pointer;">`;
-                        html += `<svg width="32" height="32"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
-                        html += '</span>';
+                        html += buildItemSquareHtml(info.hrid, info.iconName, itemLevel, spriteUrl);
                     } else if (spriteUrl) {
                         const ref = `${spriteUrl}#${info.iconName}`;
                         html += `<svg width="14" height="14" style="flex-shrink:0; vertical-align:-3px; margin-right:2px;"><use href="${ref}" xlink:href="${ref}"></use></svg>`;
@@ -29813,17 +29964,9 @@
                 clearInterval(this.elapsedTimer);
                 this.elapsedTimer = null;
             }
-            if (this._abilitySquareTooltipEl) {
-                this._abilitySquareTooltipEl.remove();
-                this._abilitySquareTooltipEl = null;
-            }
-            if (this._itemSquareMenuEl) {
-                this._itemSquareMenuEl.remove();
-                this._itemSquareMenuEl = null;
-            }
-            if (this._resultSquareDocClickHandler) {
-                document.removeEventListener('click', this._resultSquareDocClickHandler);
-                this._resultSquareDocClickHandler = null;
+            if (this._resultSquareCleanup) {
+                this._resultSquareCleanup();
+                this._resultSquareCleanup = null;
             }
             if (this.panel) {
                 unregisterFloatingPanel(this.panel);
@@ -36017,4 +36160,4 @@ self.onmessage = function (e) {
 
     console.log('[Cheezasha] Combat library loaded');
 
-})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.domObserver, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Utils.timerRegistry, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.formatters, Cheezasha.Core.marketAPI, Cheezasha.Market.expectedValueCalculator, Cheezasha.Utils.reactInput, Cheezasha.Utils.profitHelpers, Cheezasha.Utils.marketData, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.teaParser, Cheezasha.Utils.abilityCalc, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.efficiency, Cheezasha.Utils.experienceParser, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Market.alchemyProfitCalculator, Cheezasha.Utils.enhancementMultipliers, Cheezasha.Utils.dom, Cheezasha.Utils.houseCostCalculator);
+})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.domObserver, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Utils.timerRegistry, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.formatters, Cheezasha.Core.marketAPI, Cheezasha.Market.expectedValueCalculator, Cheezasha.Utils.reactInput, Cheezasha.Utils.enhancementMultipliers, Cheezasha.Utils.profitHelpers, Cheezasha.Utils.marketData, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.teaParser, Cheezasha.Utils.abilityCalc, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.efficiency, Cheezasha.Utils.experienceParser, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Market.alchemyProfitCalculator, Cheezasha.Utils.dom, Cheezasha.Utils.houseCostCalculator);

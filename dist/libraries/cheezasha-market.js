@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.10.2
+ * Version: 3.10.3
  * License: CC-BY-NC-SA-4.0
  */
 

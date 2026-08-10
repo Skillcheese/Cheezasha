@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.10.2
+ * Version: 3.10.3
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -6676,7 +6676,12 @@
             this.isObserving = false;
             this.debounceTimers = new Map(); // Track debounce timers per handler
             this.debouncedPending = new Map(); // Array of { node, mutation } queued per handler during the window
+            this.debounceWindowStart = new Map(); // When the current (possibly repeatedly-extended) window began, per handler
             this.DEFAULT_DEBOUNCE_DELAY = 50; // 50ms default delay
+            // Trailing debounce alone can defer forever under sustained DOM churn (combat, chat) since
+            // every new node resets the timer — this caps how long a handler's queue can grow before
+            // being forced to flush, so it never has to process a huge backlog in one synchronous burst.
+            this.MAX_DEBOUNCE_WAIT = 250;
         }
 
         /**
@@ -6737,11 +6742,13 @@
         debouncedCallback(handler, node, mutation) {
             const handlerName = handler.name;
             const delay = handler.debounceDelay || this.DEFAULT_DEBOUNCE_DELAY;
+            const now = Date.now();
 
             // Queue every node seen during the window — a handler still needs to see every added
             // node (e.g. onClass matching), not just whichever one happened to arrive last.
             if (!this.debouncedPending.has(handlerName)) {
                 this.debouncedPending.set(handlerName, []);
+                this.debounceWindowStart.set(handlerName, now);
             }
             this.debouncedPending.get(handlerName).push({ node, mutation });
 
@@ -6750,10 +6757,10 @@
                 clearTimeout(this.debounceTimers.get(handlerName));
             }
 
-            // Set new timer
-            const timer = setTimeout(() => {
+            const flush = () => {
                 const pending = this.debouncedPending.get(handlerName);
                 this.debouncedPending.delete(handlerName);
+                this.debounceWindowStart.delete(handlerName);
                 this.debounceTimers.delete(handlerName);
 
                 if (pending) {
@@ -6767,8 +6774,18 @@
                         }
                     }
                 }
-            }, delay);
+            };
 
+            // Under sustained churn, every new node keeps pushing the timer back — without a cap the
+            // window (and its pending queue) can grow indefinitely. Force a flush once the window has
+            // been open too long, rather than waiting for a quiet gap that may never come.
+            const windowStart = this.debounceWindowStart.get(handlerName);
+            if (now - windowStart >= this.MAX_DEBOUNCE_WAIT) {
+                flush();
+                return;
+            }
+
+            const timer = setTimeout(flush, delay);
             this.debounceTimers.set(handlerName, timer);
         }
 
@@ -6785,6 +6802,7 @@
             this.debounceTimers.forEach((timer) => clearTimeout(timer));
             this.debounceTimers.clear();
             this.debouncedPending.clear();
+            this.debounceWindowStart.clear();
 
             this.isObserving = false;
         }
