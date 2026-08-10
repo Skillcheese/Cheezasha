@@ -15,42 +15,45 @@ import domObserver from '../../core/dom-observer.js';
  */
 function initialize() {
     waitForProfilePage();
-    observeProfileClosure();
 }
 
 /**
- * Wait for profile page to load
+ * Wait for the profile tab to appear. Scoped to its class name — an unfiltered
+ * domObserver.register() would re-run this (and the closure check) on every DOM mutation
+ * anywhere on the page, not just when the profile tab itself actually opened.
  */
 function waitForProfilePage() {
-    domObserver.register(
+    domObserver.onClass(
         'ProfileExportButton-ProfileTab',
-        () => {
-            const profileTab = document.querySelector('div.SharableProfile_overviewTab__W4dCV');
-
-            // Only inject if we're on the profile page AND button doesn't exist yet
-            if (profileTab && !document.getElementById('cheezasha-profile-export-button')) {
+        'SharableProfile_overviewTab',
+        (profileTab) => {
+            // Only inject if the button doesn't exist yet
+            if (!document.getElementById('cheezasha-profile-export-button')) {
                 injectExportButton(profileTab);
             }
+            observeProfileClosure(profileTab);
         },
         { debounce: true, debounceDelay: 200 }
     );
 }
 
 /**
- * Observe profile page closure and clear current profile ID
+ * Watch specifically for this profile tab node being removed from its parent, so we can
+ * clear the stored profile ID on closure. Scoped to the profile tab's own parent (childList
+ * only, no subtree) instead of the whole document, and disconnects itself once it fires.
+ * @param {Element} profileTab - The profile tab element currently in the DOM
  */
-function observeProfileClosure() {
-    domObserver.register(
-        'ProfileExportButton-ProfileClose',
-        () => {
-            const profileTab = document.querySelector('div.SharableProfile_overviewTab__W4dCV');
-            if (!profileTab) {
-                // Profile closed - clear current profile ID
-                storage.set('currentProfileId', null, 'combatExport', true);
-            }
-        },
-        { debounce: true, debounceDelay: 200 }
-    );
+function observeProfileClosure(profileTab) {
+    const parent = profileTab.parentElement;
+    if (!parent) return;
+
+    const observer = new MutationObserver(() => {
+        if (!document.contains(profileTab)) {
+            storage.set('currentProfileId', null, 'combatExport', true);
+            observer.disconnect();
+        }
+    });
+    observer.observe(parent, { childList: true });
 }
 
 /**

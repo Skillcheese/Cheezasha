@@ -6,6 +6,7 @@
 import config from '../../core/config.js';
 import dataManager from '../../core/data-manager.js';
 import domObserver from '../../core/dom-observer.js';
+import taskPanelWatcher from '../tasks/task-panel-watcher.js';
 
 // Compiled regex pattern (created once, reused for performance)
 const REGEX_COMBAT_TASK = /(?:Kill|Defeat)\s*-\s*(.+)$/;
@@ -74,19 +75,29 @@ class ZoneIndices {
             this.buildMonsterZoneCache();
         }
 
-        // Register with centralized observer with debouncing enabled
-        this.unregisterObserver = domObserver.register(
-            'ZoneIndices',
-            () => {
-                if (this.taskMapIndexEnabled) {
-                    this.addTaskIndices();
-                }
-                if (this.mapIndexEnabled) {
-                    this.addMapIndices();
-                }
-            },
-            { debounce: true, debounceDelay: 100 } // Use centralized debouncing
-        );
+        // Register scoped to the class names that actually matter here — the previous
+        // unfiltered domObserver.register() fired this handler's full-document
+        // querySelectorAll scans on every DOM mutation anywhere on the page (scroll-list
+        // recycling, unrelated tab switches, etc.), not just when task/map content changed.
+        const unregisterFns = [];
+
+        if (this.taskMapIndexEnabled) {
+            unregisterFns.push(taskPanelWatcher.onTaskListChange(() => this.addTaskIndices()));
+            unregisterFns.push(taskPanelWatcher.onTaskNodeAdded(() => this.addTaskIndices()));
+        }
+
+        if (this.mapIndexEnabled) {
+            unregisterFns.push(
+                domObserver.onClass(
+                    'ZoneIndices-MapTabs',
+                    'CombatPanel_tabsComponentContainer',
+                    () => this.addMapIndices(),
+                    { debounce: true, debounceDelay: 100 }
+                )
+            );
+        }
+
+        this.unregisterObserver = () => unregisterFns.forEach((fn) => fn());
 
         // Process existing elements
         if (this.taskMapIndexEnabled) {

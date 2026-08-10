@@ -55,11 +55,6 @@ function annotateLoadout() {
     });
     if (allUses.length > 0 && validUses.length === 0) return;
 
-    // DOM and data are ready — clear stale overlays and re-inject
-    for (const el of equipDiv.querySelectorAll(`.${OVERLAY_CLASS}`)) {
-        el.remove();
-    }
-
     const enhancementMap = buildEnhancementLevelMap();
 
     for (const use of validUses) {
@@ -68,35 +63,44 @@ function annotateLoadout() {
         if (!fragment) continue;
         const itemHrid = `/items/${fragment}`;
 
-        const enhLevel = enhancementMap.get(itemHrid) ?? 0;
-        if (enhLevel === 0) continue;
-
         // DOM: use → svg → Item_iconContainer → Item_item__
         const svg = use.closest('svg');
         if (!svg) continue;
         const itemDiv = svg.parentElement?.parentElement;
         if (!itemDiv) continue;
 
-        // Skip if already annotated
-        if (itemDiv.querySelector(`.${OVERLAY_CLASS}`)) continue;
+        const enhLevel = enhancementMap.get(itemHrid) ?? 0;
+        const desiredText = enhLevel > 0 ? `+${enhLevel}` : null;
+        const existingOverlay = itemDiv.querySelector(`.${OVERLAY_CLASS}`);
 
-        itemDiv.style.position = 'relative';
-        const overlay = document.createElement('div');
-        overlay.className = OVERLAY_CLASS;
-        overlay.textContent = `+${enhLevel}`;
-        overlay.style.cssText = `
-            z-index: 1;
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            text-align: right;
-            color: ${config.COLOR_ACCENT};
-            font-size: 10px;
-            font-weight: bold;
-            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000;
-            pointer-events: none;
-        `;
-        itemDiv.appendChild(overlay);
+        // Skip entirely when nothing needs to change — unconditionally clearing and
+        // re-adding here would itself be a DOM mutation, which the shared MutationObserver
+        // would pick up and use to re-trigger this very handler, creating a self-sustaining
+        // loop that never settles (see zone-indices.js for the same bug and its fix).
+        if (existingOverlay && existingOverlay.textContent === desiredText) continue;
+        if (!existingOverlay && desiredText === null) continue;
+
+        if (existingOverlay) existingOverlay.remove();
+
+        if (desiredText) {
+            itemDiv.style.position = 'relative';
+            const overlay = document.createElement('div');
+            overlay.className = OVERLAY_CLASS;
+            overlay.textContent = desiredText;
+            overlay.style.cssText = `
+                z-index: 1;
+                position: absolute;
+                top: 2px;
+                right: 2px;
+                text-align: right;
+                color: ${config.COLOR_ACCENT};
+                font-size: 10px;
+                font-weight: bold;
+                text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 0 3px #000;
+                pointer-events: none;
+            `;
+            itemDiv.appendChild(overlay);
+        }
     }
 }
 
@@ -114,8 +118,13 @@ let unregisterHandler = null;
 function initialize() {
     if (!config.getSetting('loadoutEnhancementDisplay')) return;
 
-    unregisterHandler = domObserver.register(
+    // Scoped to loadout/item-container class names — the previous unfiltered
+    // domObserver.register() ran this handler's DOM scan on every mutation anywhere on the
+    // page (scroll-list recycling, unrelated tab switches, etc.), not just when the loadout
+    // panel's equipment icons actually appeared.
+    unregisterHandler = domObserver.onClass(
         'LoadoutEnhancementDisplay',
+        ['LoadoutsPanel_equipment', 'Item_itemContainer'],
         () => {
             annotateLoadout();
         },

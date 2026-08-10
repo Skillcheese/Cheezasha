@@ -60,9 +60,13 @@ class EquipmentLevelDisplay {
             return;
         }
 
-        // Register with centralized DOM observer with debouncing
-        this.unregisterHandler = domObserver.register(
+        // Scoped to item-container class names — the previous unfiltered
+        // domObserver.register() ran this handler's full-document querySelectorAll scan on
+        // every DOM mutation anywhere on the page (scroll-list recycling, unrelated tab
+        // switches, etc.), not just when item icons actually appeared.
+        this.unregisterHandler = domObserver.onClass(
             'EquipmentLevelDisplay',
+            'Item_itemContainer',
             () => {
                 this.addItemLevels();
             },
