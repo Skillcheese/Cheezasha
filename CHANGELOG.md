@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.13.0](https://github.com/Skillcheese/Cheezasha/compare/v3.12.0...v3.13.0) (2026-08-10)
+
+### Features
+
+- use damage/deaths tiebreaker for labyrinth optimization below clearing ([8476791](https://github.com/Skillcheese/Cheezasha/commit/8476791ae0cb195511b4c18e08e0e35ec8d02f99))
+
+### Bug Fixes
+
+- resolve task panel freeze on Steam client caused by DOM observer feedback loop ([4bcc98c](https://github.com/Skillcheese/Cheezasha/commit/4bcc98c8a3692bb2371f6fcbb0cbd1f934e7a158))
+
 ## [3.12.0](https://github.com/Skillcheese/Cheezasha/compare/v3.11.0...v3.12.0) (2026-08-10)
 
 ### Features
