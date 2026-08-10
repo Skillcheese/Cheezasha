@@ -25,11 +25,15 @@ const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 
 const JEWELRY_SLOTS = new Set(['/equipment_types/earrings', '/equipment_types/ring', '/equipment_types/neck']);
 
-// Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Revive/Taunt/Provoke
-// target party members or aggro mechanics that don't exist in a solo sim, and Quick Aid/
-// Rejuvenate heal a party member other than the caster — never worth an ability-swap/optimize
-// slot.
+// Abilities with no effect worth simulating in the Labyrinth/Combat Sim: Promote is a
+// monster-only mechanic (chess-piece "Enchanted" monsters promoting to Rook/Knight/Bishop, see
+// combat-simulator.js's processAbilityPromoteEffect) that isn't actually player-equippable, but
+// still shows up in abilityDetailMap with no ability-book requirement to filter it out.
+// Revive/Taunt/Provoke target party members or aggro mechanics that don't exist in a solo sim,
+// and Quick Aid/Rejuvenate heal a party member other than the caster — never worth an
+// ability-swap/optimize slot.
 const SIM_USELESS_ABILITY_HRIDS = new Set([
+    '/abilities/promote',
     '/abilities/revive',
     '/abilities/taunt',
     '/abilities/provoke',
@@ -2226,14 +2230,17 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                     const attempts = simResult.labyAttemptCount || 1;
                     const encounters = simResult.encounters || 0;
                     const deaths = simResult.deaths?.player1 || 0;
+                    const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
                     const winRate = encounters / attempts;
+                    const candidateResult = { winRate, attempts, encounters, deaths, totalDamageDealt };
 
-                    if (!runBest || winRate > runBest.winRate) {
+                    // Below clearing, win rate alone can't tell combos apart — fall back to
+                    // damage dealt / deaths (see isLabyrinthResultBetter) so a combo that clearly
+                    // hits harder or dies less still gets adopted even while every option is
+                    // still stuck at 0% clears.
+                    if (!runBest || isLabyrinthResultBetter(candidateResult, runBest)) {
                         runBest = {
-                            winRate,
-                            attempts,
-                            encounters,
-                            deaths,
+                            ...candidateResult,
                             abilities,
                             description: label,
                             cost: candidate.cost,
@@ -2245,7 +2252,7 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                 }
             })
         );
-        if (runBest && (!best || runBest.winRate > best.winRate)) best = runBest;
+        if (runBest && (!best || isLabyrinthResultBetter(runBest, best))) best = runBest;
     }
 
     return best;
@@ -2493,7 +2500,7 @@ export async function optimizeLabyrinthEverything(params, onProgress) {
             totalCost += result.cost;
             best = await runStageSim();
         } else {
-            equipmentChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+            equipmentChanges.push(`${stageLabel}: no improvement`);
         }
     };
 
@@ -2518,14 +2525,16 @@ export async function optimizeLabyrinthEverything(params, onProgress) {
             abilityChanges.push(`${stageLabel}: no improvement found`);
             return;
         }
-        if (result.winRate > best.winRate) {
+        // Below clearing, win rate alone can't tell ability combos apart — same fallback to
+        // damage dealt / deaths as the equipment stage above (see isLabyrinthResultBetter).
+        if (isLabyrinthResultBetter(result, best)) {
             currentDTOs = currentDTOs.slice();
             currentDTOs[playerIndex] = { ...currentDTOs[playerIndex], abilities: result.abilities };
             abilityChanges.push(`${stageLabel}:\n${indentLines(result.description)}`);
             totalCost += result.cost;
             best = await runStageSim();
         } else {
-            abilityChanges.push(`${stageLabel}: no improvement (tried):\n${indentLines(result.description)}`);
+            abilityChanges.push(`${stageLabel}: no improvement`);
         }
     };
 

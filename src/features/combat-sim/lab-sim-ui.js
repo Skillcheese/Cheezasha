@@ -1155,12 +1155,11 @@ class LabSimUI {
      * @private
      */
     _formatOptimizedLoadoutName(loadoutName, optimizeMode, optimized, improved) {
+        if (!improved) return `${loadoutName} (no improvement found)`;
         if (optimizeMode === 'everything') {
-            return `${loadoutName} ${improved ? '(improved)' : '(no net improvement)'}\n${optimized.description}`;
+            return `${loadoutName} (improved)\n${optimized.description}`;
         }
-        return improved
-            ? `${loadoutName}\n+ ${optimized.description}`
-            : `${loadoutName}\n(tried: ${optimized.description} — no improvement)`;
+        return `${loadoutName}\n+ ${optimized.description}`;
     }
 
     /**
