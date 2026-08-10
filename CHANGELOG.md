@@ -2,10 +2,9 @@
 
 ## [3.10.0](https://github.com/Skillcheese/Cheezasha/compare/v3.9.1...v3.10.0) (2026-08-10)
 
-
 ### Features
 
-* add loadout/mob filtering and combined optimize pass to lab sim ([5674324](https://github.com/Skillcheese/Cheezasha/commit/567432472215b71be68563b5cd0363102dbeafaf))
+- add loadout/mob filtering and combined optimize pass to lab sim ([5674324](https://github.com/Skillcheese/Cheezasha/commit/567432472215b71be68563b5cd0363102dbeafaf))
 
 ## [3.9.1](https://github.com/Skillcheese/Cheezasha/compare/v3.9.0...v3.9.1) (2026-08-09)
 
