@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.10.3
+ * Version: 3.11.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -15318,85 +15318,6 @@
     }
 
     /**
-     * Build a map of DIRECT single-item upgrade chains only (action.upgradeItemHrid), e.g.
-     * Cheese Boots → Verdant Boots. Deliberately excludes combination recipes (multiple
-     * different inputItems combined, like Philosopher's-style crafts) — those don't mean
-     * one input is a strictly-inferior version of the output, just an ingredient of it, so
-     * they must not be used to exclude candidates as "same line".
-     * @param {Object} gameData
-     * @returns {Map<string, Set<string>>} itemHrid → Set of direct upgrade output hrids
-     */
-    function buildDirectUpgradeMap(gameData) {
-        const map = new Map();
-
-        for (const action of Object.values(gameData.actionDetailMap)) {
-            if (!action.upgradeItemHrid || !action.outputItems?.length) continue;
-            const outputHrid = action.outputItems[0].itemHrid;
-
-            const outputItem = gameData.itemDetailMap[outputHrid];
-            if (!outputItem?.equipmentDetail?.type) continue;
-            const upgradeItem = gameData.itemDetailMap[action.upgradeItemHrid];
-            if (!upgradeItem?.equipmentDetail?.type) continue;
-
-            if (!map.has(action.upgradeItemHrid)) map.set(action.upgradeItemHrid, new Set());
-            map.get(action.upgradeItemHrid).add(outputHrid);
-        }
-
-        return map;
-    }
-
-    /**
-     * Group candidate items into their same-line chains (e.g. Cheese/Verdant/Azure Chest)
-     * and keep only the top N by item level within each line. Unlike keeping only the single
-     * furthest tier, this preserves lower tiers that may be
-     * more coin-efficient upgrades, while still bounding how many tiers of the same line get
-     * simmed.
-     * @param {Array<{hrid: string, itemLevel?: number}>} items
-     * @param {Map<string, Set<string>>} directUpgradeMap
-     * @param {number} n - Max items to keep per line
-     * @returns {Array<{hrid: string}>}
-     */
-    function groupTopNPerLine(items, directUpgradeMap, n) {
-        const hridSet = new Set(items.map((item) => item.hrid));
-        const parent = new Map(items.map((item) => [item.hrid, item.hrid]));
-
-        function find(hrid) {
-            while (parent.get(hrid) !== hrid) {
-                parent.set(hrid, parent.get(parent.get(hrid)));
-                hrid = parent.get(hrid);
-            }
-            return hrid;
-        }
-        function union(a, b) {
-            const rootA = find(a);
-            const rootB = find(b);
-            if (rootA !== rootB) parent.set(rootA, rootB);
-        }
-
-        for (const item of items) {
-            const upgrades = directUpgradeMap.get(item.hrid);
-            if (!upgrades) continue;
-            for (const upgradeHrid of upgrades) {
-                if (hridSet.has(upgradeHrid)) union(item.hrid, upgradeHrid);
-            }
-        }
-
-        const lines = new Map();
-        for (const item of items) {
-            const root = find(item.hrid);
-            if (!lines.has(root)) lines.set(root, []);
-            lines.get(root).push(item);
-        }
-
-        const out = [];
-        for (const line of lines.values()) {
-            line.sort((a, b) => (b.itemLevel || 0) - (a.itemLevel || 0));
-            out.push(...line.slice(0, n));
-        }
-        return out;
-    }
-
-    /**
      * Get the primary damage style of an item's combat stats.
      * @param {Object} combatStats - Item combat stats
      * @returns {string} 'slash', 'stab', 'smash', 'ranged', 'magic', or 'unknown'
@@ -15548,7 +15469,6 @@
             const enhancementBudget = equipmentBudget != null && equipmentBudget > 0 ? equipmentBudget : 1_000_000;
             const tierProgression = getEquipmentTierProgression(gameData);
             const upgradeMap = buildUpgradeMap(gameData);
-            const directUpgradeMap = buildDirectUpgradeMap(gameData);
             const skillLevelMap = getSkillLevelMapFromDTO(playerDTO, equipmentLevelBoost);
 
             // Combat style is set by the equipped weapon, not by whatever's currently in
@@ -15680,12 +15600,10 @@
                         rawMainHands.push({ hrid: itemHrid, itemLevel: item.itemLevel || 0 });
                     }
 
-                    // Keep up to the top 3 tiers of each weapon line (e.g. Cheese/Verdant/Azure)
-                    // rather than only the furthest tier — a lower tier can be the more
-                    // coin-efficient upgrade — while still bounding the sim combination count.
-                    const mainHands = groupTopNPerLine(rawMainHands, directUpgradeMap, 3);
-
-                    for (const { hrid: itemHrid } of mainHands) {
+                    // Consider every eligible main-hand weapon, not just the furthest tier of each
+                    // line — a lower tier can be the more coin-efficient upgrade, and this mirrors
+                    // the same-slot tier/replacement loop above, which is likewise unbounded.
+                    for (const { hrid: itemHrid } of rawMainHands) {
                         const item = gameData.itemDetailMap[itemHrid];
 
                         // Find candidate off-hands at this tier (a small handful of distinct
@@ -17789,37 +17707,112 @@
         gameData,
         skillEquipmentMap = {}
     ) {
-        const results = [];
+        return LABYRINTH_SKILLS.map((skillHrid) =>
+            computeSkillingClearForSkill(skillHrid, roomLevel, editorDTO, crateHrids, gameData, skillEquipmentMap)
+        );
+    }
 
-        for (const skillHrid of LABYRINTH_SKILLS) {
-            const skillId = skillHrid.replace('/skills/', '');
-            const actionTypeHrid = `/action_types/${skillId}`;
-            const dtoKey = SKILLING_DTO_KEYS[skillHrid];
-            const baseLevel = editorDTO[dtoKey] || 1;
+    /**
+     * Compute a single skill's clear result from editor state at a given room level. Shared by
+     * computeSkillingClearRatesFromEditor (all skills at one level) and findMaxSkillingLevels
+     * (one skill across many levels, via binary search).
+     * @param {string} skillHrid
+     * @param {number} roomLevel
+     * @param {Object} editorDTO - Player DTO from editor
+     * @param {string[]} crateHrids - Selected crate HRIDs
+     * @param {Object} gameData - From buildGameDataPayload()
+     * @param {Object} [skillEquipmentMap] - Per-skill equipment overrides
+     * @returns {Object} Clear result with stats
+     */
+    function computeSkillingClearForSkill(skillHrid, roomLevel, editorDTO, crateHrids, gameData, skillEquipmentMap = {}) {
+        const skillId = skillHrid.replace('/skills/', '');
+        const actionTypeHrid = `/action_types/${skillId}`;
+        const dtoKey = SKILLING_DTO_KEYS[skillHrid];
+        const baseLevel = editorDTO[dtoKey] || 1;
 
-            const editorState = {
-                equipment: skillEquipmentMap[skillHrid] || editorDTO.equipment,
-                houseRooms: editorDTO.houseRooms,
-                tokenUpgrades: editorDTO.tokenUpgrades,
-                communityBuffLevels: editorDTO.communityBuffLevels,
-            };
+        const editorState = {
+            equipment: skillEquipmentMap[skillHrid] || editorDTO.equipment,
+            houseRooms: editorDTO.houseRooms,
+            tokenUpgrades: editorDTO.tokenUpgrades,
+            communityBuffLevels: editorDTO.communityBuffLevels,
+        };
 
-            const overrides = buildOverridesForSkill(editorState, actionTypeHrid, crateHrids, gameData);
-            const metrics = labyrinthClearRate.getSkillingMetricsFromOverrides(skillId, actionTypeHrid, overrides);
+        const overrides = buildOverridesForSkill(editorState, actionTypeHrid, crateHrids, gameData);
+        const metrics = labyrinthClearRate.getSkillingMetricsFromOverrides(skillId, actionTypeHrid, overrides);
 
-            let result;
-            if (skillHrid === '/skills/enhancing') {
-                result = labyrinthClearRate.computeEnhancingClearWithParams(metrics, baseLevel, roomLevel);
-            } else {
-                result = labyrinthClearRate.computeSkillingClearWithParams(metrics, baseLevel, roomLevel);
-            }
-            result.skillHrid = skillHrid;
-            result.skillId = skillId;
-            result.skillName = skillId.charAt(0).toUpperCase() + skillId.slice(1);
-            results.push(result);
+        let result;
+        if (skillHrid === '/skills/enhancing') {
+            result = labyrinthClearRate.computeEnhancingClearWithParams(metrics, baseLevel, roomLevel);
+        } else {
+            result = labyrinthClearRate.computeSkillingClearWithParams(metrics, baseLevel, roomLevel);
         }
+        result.skillHrid = skillHrid;
+        result.skillId = skillId;
+        result.skillName = skillId.charAt(0).toUpperCase() + skillId.slice(1);
+        return result;
+    }
 
-        return results;
+    /**
+     * Binary search each labyrinth skill for the highest room level where its clear chance is still
+     * >= threshold. Unlike the combat "Find Max" search (which needs a stochastic simulation per
+     * level), skilling clear chance is a deterministic formula of (baseLevel, roomLevel) that's
+     * monotonically non-increasing in roomLevel — success chance and required progress both get
+     * worse as the room level rises — so a plain binary search over computeSkillingClearForSkill()
+     * is exact and needs no simulation.
+     * @param {Object} editorDTO - Player DTO from editor
+     * @param {string[]} crateHrids - Selected crate HRIDs
+     * @param {Object} gameData - From buildGameDataPayload()
+     * @param {Object} [skillEquipmentMap] - Per-skill equipment overrides
+     * @param {number} [threshold=0.95] - Clear chance threshold (0-1)
+     * @param {number} [minLevel=1] - Minimum room level to search
+     * @param {number} [maxLevel=300] - Maximum room level to search
+     * @returns {Array<Object>} Per-skill results: clear result at the found max level, plus
+     *  `maxLevel` (0 if no level in range meets the threshold).
+     */
+    function findMaxSkillingLevels(
+        editorDTO,
+        crateHrids,
+        gameData,
+        skillEquipmentMap = {},
+        threshold = 0.95,
+        minLevel = 1,
+        maxLevel = 300
+    ) {
+        return LABYRINTH_SKILLS.map((skillHrid) => {
+            let low = minLevel;
+            let high = maxLevel;
+            let best = computeSkillingClearForSkill(
+                skillHrid,
+                minLevel,
+                editorDTO,
+                crateHrids,
+                gameData,
+                skillEquipmentMap
+            );
+            best.maxLevel = 0;
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+                const result = computeSkillingClearForSkill(
+                    skillHrid,
+                    mid,
+                    editorDTO,
+                    crateHrids,
+                    gameData,
+                    skillEquipmentMap
+                );
+
+                if (result.clearChance >= threshold) {
+                    best = result;
+                    best.maxLevel = mid;
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            return best;
+        });
     }
 
     /**
@@ -27273,14 +27266,22 @@
                 { key: 'deathsPerHour', label: 'DPH' },
             ];
 
-            const rows = results.results.map((r) => {
+            let rows = results.results.map((r) => {
                 const candidate = r.candidate || {};
                 const isAbility = (candidate.type || '').startsWith('ability');
-                const squareHtml = this._buildResultSquareHtml(
-                    candidate.upgradeHrid,
-                    candidate.upgradeLevel || 0,
-                    isAbility
-                );
+                const addedSlots = candidate.addedSlots && Object.values(candidate.addedSlots);
+                let squareHtml;
+                if (candidate.reorderAbilities?.length) {
+                    squareHtml = candidate.reorderAbilities
+                        .map((a) => this._buildResultSquareHtml(a.hrid, a.level || 0, true))
+                        .join('');
+                } else if (addedSlots?.length) {
+                    squareHtml = addedSlots
+                        .map((slot) => this._buildResultSquareHtml(slot.hrid, slot.enhancementLevel || 0, false))
+                        .join('');
+                } else {
+                    squareHtml = this._buildResultSquareHtml(candidate.upgradeHrid, candidate.upgradeLevel || 0, isAbility);
+                }
                 return {
                     description: r.candidate.description,
                     squareHtml,
@@ -27299,20 +27300,27 @@
                 };
             });
 
-            // Sort
-            if (this._upgradeSortCol) {
-                const col = this._upgradeSortCol;
-                const asc = this._upgradeSortAsc;
-                rows.sort((a, b) => {
-                    const va = a[col] ?? 0;
-                    const vb = b[col] ?? 0;
-                    if (typeof va === 'string') return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-                    if (va === Infinity && vb === Infinity) return 0;
-                    if (va === Infinity) return asc ? 1 : -1;
-                    if (vb === Infinity) return asc ? -1 : 1;
-                    return asc ? va - vb : vb - va;
-                });
-            }
+            // Sort (default to best gold/0.1% DPS first when the user hasn't picked a column, so the
+            // top-100 cap below keeps the most relevant rows instead of an arbitrary generation-order
+            // slice).
+            const sortCol = this._upgradeSortCol || 'goldDps';
+            const sortAsc = this._upgradeSortCol ? this._upgradeSortAsc : true;
+            rows.sort((a, b) => {
+                const va = a[sortCol] ?? 0;
+                const vb = b[sortCol] ?? 0;
+                if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+                if (va === Infinity && vb === Infinity) return 0;
+                if (va === Infinity) return sortAsc ? 1 : -1;
+                if (vb === Infinity) return sortAsc ? -1 : 1;
+                return sortAsc ? va - vb : vb - va;
+            });
+
+            // Cap displayed rows — ability-optimize sweeps in particular can produce thousands of
+            // candidates, and rendering an item/ability square per row for all of them badly lags
+            // the results table. Only the top 50 (by the current sort) are shown.
+            const MAX_UPGRADE_ROWS = 50;
+            const truncated = rows.length > MAX_UPGRADE_ROWS;
+            rows = rows.slice(0, MAX_UPGRADE_ROWS);
 
             // Best (lowest non-Infinity) value per gold/0.1% column, for highlighting
             const bestVals = {};
@@ -27395,6 +27403,7 @@
             </div>
             <div style="margin-top:6px; color:#666; font-size:10px;">
                 Baseline: DPS ${formatters_js.formatKMB(baseline.dps)} | EXP ${formatters_js.formatKMB(baseline.xpPerHour)} | Profit ${formatters_js.formatKMB(baseline.profitPerHour)} | EPH ${baseline.encountersPerHour.toFixed(1)} | DPH ${baseline.deathsPerHour.toFixed(1)}
+                ${truncated ? `<br>Showing top ${MAX_UPGRADE_ROWS} of ${results.results.length} candidates.` : ''}
             </div>
         `;
 
@@ -27602,7 +27611,7 @@
     /**
      * Lab Sim UI
      * Floating panel for configuring and running labyrinth simulations.
-     * Four tabs: Configure (editor + crate selectors), Max Level, Upgrade, Skilling.
+     * Four tabs: Configure (editor + crate selectors), Monsters, Upgrade, Skilling.
      */
 
 
@@ -27713,7 +27722,7 @@
         `;
             tabBar.innerHTML = `
             <button id="mwi-labsim-tab-configure" style="${tabStyle(true)}">Configure</button>
-            <button id="mwi-labsim-tab-maxlevel" style="${tabStyle(false)}">Max Level</button>
+            <button id="mwi-labsim-tab-monsters" style="${tabStyle(false)}">Monsters</button>
             <button id="mwi-labsim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
             <button id="mwi-labsim-tab-skilling" style="${tabStyle(false)}">Skilling</button>
         `;
@@ -27803,17 +27812,17 @@
 
             configureContent.appendChild(editorArea);
 
-            // ── Max Level tab ──
-            const maxLevelContent = document.createElement('div');
-            maxLevelContent.id = 'mwi-labsim-maxlevel-content';
-            maxLevelContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+            // ── Monsters tab ──
+            const monstersContent = document.createElement('div');
+            monstersContent.id = 'mwi-labsim-monsters-content';
+            monstersContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
 
-            const maxLevelControls = document.createElement('div');
-            maxLevelControls.style.cssText = `
+            const monstersControls = document.createElement('div');
+            monstersControls.style.cssText = `
             display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
             padding: 8px 14px; border-bottom: 1px solid #222; flex-shrink: 0; font-size: 12px;
         `;
-            maxLevelControls.innerHTML = `
+            monstersControls.innerHTML = `
             <label style="color:#888; font-size:12px;">Level</label>
             <input id="mwi-labsim-level" type="number" min="20" max="300" value="100" style="${inputStyle}">
             <label style="color:#888; font-size:12px;">Hours</label>
@@ -27860,10 +27869,10 @@
             <div id="mwi-labsim-monster-filter-grid" style="display:none; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:3px 10px;"></div>
         `;
 
-            const maxLevelProgress = document.createElement('div');
-            maxLevelProgress.id = 'mwi-labsim-progress';
-            maxLevelProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            maxLevelProgress.innerHTML = `
+            const monstersProgress = document.createElement('div');
+            monstersProgress.id = 'mwi-labsim-progress';
+            monstersProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+            monstersProgress.innerHTML = `
             <div style="display:flex; align-items:center; gap:8px;">
                 <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
                     <div id="mwi-labsim-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
@@ -27882,14 +27891,14 @@
             </div>
         `;
 
-            const maxLevelResults = document.createElement('div');
-            maxLevelResults.id = 'mwi-labsim-results';
-            maxLevelResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+            const monstersResults = document.createElement('div');
+            monstersResults.id = 'mwi-labsim-results';
+            monstersResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
 
-            maxLevelContent.appendChild(maxLevelControls);
-            maxLevelContent.appendChild(monsterFilterSection);
-            maxLevelContent.appendChild(maxLevelProgress);
-            maxLevelContent.appendChild(maxLevelResults);
+            monstersContent.appendChild(monstersControls);
+            monstersContent.appendChild(monsterFilterSection);
+            monstersContent.appendChild(monstersProgress);
+            monstersContent.appendChild(monstersResults);
 
             // ── Upgrade tab ──
             const upgradeContent = document.createElement('div');
@@ -27993,6 +28002,12 @@
                 font-weight:600;
                 cursor:pointer;
                 font-family:inherit;">Stop</button>
+            <label style="display:flex; align-items:center; gap:4px; color:#888; cursor:pointer;" title="Find the highest room level where clear chance is still at least the given threshold, for every skill">
+                <input type="checkbox" id="mwi-labsim-skilling-findmax" style="margin:0; cursor:pointer;">
+                Find Max ≥
+            </label>
+            <input id="mwi-labsim-skilling-threshold" type="number" min="1" max="100" value="${config.getSettingValue('labyrinthRecommendTargetRate', 95)}" style="width:44px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
+            <span style="color:#888; font-size:12px;">%</span>
             <select id="mwi-labsim-skilling-filter" style="
                 background:#1a1a2e;
                 color:#e0e0e0;
@@ -28013,35 +28028,6 @@
                 <option value="/skills/tailoring">Tailoring</option>
                 <option value="/skills/alchemy">Alchemy</option>
                 <option value="/skills/enhancing">Enhancing</option>
-            </select>
-        `;
-
-            const skillingCrateRow = document.createElement('div');
-            skillingCrateRow.style.cssText = `
-            display: flex; align-items: center; gap: 10px;
-            padding: 6px 14px; border-bottom: 1px solid #222; flex-shrink: 0; font-size: 12px;
-        `;
-            skillingCrateRow.innerHTML = `
-            <label style="color:#888;">Tea</label>
-            <select id="mwi-labsim-skilling-tea" style="${crateSelectStyle}">
-                <option value="">None</option>
-                <option value="/items/basic_tea_crate">Basic</option>
-                <option value="/items/advanced_tea_crate">Advanced</option>
-                <option value="/items/expert_tea_crate" selected>Expert</option>
-            </select>
-            <label style="color:#888;">Coffee</label>
-            <select id="mwi-labsim-skilling-coffee" style="${crateSelectStyle}">
-                <option value="">None</option>
-                <option value="/items/basic_coffee_crate">Basic</option>
-                <option value="/items/advanced_coffee_crate">Advanced</option>
-                <option value="/items/expert_coffee_crate" selected>Expert</option>
-            </select>
-            <label style="color:#888;">Food</label>
-            <select id="mwi-labsim-skilling-food" style="${crateSelectStyle}">
-                <option value="">None</option>
-                <option value="/items/basic_food_crate">Basic</option>
-                <option value="/items/advanced_food_crate">Advanced</option>
-                <option value="/items/expert_food_crate" selected>Expert</option>
             </select>
         `;
 
@@ -28075,7 +28061,6 @@
             skillingResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
 
             skillingContent.appendChild(skillingControls);
-            skillingContent.appendChild(skillingCrateRow);
             skillingContent.appendChild(skillingLoadoutArea);
             skillingContent.appendChild(skillingEditorArea);
             skillingContent.appendChild(skillingProgress);
@@ -28086,13 +28071,13 @@
             status.id = 'mwi-labsim-status';
             status.style.cssText =
                 'padding:6px 14px; color:#555; font-size:11px; border-top:1px solid #1a1a1a; flex-shrink:0; text-align:center;';
-            status.textContent = 'Set level and hours in Max Level, then Simulate to see all labyrinth mobs.';
+            status.textContent = 'Set level and hours in Monsters, then Simulate to see all labyrinth mobs.';
 
             // Assemble
             this.panel.appendChild(header);
             this.panel.appendChild(tabBar);
             this.panel.appendChild(configureContent);
-            this.panel.appendChild(maxLevelContent);
+            this.panel.appendChild(monstersContent);
             this.panel.appendChild(upgradeContent);
             this.panel.appendChild(skillingContent);
             this.panel.appendChild(status);
@@ -28126,8 +28111,8 @@
                 .querySelector('#mwi-labsim-tab-configure')
                 .addEventListener('click', () => this._switchTab('configure'));
             this.panel
-                .querySelector('#mwi-labsim-tab-maxlevel')
-                .addEventListener('click', () => this._switchTab('maxlevel'));
+                .querySelector('#mwi-labsim-tab-monsters')
+                .addEventListener('click', () => this._switchTab('monsters'));
             this.panel.querySelector('#mwi-labsim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
             this.panel
                 .querySelector('#mwi-labsim-tab-skilling')
@@ -28138,7 +28123,7 @@
                 this._onMonsterChange(e.target.value);
             });
 
-            // Max Level listeners
+            // Monsters listeners
             this.panel.querySelector('#mwi-labsim-run').addEventListener('click', () => this._onSimulate());
             this.panel.querySelector('#mwi-labsim-stop').addEventListener('click', () => {
                 cancelSimulation();
@@ -28225,7 +28210,7 @@
         }
 
         /**
-         * Populate the Max Level tab's loadout filter with the distinct loadout names actually
+         * Populate the Monsters tab's loadout filter with the distinct loadout names actually
          * assigned to labyrinth monsters in the Automation tab, so the user can restrict a sim/
          * optimize run to only the monsters that use one specific loadout. Preserves the current
          * selection across re-population if it's still valid.
@@ -28251,7 +28236,7 @@
         }
 
         /**
-         * Populate the Max Level tab's mob filter with a checkbox per monster under the currently
+         * Populate the Monsters tab's mob filter with a checkbox per monster under the currently
          * selected loadout filter (or every labyrinth monster if "All Loadouts" is selected), so the
          * user can further restrict a run to one or a few specific mobs instead of the whole loadout.
          * Rendered as a fixed checkbox grid (not a scrolling listbox) so every mob is visible at
@@ -28399,11 +28384,11 @@
         _switchTab(tab) {
             this._activeTab = tab;
             const configureContent = this.panel.querySelector('#mwi-labsim-configure-content');
-            const maxLevelContent = this.panel.querySelector('#mwi-labsim-maxlevel-content');
+            const monstersContent = this.panel.querySelector('#mwi-labsim-monsters-content');
             const upgradeContent = this.panel.querySelector('#mwi-labsim-upgrade-content');
             const skillingContent = this.panel.querySelector('#mwi-labsim-skilling-content');
             const tabConfigure = this.panel.querySelector('#mwi-labsim-tab-configure');
-            const tabMaxLevel = this.panel.querySelector('#mwi-labsim-tab-maxlevel');
+            const tabMonsters = this.panel.querySelector('#mwi-labsim-tab-monsters');
             const tabUpgrade = this.panel.querySelector('#mwi-labsim-tab-upgrade');
             const tabSkilling = this.panel.querySelector('#mwi-labsim-tab-skilling');
 
@@ -28412,20 +28397,20 @@
                 'flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:transparent; color:#888; border-bottom:2px solid transparent;';
 
             configureContent.style.display = 'none';
-            maxLevelContent.style.display = 'none';
+            monstersContent.style.display = 'none';
             upgradeContent.style.display = 'none';
             skillingContent.style.display = 'none';
             tabConfigure.style.cssText = inactiveStyle;
-            tabMaxLevel.style.cssText = inactiveStyle;
+            tabMonsters.style.cssText = inactiveStyle;
             tabUpgrade.style.cssText = inactiveStyle;
             tabSkilling.style.cssText = inactiveStyle;
 
             if (tab === 'configure') {
                 configureContent.style.display = 'flex';
                 tabConfigure.style.cssText = activeStyle;
-            } else if (tab === 'maxlevel') {
-                maxLevelContent.style.display = 'flex';
-                tabMaxLevel.style.cssText = activeStyle;
+            } else if (tab === 'monsters') {
+                monstersContent.style.display = 'flex';
+                tabMonsters.style.cssText = activeStyle;
                 this._populateLoadoutFilter();
                 this._populateMonsterFilter();
             } else if (tab === 'upgrade') {
@@ -28867,6 +28852,103 @@
         }
 
         /**
+         * Binary-search the highest room level where a per-level-optimized loadout still meets the
+         * win-rate threshold. Unlike findMaxLabyrinthLevel (which searches with one fixed loadout),
+         * this re-runs the ability/equipment optimizer at every level the search tries, since the
+         * best loadout for one level isn't necessarily the best loadout for another.
+         * @param {Object} params
+         * @param {Object} params.gameData
+         * @param {Object[]} params.playerDTOs - Base (un-optimized) player DTOs for this monster
+         * @param {string} params.zoneHrid
+         * @param {string} params.monsterHrid
+         * @param {string[]} params.crates
+         * @param {number} params.hours
+         * @param {Object} params.communityBuffs
+         * @param {Object} params.labyrinthCombatBuffs
+         * @param {number} params.threshold - Win rate threshold (0-1)
+         * @param {string} params.optimizeMode - 'abilities' | 'equipment' | 'everything'
+         * @param {number} [params.optimizeBudget]
+         * @param {number} [params.minLevel=1]
+         * @param {number} [params.maxLevel=300]
+         * @param {() => Function} [makeOptimizeProgress] - Returns a fresh per-call progress callback
+         * @returns {Promise<{maxLevel: number, winRate: number, optimized: Object|null}>}
+         * @private
+         */
+        async _findMaxLevelWithPerLevelOptimization(params, makeOptimizeProgress) {
+            const {
+                gameData,
+                playerDTOs,
+                zoneHrid,
+                monsterHrid,
+                crates,
+                hours,
+                communityBuffs,
+                labyrinthCombatBuffs,
+                threshold,
+                optimizeMode,
+                optimizeBudget,
+                minLevel = 1,
+                maxLevel = 300,
+            } = params;
+            const optimizer = this._pickOptimizer(optimizeMode);
+
+            let low = minLevel;
+            let high = maxLevel;
+            let best = { maxLevel: 0, winRate: 0, optimized: null };
+
+            while (low <= high) {
+                const mid = Math.floor((low + high) / 2);
+
+                const optimized = await optimizer(
+                    {
+                        playerDTOs,
+                        playerIndex: 0,
+                        gameData,
+                        monsterHrid,
+                        roomLevel: mid,
+                        crates,
+                        hours,
+                        communityBuffs,
+                        labyrinthCombatBuffs,
+                        budget: optimizeBudget,
+                    },
+                    makeOptimizeProgress?.()
+                );
+                const evalDTO = optimized
+                    ? {
+                          ...playerDTOs[0],
+                          ...(optimized.abilities ? { abilities: optimized.abilities } : {}),
+                          ...(optimized.equipment ? { equipment: optimized.equipment } : {}),
+                      }
+                    : playerDTOs[0];
+
+                const simResult = await runLabyrinthSimulation({
+                    gameData,
+                    playerDTOs: [evalDTO],
+                    zoneHrid,
+                    monsterHrid,
+                    roomLevel: mid,
+                    crates,
+                    hours,
+                    communityBuffs,
+                    labyrinthCombatBuffs,
+                });
+                const attempts = simResult.labyAttemptCount || 1;
+                const encounters = simResult.encounters || 0;
+                const winRate = encounters / attempts;
+
+                if (winRate >= threshold) {
+                    best = { maxLevel: mid, winRate, optimized };
+                    low = mid + 1;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            return best;
+        }
+
+        /**
          * Binary-search the max beatable level for every labyrinth monster, each simulated with the
          * loadout assigned to it in the Automation tab.
          * @private
@@ -28902,99 +28984,65 @@
                             monster.hrid
                         );
 
-                        const maxResult = await findMaxLabyrinthLevel({
-                            gameData,
-                            playerDTOs: monsterPlayerDTOs,
-                            zoneHrid,
-                            monsterHrid: monster.hrid,
-                            crates,
-                            simHours: hours,
-                            communityBuffs,
-                            labyrinthCombatBuffs,
-                            threshold,
-                            minLevel: 1,
-                        });
-
-                        let best = {
-                            maxLevel: maxResult.maxLevel,
-                            winRate: maxResult.winRate,
-                            steps: maxResult.steps,
-                            loadoutName,
-                        };
+                        let best;
 
                         if (optimizeMode === 'abilities' || optimizeMode === 'equipment' || optimizeMode === 'everything') {
                             if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
-                            // Rank at the best level found so far, or level 1 if even that failed the
-                            // threshold — a 0% mob can still improve, it just needs a valid room level
-                            // to sim against for the ranking pass.
-                            const optimizer = this._pickOptimizer(optimizeMode);
-                            const optimized = await optimizer(
+                            // Re-run the optimizer at every level the binary search tries, not just
+                            // once at the un-optimized max — a loadout optimized for level 100 isn't
+                            // necessarily optimal at level 130, so reusing one loadout across every
+                            // tested level can under- or over-report the true optimized max level.
+                            // This is slower (an optimizer pass per binary-search step instead of
+                            // one), but it's the only way "Find Max" + optimize actually finds the
+                            // max level achievable *with* per-level optimization.
+                            const optimizedSearch = await this._findMaxLevelWithPerLevelOptimization(
                                 {
-                                    playerDTOs: monsterPlayerDTOs,
-                                    playerIndex: 0,
                                     gameData,
+                                    playerDTOs: monsterPlayerDTOs,
+                                    zoneHrid,
                                     monsterHrid: monster.hrid,
-                                    roomLevel: Math.max(best.maxLevel, 1),
                                     crates,
                                     hours,
                                     communityBuffs,
                                     labyrinthCombatBuffs,
-                                    budget: optimizeBudget,
-                                },
-                                makeOptimizeProgress?.()
-                            );
-                            if (optimized) {
-                                const modifiedDTO = {
-                                    ...monsterPlayerDTOs[0],
-                                    ...(optimized.abilities ? { abilities: optimized.abilities } : {}),
-                                    ...(optimized.equipment ? { equipment: optimized.equipment } : {}),
-                                };
-                                const reMax = await findMaxLabyrinthLevel({
-                                    gameData,
-                                    playerDTOs: [modifiedDTO],
-                                    zoneHrid,
-                                    monsterHrid: monster.hrid,
-                                    crates,
-                                    simHours: hours,
-                                    communityBuffs,
-                                    labyrinthCombatBuffs,
                                     threshold,
+                                    optimizeMode,
+                                    optimizeBudget,
                                     minLevel: 1,
-                                });
-                                // When both are stuck at maxLevel 0, still adopt the swap if it raises
-                                // the win rate — it's the closest thing to progress to show.
-                                const improved =
-                                    reMax.maxLevel > best.maxLevel ||
-                                    (reMax.maxLevel === best.maxLevel && reMax.winRate > best.winRate);
-                                // Always report what optimization tried, even when it didn't help, so
-                                // the user can see it actually ran instead of silently doing nothing.
-                                best = improved
-                                    ? {
-                                          maxLevel: reMax.maxLevel,
-                                          winRate: reMax.winRate,
-                                          steps: reMax.steps,
-                                          loadoutName: this._formatOptimizedLoadoutName(
-                                              loadoutName,
-                                              optimizeMode,
-                                              optimized,
-                                              true
-                                          ),
-                                      }
-                                    : {
-                                          ...best,
-                                          loadoutName: this._formatOptimizedLoadoutName(
-                                              loadoutName,
-                                              optimizeMode,
-                                              optimized,
-                                              false
-                                          ),
-                                      };
-                            } else {
-                                best = {
-                                    ...best,
-                                    loadoutName: `${loadoutName} (no ${optimizeMode} optimization candidates found)`,
-                                };
-                            }
+                                },
+                                makeOptimizeProgress
+                            );
+
+                            best = optimizedSearch.optimized
+                                ? {
+                                      maxLevel: optimizedSearch.maxLevel,
+                                      winRate: optimizedSearch.winRate,
+                                      loadoutName: `${loadoutName}\n+ ${optimizedSearch.optimized.description}`,
+                                  }
+                                : {
+                                      maxLevel: optimizedSearch.maxLevel,
+                                      winRate: optimizedSearch.winRate,
+                                      loadoutName: `${loadoutName} (no ${optimizeMode} optimization candidates found)`,
+                                  };
+                        } else {
+                            const maxResult = await findMaxLabyrinthLevel({
+                                gameData,
+                                playerDTOs: monsterPlayerDTOs,
+                                zoneHrid,
+                                monsterHrid: monster.hrid,
+                                crates,
+                                simHours: hours,
+                                communityBuffs,
+                                labyrinthCombatBuffs,
+                                threshold,
+                                minLevel: 1,
+                            });
+                            best = {
+                                maxLevel: maxResult.maxLevel,
+                                winRate: maxResult.winRate,
+                                steps: maxResult.steps,
+                                loadoutName,
+                            };
                         }
 
                         results[index] = {
@@ -29493,18 +29541,6 @@
         }
 
         /** @private */
-        _getSkillingCrates() {
-            const crates = [];
-            const tea = this.panel?.querySelector('#mwi-labsim-skilling-tea')?.value;
-            const coffee = this.panel?.querySelector('#mwi-labsim-skilling-coffee')?.value;
-            const food = this.panel?.querySelector('#mwi-labsim-skilling-food')?.value;
-            if (tea) crates.push(tea);
-            if (coffee) crates.push(coffee);
-            if (food) crates.push(food);
-            return crates;
-        }
-
-        /** @private */
         async _renderSkillLoadoutTable() {
             const container = this.panel?.querySelector('#mwi-labsim-skilling-loadouts');
             if (!container) return;
@@ -29663,8 +29699,20 @@
                 return;
             }
 
-            const crateHrids = this._getSkillingCrates();
+            const crateHrids = this.getSelectedCrates();
             const skillEquipmentMap = this._buildSkillEquipmentMap(gameData);
+
+            if (this.panel.querySelector('#mwi-labsim-skilling-findmax')?.checked) {
+                const threshold =
+                    Math.min(
+                        100,
+                        Math.max(1, parseInt(this.panel.querySelector('#mwi-labsim-skilling-threshold')?.value) || 95)
+                    ) / 100;
+                const results = findMaxSkillingLevels(dto, crateHrids, gameData, skillEquipmentMap, threshold);
+                this._renderSkillingFindMaxResults(results, threshold);
+                return;
+            }
+
             const results = computeSkillingClearRatesFromEditor(roomLevel, dto, crateHrids, gameData, skillEquipmentMap);
             this._renderSkillingClearResults(results, roomLevel);
         }
@@ -29717,6 +29765,48 @@
             this._setStatus(`Skilling clear rates calculated for level ${roomLevel}.`);
         }
 
+        /**
+         * Render the per-skill "Find Max" results — highest room level at which each skill's clear
+         * chance is still >= threshold.
+         * @param {Array<Object>} results - From findMaxSkillingLevels()
+         * @param {number} threshold - Clear chance threshold used (0-1)
+         * @private
+         */
+        _renderSkillingFindMaxResults(results, threshold) {
+            const container = this.panel?.querySelector('#mwi-labsim-skilling-results');
+            if (!container) return;
+
+            const thStyle = 'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333; font-size:10px;';
+            const thLeftStyle = 'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333; font-size:10px;';
+            const tdStyle = 'padding:3px 4px; text-align:right; font-size:11px;';
+
+            let html = `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
+            Skilling Find Max Results — Clear ≥ ${(threshold * 100).toFixed(0)}%
+        </div>`;
+
+            html += '<table style="width:100%; border-collapse:collapse; font-size:11px;">';
+            html += `<thead><tr>
+            <th style="${thLeftStyle}">Skill</th>
+            <th style="${thStyle}">Base Level</th>
+            <th style="${thStyle}">Max Room Level</th>
+            <th style="${thStyle}">Clear at Max</th>
+        </tr></thead><tbody>`;
+
+            for (const r of results) {
+                const clearPct = ((r.clearChance || 0) * 100).toFixed(1);
+                html += `<tr style="border-bottom:1px solid #1a1a1a;">
+                <td style="padding:3px 4px; color:#e0e0e0;">${r.skillName}</td>
+                <td style="${tdStyle} color:#ccc;">${r.baseLevel}</td>
+                <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
+                <td style="${tdStyle} color:#ccc;">${clearPct}%</td>
+            </tr>`;
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+            this._setStatus(`Found max skilling room levels at ≥${(threshold * 100).toFixed(0)}% clear chance.`);
+        }
+
         /** @private */
         async _onSkillingUpgradeAnalyze() {
             const roomLevel = parseInt(this.panel.querySelector('#mwi-labsim-skilling-level')?.value) || 100;
@@ -29739,7 +29829,7 @@
                 return;
             }
 
-            const crateHrids = this._getSkillingCrates();
+            const crateHrids = this.getSelectedCrates();
             const skillEquipmentMap = this._buildSkillEquipmentMap(gameData);
             const targetSkill = this.panel.querySelector('#mwi-labsim-skilling-filter')?.value || null;
 
