@@ -53,6 +53,7 @@ const PRODUCTION_TYPES = [
     '/action_types/cheesesmithing',
     '/action_types/crafting',
     '/action_types/tailoring',
+    '/action_types/alchemy',
 ];
 
 /**
@@ -989,9 +990,29 @@ class CraftingPlanDisplay {
             const actionHrid = getActionHridFromPanel(panel);
             if (!actionHrid) return;
 
-            this.processedPanels.add(panel);
-            this._attachToPanel(panel, actionHrid);
+            this._tryAttach(panel, actionHrid);
         });
+    }
+
+    // buildPlanUI can fail on first open if game/market data hasn't finished loading yet.
+    // The DOM observer only re-fires on new nodes being inserted, not on an existing panel
+    // sitting idle, so a failed attach needs its own retry loop rather than waiting for
+    // another mutation event that may never come.
+    _tryAttach(panel, actionHrid, attempt = 0) {
+        const attached = this._attachToPanel(panel, actionHrid);
+        if (attached) {
+            this.processedPanels.add(panel);
+            return;
+        }
+
+        const MAX_ATTACH_RETRIES = 10;
+        if (attempt >= MAX_ATTACH_RETRIES) return;
+
+        const timeout = setTimeout(() => {
+            if (!panel.isConnected) return;
+            this._tryAttach(panel, actionHrid, attempt + 1);
+        }, 300);
+        timerRegistry.registerTimeout(timeout);
     }
 
     _attachToPanel(panel, actionHrid) {
@@ -1018,7 +1039,7 @@ class CraftingPlanDisplay {
         };
 
         const ui = buildPlanUI(actionHrid, rebuild, false, getActionCount());
-        if (!ui) return;
+        if (!ui) return false;
 
         // attachInputListeners also fires on any click within the panel (to catch
         // quick-input-button clicks), which would otherwise destroy/recreate this
@@ -1069,6 +1090,7 @@ class CraftingPlanDisplay {
         });
         obs.observe(observeTarget, { childList: true, subtree: true });
         this.panelObservers.set(panel, obs);
+        return true;
     }
 
     disable() {
