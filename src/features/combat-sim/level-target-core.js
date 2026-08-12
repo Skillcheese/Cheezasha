@@ -10,6 +10,7 @@
 
 import { runSimulation } from './combat-sim-runner.js';
 import { buildGameDataPayload } from './combat-sim-adapter.js';
+import dataManager from '../../core/data-manager.js';
 
 const ONE_HOUR_NS = 3600 * 1e9;
 const RUN_COUNT = 5;
@@ -91,7 +92,13 @@ export async function runLevelTargetAnalysis(params, onProgress) {
             continue;
         }
 
-        const currentLevelXp = levelXpTable[currentLevel] || 0;
+        // Use the player's actual accumulated XP within the current level when it's available and
+        // still matches the DTO's level (i.e. the DTO wasn't hand-edited to a hypothetical level),
+        // rather than assuming zero progress into the level — otherwise xpNeeded is overstated by
+        // however much XP the player already has banked toward the next level.
+        const liveSkill = dataManager.getSkills()?.find((s) => s.skillHrid === `/skills/${skillKey}`);
+        const currentLevelXp =
+            liveSkill && liveSkill.level === currentLevel ? liveSkill.experience : levelXpTable[currentLevel] || 0;
         const targetLevelXp = levelXpTable[targetLevel] || 0;
         const xpNeeded = Math.max(0, targetLevelXp - currentLevelXp);
 
