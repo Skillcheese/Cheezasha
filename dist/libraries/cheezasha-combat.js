@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.13.2
+ * Version: 3.14.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -15080,6 +15080,96 @@
     }
 
     /**
+     * Accuracy-type "specialization" options a lab sim optimizer search can be locked to, grouped by
+     * weapon category. Ranged only has one sub-style so it's not user-selectable as a restriction;
+     * melee (stab/slash/smash) and magic (fire/water/nature) each offer a real choice. Leaving
+     * specialization unset (null) means "try everything the equipped weapon's category allows",
+     * matching the optimizer's pre-existing default behavior.
+     */
+    const SPECIALIZATION_OPTIONS = {
+        melee: ['stab', 'slash', 'smash'],
+        magic: ['fire', 'water', 'nature'],
+    };
+
+    /**
+     * Get the elemental damage type (fire/water/nature) of a magic ability's damaging effect, if any.
+     * @param {Object} abilityDetail
+     * @returns {string|null}
+     */
+    function getAbilityElement(abilityDetail) {
+        for (const effect of abilityDetail.abilityEffects || []) {
+            if (effect.damageType && ELEMENTAL_DAMAGE_TYPE_LABELS[effect.damageType]) {
+                return effect.damageType.split('/').pop();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Whether an ability is allowed under a selected specialization (an exact melee sub-style or
+     * magic element). Abilities not tied to a specific sub-style/element (universal, physical,
+     * generic 'melee'/'magic') always pass — specialization only excludes abilities that actively
+     * belong to a *different* sub-style/element than the one chosen. A null/undefined specialization
+     * imposes no restriction.
+     * @param {string} abilityStyle - From getAbilityCombatStyle()
+     * @param {Object} abilityDetail
+     * @param {string|null} specialization - e.g. 'stab', 'fire', or null for "try everything"
+     * @returns {boolean}
+     */
+    function matchesAbilitySpecialization(abilityStyle, abilityDetail, specialization) {
+        if (!specialization) return true;
+
+        if (SPECIALIZATION_OPTIONS.melee.includes(specialization)) {
+            if (SPECIALIZATION_OPTIONS.melee.includes(abilityStyle)) return abilityStyle === specialization;
+            return true;
+        }
+
+        if (SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+            if (abilityStyle !== 'magic') return true;
+            const element = getAbilityElement(abilityDetail);
+            return !element || element === specialization;
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether an equipment item's combat stats are allowed under a selected specialization. Items
+     * with no stats in the specialization's style category always pass (e.g. pure defensive gear or
+     * off-hands with no melee/magic lean) — specialization only excludes items that actively lean a
+     * *different* melee sub-style or magic element than the one chosen.
+     * @param {Object} candidateStats - equipmentDetail.combatStats
+     * @param {string|null} specialization
+     * @returns {boolean}
+     */
+    function matchesEquipmentSpecialization(candidateStats, specialization) {
+        if (!specialization || !candidateStats) return true;
+
+        if (SPECIALIZATION_OPTIONS.melee.includes(specialization)) {
+            for (const style of SPECIALIZATION_OPTIONS.melee) {
+                if (style === specialization) continue;
+                const value = (candidateStats[`${style}Damage`] || 0) + (candidateStats[`${style}Accuracy`] || 0);
+                if (value > 0) return false;
+            }
+            return true;
+        }
+
+        if (SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+            const damageType = candidateStats.damageType;
+            if (damageType && ELEMENTAL_DAMAGE_TYPE_LABELS[damageType] && damageType.split('/').pop() !== specialization) {
+                return false;
+            }
+            for (const element of SPECIALIZATION_OPTIONS.magic) {
+                if (element === specialization) continue;
+                if ((candidateStats[`${element}Amplify`] || 0) > 0) return false;
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    /**
      * Calculate the gold cost of enhancing an item from startLevel to targetLevel.
      * Uses incremental cost approach: cost(0→target) - cost(0→start), matching
      * the tooltip's enhancement path calculation exactly.
@@ -15594,7 +15684,8 @@
         abilityLevelBudget = null,
         equipmentBudget = null,
         equipmentLevelBoost = 0,
-        abilityReorderEnabled = false
+        abilityReorderEnabled = false,
+        specialization = null
     ) {
         const candidates = [];
 
@@ -15658,6 +15749,7 @@
                         if (!meetsItemLevelRequirements(item.hrid, skillLevelMap, gameData)) continue;
                         const candidateStats = gameData.itemDetailMap[item.hrid]?.equipmentDetail?.combatStats;
                         if (!isStyleCompatible(weaponStats, candidateStats)) continue;
+                        if (!matchesEquipmentSpecialization(candidateStats, specialization)) continue;
 
                         seenHrids.add(item.hrid);
                         rawCandidates.push({ hrid: item.hrid, name: item.name, itemLevel: item.itemLevel || 0 });
@@ -15676,6 +15768,8 @@
                         if (!upgradeItem?.equipmentDetail) continue;
                         if (upgradeItem.equipmentDetail.type !== slot) continue;
                         if (!isStyleCompatible(weaponStats, upgradeItem.equipmentDetail?.combatStats)) continue;
+                        if (!matchesEquipmentSpecialization(upgradeItem.equipmentDetail?.combatStats, specialization))
+                            continue;
                         if (!meetsItemLevelRequirements(upgradeHrid, skillLevelMap, gameData)) continue;
 
                         seenHrids.add(upgradeHrid);
@@ -15729,6 +15823,7 @@
 
                         const style = getItemDamageStyle(eq.combatStats);
                         if (style !== damageStyle) continue;
+                        if (!matchesEquipmentSpecialization(eq.combatStats, specialization)) continue;
 
                         rawMainHands.push({ hrid: itemHrid, itemLevel: item.itemLevel || 0 });
                     }
@@ -15743,7 +15838,12 @@
                         // style-matched/highest-level options, not just a single "best" pick —
                         // different off-hands bring different utility stats worth simming).
                         const offHandCandidates = findBestOffHand(gameData, damageStyle, item.itemLevel || 999).filter(
-                            (oh) => meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData)
+                            (oh) =>
+                                meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData) &&
+                                matchesEquipmentSpecialization(
+                                    gameData.itemDetailMap[oh.hrid]?.equipmentDetail?.combatStats,
+                                    specialization
+                                )
                         );
                         if (!offHandCandidates.length) continue;
 
@@ -15791,6 +15891,7 @@
                         const style = getItemDamageStyle(eq.combatStats);
                         if (style !== damageStyle) continue;
                         if (getItemRole(eq.combatStats) === 'defensive') continue;
+                        if (!matchesEquipmentSpecialization(eq.combatStats, specialization)) continue;
                         if (!meetsItemLevelRequirements(itemHrid, skillLevelMap, gameData)) continue;
 
                         const twoHandName = item.name || itemHrid.split('/').pop();
@@ -15956,6 +16057,7 @@
 
                         const abStyle = getAbilityCombatStyle(abDetail);
                         if (!isAbilityCompatible(abStyle, playerStyle)) continue;
+                        if (!matchesAbilitySpecialization(abStyle, abDetail, specialization)) continue;
                         if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) continue;
 
                         const swapName = abDetail.name || abHrid.split('/').pop();
@@ -16453,6 +16555,7 @@
             labyrinthCombatBuffs,
             budget,
             poolSize = ABILITY_OPTIMIZE_POOL_SIZE,
+            specialization = null,
         } = params;
 
         const playerDTO = playerDTOs[playerIndex];
@@ -16521,6 +16624,7 @@
             }
             const abStyle = getAbilityCombatStyle(abDetail);
             if (!isAbilityCompatible(abStyle, playerStyle)) continue;
+            if (!matchesAbilitySpecialization(abStyle, abDetail, specialization)) continue;
             const entry = buildPoolEntry(abHrid, abDetail);
             (entry.isDamage ? damagePool : supportPool).push(entry);
         }
@@ -16711,6 +16815,7 @@
             labyrinthCombatBuffs,
             budget,
             poolSize,
+            specialization,
         } = params;
 
         const zoneHrid =
@@ -16724,9 +16829,18 @@
         const weaponSlot = basePlayerDTO.equipment['/equipment_types/two_hand'] ? 'two_hand' : 'main_hand';
         // Magic weapons share stats across elements (fire/water/nature) but aren't named after their
         // element, so the same ability combo can score differently depending which staff is worn —
-        // try every same-tier elemental variant and keep whichever performs best.
-        const elementalVariants = equippedWeaponHrid ? getElementalWeaponVariants(equippedWeaponHrid, gameData) : [];
-        const weaponRuns = elementalVariants.length > 1 ? elementalVariants : [null];
+        // try every same-tier elemental variant and keep whichever performs best. A magic
+        // specialization locks this down to just that one element instead of searching all three.
+        let elementalVariants = equippedWeaponHrid ? getElementalWeaponVariants(equippedWeaponHrid, gameData) : [];
+        if (specialization && SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+            elementalVariants = elementalVariants.filter((v) => v.damageType.split('/').pop() === specialization);
+        }
+        const weaponRuns =
+            elementalVariants.length > 1
+                ? elementalVariants
+                : elementalVariants.length === 1
+                  ? [elementalVariants[0]]
+                  : [null];
 
         let best = null;
         for (const variant of weaponRuns) {
@@ -16760,6 +16874,7 @@
                     labyrinthCombatBuffs,
                     budget,
                     poolSize,
+                    specialization,
                 },
                 (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
             );
@@ -16854,6 +16969,7 @@
             communityBuffs,
             labyrinthCombatBuffs,
             budget,
+            specialization,
         } = params;
 
         const zoneHrid =
@@ -16871,7 +16987,8 @@
             null,
             budget,
             0,
-            false
+            false,
+            specialization
         );
         if (!candidates.length) return null;
 
@@ -16997,6 +17114,7 @@
             labyrinthCombatBuffs,
             budget,
             poolSize,
+            specialization,
         } = params;
 
         const zoneHrid =
@@ -17055,6 +17173,7 @@
                     communityBuffs,
                     labyrinthCombatBuffs,
                     budget,
+                    specialization,
                 },
                 wrapProgress(stageLabel)
             );
@@ -17090,6 +17209,7 @@
                     labyrinthCombatBuffs,
                     budget,
                     poolSize,
+                    specialization,
                 },
                 wrapProgress(stageLabel)
             );
@@ -22539,7 +22659,13 @@
                 continue;
             }
 
-            const currentLevelXp = levelXpTable[currentLevel] || 0;
+            // Use the player's actual accumulated XP within the current level when it's available and
+            // still matches the DTO's level (i.e. the DTO wasn't hand-edited to a hypothetical level),
+            // rather than assuming zero progress into the level — otherwise xpNeeded is overstated by
+            // however much XP the player already has banked toward the next level.
+            const liveSkill = dataManager.getSkills()?.find((s) => s.skillHrid === `/skills/${skillKey}`);
+            const currentLevelXp =
+                liveSkill && liveSkill.level === currentLevel ? liveSkill.experience : levelXpTable[currentLevel] || 0;
             const targetLevelXp = levelXpTable[targetLevel] || 0;
             const xpNeeded = Math.max(0, targetLevelXp - currentLevelXp);
 
@@ -27996,6 +28122,22 @@
                 <label id="mwi-labsim-optimize-budget-label" style="color:#888; font-size:12px;">Budget (M)</label>
                 <input id="mwi-labsim-optimize-budget" type="number" min="0" step="0.1" placeholder="avg" title="Total coin budget (millions) to spend on the optimization. Leave blank to size against the average cost already invested." style="width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
             </span>
+            <span id="mwi-labsim-optimize-specialization-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;" title="Restrict the optimizer to a single accuracy type — stab/slash/smash for melee, fire/water/nature for magic. Ranged only has one, so it's not restrictable. Leave on Any to try every style the loadout's weapon supports.">Specialization</label>
+                <select id="mwi-labsim-optimize-specialization" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px;">
+                    <option value="">Any</option>
+                    <optgroup label="Melee">
+                        <option value="stab">Stab</option>
+                        <option value="slash">Slash</option>
+                        <option value="smash">Smash</option>
+                    </optgroup>
+                    <optgroup label="Magic">
+                        <option value="fire">Fire</option>
+                        <option value="water">Water</option>
+                        <option value="nature">Nature</option>
+                    </optgroup>
+                </select>
+            </span>
             <label style="color:#888; font-size:12px;" title="Only simulate/optimize monsters whose Automation-tab loadout assignment matches the selected loadout.">Loadout</label>
             <select id="mwi-labsim-loadout-filter" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; max-width:140px;">
                 <option value="">All Loadouts</option>
@@ -28292,6 +28434,8 @@
                 const budgetLabel = this.panel.querySelector('#mwi-labsim-optimize-budget-label');
                 budgetGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
                 budgetLabel.textContent = e.target.value === 'equipment' ? 'Max Cost (M)' : 'Budget (M)';
+                const specializationGroup = this.panel.querySelector('#mwi-labsim-optimize-specialization-group');
+                specializationGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
             });
 
             // Upgrade listeners
@@ -28652,6 +28796,7 @@
                 optimizeBudgetInput && parseFloat(optimizeBudgetInput) > 0
                     ? parseFloat(optimizeBudgetInput) * 1_000_000
                     : null;
+            const optimizeSpecialization = this.panel.querySelector('#mwi-labsim-optimize-specialization')?.value || null;
 
             const communityBuffs = getCommunityBuffs();
             const zones = getCombatZones();
@@ -28798,6 +28943,7 @@
                             threshold,
                             optimizeMode,
                             optimizeBudget,
+                            optimizeSpecialization,
                         },
                         onProgress,
                         makeOptimizeProgress,
@@ -28820,6 +28966,7 @@
                             labyrinthCombatBuffs,
                             optimizeMode,
                             optimizeBudget,
+                            optimizeSpecialization,
                         },
                         onProgress,
                         makeOptimizeProgress
@@ -28929,6 +29076,7 @@
                 labyrinthCombatBuffs,
                 optimizeMode,
                 optimizeBudget,
+                optimizeSpecialization,
             } = params;
             const total = monsters.length;
             let done = 0;
@@ -28994,6 +29142,7 @@
                                     communityBuffs,
                                     labyrinthCombatBuffs,
                                     budget: optimizeBudget,
+                                    specialization: optimizeSpecialization,
                                 },
                                 makeOptimizeProgress?.()
                             );
@@ -29102,6 +29251,7 @@
                 threshold,
                 optimizeMode,
                 optimizeBudget,
+                optimizeSpecialization,
                 minLevel = 1,
                 maxLevel = 300,
             } = params;
@@ -29131,6 +29281,7 @@
                         communityBuffs,
                         labyrinthCombatBuffs,
                         budget: optimizeBudget,
+                        specialization: optimizeSpecialization,
                     },
                     makeOptimizeProgress?.()
                 );
@@ -29192,6 +29343,7 @@
                 threshold,
                 optimizeMode,
                 optimizeBudget,
+                optimizeSpecialization,
             } = params;
             const total = monsters.length;
             let done = 0;
@@ -29234,6 +29386,7 @@
                                     threshold,
                                     optimizeMode,
                                     optimizeBudget,
+                                    optimizeSpecialization,
                                     minLevel: 1,
                                 },
                                 makeOptimizeProgress,
