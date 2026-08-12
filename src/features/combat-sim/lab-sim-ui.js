@@ -277,6 +277,22 @@ class LabSimUI {
                 <label id="mwi-labsim-optimize-budget-label" style="color:#888; font-size:12px;">Budget (M)</label>
                 <input id="mwi-labsim-optimize-budget" type="number" min="0" step="0.1" placeholder="avg" title="Total coin budget (millions) to spend on the optimization. Leave blank to size against the average cost already invested." style="width:56px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 4px; font-size:12px; text-align:center;">
             </span>
+            <span id="mwi-labsim-optimize-specialization-group" style="display:none; align-items:center; gap:4px;">
+                <label style="color:#888; font-size:12px;" title="Restrict the optimizer to a single accuracy type — stab/slash/smash for melee, fire/water/nature for magic. Ranged only has one, so it's not restrictable. Leave on Any to try every style the loadout's weapon supports.">Specialization</label>
+                <select id="mwi-labsim-optimize-specialization" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px;">
+                    <option value="">Any</option>
+                    <optgroup label="Melee">
+                        <option value="stab">Stab</option>
+                        <option value="slash">Slash</option>
+                        <option value="smash">Smash</option>
+                    </optgroup>
+                    <optgroup label="Magic">
+                        <option value="fire">Fire</option>
+                        <option value="water">Water</option>
+                        <option value="nature">Nature</option>
+                    </optgroup>
+                </select>
+            </span>
             <label style="color:#888; font-size:12px;" title="Only simulate/optimize monsters whose Automation-tab loadout assignment matches the selected loadout.">Loadout</label>
             <select id="mwi-labsim-loadout-filter" style="background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; max-width:140px;">
                 <option value="">All Loadouts</option>
@@ -573,6 +589,8 @@ class LabSimUI {
             const budgetLabel = this.panel.querySelector('#mwi-labsim-optimize-budget-label');
             budgetGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
             budgetLabel.textContent = e.target.value === 'equipment' ? 'Max Cost (M)' : 'Budget (M)';
+            const specializationGroup = this.panel.querySelector('#mwi-labsim-optimize-specialization-group');
+            specializationGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
         });
 
         // Upgrade listeners
@@ -933,6 +951,7 @@ class LabSimUI {
             optimizeBudgetInput && parseFloat(optimizeBudgetInput) > 0
                 ? parseFloat(optimizeBudgetInput) * 1_000_000
                 : null;
+        const optimizeSpecialization = this.panel.querySelector('#mwi-labsim-optimize-specialization')?.value || null;
 
         const communityBuffs = getCommunityBuffs();
         const zones = getCombatZones();
@@ -1079,6 +1098,7 @@ class LabSimUI {
                         threshold,
                         optimizeMode,
                         optimizeBudget,
+                        optimizeSpecialization,
                     },
                     onProgress,
                     makeOptimizeProgress,
@@ -1101,6 +1121,7 @@ class LabSimUI {
                         labyrinthCombatBuffs,
                         optimizeMode,
                         optimizeBudget,
+                        optimizeSpecialization,
                     },
                     onProgress,
                     makeOptimizeProgress
@@ -1210,6 +1231,7 @@ class LabSimUI {
             labyrinthCombatBuffs,
             optimizeMode,
             optimizeBudget,
+            optimizeSpecialization,
         } = params;
         const total = monsters.length;
         let done = 0;
@@ -1275,6 +1297,7 @@ class LabSimUI {
                                 communityBuffs,
                                 labyrinthCombatBuffs,
                                 budget: optimizeBudget,
+                                specialization: optimizeSpecialization,
                             },
                             makeOptimizeProgress?.()
                         );
@@ -1383,6 +1406,7 @@ class LabSimUI {
             threshold,
             optimizeMode,
             optimizeBudget,
+            optimizeSpecialization,
             minLevel = 1,
             maxLevel = 300,
         } = params;
@@ -1412,6 +1436,7 @@ class LabSimUI {
                     communityBuffs,
                     labyrinthCombatBuffs,
                     budget: optimizeBudget,
+                    specialization: optimizeSpecialization,
                 },
                 makeOptimizeProgress?.()
             );
@@ -1473,6 +1498,7 @@ class LabSimUI {
             threshold,
             optimizeMode,
             optimizeBudget,
+            optimizeSpecialization,
         } = params;
         const total = monsters.length;
         let done = 0;
@@ -1515,6 +1541,7 @@ class LabSimUI {
                                 threshold,
                                 optimizeMode,
                                 optimizeBudget,
+                                optimizeSpecialization,
                                 minLevel: 1,
                             },
                             makeOptimizeProgress,

@@ -508,6 +508,96 @@ function isAbilityCompatible(abilityStyle, weaponStyle) {
 }
 
 /**
+ * Accuracy-type "specialization" options a lab sim optimizer search can be locked to, grouped by
+ * weapon category. Ranged only has one sub-style so it's not user-selectable as a restriction;
+ * melee (stab/slash/smash) and magic (fire/water/nature) each offer a real choice. Leaving
+ * specialization unset (null) means "try everything the equipped weapon's category allows",
+ * matching the optimizer's pre-existing default behavior.
+ */
+export const SPECIALIZATION_OPTIONS = {
+    melee: ['stab', 'slash', 'smash'],
+    magic: ['fire', 'water', 'nature'],
+};
+
+/**
+ * Get the elemental damage type (fire/water/nature) of a magic ability's damaging effect, if any.
+ * @param {Object} abilityDetail
+ * @returns {string|null}
+ */
+function getAbilityElement(abilityDetail) {
+    for (const effect of abilityDetail.abilityEffects || []) {
+        if (effect.damageType && ELEMENTAL_DAMAGE_TYPE_LABELS[effect.damageType]) {
+            return effect.damageType.split('/').pop();
+        }
+    }
+    return null;
+}
+
+/**
+ * Whether an ability is allowed under a selected specialization (an exact melee sub-style or
+ * magic element). Abilities not tied to a specific sub-style/element (universal, physical,
+ * generic 'melee'/'magic') always pass — specialization only excludes abilities that actively
+ * belong to a *different* sub-style/element than the one chosen. A null/undefined specialization
+ * imposes no restriction.
+ * @param {string} abilityStyle - From getAbilityCombatStyle()
+ * @param {Object} abilityDetail
+ * @param {string|null} specialization - e.g. 'stab', 'fire', or null for "try everything"
+ * @returns {boolean}
+ */
+function matchesAbilitySpecialization(abilityStyle, abilityDetail, specialization) {
+    if (!specialization) return true;
+
+    if (SPECIALIZATION_OPTIONS.melee.includes(specialization)) {
+        if (SPECIALIZATION_OPTIONS.melee.includes(abilityStyle)) return abilityStyle === specialization;
+        return true;
+    }
+
+    if (SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+        if (abilityStyle !== 'magic') return true;
+        const element = getAbilityElement(abilityDetail);
+        return !element || element === specialization;
+    }
+
+    return true;
+}
+
+/**
+ * Whether an equipment item's combat stats are allowed under a selected specialization. Items
+ * with no stats in the specialization's style category always pass (e.g. pure defensive gear or
+ * off-hands with no melee/magic lean) — specialization only excludes items that actively lean a
+ * *different* melee sub-style or magic element than the one chosen.
+ * @param {Object} candidateStats - equipmentDetail.combatStats
+ * @param {string|null} specialization
+ * @returns {boolean}
+ */
+function matchesEquipmentSpecialization(candidateStats, specialization) {
+    if (!specialization || !candidateStats) return true;
+
+    if (SPECIALIZATION_OPTIONS.melee.includes(specialization)) {
+        for (const style of SPECIALIZATION_OPTIONS.melee) {
+            if (style === specialization) continue;
+            const value = (candidateStats[`${style}Damage`] || 0) + (candidateStats[`${style}Accuracy`] || 0);
+            if (value > 0) return false;
+        }
+        return true;
+    }
+
+    if (SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+        const damageType = candidateStats.damageType;
+        if (damageType && ELEMENTAL_DAMAGE_TYPE_LABELS[damageType] && damageType.split('/').pop() !== specialization) {
+            return false;
+        }
+        for (const element of SPECIALIZATION_OPTIONS.magic) {
+            if (element === specialization) continue;
+            if ((candidateStats[`${element}Amplify`] || 0) > 0) return false;
+        }
+        return true;
+    }
+
+    return true;
+}
+
+/**
  * Calculate the gold cost of enhancing an item from startLevel to targetLevel.
  * Uses incremental cost approach: cost(0→target) - cost(0→start), matching
  * the tooltip's enhancement path calculation exactly.
@@ -1022,7 +1112,8 @@ export function generateCandidates(
     abilityLevelBudget = null,
     equipmentBudget = null,
     equipmentLevelBoost = 0,
-    abilityReorderEnabled = false
+    abilityReorderEnabled = false,
+    specialization = null
 ) {
     const candidates = [];
 
@@ -1086,6 +1177,7 @@ export function generateCandidates(
                     if (!meetsItemLevelRequirements(item.hrid, skillLevelMap, gameData)) continue;
                     const candidateStats = gameData.itemDetailMap[item.hrid]?.equipmentDetail?.combatStats;
                     if (!isStyleCompatible(weaponStats, candidateStats)) continue;
+                    if (!matchesEquipmentSpecialization(candidateStats, specialization)) continue;
 
                     seenHrids.add(item.hrid);
                     rawCandidates.push({ hrid: item.hrid, name: item.name, itemLevel: item.itemLevel || 0 });
@@ -1104,6 +1196,8 @@ export function generateCandidates(
                     if (!upgradeItem?.equipmentDetail) continue;
                     if (upgradeItem.equipmentDetail.type !== slot) continue;
                     if (!isStyleCompatible(weaponStats, upgradeItem.equipmentDetail?.combatStats)) continue;
+                    if (!matchesEquipmentSpecialization(upgradeItem.equipmentDetail?.combatStats, specialization))
+                        continue;
                     if (!meetsItemLevelRequirements(upgradeHrid, skillLevelMap, gameData)) continue;
 
                     seenHrids.add(upgradeHrid);
@@ -1157,6 +1251,7 @@ export function generateCandidates(
 
                     const style = getItemDamageStyle(eq.combatStats);
                     if (style !== damageStyle) continue;
+                    if (!matchesEquipmentSpecialization(eq.combatStats, specialization)) continue;
 
                     rawMainHands.push({ hrid: itemHrid, itemLevel: item.itemLevel || 0 });
                 }
@@ -1171,7 +1266,12 @@ export function generateCandidates(
                     // style-matched/highest-level options, not just a single "best" pick —
                     // different off-hands bring different utility stats worth simming).
                     const offHandCandidates = findBestOffHand(gameData, damageStyle, item.itemLevel || 999).filter(
-                        (oh) => meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData)
+                        (oh) =>
+                            meetsItemLevelRequirements(oh.hrid, skillLevelMap, gameData) &&
+                            matchesEquipmentSpecialization(
+                                gameData.itemDetailMap[oh.hrid]?.equipmentDetail?.combatStats,
+                                specialization
+                            )
                     );
                     if (!offHandCandidates.length) continue;
 
@@ -1219,6 +1319,7 @@ export function generateCandidates(
                     const style = getItemDamageStyle(eq.combatStats);
                     if (style !== damageStyle) continue;
                     if (getItemRole(eq.combatStats) === 'defensive') continue;
+                    if (!matchesEquipmentSpecialization(eq.combatStats, specialization)) continue;
                     if (!meetsItemLevelRequirements(itemHrid, skillLevelMap, gameData)) continue;
 
                     const twoHandName = item.name || itemHrid.split('/').pop();
@@ -1384,6 +1485,7 @@ export function generateCandidates(
 
                     const abStyle = getAbilityCombatStyle(abDetail);
                     if (!isAbilityCompatible(abStyle, playerStyle)) continue;
+                    if (!matchesAbilitySpecialization(abStyle, abDetail, specialization)) continue;
                     if (!meetsAbilityBookRequirements(abHrid, skillLevelMap, gameData)) continue;
 
                     const swapName = abDetail.name || abHrid.split('/').pop();
@@ -1881,6 +1983,7 @@ async function generateLabyrinthAbilityOptimizeCandidates(params, onProgress) {
         labyrinthCombatBuffs,
         budget,
         poolSize = ABILITY_OPTIMIZE_POOL_SIZE,
+        specialization = null,
     } = params;
 
     const playerDTO = playerDTOs[playerIndex];
@@ -1949,6 +2052,7 @@ async function generateLabyrinthAbilityOptimizeCandidates(params, onProgress) {
         }
         const abStyle = getAbilityCombatStyle(abDetail);
         if (!isAbilityCompatible(abStyle, playerStyle)) continue;
+        if (!matchesAbilitySpecialization(abStyle, abDetail, specialization)) continue;
         const entry = buildPoolEntry(abHrid, abDetail);
         (entry.isDamage ? damagePool : supportPool).push(entry);
     }
@@ -2139,6 +2243,7 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
         labyrinthCombatBuffs,
         budget,
         poolSize,
+        specialization,
     } = params;
 
     const zoneHrid =
@@ -2152,9 +2257,18 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
     const weaponSlot = basePlayerDTO.equipment['/equipment_types/two_hand'] ? 'two_hand' : 'main_hand';
     // Magic weapons share stats across elements (fire/water/nature) but aren't named after their
     // element, so the same ability combo can score differently depending which staff is worn —
-    // try every same-tier elemental variant and keep whichever performs best.
-    const elementalVariants = equippedWeaponHrid ? getElementalWeaponVariants(equippedWeaponHrid, gameData) : [];
-    const weaponRuns = elementalVariants.length > 1 ? elementalVariants : [null];
+    // try every same-tier elemental variant and keep whichever performs best. A magic
+    // specialization locks this down to just that one element instead of searching all three.
+    let elementalVariants = equippedWeaponHrid ? getElementalWeaponVariants(equippedWeaponHrid, gameData) : [];
+    if (specialization && SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+        elementalVariants = elementalVariants.filter((v) => v.damageType.split('/').pop() === specialization);
+    }
+    const weaponRuns =
+        elementalVariants.length > 1
+            ? elementalVariants
+            : elementalVariants.length === 1
+              ? [elementalVariants[0]]
+              : [null];
 
     let best = null;
     for (const variant of weaponRuns) {
@@ -2188,6 +2302,7 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                 labyrinthCombatBuffs,
                 budget,
                 poolSize,
+                specialization,
             },
             (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
         );
@@ -2282,6 +2397,7 @@ export async function optimizeLabyrinthEquipment(params, onProgress) {
         communityBuffs,
         labyrinthCombatBuffs,
         budget,
+        specialization,
     } = params;
 
     const zoneHrid =
@@ -2299,7 +2415,8 @@ export async function optimizeLabyrinthEquipment(params, onProgress) {
         null,
         budget,
         0,
-        false
+        false,
+        specialization
     );
     if (!candidates.length) return null;
 
@@ -2425,6 +2542,7 @@ export async function optimizeLabyrinthEverything(params, onProgress) {
         labyrinthCombatBuffs,
         budget,
         poolSize,
+        specialization,
     } = params;
 
     const zoneHrid =
@@ -2483,6 +2601,7 @@ export async function optimizeLabyrinthEverything(params, onProgress) {
                 communityBuffs,
                 labyrinthCombatBuffs,
                 budget,
+                specialization,
             },
             wrapProgress(stageLabel)
         );
@@ -2518,6 +2637,7 @@ export async function optimizeLabyrinthEverything(params, onProgress) {
                 labyrinthCombatBuffs,
                 budget,
                 poolSize,
+                specialization,
             },
             wrapProgress(stageLabel)
         );
