@@ -951,7 +951,7 @@ if (isCombatSimulatorPage()) {
     // Expose minimal user-facing API
     const targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
 
-    targetWindow.Cheezasha.version = '3.13.2';
+    targetWindow.Cheezasha.version = '3.14.0';
 
     // Feature toggle API (for users to manage settings via console)
     targetWindow.Cheezasha.features = {

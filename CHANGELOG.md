@@ -2,16 +2,14 @@
 
 ## [3.14.0](https://github.com/Skillcheese/Cheezasha/compare/v3.13.2...v3.14.0) (2026-08-12)
 
-
 ### Features
 
-* add accuracy-type specialization filter to lab sim optimizer ([afe25b6](https://github.com/Skillcheese/Cheezasha/commit/afe25b6f8c78b1f5e77bf512f4b762b8f2126da2))
-
+- add accuracy-type specialization filter to lab sim optimizer ([afe25b6](https://github.com/Skillcheese/Cheezasha/commit/afe25b6f8c78b1f5e77bf512f4b762b8f2126da2))
 
 ### Bug Fixes
 
-* account for banked XP toward current level in combat sim level goal ([f6f2b87](https://github.com/Skillcheese/Cheezasha/commit/f6f2b870fb72af52b83d55d6069aefc369af3667))
-* retry crafting plan attach and support alchemy action panels ([210c4f4](https://github.com/Skillcheese/Cheezasha/commit/210c4f45ea96863a49ec5c4af57ba72714de46f3))
+- account for banked XP toward current level in combat sim level goal ([f6f2b87](https://github.com/Skillcheese/Cheezasha/commit/f6f2b870fb72af52b83d55d6069aefc369af3667))
+- retry crafting plan attach and support alchemy action panels ([210c4f4](https://github.com/Skillcheese/Cheezasha/commit/210c4f45ea96863a49ec5c4af57ba72714de46f3))
 
 ## [3.13.2](https://github.com/Skillcheese/Cheezasha/compare/v3.13.1...v3.13.2) (2026-08-10)
 
