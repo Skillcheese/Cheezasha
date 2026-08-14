@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.14.1
+ * Version: 3.14.2
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -5809,7 +5809,7 @@ ${starCSS}
      * - Equipment speed bonuses
      * - Efficiency buffs (level, house, tea, equipment)
      * - Gourmet tea bonus items (production skills only)
-     * - Market tax (2%)
+     * - Market tax
      */
 
 
@@ -6097,7 +6097,7 @@ ${starCSS}
             processingConversions.some((conversion) => conversion.missingPrice) ||
             (bonusRevenue?.hasMissingPrices ?? false);
 
-        // Calculate market tax (2% of gross revenue)
+        // Calculate market tax
         const marketTax = revenuePerHour * profitConstants_js.MARKET_TAX;
 
         // Calculate net profit (revenue - market tax - drink costs)
@@ -16485,9 +16485,8 @@ ${starCSS}
         const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
         totalRevenue += efficiencyBoostedBonusRevenue;
 
-        // Apply market tax (2%)
-        const MARKET_TAX = 0.02;
-        const profitPerHour = totalRevenue * (1 - MARKET_TAX);
+        // Apply market tax
+        const profitPerHour = totalRevenue * (1 - profitConstants_js.MARKET_TAX);
 
         return profitPerHour;
     }
@@ -16586,10 +16585,9 @@ ${starCSS}
         const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
         const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
-        // Apply market tax (2%) to revenue portion only (including bonus revenue)
-        const MARKET_TAX = 0.02;
+        // Apply market tax to revenue portion only (including bonus revenue)
         const revenuePerHour = actionsPerHour * outputRevenue * efficiencyMultiplier;
-        const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * MARKET_TAX;
+        const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * profitConstants_js.MARKET_TAX;
         const netProfitPerHour = grossProfitPerHour + efficiencyBoostedBonusRevenue - marketTax;
 
         return netProfitPerHour;
@@ -39685,7 +39683,7 @@ ${starCSS}
             }
 
             // Calculate sell → rebuy scenario
-            const SELLER_TAX = 0.02;
+            const SELLER_TAX = profitConstants_js.MARKET_TAX;
             const sellPrice = selectedRow.buyPrice; // bid price = what market will buy at
             const directCredits = batches * selectedRow.creditCount;
 
@@ -39711,7 +39709,7 @@ ${starCSS}
 
             advisor.style.borderColor = creditDiff > 0 ? 'rgba(74,222,128,0.3)' : 'rgba(255,107,107,0.3)';
             advisor.innerHTML = `
-            <div style="color:#9ca3af; margin-bottom:6px; font-size:11px;">Sell → rebuy best item (2% tax)</div>
+            <div style="color:#9ca3af; margin-bottom:6px; font-size:11px;">Sell → rebuy best item (${profitConstants_js.MARKET_TAX * 100}% tax)</div>
             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                 <span style="color:#aaa;">Direct exchange</span>
                 <span style="color:#e0e0e0; font-weight:600;">${directCredits.toLocaleString()} credits</span>

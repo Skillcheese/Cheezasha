@@ -1,11 +1,11 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.14.1
+ * Version: 3.14.2
  * License: CC-BY-NC-SA-4.0
  */
 
-(function (config, dataManager, domObserver, webSocketHook, storage, timerRegistry_js, domObserverHelpers_js, formatters_js, marketAPI, expectedValueCalculator, reactInput_js, enhancementMultipliers_js, profitHelpers_js, marketData_js, enhancementCalculator_js, enhancementConfig_js, teaParser_js, abilityCostCalculator_js, equipmentParser_js, efficiency_js, experienceParser_js, bonusRevenueCalculator_js, alchemyProfitCalculator, dom, houseCostCalculator_js) {
+(function (config, dataManager, domObserver, webSocketHook, storage, timerRegistry_js, domObserverHelpers_js, formatters_js, marketAPI, expectedValueCalculator, reactInput_js, enhancementMultipliers_js, profitHelpers_js, marketData_js, enhancementCalculator_js, enhancementConfig_js, teaParser_js, abilityCostCalculator_js, equipmentParser_js, efficiency_js, experienceParser_js, profitConstants_js, bonusRevenueCalculator_js, alchemyProfitCalculator, dom, houseCostCalculator_js) {
     'use strict';
 
     /**
@@ -21039,9 +21039,8 @@
         const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
         totalRevenue += efficiencyBoostedBonusRevenue;
 
-        // Apply market tax (2%)
-        const MARKET_TAX = 0.02;
-        const profitPerHour = totalRevenue * (1 - MARKET_TAX);
+        // Apply market tax
+        const profitPerHour = totalRevenue * (1 - profitConstants_js.MARKET_TAX);
 
         return profitPerHour;
     }
@@ -21140,10 +21139,9 @@
         const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
         const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
-        // Apply market tax (2%) to revenue portion only (including bonus revenue)
-        const MARKET_TAX = 0.02;
+        // Apply market tax to revenue portion only (including bonus revenue)
         const revenuePerHour = actionsPerHour * outputRevenue * efficiencyMultiplier;
-        const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * MARKET_TAX;
+        const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * profitConstants_js.MARKET_TAX;
         const netProfitPerHour = grossProfitPerHour + efficiencyBoostedBonusRevenue - marketTax;
 
         return netProfitPerHour;
@@ -36643,4 +36641,4 @@ self.onmessage = function (e) {
 
     console.log('[Cheezasha] Combat library loaded');
 
-})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.domObserver, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Utils.timerRegistry, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.formatters, Cheezasha.Core.marketAPI, Cheezasha.Market.expectedValueCalculator, Cheezasha.Utils.reactInput, Cheezasha.Utils.enhancementMultipliers, Cheezasha.Utils.profitHelpers, Cheezasha.Utils.marketData, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.teaParser, Cheezasha.Utils.abilityCalc, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.efficiency, Cheezasha.Utils.experienceParser, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Market.alchemyProfitCalculator, Cheezasha.Utils.dom, Cheezasha.Utils.houseCostCalculator);
+})(Cheezasha.Core.config, Cheezasha.Core.dataManager, Cheezasha.Core.domObserver, Cheezasha.Core.webSocketHook, Cheezasha.Core.storage, Cheezasha.Utils.timerRegistry, Cheezasha.Utils.domObserverHelpers, Cheezasha.Utils.formatters, Cheezasha.Core.marketAPI, Cheezasha.Market.expectedValueCalculator, Cheezasha.Utils.reactInput, Cheezasha.Utils.enhancementMultipliers, Cheezasha.Utils.profitHelpers, Cheezasha.Utils.marketData, Cheezasha.Utils.enhancementCalculator, Cheezasha.Utils.enhancementConfig, Cheezasha.Utils.teaParser, Cheezasha.Utils.abilityCalc, Cheezasha.Utils.equipmentParser, Cheezasha.Utils.efficiency, Cheezasha.Utils.experienceParser, Cheezasha.Utils.profitConstants, Cheezasha.Utils.bonusRevenueCalculator, Cheezasha.Market.alchemyProfitCalculator, Cheezasha.Utils.dom, Cheezasha.Utils.houseCostCalculator);

@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.14.1
+ * Version: 3.14.2
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -1262,7 +1262,7 @@
             const outputPriceEstimated = outputPriceMissing && craftingFallback > 0;
             const outputPrice = outputPriceMissing ? craftingFallback : resolvedOutputPrice.price;
 
-            // Apply market tax (2% tax on sales)
+            // Apply market tax
             const priceAfterTax = profitHelpers_js.calculatePriceAfterTax(outputPrice);
 
             // Cost per item (without efficiency scaling)
@@ -1297,7 +1297,7 @@
             // Apply efficiency multiplier to bonus revenue (efficiency repeats the action, including bonus rolls)
             const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
-            // Calculate market tax (2% of gross revenue including bonus revenue)
+            // Calculate market tax (of gross revenue including bonus revenue)
             const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * profitConstants_js.MARKET_TAX;
 
             // Total costs per hour (materials + teas + market tax)
@@ -1335,7 +1335,7 @@
                 outputPrice, // Output price before tax (bid or ask based on mode)
                 outputPriceMissing,
                 outputPriceEstimated, // True when outputPriceMissing but crafting cost fallback resolved a price
-                priceAfterTax, // Output price after 2% tax (bid or ask based on mode)
+                priceAfterTax, // Output price after market tax (bid or ask based on mode)
                 revenuePerHour,
                 profitPerItem,
                 profitPerHour,
@@ -1967,7 +1967,7 @@ self.onmessage = function (e) {
     class ExpectedValueCalculator {
         constructor() {
             // Constants
-            this.MARKET_TAX = 0.02; // 2% marketplace tax
+            this.MARKET_TAX = profitConstants_js.MARKET_TAX;
             this.CONVERGENCE_ITERATIONS = 4; // Nested container convergence
 
             // Cache for container EVs
@@ -3743,7 +3743,7 @@ self.onmessage = function (e) {
      * - Equipment speed bonuses
      * - Efficiency buffs (level, house, tea, equipment)
      * - Gourmet tea bonus items (production skills only)
-     * - Market tax (2%)
+     * - Market tax
      */
 
 
@@ -4031,7 +4031,7 @@ self.onmessage = function (e) {
             processingConversions.some((conversion) => conversion.missingPrice) ||
             (bonusRevenue?.hasMissingPrices ?? false);
 
-        // Calculate market tax (2% of gross revenue)
+        // Calculate market tax
         const marketTax = revenuePerHour * profitConstants_js.MARKET_TAX;
 
         // Calculate net profit (revenue - market tax - drink costs)
@@ -9296,7 +9296,7 @@ self.onmessage = function (e) {
             if (filledQuantity === orderQuantity) {
                 return isSell ? unclaimedCoinCount : unclaimedItemCount * price;
             }
-            const taxRate = isSell ? (itemHrid === '/items/bag_of_10_cowbells' ? 0.18 : 0.02) : 0;
+            const taxRate = isSell ? (itemHrid === profitConstants_js.COWBELL_BAG_HRID ? profitConstants_js.COWBELL_BAG_TAX : profitConstants_js.MARKET_TAX) : 0;
             return (orderQuantity - filledQuantity) * Math.floor(profitHelpers_js.calculatePriceAfterTax(price, taxRate));
         }
 
@@ -9955,7 +9955,7 @@ self.onmessage = function (e) {
                         continue;
                     }
 
-                    const tax = listing.itemHrid === '/items/bag_of_10_cowbells' ? 0.82 : 0.98;
+                    const tax = listing.itemHrid === profitConstants_js.COWBELL_BAG_HRID ? 1 - profitConstants_js.COWBELL_BAG_TAX : 1 - profitConstants_js.MARKET_TAX;
                     const remainingQuantity = Math.max(0, listing.orderQuantity - listing.filledQuantity);
 
                     if (remainingQuantity > 0) {
@@ -14947,6 +14947,7 @@ self.onmessage = function (e) {
             this.closeHandler = null;
             this.pendingQuantity = null;
             this.addMode = false;
+            this.awaitingOwnSellNow = false;
         }
 
         /**
@@ -15221,6 +15222,7 @@ self.onmessage = function (e) {
             try {
                 switch (actionType) {
                     case 'sell':
+                        this.awaitingOwnSellNow = true;
                         await this.clickInstantActionButton('Sell');
                         break;
                     case 'buy':
@@ -15235,6 +15237,7 @@ self.onmessage = function (e) {
                 }
             } catch {
                 // Instant sell/buy failed (no matching orders) — fall back to listing form
+                this.awaitingOwnSellNow = false;
                 if (actionType === 'sell') {
                     await this.clickListingButton('+ New Sell Listing', 'Button_sell').catch(() => {});
                 } else if (actionType === 'buy') {
@@ -15316,16 +15319,21 @@ self.onmessage = function (e) {
          * Fix the "Sell Now" instant modal defaulting its price to the top of the
          * tradable range, where 0 quantity is available, instead of the best bid.
          * Reads the real bid order book (still rendered behind the modal) to find
-         * the exact price needed to cover the full desired quantity, then dials
-         * the price control to that value — no guessing.
+         * the current best (highest) bid price, then dials the price control to
+         * match it — no guessing.
          * @param {HTMLElement} modal - Modal container element
          */
         async adjustSellNowPrice(modal) {
             const header = modal.querySelector('div[class*="MarketplacePanel_header"]');
             if (!header || header.textContent.trim() !== 'Sell Now') return;
 
-            const desiredQty = this.pendingQuantity || 1;
-            const targetPrice = this.findFillPriceFromOrderBook('Bid', desiredQty);
+            // Only override the price when this modal was opened via our own "Sell Now" dropdown
+            // action. A native click on a specific order-book row already sets the correct price
+            // for that row and must be left alone.
+            if (!this.awaitingOwnSellNow) return;
+            this.awaitingOwnSellNow = false;
+
+            const targetPrice = this.findFillPriceFromOrderBook('Bid', 1);
             if (targetPrice === null) return;
 
             await new Promise((r) => setTimeout(r, 50));
@@ -15348,12 +15356,29 @@ self.onmessage = function (e) {
             minBtn.click();
             await wait(80);
 
-            // Step up from the floor to the known target price (fixed increment per click).
-            for (let i = 0; i < 200; i++) {
+            const floor = getPrice();
+            if (Number.isNaN(floor) || floor >= targetPrice) return;
+
+            // Determine the step size by clicking + once, then fire the remaining clicks
+            // back-to-back (the UI handles rapid clicks fine, no per-click wait needed).
+            plusBtn.click();
+            await wait(50);
+            const afterOneClick = getPrice();
+            const step = afterOneClick - floor;
+            if (!Number.isFinite(step) || step <= 0) return;
+
+            const remainingClicks = Math.round((targetPrice - afterOneClick) / step);
+            for (let i = 0; i < remainingClicks && !plusBtn.disabled; i++) {
+                plusBtn.click();
+            }
+            await wait(50);
+
+            // Correct any rounding drift by nudging with individual clicks.
+            for (let i = 0; i < 5; i++) {
                 const current = getPrice();
                 if (Number.isNaN(current) || current >= targetPrice || plusBtn.disabled) break;
                 plusBtn.click();
-                await wait(25);
+                await wait(30);
             }
         }
 
@@ -20116,8 +20141,8 @@ self.onmessage = function (e) {
 
             if (listing.isSell) {
                 // Selling: value is locked in listing + unclaimed coins
-                // Apply marketplace fee (2% for normal items, 18% for cowbells)
-                const fee = listing.itemHrid === '/items/bag_of_10_cowbells' ? 0.18 : 0.02;
+                // Apply marketplace fee (18% for cowbells, standard market tax otherwise)
+                const fee = listing.itemHrid === profitConstants_js.COWBELL_BAG_HRID ? profitConstants_js.COWBELL_BAG_TAX : profitConstants_js.MARKET_TAX;
 
                 const value = await calculateItemValue(
                     { itemHrid: listing.itemHrid, enhancementLevel, count: quantity },

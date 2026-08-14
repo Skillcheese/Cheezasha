@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.14.1
+ * Version: 3.14.2
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -1252,7 +1252,7 @@
                     label: 'Show effective (after-tax) prices',
                     type: 'checkbox',
                     default: false,
-                    help: 'Shows what you actually receive after the 2% marketplace tax next to ask/bid prices in item tooltips',
+                    help: 'Shows what you actually receive after the marketplace tax next to ask/bid prices in item tooltips',
                 },
                 itemTooltip_artisanPrices: {
                     id: 'itemTooltip_artisanPrices',
