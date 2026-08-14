@@ -528,7 +528,7 @@ export const settingsGroups = {
                 label: 'Show effective (after-tax) prices',
                 type: 'checkbox',
                 default: false,
-                help: 'Shows what you actually receive after the 2% marketplace tax next to ask/bid prices in item tooltips',
+                help: 'Shows what you actually receive after the marketplace tax next to ask/bid prices in item tooltips',
             },
             itemTooltip_artisanPrices: {
                 id: 'itemTooltip_artisanPrices',

@@ -221,7 +221,7 @@ export function calculateTeaCostsPerHour({
 /**
  * Calculate price after marketplace tax
  * @param {number} price - Price before tax
- * @param {number} [taxRate=MARKET_TAX] - Tax rate (e.g., 0.02 for 2%)
+ * @param {number} [taxRate=MARKET_TAX] - Tax rate (e.g., 0.05 for 5%)
  * @returns {number} Price after tax deduction
  *
  * @example

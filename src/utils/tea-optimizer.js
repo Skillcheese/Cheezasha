@@ -18,6 +18,7 @@ import {
     calculateDrinksPerHour,
     resolveItemPrice,
 } from './profit-helpers.js';
+import { MARKET_TAX } from './profit-constants.js';
 import { calculateBonusRevenue } from './bonus-revenue-calculator.js';
 import alchemyProfitCalculator from '../features/market/alchemy-profit-calculator.js';
 
@@ -406,8 +407,7 @@ function calculateGatheringGoldPerHour(actionDetails, buffs, playerLevel, otherE
     const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
     totalRevenue += efficiencyBoostedBonusRevenue;
 
-    // Apply market tax (2%)
-    const MARKET_TAX = 0.02;
+    // Apply market tax
     const profitPerHour = totalRevenue * (1 - MARKET_TAX);
 
     return profitPerHour;
@@ -507,8 +507,7 @@ function calculateProductionGoldPerHour(actionDetails, buffs, playerLevel, other
     const bonusRevenue = calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
     const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
-    // Apply market tax (2%) to revenue portion only (including bonus revenue)
-    const MARKET_TAX = 0.02;
+    // Apply market tax to revenue portion only (including bonus revenue)
     const revenuePerHour = actionsPerHour * outputRevenue * efficiencyMultiplier;
     const marketTax = (revenuePerHour + efficiencyBoostedBonusRevenue) * MARKET_TAX;
     const netProfitPerHour = grossProfitPerHour + efficiencyBoostedBonusRevenue - marketTax;

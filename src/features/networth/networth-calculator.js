@@ -23,6 +23,7 @@ import { getItemPrice, getItemPrices } from '../../utils/market-data.js';
 import { calculateItemValueBatch } from '../../utils/networth-worker-manager.js';
 import { DUNGEON_CHEST_CHEST_KEYS } from '../combat-stats/combat-stats-calculator.js';
 import { getShopCoinCost } from '../../utils/game-lookups.js';
+import { MARKET_TAX, COWBELL_BAG_HRID, COWBELL_BAG_TAX } from '../../utils/profit-constants.js';
 import { isExcluded, getExclusions } from './networth-exclusions.js';
 import loadoutSnapshot from '../combat/loadout-snapshot.js';
 
@@ -767,8 +768,8 @@ export async function calculateNetworth() {
 
         if (listing.isSell) {
             // Selling: value is locked in listing + unclaimed coins
-            // Apply marketplace fee (2% for normal items, 18% for cowbells)
-            const fee = listing.itemHrid === '/items/bag_of_10_cowbells' ? 0.18 : 0.02;
+            // Apply marketplace fee (18% for cowbells, standard market tax otherwise)
+            const fee = listing.itemHrid === COWBELL_BAG_HRID ? COWBELL_BAG_TAX : MARKET_TAX;
 
             const value = await calculateItemValue(
                 { itemHrid: listing.itemHrid, enhancementLevel, count: quantity },
