@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.1](https://github.com/Skillcheese/Cheezasha/compare/v3.14.0...v3.14.1) (2026-08-14)
+
+
+### Bug Fixes
+
+* repair marketplace Sell Now instant action after order-book UI update ([ba326f3](https://github.com/Skillcheese/Cheezasha/commit/ba326f3696f73b4e03019e591ef4167c8e7adfe9))
+
 ## [3.14.0](https://github.com/Skillcheese/Cheezasha/compare/v3.13.2...v3.14.0) (2026-08-12)
 
 ### Features
