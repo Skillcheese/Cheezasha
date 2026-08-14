@@ -28,6 +28,7 @@ class MarketplaceShortcuts {
         this.closeHandler = null;
         this.pendingQuantity = null;
         this.addMode = false;
+        this.awaitingOwnSellNow = false;
     }
 
     /**
@@ -302,6 +303,7 @@ class MarketplaceShortcuts {
         try {
             switch (actionType) {
                 case 'sell':
+                    this.awaitingOwnSellNow = true;
                     await this.clickInstantActionButton('Sell');
                     break;
                 case 'buy':
@@ -316,6 +318,7 @@ class MarketplaceShortcuts {
             }
         } catch {
             // Instant sell/buy failed (no matching orders) — fall back to listing form
+            this.awaitingOwnSellNow = false;
             if (actionType === 'sell') {
                 await this.clickListingButton('+ New Sell Listing', 'Button_sell').catch(() => {});
             } else if (actionType === 'buy') {
@@ -397,16 +400,21 @@ class MarketplaceShortcuts {
      * Fix the "Sell Now" instant modal defaulting its price to the top of the
      * tradable range, where 0 quantity is available, instead of the best bid.
      * Reads the real bid order book (still rendered behind the modal) to find
-     * the exact price needed to cover the full desired quantity, then dials
-     * the price control to that value — no guessing.
+     * the current best (highest) bid price, then dials the price control to
+     * match it — no guessing.
      * @param {HTMLElement} modal - Modal container element
      */
     async adjustSellNowPrice(modal) {
         const header = modal.querySelector('div[class*="MarketplacePanel_header"]');
         if (!header || header.textContent.trim() !== 'Sell Now') return;
 
-        const desiredQty = this.pendingQuantity || 1;
-        const targetPrice = this.findFillPriceFromOrderBook('Bid', desiredQty);
+        // Only override the price when this modal was opened via our own "Sell Now" dropdown
+        // action. A native click on a specific order-book row already sets the correct price
+        // for that row and must be left alone.
+        if (!this.awaitingOwnSellNow) return;
+        this.awaitingOwnSellNow = false;
+
+        const targetPrice = this.findFillPriceFromOrderBook('Bid', 1);
         if (targetPrice === null) return;
 
         await new Promise((r) => setTimeout(r, 50));
@@ -429,12 +437,29 @@ class MarketplaceShortcuts {
         minBtn.click();
         await wait(80);
 
-        // Step up from the floor to the known target price (fixed increment per click).
-        for (let i = 0; i < 200; i++) {
+        const floor = getPrice();
+        if (Number.isNaN(floor) || floor >= targetPrice) return;
+
+        // Determine the step size by clicking + once, then fire the remaining clicks
+        // back-to-back (the UI handles rapid clicks fine, no per-click wait needed).
+        plusBtn.click();
+        await wait(50);
+        const afterOneClick = getPrice();
+        const step = afterOneClick - floor;
+        if (!Number.isFinite(step) || step <= 0) return;
+
+        const remainingClicks = Math.round((targetPrice - afterOneClick) / step);
+        for (let i = 0; i < remainingClicks && !plusBtn.disabled; i++) {
+            plusBtn.click();
+        }
+        await wait(50);
+
+        // Correct any rounding drift by nudging with individual clicks.
+        for (let i = 0; i < 5; i++) {
             const current = getPrice();
             if (Number.isNaN(current) || current >= targetPrice || plusBtn.disabled) break;
             plusBtn.click();
-            await wait(25);
+            await wait(30);
         }
     }
 
