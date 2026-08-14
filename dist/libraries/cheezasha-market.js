@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.14.0
+ * Version: 3.14.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -14975,6 +14975,7 @@ self.onmessage = function (e) {
                 'MarketplaceShortcuts_modal',
                 'Modal_modalContainer',
                 (modal) => {
+                    this.adjustSellNowPrice(modal);
                     this.autofillQuantity(modal);
                     this.injectQuickInputButtons(modal);
                     this.injectMultiplierButtons(modal);
@@ -15312,6 +15313,86 @@ self.onmessage = function (e) {
         }
 
         /**
+         * Fix the "Sell Now" instant modal defaulting its price to the top of the
+         * tradable range, where 0 quantity is available, instead of the best bid.
+         * Reads the real bid order book (still rendered behind the modal) to find
+         * the exact price needed to cover the full desired quantity, then dials
+         * the price control to that value — no guessing.
+         * @param {HTMLElement} modal - Modal container element
+         */
+        async adjustSellNowPrice(modal) {
+            const header = modal.querySelector('div[class*="MarketplacePanel_header"]');
+            if (!header || header.textContent.trim() !== 'Sell Now') return;
+
+            const desiredQty = this.pendingQuantity || 1;
+            const targetPrice = this.findFillPriceFromOrderBook('Bid', desiredQty);
+            if (targetPrice === null) return;
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            const priceRow = modal.querySelector('div[class*="MarketplacePanel_priceInputs"]');
+            if (!priceRow) return;
+
+            const buttons = Array.from(priceRow.querySelectorAll('button'));
+            const minBtn = buttons.find((btn) => btn.textContent.trim() === 'Min');
+            const plusBtn = buttons.find((btn) => btn.textContent.trim() === '+');
+            if (!minBtn || !plusBtn) return;
+
+            const getPrice = () => {
+                const priceEl = modal.querySelector('[class*="MarketplacePanel_priceDisplay"]');
+                return priceEl ? parseInt(priceEl.textContent.replace(/,/g, ''), 10) : NaN;
+            };
+            const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+            if (minBtn.disabled) return;
+            minBtn.click();
+            await wait(80);
+
+            // Step up from the floor to the known target price (fixed increment per click).
+            for (let i = 0; i < 200; i++) {
+                const current = getPrice();
+                if (Number.isNaN(current) || current >= targetPrice || plusBtn.disabled) break;
+                plusBtn.click();
+                await wait(25);
+            }
+        }
+
+        /**
+         * Walk the visible order book (Ask or Bid side) from the best price outward,
+         * accumulating quantity, to find the price level needed to fill a given quantity.
+         * @param {'Ask'|'Bid'} side - Which order book side to read
+         * @param {number} desiredQty - Quantity that needs to be covered
+         * @returns {number|null} The price level that covers desiredQty, or null if not found
+         */
+        findFillPriceFromOrderBook(side, desiredQty) {
+            const tables = document.querySelectorAll('[class*="MarketplacePanel_orderBookTable"]');
+            const table = Array.from(tables).find((t) => t.textContent.includes(`${side} Price`));
+            if (!table) return null;
+
+            const rows = table.querySelectorAll('tbody tr');
+            let cumulative = 0;
+            let deepestPrice = null;
+            for (const row of rows) {
+                const tds = row.querySelectorAll('td');
+                if (tds.length < 2) continue;
+
+                const qty = parseInt(tds[0].textContent.replace(/,/g, ''), 10);
+                const price = parseInt(tds[1].textContent.replace(/,/g, ''), 10);
+                if (!Number.isFinite(qty) || !Number.isFinite(price)) continue;
+
+                cumulative += qty;
+                deepestPrice = price;
+                if (cumulative >= desiredQty) {
+                    return price;
+                }
+            }
+
+            // Order book doesn't have enough depth to cover the full quantity —
+            // use the worst (deepest) price available so at least the visible book is matched.
+            return deepestPrice;
+        }
+
+        /**
          * Autofill quantity into a marketplace modal when it appears.
          * Delayed slightly to run after auto-click-max has processed the modal.
          * @param {HTMLElement} modal - Modal container element
@@ -15523,7 +15604,7 @@ self.onmessage = function (e) {
 
                 // Determine enhancement level from modal (if present)
                 let enhancementLevel = 0;
-                const allInputs = modal.querySelectorAll('input[type="number"]');
+                const allInputs = modal.querySelectorAll('input[type="number"], input[type="text"]');
                 for (const input of allInputs) {
                     const parent = input.closest('div');
                     if (parent?.textContent?.includes('Enhancement Level')) {
@@ -15569,7 +15650,7 @@ self.onmessage = function (e) {
          * @returns {HTMLInputElement|null} Quantity input element or null
          */
         findQuantityInput(modal) {
-            const allInputs = Array.from(modal.querySelectorAll('input[type="number"]'));
+            const allInputs = Array.from(modal.querySelectorAll('input[type="number"], input[type="text"]'));
 
             if (allInputs.length === 0) return null;
             if (allInputs.length === 1) return allInputs[0];
@@ -15656,7 +15737,7 @@ self.onmessage = function (e) {
                 for (const row of [priceRow, quantityRow]) {
                     if (!row) continue;
 
-                    const input = row.querySelector('input[type="number"]');
+                    const input = row.querySelector('input[type="number"], input[type="text"]');
                     if (!input) continue;
 
                     const buttonContainers = row.querySelectorAll('div[class*="MarketplacePanel_buttonContainer"]');
