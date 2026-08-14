@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.14.2](https://github.com/Skillcheese/Cheezasha/compare/v3.14.1...v3.14.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* don't override native Sell Now price, dial our own price without crawling ([65e2ace](https://github.com/Skillcheese/Cheezasha/commit/65e2ace8df19a58e6e0f50f2a4b2b14d52071a05))
+* update market tax rate from 2% to 5% across all calculators ([9a3e986](https://github.com/Skillcheese/Cheezasha/commit/9a3e9863da3c3e2d4f30ecb8d0f96b25b8dc4cd1))
+
 ## [3.14.1](https://github.com/Skillcheese/Cheezasha/compare/v3.14.0...v3.14.1) (2026-08-14)
 
 ### Bug Fixes
