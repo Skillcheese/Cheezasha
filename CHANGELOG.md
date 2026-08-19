@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.3](https://github.com/Skillcheese/Cheezasha/compare/v3.14.2...v3.14.3) (2026-08-19)
+
+
+### Bug Fixes
+
+* refresh stale action-panel data and fix crafting plan economics ([292b2e5](https://github.com/Skillcheese/Cheezasha/commit/292b2e54895191853f4cc2dd900eb986a42ef22b))
+
 ## [3.14.2](https://github.com/Skillcheese/Cheezasha/compare/v3.14.1...v3.14.2) (2026-08-14)
 
 ### Bug Fixes
