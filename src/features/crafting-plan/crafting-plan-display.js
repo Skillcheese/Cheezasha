@@ -27,6 +27,7 @@ import { calculateEfficiencyMultiplier } from '../../utils/efficiency.js';
 import { calculateExpPerHour } from '../../utils/experience-calculator.js';
 import { setReactInputValue } from '../../utils/react-input.js';
 import { createTimerRegistry } from '../../utils/timer-registry.js';
+import { calculatePriceAfterTax } from '../../utils/profit-helpers.js';
 
 const UI_ID = 'mwi-crafting-plan';
 
@@ -657,12 +658,14 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
             );
         }
 
-        // Profit from crafting = sell value of the crafted output minus total material/action cost
+        // Profit from crafting = sell value of the crafted output (after market tax) minus
+        // total material/action cost
         const itemDetails = dataManager.getItemDetails(plan.itemHrid);
         if (itemDetails?.isTradable) {
             const sellPrice = getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
             if (sellPrice !== null) {
-                const profit = sellPrice * plan.quantity - plan.totalCost;
+                const sellPriceAfterTax = calculatePriceAfterTax(sellPrice);
+                const profit = sellPriceAfterTax * plan.quantity - plan.totalCost;
                 const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
                 content.appendChild(
                     createRow('Profit from crafting', formatWithSeparator(Math.round(profit)), {
@@ -962,7 +965,8 @@ class CraftingPlanDisplay {
     constructor() {
         this.isInitialized = false;
         this.unregisterHandlers = [];
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+        this.nameWatchedPanels = new WeakSet();
         this.panelObservers = new Map();
         this.inputCleanups = new Map();
     }
@@ -985,13 +989,61 @@ class CraftingPlanDisplay {
 
     _processActionPanels() {
         document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]').forEach((panel) => {
-            if (this.processedPanels.has(panel)) return;
-
             const actionHrid = getActionHridFromPanel(panel);
             if (!actionHrid) return;
 
+            // React can reuse the same panel element when navigating between actions (e.g.
+            // clicking an ingredient's "View action" then its own Crafting Plan link) — no new
+            // node is added, so the DOM observer that normally triggers processing never fires
+            // again. Watch the name text directly so an action swap on a reused panel is caught.
+            this._watchPanelName(panel);
+
+            const attachedHrid = this.processedPanels.get(panel);
+            if (attachedHrid === actionHrid) return;
+
+            if (attachedHrid) {
+                // Panel was reused for a different action — tear down the stale UI/listeners
+                // before reattaching, otherwise the old actionHrid stays baked into closures.
+                this._detachFromPanel(panel);
+            }
+
             this._tryAttach(panel, actionHrid);
         });
+    }
+
+    _watchPanelName(panel) {
+        if (this.nameWatchedPanels.has(panel)) return;
+        const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+        if (!nameEl) return;
+
+        this.nameWatchedPanels.add(panel);
+        const obs = new MutationObserver(() => {
+            if (!panel.isConnected) {
+                obs.disconnect();
+                return;
+            }
+            this._processActionPanels();
+        });
+        obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+    }
+
+    _detachFromPanel(panel) {
+        const existing = panel.querySelector(`#${UI_ID}`);
+        if (existing) existing.remove();
+
+        const panelObs = this.panelObservers.get(panel);
+        if (panelObs) {
+            panelObs.disconnect();
+            this.panelObservers.delete(panel);
+        }
+
+        const inputCleanup = this.inputCleanups.get(panel);
+        if (inputCleanup) {
+            inputCleanup();
+            this.inputCleanups.delete(panel);
+        }
+
+        this.processedPanels.delete(panel);
     }
 
     // buildPlanUI can fail on first open if game/market data hasn't finished loading yet.
@@ -1001,7 +1053,7 @@ class CraftingPlanDisplay {
     _tryAttach(panel, actionHrid, attempt = 0) {
         const attached = this._attachToPanel(panel, actionHrid);
         if (attached) {
-            this.processedPanels.add(panel);
+            this.processedPanels.set(panel, actionHrid);
             return;
         }
 
@@ -1128,7 +1180,8 @@ class CraftingPlanDisplay {
         storedBuyItems = null;
         lastMissingMaterials = [];
 
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap();
+        this.nameWatchedPanels = new WeakSet();
         this.isInitialized = false;
     }
 }

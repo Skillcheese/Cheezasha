@@ -35,7 +35,8 @@ let cleanupObserver = null;
 const currentMaterialsTabs = [];
 let domObserverUnregister = null;
 let enhancementDomObserverUnregister = null;
-let processedPanels = new WeakSet();
+let processedPanels = new WeakMap(); // panel -> attached actionHrid
+let nameWatchedPanels = new WeakSet();
 let processedEnhancingPanels = new WeakSet();
 let inventoryUpdateHandler = null;
 let tabsPollInterval = null;
@@ -117,7 +118,8 @@ export function cleanup() {
     handleMarketplaceCleanup();
 
     // Clear processed panels
-    processedPanels = new WeakSet();
+    processedPanels = new WeakMap();
+    nameWatchedPanels = new WeakSet();
     processedEnhancingPanels = new WeakSet();
 
     // Clear enhancement debounce
@@ -132,13 +134,31 @@ export function cleanup() {
 /**
  * Process action panels - watch for input changes
  */
+// React can reuse the same panel element when navigating between actions (e.g. clicking a
+// material's "View action" link) — no new node is added, so the DOM observer that normally
+// triggers processActionPanels() never fires again. Watch the name text directly so an action
+// swap on a reused panel is still caught.
+function watchPanelName(panel) {
+    if (nameWatchedPanels.has(panel)) return;
+    const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+    if (!nameEl) return;
+
+    nameWatchedPanels.add(panel);
+    const obs = new MutationObserver(() => {
+        if (!panel.isConnected) {
+            obs.disconnect();
+            return;
+        }
+        processActionPanels();
+    });
+    obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+}
+
 function processActionPanels() {
     const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
 
     panels.forEach((panel) => {
-        if (processedPanels.has(panel)) {
-            return;
-        }
+        watchPanelName(panel);
 
         // Find the input box using utility
         const inputField = findActionInput(panel);
@@ -146,15 +166,22 @@ function processActionPanels() {
             return;
         }
 
-        // Mark as processed
-        processedPanels.add(panel);
+        const actionHrid = getActionHridFromPanel(panel);
+        const attachedHrid = processedPanels.get(panel);
+        if (attachedHrid === actionHrid) {
+            return;
+        }
 
-        // Attach input listeners using utility
-        attachInputListeners(panel, inputField, (value) => {
-            updateButtonForPanel(panel, value);
-        });
+        processedPanels.set(panel, actionHrid);
 
-        // Initial update if there's already a value
+        if (attachedHrid === undefined) {
+            // First time seeing this panel — attach listeners once.
+            attachInputListeners(panel, inputField, (value) => {
+                updateButtonForPanel(panel, value);
+            });
+        }
+
+        // Refresh the button for the (possibly new) action
         performInitialUpdate(inputField, (value) => {
             updateButtonForPanel(panel, value);
         });

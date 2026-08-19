@@ -32,7 +32,8 @@ const PRICING_MODE_LABELS = {
 };
 
 let domObserverUnregister = null;
-let processedPanels = new WeakSet();
+let processedPanels = new WeakMap(); // panel -> attached actionHrid
+let nameWatchedPanels = new WeakSet();
 
 export function initialize() {
     domObserverUnregister = domObserver.onClass(
@@ -50,17 +51,47 @@ export function cleanup() {
         domObserverUnregister = null;
     }
     document.querySelectorAll(`#${UI_ID}`).forEach((el) => el.remove());
-    processedPanels = new WeakSet();
+    processedPanels = new WeakMap();
+    nameWatchedPanels = new WeakSet();
+}
+
+// React can reuse the same panel element when navigating between actions (e.g. clicking a
+// material's "View action" link) — no new node is added, so the DOM observer that normally
+// triggers processActionPanels() never fires again. Watch the name text directly so an action
+// swap on a reused panel is still caught.
+function watchPanelName(panel) {
+    if (nameWatchedPanels.has(panel)) return;
+    const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+    if (!nameEl) return;
+
+    nameWatchedPanels.add(panel);
+    const obs = new MutationObserver(() => {
+        if (!panel.isConnected) {
+            obs.disconnect();
+            return;
+        }
+        processActionPanels();
+    });
+    obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
 }
 
 function processActionPanels() {
     const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
     panels.forEach((panel) => {
-        if (processedPanels.has(panel)) return;
+        watchPanelName(panel);
+
         const inputField = findActionInput(panel);
         if (!inputField) return;
-        processedPanels.add(panel);
-        attachInputListeners(panel, inputField, (value) => updatePanel(panel, value));
+
+        const actionHrid = getActionHridFromPanel(panel);
+        const attachedHrid = processedPanels.get(panel);
+        if (attachedHrid === actionHrid) return;
+
+        processedPanels.set(panel, actionHrid);
+        if (attachedHrid === undefined) {
+            // First time seeing this panel — attach listeners once.
+            attachInputListeners(panel, inputField, (value) => updatePanel(panel, value));
+        }
         performInitialUpdate(inputField, (value) => updatePanel(panel, value));
     });
 }

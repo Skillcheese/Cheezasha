@@ -321,7 +321,9 @@ export function computeBestCraftingPlan(
 
     visited.delete(itemHrid);
 
-    // Add time cost to craft cost if enabled
+    // Time to produce one unit of this item via crafting — used only to weigh the value of your
+    // time in the buy-vs-craft decision below, never fed into the real gold totals.
+    let timePerUnit = 0;
     if (timeCostPerHour > 0) {
         const gameData = dataManager.getInitClientData();
         const actionDetails = gameData?.actionDetailMap?.[actionHrid];
@@ -332,16 +334,32 @@ export function computeBestCraftingPlan(
                 itemDetailMap: gameData.itemDetailMap,
             });
             const effMultiplier = calculateEfficiencyMultiplier(stats.totalEfficiency);
-            const timePerUnit = (stats.actionTime / effMultiplier) * actionsForOne;
-            craftCostPerUnit += timePerUnit * (timeCostPerHour / 3600);
+            timePerUnit = (stats.actionTime / effMultiplier) * actionsForOne;
         }
     }
+
+    // Time-adjusted cost used ONLY to decide whether crafting is worth your time — deliberately
+    // kept separate from craftCostPerUnit (the real gold cost). Baking the imputed time value
+    // into craftCostPerUnit itself would leak into totalCost/profit further up the tree and
+    // double-count time: once as a fake gold charge here, and again naturally when the displayed
+    // "Profit/hr" divides real profit by real wall-clock crafting time.
+    const costForDecision = craftCostPerUnit + timePerUnit * (timeCostPerHour / 3600);
 
     // Buy vs craft decision
     // When buyRawOnly is true, always craft (we only reach here if a recipe exists)
     // When forceRootCraft is true and depth === 0, always craft the root item
+    // The item this panel was opened for (depth 0) is always crafted regardless — you're already
+    // committed to that action; whether it's worth doing is what "Profit/hr from crafting"
+    // (compared against sell price, not buy price) tells you.
+    // Every other node is an ingredient, never sold on its own — sell price and market tax have
+    // no bearing on it. It's a pure cost comparison: is making it yourself (optionally counting
+    // the value of your time) cheaper than buying it outright.
     const shouldBuy =
-        !buyRawOnly && !(forceRootCraft && depth === 0) && buyPrice !== null && buyPrice <= craftCostPerUnit;
+        !buyRawOnly &&
+        !(forceRootCraft && depth === 0) &&
+        depth !== 0 &&
+        buyPrice !== null &&
+        buyPrice <= costForDecision;
     const strategy = shouldBuy ? 'buy' : 'craft';
     const unitCost = shouldBuy ? buyPrice : craftCostPerUnit;
 

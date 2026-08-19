@@ -281,7 +281,8 @@ class BudgetCalculator {
         this.isInitialized = false;
         this.unregisterHandlers = [];
         this.timerRegistry = createTimerRegistry();
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+        this.nameWatchedPanels = new WeakSet();
         this.panelObservers = new Map();
     }
 
@@ -302,11 +303,46 @@ class BudgetCalculator {
         this._processActionPanels();
     }
 
+    // React can reuse the same panel element when navigating between actions (e.g. clicking a
+    // material's "View action" link) — no new node is added, so the DOM observer that normally
+    // triggers _processActionPanels() never fires again. Watch the name text directly so an
+    // action swap on a reused panel is still caught.
+    _watchPanelName(panel) {
+        if (this.nameWatchedPanels.has(panel)) return;
+        const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+        if (!nameEl) return;
+
+        this.nameWatchedPanels.add(panel);
+        const obs = new MutationObserver(() => {
+            if (!panel.isConnected) {
+                obs.disconnect();
+                return;
+            }
+            this._processActionPanels();
+        });
+        obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+    }
+
     _processActionPanels() {
         document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]').forEach((panel) => {
-            if (this.processedPanels.has(panel)) return;
+            this._watchPanelName(panel);
 
             const actionHrid = getActionHridFromPanel(panel);
+            const attachedHrid = this.processedPanels.get(panel);
+            if (attachedHrid === actionHrid) return;
+
+            if (attachedHrid) {
+                // Panel was reused for a different action — tear down before possibly reattaching.
+                const existing = panel.querySelector(`#${UI_ID}`);
+                if (existing) existing.remove();
+                const obs = this.panelObservers.get(panel);
+                if (obs) {
+                    obs.disconnect();
+                    this.panelObservers.delete(panel);
+                }
+                this.processedPanels.delete(panel);
+            }
+
             if (!actionHrid) return;
 
             const gameData = dataManager.getInitClientData();
@@ -314,7 +350,7 @@ class BudgetCalculator {
             if (!actionDetail || !PRODUCTION_TYPES.includes(actionDetail.type)) return;
             if (!actionDetail.inputItems?.length) return;
 
-            this.processedPanels.add(panel);
+            this.processedPanels.set(panel, actionHrid);
             this._attachToPanel(panel);
         });
     }
@@ -480,7 +516,8 @@ class BudgetCalculator {
         // Disconnect all panel observers
         this.panelObservers.forEach((obs) => obs.disconnect());
         this.panelObservers = new Map();
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap();
+        this.nameWatchedPanels = new WeakSet();
         this.isInitialized = false;
     }
 }

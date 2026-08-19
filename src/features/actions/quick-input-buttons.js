@@ -102,6 +102,8 @@ class QuickInputButtons {
         this.presetValues = [10, 100, 1000];
         this.cleanupRegistry = createCleanupRegistry();
         this._targetLevelByAction = new Map();
+        this.valuePollInterval = null;
+        this._nameWatchedPanels = new WeakSet();
     }
 
     /**
@@ -291,6 +293,32 @@ class QuickInputButtons {
             const actionNameElement = panel.querySelector('[class*="SkillActionDetail_name"]');
             const currentActionName = actionNameElement?.textContent?.trim() || '';
             const previousActionName = panel.dataset.mwiInjectedAction || '';
+
+            // React can reuse the same panel element when navigating between actions (e.g.
+            // clicking a material's "View action" link) — no new node is added, so the
+            // panel-level DOM observer that normally triggers injectButtons() never fires again,
+            // leaving stale actionTime/efficiency from the previous action baked into the
+            // section even though the input value itself updates. Watch the name text directly
+            // so any action swap re-runs injection regardless of whether the panel node changed.
+            if (actionNameElement && !this._nameWatchedPanels.has(panel)) {
+                this._nameWatchedPanels.add(panel);
+                const nameWatcherCleanup = createMutationWatcher(
+                    actionNameElement,
+                    () => {
+                        this.injectButtons(panel);
+                    },
+                    {
+                        childList: true,
+                        characterData: true,
+                        subtree: true,
+                    }
+                );
+                this.cleanupRegistry.registerCleanup(() => {
+                    if (nameWatcherCleanup) {
+                        nameWatcherCleanup();
+                    }
+                });
+            }
 
             if (panel.querySelector('.mwi-collapsible-section') || panel.querySelector('.mwi-quick-input-btn')) {
                 if (currentActionName && currentActionName === previousActionName) {
@@ -722,6 +750,34 @@ class QuickInputButtons {
 
                 // Initial update with enhanced version
                 enhancedUpdateTotalTime();
+
+                // Fallback poll: when this panel is reached via "View action" from a material
+                // link, the game pre-fills the quantity input through React state rather than
+                // a native 'value' attribute mutation or a dispatched input/change event, so
+                // none of the listeners above fire and the ETA is left stale. Poll for drift
+                // as a safety net regardless of how the value was changed.
+                if (this.valuePollInterval) {
+                    clearInterval(this.valuePollInterval);
+                    this.valuePollInterval = null;
+                }
+                let lastPolledValue = numberInput.value;
+                this.valuePollInterval = setInterval(() => {
+                    if (!numberInput.isConnected) {
+                        clearInterval(this.valuePollInterval);
+                        this.valuePollInterval = null;
+                        return;
+                    }
+                    if (numberInput.value !== lastPolledValue) {
+                        lastPolledValue = numberInput.value;
+                        enhancedUpdateTotalTime();
+                    }
+                }, 250);
+                this.cleanupRegistry.registerCleanup(() => {
+                    if (this.valuePollInterval) {
+                        clearInterval(this.valuePollInterval);
+                        this.valuePollInterval = null;
+                    }
+                });
             } // End hasNormalXP check - speedSection only created for non-combat
 
             const levelProgressSection = this.createLevelProgressSection(

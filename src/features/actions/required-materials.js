@@ -15,7 +15,8 @@ class RequiredMaterials {
     constructor() {
         this.initialized = false;
         this.observers = [];
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+        this.nameWatchedPanels = new WeakSet();
         this.openPanels = new Set();
         this.itemsUpdatedHandler = null;
     }
@@ -57,13 +58,31 @@ class RequiredMaterials {
         }
     }
 
+    // React can reuse the same panel element when navigating between actions (e.g. clicking a
+    // material's "View action" link) — no new node is added, so the DOM observer that normally
+    // triggers processActionPanels() never fires again. Watch the name text directly so an
+    // action swap on a reused panel is still caught.
+    watchPanelName(panel) {
+        if (this.nameWatchedPanels.has(panel)) return;
+        const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+        if (!nameEl) return;
+
+        this.nameWatchedPanels.add(panel);
+        const obs = new MutationObserver(() => {
+            if (!panel.isConnected) {
+                obs.disconnect();
+                return;
+            }
+            this.processActionPanels();
+        });
+        obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+    }
+
     processActionPanels() {
         const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
 
         panels.forEach((panel) => {
-            if (this.processedPanels.has(panel)) {
-                return;
-            }
+            this.watchPanelName(panel);
 
             // Find the input box using utility
             const inputField = findActionInput(panel);
@@ -71,16 +90,28 @@ class RequiredMaterials {
                 return;
             }
 
-            // Mark as processed
-            this.processedPanels.add(panel);
+            const actionHrid = this.getActionHridFromPanel(panel);
+            const attachedHrid = this.processedPanels.get(panel);
+            if (attachedHrid === actionHrid) {
+                return;
+            }
+
+            this.processedPanels.set(panel, actionHrid);
             this.openPanels.add(panel);
 
-            // Attach input listeners using utility
-            attachInputListeners(panel, inputField, (value) => {
-                this.updateRequiredMaterials(panel, value);
-            });
+            if (attachedHrid === undefined) {
+                // First time seeing this panel — attach listeners once.
+                attachInputListeners(panel, inputField, (value) => {
+                    this.updateRequiredMaterials(panel, value);
+                });
+            } else {
+                // Action changed on a reused panel — force a rebuild even if the signature
+                // (which includes actionHrid) would otherwise short-circuit correctly; clearing
+                // it just guards against any stale DOM left over from the previous action.
+                delete panel.dataset.mwiRequiredMaterialsSignature;
+            }
 
-            // Initial update if there's already a value
+            // Refresh display for the (possibly new) action
             performInitialUpdate(inputField, (value) => {
                 this.updateRequiredMaterials(panel, value);
             });
@@ -286,7 +317,8 @@ class RequiredMaterials {
     cleanup() {
         this.observers.forEach((unregister) => unregister());
         this.observers = [];
-        this.processedPanels = new WeakSet();
+        this.processedPanels = new WeakMap();
+        this.nameWatchedPanels = new WeakSet();
         this.openPanels.clear();
 
         if (this.itemsUpdatedHandler) {
