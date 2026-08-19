@@ -21,6 +21,7 @@ import labyrinthTracker from '../features/combat/labyrinth-tracker.js';
 import labyrinthBestLevel from '../features/combat/labyrinth-best-level.js';
 import labyrinthShopPrices from '../features/combat/labyrinth-shop-prices.js';
 import labyrinthClearRate from '../features/combat/labyrinth-clear-rate.js';
+import labyrinthTrialTimer from '../features/combat/labyrinth-trial-timer.js';
 import * as combatSimIntegration from '../features/combat/combat-sim-integration.js';
 import { constructExportObject } from '../features/combat/combat-sim-export.js';
 import { constructMilkonomyExport } from '../features/combat/milkonomy-export.js';
@@ -61,6 +62,7 @@ cheezashaRoot.Combat = {
     labyrinthBestLevel,
     labyrinthShopPrices,
     labyrinthClearRate,
+    labyrinthTrialTimer,
     combatSimIntegration,
     combatSimExport: {
         constructExportObject,

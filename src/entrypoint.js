@@ -465,6 +465,13 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'labyrinthTrialTimer',
+            name: 'Labyrinth Trial Timer Marker',
+            category: 'Combat',
+            module: Combat.labyrinthTrialTimer,
+            async: false,
+        },
+        {
             key: 'loadoutSnapshot',
             name: 'Loadout Snapshots',
             category: 'Combat',

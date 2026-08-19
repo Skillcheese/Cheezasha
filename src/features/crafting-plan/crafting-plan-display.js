@@ -299,7 +299,8 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
             buyIntermediates,
             taskMode,
             timeCostEnabled ? goldPerHour : 0,
-            noProcessing
+            noProcessing,
+            buildInventoryPool()
         );
     } catch (e) {
         console.error('[CraftingPlan] computeBestCraftingPlan error:', e);
@@ -312,19 +313,69 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
     // Build content
     const content = document.createElement('div');
 
+    // === Whole-plan worth-it check ===
+    // Buy-vs-craft at each material tier only ever weighs raw gold cost (optionally with a time
+    // surcharge) against buy price — a sourcing question. It says nothing about whether crafting
+    // the ROOT item is actually a good use of time, which is a profit question: does the crafted
+    // output's sell value (after tax) minus the plan's real total cost, spread over the real
+    // wall-clock crafting time, clear your stated time value? Computed once up front so the top
+    // summary can recommend buying outright when the answer is no, even though every individual
+    // ingredient decision was locally correct.
+    const craftSteps = collectCraftSteps(plan);
+    let totalCraftSeconds = 0;
+    {
+        const gameDataForTime = dataManager.getInitClientData();
+        const skillsForTime = dataManager.getSkills();
+        const equipmentForTime = dataManager.getEquipment();
+        for (const step of craftSteps) {
+            if (!step.actionHrid) continue;
+            const actionDetails = gameDataForTime?.actionDetailMap?.[step.actionHrid];
+            if (!actionDetails) continue;
+            const stats = calculateActionStats(actionDetails, {
+                skills: skillsForTime,
+                equipment: equipmentForTime,
+                itemDetailMap: gameDataForTime.itemDetailMap,
+            });
+            const effMultiplier = calculateEfficiencyMultiplier(stats.totalEfficiency);
+            totalCraftSeconds += (stats.actionTime * step.actionsNeeded) / effMultiplier;
+        }
+    }
+
+    let profitPerHour = null;
+    const rootItemDetails = dataManager.getItemDetails(plan.itemHrid);
+    if (rootItemDetails?.isTradable && totalCraftSeconds > 0) {
+        const rootSellPrice = getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
+        if (rootSellPrice !== null) {
+            const profit = calculatePriceAfterTax(rootSellPrice) * plan.quantity - plan.totalCost;
+            profitPerHour = profit * (3600 / totalCraftSeconds);
+        }
+    }
+
+    // Only overrides the recommendation — never the underlying plan/shopping list/steps below,
+    // which still reflect the cheapest way to obtain the item if you decide to craft it anyway.
+    const worthCrafting =
+        !timeCostEnabled || goldPerHour <= 0 || profitPerHour === null || profitPerHour >= goldPerHour;
+
     // === Summary comparison ===
     const unitCostText = plan.unitCost === Infinity ? '?' : formatWithSeparator(Math.round(plan.unitCost));
     const buyText = plan.buyPrice !== null ? formatWithSeparator(Math.round(plan.buyPrice)) : 'N/A';
     const craftText = plan.craftCost !== null ? formatWithSeparator(Math.round(plan.craftCost)) : 'N/A';
-    const strategyText = plan.strategy === 'buy' ? 'Buy from market' : 'Craft from materials';
+    const strategyText = plan.strategy === 'buy' || !worthCrafting ? 'Buy from market' : 'Craft from materials';
+    const topLineCostText =
+        !worthCrafting && plan.buyPrice !== null ? formatWithSeparator(Math.round(plan.buyPrice)) : unitCostText;
+    const worthCraftingNote =
+        !worthCrafting && profitPerHour !== null
+            ? `<div style="color: ${config.COLOR_LOSS}; font-size: 0.85em; margin-top: 2px;">Crafting only nets ${formatKMB(Math.round(profitPerHour))}/hr — below your ${formatKMB(goldPerHour)}/hr time value</div>`
+            : '';
 
     const summary = document.createElement('div');
     summary.style.cssText = 'margin-bottom: 6px;';
     summary.innerHTML = `
         <div style="display: flex; justify-content: space-between; color: var(--text-color-primary, #fff);">
             <span>Optimal: <strong>${strategyText}</strong></span>
-            <span>${unitCostText}/ea</span>
+            <span>${topLineCostText}/ea</span>
         </div>
+        ${worthCraftingNote}
         <div style="display: flex; justify-content: space-between; color: var(--text-color-secondary, #888); font-size: 0.9em;">
             <span>Market buy: ${buyText}</span>
             <span>Craft cost: ${craftText}</span>
@@ -585,7 +636,7 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
     }
 
     // === Crafting Steps (what to craft, in order) ===
-    const craftSteps = collectCraftSteps(plan);
+    // craftSteps and totalCraftSeconds were already computed above for the worth-it check.
 
     if (craftSteps.length > 0) {
         const divider2 = document.createElement('div');
@@ -604,7 +655,6 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
         const gameData = dataManager.getInitClientData();
         const skills = dataManager.getSkills();
         const equipment = dataManager.getEquipment();
-        let totalCraftSeconds = 0;
         let totalXP = 0;
 
         for (let i = 0; i < craftSteps.length; i++) {
@@ -621,8 +671,9 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
                         itemDetailMap: gameData.itemDetailMap,
                     });
                     const effMultiplier = calculateEfficiencyMultiplier(stats.totalEfficiency);
+                    // totalCraftSeconds (used below) was already accumulated in the worth-it
+                    // check above — this is just the per-step figure for display.
                     const totalSeconds = (stats.actionTime * step.actionsNeeded) / effMultiplier;
-                    totalCraftSeconds += totalSeconds;
                     timeStr = ` (${timeReadable(totalSeconds)}`;
                 }
                 const expData = calculateExpPerHour(step.actionHrid);
@@ -659,32 +710,25 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
         }
 
         // Profit from crafting = sell value of the crafted output (after market tax) minus
-        // total material/action cost
-        const itemDetails = dataManager.getItemDetails(plan.itemHrid);
-        if (itemDetails?.isTradable) {
-            const sellPrice = getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
-            if (sellPrice !== null) {
-                const sellPriceAfterTax = calculatePriceAfterTax(sellPrice);
-                const profit = sellPriceAfterTax * plan.quantity - plan.totalCost;
-                const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
-                content.appendChild(
-                    createRow('Profit from crafting', formatWithSeparator(Math.round(profit)), {
-                        leftColor: 'var(--text-color-primary, #fff)',
-                        rightColor: profitColor,
-                    })
-                );
+        // total material/action cost. Reuses the sell price/profit already computed above for
+        // the worth-it check, for consistency between the two.
+        if (rootItemDetails?.isTradable && profitPerHour !== null) {
+            const profit = (profitPerHour * totalCraftSeconds) / 3600;
+            const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
+            content.appendChild(
+                createRow('Profit from crafting', formatWithSeparator(Math.round(profit)), {
+                    leftColor: 'var(--text-color-primary, #fff)',
+                    rightColor: profitColor,
+                })
+            );
 
-                if (totalCraftSeconds > 0) {
-                    const profitPerHour = profit * (3600 / totalCraftSeconds);
-                    const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
-                    content.appendChild(
-                        createRow('Profit/hr from crafting', formatWithSeparator(Math.round(profitPerHour)), {
-                            leftColor: 'var(--text-color-primary, #fff)',
-                            rightColor: profitPerHourColor,
-                        })
-                    );
-                }
-            }
+            const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
+            content.appendChild(
+                createRow('Profit/hr from crafting', formatWithSeparator(Math.round(profitPerHour)), {
+                    leftColor: 'var(--text-color-primary, #fff)',
+                    rightColor: profitPerHourColor,
+                })
+            );
         }
     }
 
@@ -785,6 +829,22 @@ function createReturnTab(referenceTab) {
     });
 
     return tab;
+}
+
+/**
+ * Build a itemHrid → owned count pool from current inventory, for offsetting crafting-plan
+ * ingredient needs against materials already on hand. Enhanced items are excluded since they're
+ * not fungible with the base-quality material a recipe consumes.
+ * @returns {Map<string, number>}
+ */
+function buildInventoryPool() {
+    const inventory = dataManager.getInventory() || [];
+    const pool = new Map();
+    for (const item of inventory) {
+        if (item.enhancementLevel) continue;
+        pool.set(item.itemHrid, (pool.get(item.itemHrid) || 0) + (item.count || 0));
+    }
+    return pool;
 }
 
 /**
