@@ -2,10 +2,9 @@
 
 ## [3.15.0](https://github.com/Skillcheese/Cheezasha/compare/v3.14.3...v3.15.0) (2026-08-19)
 
-
 ### Features
 
-* add labyrinth trial timer marker and inventory-aware crafting plans ([8b56b8e](https://github.com/Skillcheese/Cheezasha/commit/8b56b8e5be4bae57549b1124932b7585b6814d89))
+- add labyrinth trial timer marker and inventory-aware crafting plans ([8b56b8e](https://github.com/Skillcheese/Cheezasha/commit/8b56b8e5be4bae57549b1124932b7585b6814d89))
 
 ## [3.14.3](https://github.com/Skillcheese/Cheezasha/compare/v3.14.2...v3.14.3) (2026-08-19)
 
