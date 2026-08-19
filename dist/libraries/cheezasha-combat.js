@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.14.2
+ * Version: 3.14.3
  * License: CC-BY-NC-SA-4.0
  */
 

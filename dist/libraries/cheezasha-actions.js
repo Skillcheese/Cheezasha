@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.14.2
+ * Version: 3.14.3
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -11661,6 +11661,8 @@
             this.presetValues = [10, 100, 1000];
             this.cleanupRegistry = cleanupRegistry_js.createCleanupRegistry();
             this._targetLevelByAction = new Map();
+            this.valuePollInterval = null;
+            this._nameWatchedPanels = new WeakSet();
         }
 
         /**
@@ -11850,6 +11852,32 @@
                 const actionNameElement = panel.querySelector('[class*="SkillActionDetail_name"]');
                 const currentActionName = actionNameElement?.textContent?.trim() || '';
                 const previousActionName = panel.dataset.mwiInjectedAction || '';
+
+                // React can reuse the same panel element when navigating between actions (e.g.
+                // clicking a material's "View action" link) — no new node is added, so the
+                // panel-level DOM observer that normally triggers injectButtons() never fires again,
+                // leaving stale actionTime/efficiency from the previous action baked into the
+                // section even though the input value itself updates. Watch the name text directly
+                // so any action swap re-runs injection regardless of whether the panel node changed.
+                if (actionNameElement && !this._nameWatchedPanels.has(panel)) {
+                    this._nameWatchedPanels.add(panel);
+                    const nameWatcherCleanup = domObserverHelpers_js.createMutationWatcher(
+                        actionNameElement,
+                        () => {
+                            this.injectButtons(panel);
+                        },
+                        {
+                            childList: true,
+                            characterData: true,
+                            subtree: true,
+                        }
+                    );
+                    this.cleanupRegistry.registerCleanup(() => {
+                        if (nameWatcherCleanup) {
+                            nameWatcherCleanup();
+                        }
+                    });
+                }
 
                 if (panel.querySelector('.mwi-collapsible-section') || panel.querySelector('.mwi-quick-input-btn')) {
                     if (currentActionName && currentActionName === previousActionName) {
@@ -12281,6 +12309,34 @@
 
                     // Initial update with enhanced version
                     enhancedUpdateTotalTime();
+
+                    // Fallback poll: when this panel is reached via "View action" from a material
+                    // link, the game pre-fills the quantity input through React state rather than
+                    // a native 'value' attribute mutation or a dispatched input/change event, so
+                    // none of the listeners above fire and the ETA is left stale. Poll for drift
+                    // as a safety net regardless of how the value was changed.
+                    if (this.valuePollInterval) {
+                        clearInterval(this.valuePollInterval);
+                        this.valuePollInterval = null;
+                    }
+                    let lastPolledValue = numberInput.value;
+                    this.valuePollInterval = setInterval(() => {
+                        if (!numberInput.isConnected) {
+                            clearInterval(this.valuePollInterval);
+                            this.valuePollInterval = null;
+                            return;
+                        }
+                        if (numberInput.value !== lastPolledValue) {
+                            lastPolledValue = numberInput.value;
+                            enhancedUpdateTotalTime();
+                        }
+                    }, 250);
+                    this.cleanupRegistry.registerCleanup(() => {
+                        if (this.valuePollInterval) {
+                            clearInterval(this.valuePollInterval);
+                            this.valuePollInterval = null;
+                        }
+                    });
                 } // End hasNormalXP check - speedSection only created for non-combat
 
                 const levelProgressSection = this.createLevelProgressSection(
@@ -16895,7 +16951,8 @@
         constructor() {
             this.initialized = false;
             this.observers = [];
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+            this.nameWatchedPanels = new WeakSet();
             this.openPanels = new Set();
             this.itemsUpdatedHandler = null;
         }
@@ -16937,13 +16994,31 @@
             }
         }
 
+        // React can reuse the same panel element when navigating between actions (e.g. clicking a
+        // material's "View action" link) — no new node is added, so the DOM observer that normally
+        // triggers processActionPanels() never fires again. Watch the name text directly so an
+        // action swap on a reused panel is still caught.
+        watchPanelName(panel) {
+            if (this.nameWatchedPanels.has(panel)) return;
+            const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+            if (!nameEl) return;
+
+            this.nameWatchedPanels.add(panel);
+            const obs = new MutationObserver(() => {
+                if (!panel.isConnected) {
+                    obs.disconnect();
+                    return;
+                }
+                this.processActionPanels();
+            });
+            obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+        }
+
         processActionPanels() {
             const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
 
             panels.forEach((panel) => {
-                if (this.processedPanels.has(panel)) {
-                    return;
-                }
+                this.watchPanelName(panel);
 
                 // Find the input box using utility
                 const inputField = actionPanelHelper_js.findActionInput(panel);
@@ -16951,16 +17026,28 @@
                     return;
                 }
 
-                // Mark as processed
-                this.processedPanels.add(panel);
+                const actionHrid = this.getActionHridFromPanel(panel);
+                const attachedHrid = this.processedPanels.get(panel);
+                if (attachedHrid === actionHrid) {
+                    return;
+                }
+
+                this.processedPanels.set(panel, actionHrid);
                 this.openPanels.add(panel);
 
-                // Attach input listeners using utility
-                actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => {
-                    this.updateRequiredMaterials(panel, value);
-                });
+                if (attachedHrid === undefined) {
+                    // First time seeing this panel — attach listeners once.
+                    actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => {
+                        this.updateRequiredMaterials(panel, value);
+                    });
+                } else {
+                    // Action changed on a reused panel — force a rebuild even if the signature
+                    // (which includes actionHrid) would otherwise short-circuit correctly; clearing
+                    // it just guards against any stale DOM left over from the previous action.
+                    delete panel.dataset.mwiRequiredMaterialsSignature;
+                }
 
-                // Initial update if there's already a value
+                // Refresh display for the (possibly new) action
                 actionPanelHelper_js.performInitialUpdate(inputField, (value) => {
                     this.updateRequiredMaterials(panel, value);
                 });
@@ -17166,7 +17253,8 @@
         cleanup() {
             this.observers.forEach((unregister) => unregister());
             this.observers = [];
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap();
+            this.nameWatchedPanels = new WeakSet();
             this.openPanels.clear();
 
             if (this.itemsUpdatedHandler) {
@@ -17642,7 +17730,8 @@
     const currentMaterialsTabs = [];
     let domObserverUnregister$1 = null;
     let enhancementDomObserverUnregister = null;
-    let processedPanels$1 = new WeakSet();
+    let processedPanels$1 = new WeakMap(); // panel -> attached actionHrid
+    let nameWatchedPanels$1 = new WeakSet();
     let processedEnhancingPanels = new WeakSet();
     let inventoryUpdateHandler$1 = null;
     let tabsPollInterval$1 = null;
@@ -17724,7 +17813,8 @@
         handleMarketplaceCleanup();
 
         // Clear processed panels
-        processedPanels$1 = new WeakSet();
+        processedPanels$1 = new WeakMap();
+        nameWatchedPanels$1 = new WeakSet();
         processedEnhancingPanels = new WeakSet();
 
         // Clear enhancement debounce
@@ -17739,13 +17829,31 @@
     /**
      * Process action panels - watch for input changes
      */
+    // React can reuse the same panel element when navigating between actions (e.g. clicking a
+    // material's "View action" link) — no new node is added, so the DOM observer that normally
+    // triggers processActionPanels() never fires again. Watch the name text directly so an action
+    // swap on a reused panel is still caught.
+    function watchPanelName$1(panel) {
+        if (nameWatchedPanels$1.has(panel)) return;
+        const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+        if (!nameEl) return;
+
+        nameWatchedPanels$1.add(panel);
+        const obs = new MutationObserver(() => {
+            if (!panel.isConnected) {
+                obs.disconnect();
+                return;
+            }
+            processActionPanels$1();
+        });
+        obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+    }
+
     function processActionPanels$1() {
         const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
 
         panels.forEach((panel) => {
-            if (processedPanels$1.has(panel)) {
-                return;
-            }
+            watchPanelName$1(panel);
 
             // Find the input box using utility
             const inputField = actionPanelHelper_js.findActionInput(panel);
@@ -17753,15 +17861,22 @@
                 return;
             }
 
-            // Mark as processed
-            processedPanels$1.add(panel);
+            const actionHrid = getActionHridFromPanel$3(panel);
+            const attachedHrid = processedPanels$1.get(panel);
+            if (attachedHrid === actionHrid) {
+                return;
+            }
 
-            // Attach input listeners using utility
-            actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => {
-                updateButtonForPanel(panel, value);
-            });
+            processedPanels$1.set(panel, actionHrid);
 
-            // Initial update if there's already a value
+            if (attachedHrid === undefined) {
+                // First time seeing this panel — attach listeners once.
+                actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => {
+                    updateButtonForPanel(panel, value);
+                });
+            }
+
+            // Refresh the button for the (possibly new) action
             actionPanelHelper_js.performInitialUpdate(inputField, (value) => {
                 updateButtonForPanel(panel, value);
             });
@@ -19054,7 +19169,8 @@
             this.isInitialized = false;
             this.unregisterHandlers = [];
             this.timerRegistry = timerRegistry_js.createTimerRegistry();
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+            this.nameWatchedPanels = new WeakSet();
             this.panelObservers = new Map();
         }
 
@@ -19075,11 +19191,46 @@
             this._processActionPanels();
         }
 
+        // React can reuse the same panel element when navigating between actions (e.g. clicking a
+        // material's "View action" link) — no new node is added, so the DOM observer that normally
+        // triggers _processActionPanels() never fires again. Watch the name text directly so an
+        // action swap on a reused panel is still caught.
+        _watchPanelName(panel) {
+            if (this.nameWatchedPanels.has(panel)) return;
+            const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+            if (!nameEl) return;
+
+            this.nameWatchedPanels.add(panel);
+            const obs = new MutationObserver(() => {
+                if (!panel.isConnected) {
+                    obs.disconnect();
+                    return;
+                }
+                this._processActionPanels();
+            });
+            obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+        }
+
         _processActionPanels() {
             document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]').forEach((panel) => {
-                if (this.processedPanels.has(panel)) return;
+                this._watchPanelName(panel);
 
                 const actionHrid = getActionHridFromPanel$2(panel);
+                const attachedHrid = this.processedPanels.get(panel);
+                if (attachedHrid === actionHrid) return;
+
+                if (attachedHrid) {
+                    // Panel was reused for a different action — tear down before possibly reattaching.
+                    const existing = panel.querySelector(`#${UI_ID$2}`);
+                    if (existing) existing.remove();
+                    const obs = this.panelObservers.get(panel);
+                    if (obs) {
+                        obs.disconnect();
+                        this.panelObservers.delete(panel);
+                    }
+                    this.processedPanels.delete(panel);
+                }
+
                 if (!actionHrid) return;
 
                 const gameData = dataManager.getInitClientData();
@@ -19087,7 +19238,7 @@
                 if (!actionDetail || !PRODUCTION_TYPES$3.includes(actionDetail.type)) return;
                 if (!actionDetail.inputItems?.length) return;
 
-                this.processedPanels.add(panel);
+                this.processedPanels.set(panel, actionHrid);
                 this._attachToPanel(panel);
             });
         }
@@ -19253,7 +19404,8 @@
             // Disconnect all panel observers
             this.panelObservers.forEach((obs) => obs.disconnect());
             this.panelObservers = new Map();
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap();
+            this.nameWatchedPanels = new WeakSet();
             this.isInitialized = false;
         }
     }
@@ -19577,7 +19729,9 @@
 
         visited.delete(itemHrid);
 
-        // Add time cost to craft cost if enabled
+        // Time to produce one unit of this item via crafting — used only to weigh the value of your
+        // time in the buy-vs-craft decision below, never fed into the real gold totals.
+        let timePerUnit = 0;
         if (timeCostPerHour > 0) {
             const gameData = dataManager.getInitClientData();
             const actionDetails = gameData?.actionDetailMap?.[actionHrid];
@@ -19588,16 +19742,32 @@
                     itemDetailMap: gameData.itemDetailMap,
                 });
                 const effMultiplier = efficiency_js.calculateEfficiencyMultiplier(stats.totalEfficiency);
-                const timePerUnit = (stats.actionTime / effMultiplier) * actionsForOne;
-                craftCostPerUnit += timePerUnit * (timeCostPerHour / 3600);
+                timePerUnit = (stats.actionTime / effMultiplier) * actionsForOne;
             }
         }
+
+        // Time-adjusted cost used ONLY to decide whether crafting is worth your time — deliberately
+        // kept separate from craftCostPerUnit (the real gold cost). Baking the imputed time value
+        // into craftCostPerUnit itself would leak into totalCost/profit further up the tree and
+        // double-count time: once as a fake gold charge here, and again naturally when the displayed
+        // "Profit/hr" divides real profit by real wall-clock crafting time.
+        const costForDecision = craftCostPerUnit + timePerUnit * (timeCostPerHour / 3600);
 
         // Buy vs craft decision
         // When buyRawOnly is true, always craft (we only reach here if a recipe exists)
         // When forceRootCraft is true and depth === 0, always craft the root item
+        // The item this panel was opened for (depth 0) is always crafted regardless — you're already
+        // committed to that action; whether it's worth doing is what "Profit/hr from crafting"
+        // (compared against sell price, not buy price) tells you.
+        // Every other node is an ingredient, never sold on its own — sell price and market tax have
+        // no bearing on it. It's a pure cost comparison: is making it yourself (optionally counting
+        // the value of your time) cheaper than buying it outright.
         const shouldBuy =
-            !buyRawOnly && !(forceRootCraft && depth === 0) && buyPrice !== null && buyPrice <= craftCostPerUnit;
+            !buyRawOnly &&
+            !(forceRootCraft && depth === 0) &&
+            depth !== 0 &&
+            buyPrice !== null &&
+            buyPrice <= costForDecision;
         const strategy = shouldBuy ? 'buy' : 'craft';
         const unitCost = shouldBuy ? buyPrice : craftCostPerUnit;
 
@@ -19700,7 +19870,8 @@
     };
 
     let domObserverUnregister = null;
-    let processedPanels = new WeakSet();
+    let processedPanels = new WeakMap(); // panel -> attached actionHrid
+    let nameWatchedPanels = new WeakSet();
 
     function initialize() {
         domObserverUnregister = domObserver.onClass(
@@ -19718,17 +19889,47 @@
             domObserverUnregister = null;
         }
         document.querySelectorAll(`#${UI_ID$1}`).forEach((el) => el.remove());
-        processedPanels = new WeakSet();
+        processedPanels = new WeakMap();
+        nameWatchedPanels = new WeakSet();
+    }
+
+    // React can reuse the same panel element when navigating between actions (e.g. clicking a
+    // material's "View action" link) — no new node is added, so the DOM observer that normally
+    // triggers processActionPanels() never fires again. Watch the name text directly so an action
+    // swap on a reused panel is still caught.
+    function watchPanelName(panel) {
+        if (nameWatchedPanels.has(panel)) return;
+        const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+        if (!nameEl) return;
+
+        nameWatchedPanels.add(panel);
+        const obs = new MutationObserver(() => {
+            if (!panel.isConnected) {
+                obs.disconnect();
+                return;
+            }
+            processActionPanels();
+        });
+        obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
     }
 
     function processActionPanels() {
         const panels = document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]');
         panels.forEach((panel) => {
-            if (processedPanels.has(panel)) return;
+            watchPanelName(panel);
+
             const inputField = actionPanelHelper_js.findActionInput(panel);
             if (!inputField) return;
-            processedPanels.add(panel);
-            actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => updatePanel(panel, value));
+
+            const actionHrid = getActionHridFromPanel$1(panel);
+            const attachedHrid = processedPanels.get(panel);
+            if (attachedHrid === actionHrid) return;
+
+            processedPanels.set(panel, actionHrid);
+            if (attachedHrid === undefined) {
+                // First time seeing this panel — attach listeners once.
+                actionPanelHelper_js.attachInputListeners(panel, inputField, (value) => updatePanel(panel, value));
+            }
             actionPanelHelper_js.performInitialUpdate(inputField, (value) => updatePanel(panel, value));
         });
     }
@@ -20554,12 +20755,14 @@
                 );
             }
 
-            // Profit from crafting = sell value of the crafted output minus total material/action cost
+            // Profit from crafting = sell value of the crafted output (after market tax) minus
+            // total material/action cost
             const itemDetails = dataManager.getItemDetails(plan.itemHrid);
             if (itemDetails?.isTradable) {
                 const sellPrice = marketData_js.getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
                 if (sellPrice !== null) {
-                    const profit = sellPrice * plan.quantity - plan.totalCost;
+                    const sellPriceAfterTax = profitHelpers_js.calculatePriceAfterTax(sellPrice);
+                    const profit = sellPriceAfterTax * plan.quantity - plan.totalCost;
                     const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
                     content.appendChild(
                         createRow('Profit from crafting', formatters_js.formatWithSeparator(Math.round(profit)), {
@@ -20859,7 +21062,8 @@
         constructor() {
             this.isInitialized = false;
             this.unregisterHandlers = [];
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap(); // panel -> attached actionHrid
+            this.nameWatchedPanels = new WeakSet();
             this.panelObservers = new Map();
             this.inputCleanups = new Map();
         }
@@ -20882,13 +21086,61 @@
 
         _processActionPanels() {
             document.querySelectorAll('[class*="SkillActionDetail_skillActionDetail"]').forEach((panel) => {
-                if (this.processedPanels.has(panel)) return;
-
                 const actionHrid = getActionHridFromPanel(panel);
                 if (!actionHrid) return;
 
+                // React can reuse the same panel element when navigating between actions (e.g.
+                // clicking an ingredient's "View action" then its own Crafting Plan link) — no new
+                // node is added, so the DOM observer that normally triggers processing never fires
+                // again. Watch the name text directly so an action swap on a reused panel is caught.
+                this._watchPanelName(panel);
+
+                const attachedHrid = this.processedPanels.get(panel);
+                if (attachedHrid === actionHrid) return;
+
+                if (attachedHrid) {
+                    // Panel was reused for a different action — tear down the stale UI/listeners
+                    // before reattaching, otherwise the old actionHrid stays baked into closures.
+                    this._detachFromPanel(panel);
+                }
+
                 this._tryAttach(panel, actionHrid);
             });
+        }
+
+        _watchPanelName(panel) {
+            if (this.nameWatchedPanels.has(panel)) return;
+            const nameEl = panel.querySelector('[class*="SkillActionDetail_name"]');
+            if (!nameEl) return;
+
+            this.nameWatchedPanels.add(panel);
+            const obs = new MutationObserver(() => {
+                if (!panel.isConnected) {
+                    obs.disconnect();
+                    return;
+                }
+                this._processActionPanels();
+            });
+            obs.observe(nameEl, { childList: true, characterData: true, subtree: true });
+        }
+
+        _detachFromPanel(panel) {
+            const existing = panel.querySelector(`#${UI_ID}`);
+            if (existing) existing.remove();
+
+            const panelObs = this.panelObservers.get(panel);
+            if (panelObs) {
+                panelObs.disconnect();
+                this.panelObservers.delete(panel);
+            }
+
+            const inputCleanup = this.inputCleanups.get(panel);
+            if (inputCleanup) {
+                inputCleanup();
+                this.inputCleanups.delete(panel);
+            }
+
+            this.processedPanels.delete(panel);
         }
 
         // buildPlanUI can fail on first open if game/market data hasn't finished loading yet.
@@ -20898,7 +21150,7 @@
         _tryAttach(panel, actionHrid, attempt = 0) {
             const attached = this._attachToPanel(panel, actionHrid);
             if (attached) {
-                this.processedPanels.add(panel);
+                this.processedPanels.set(panel, actionHrid);
                 return;
             }
 
@@ -21025,7 +21277,8 @@
             storedBuyItems = null;
             lastMissingMaterials = [];
 
-            this.processedPanels = new WeakSet();
+            this.processedPanels = new WeakMap();
+            this.nameWatchedPanels = new WeakSet();
             this.isInitialized = false;
         }
     }
