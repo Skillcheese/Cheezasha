@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.14.3
+ * Version: 3.15.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -2386,6 +2386,13 @@
                     type: 'checkbox',
                     default: true,
                     help: 'Shows live clear chance during active labyrinth skilling/enhancing rooms',
+                },
+                labyrinthTrialTimerMarker: {
+                    id: 'labyrinthTrialTimerMarker',
+                    label: 'Labyrinth: Trial timer marker on progress bar',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Overlays a marker on the action progress bar during labyrinth combat/skilling trial rooms that moves left-to-right as the 2 minute room timer counts down, so you can compare it against your kill/gather progress',
                 },
                 combatBattleCounter: {
                     id: 'combatBattleCounter',

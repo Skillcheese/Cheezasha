@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.14.3
+ * Version: 3.15.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -19499,6 +19499,9 @@
      * @param {boolean} [forceRootCraft=false] - When true, forces the root item (depth 0) to be crafted
      * @param {number} [timeCostPerHour=0] - Gold value per hour of player time (0 = disabled)
      * @param {boolean} [skipProcessing=false] - When true, forces buy for processing actions (single input, no upgrade)
+     * @param {Map|null} [inventoryPool=null] - Shared itemHrid → owned count pool. Owned units are
+     *   treated as free and consumed (decremented) as the tree is walked, so items already in your
+     *   inventory are never recommended for buying or crafting again.
      * @returns {CraftingPlanNode}
      */
     function computeBestCraftingPlan(
@@ -19512,7 +19515,8 @@
         buyRawOnly = false,
         forceRootCraft = false,
         timeCostPerHour = 0,
-        skipProcessing = false
+        skipProcessing = false,
+        inventoryPool = null
     ) {
         const itemDetails = dataManager.getItemDetails(itemHrid);
         const itemName = itemDetails?.name || itemHrid.split('/').pop();
@@ -19529,6 +19533,33 @@
         const shopCost = getShopCoinCost(itemHrid);
         if (shopCost > 0 && (buyPrice === null || shopCost < buyPrice)) {
             buyPrice = shopCost;
+        }
+
+        // Fully-owned items need neither buying nor crafting — short-circuit regardless of what
+        // strategy would otherwise apply. The pool is shared and mutated across the whole recursive
+        // walk so the same itemHrid appearing in multiple branches doesn't get "spent" more than
+        // once. The root item (depth 0) is the quantity the user explicitly asked to produce/queue —
+        // owning some already doesn't reduce that target, so it's exempt.
+        if (inventoryPool && depth > 0 && itemHrid !== '/items/coin') {
+            const available = inventoryPool.get(itemHrid) || 0;
+            if (available >= quantity) {
+                inventoryPool.set(itemHrid, available - quantity);
+                return {
+                    itemHrid,
+                    itemName,
+                    quantity,
+                    strategy: 'owned',
+                    unitCost: 0,
+                    totalCost: 0,
+                    buyPrice,
+                    craftCost: null,
+                    actionHrid: null,
+                    actionCategory: null,
+                    actionsNeeded: 0,
+                    children: [],
+                    owned: quantity,
+                };
+            }
         }
 
         // Coins always cost 1 each
@@ -19552,25 +19583,36 @@
         // Check memo for previously computed unit cost
         if (memo.has(itemHrid)) {
             const cachedUnitCost = memo.get(itemHrid);
+            // Only a 'craft' outcome reduces its required quantity against remaining owned
+            // inventory — a 'buy' leaf keeps its full (gross) quantity, since the shopping-list
+            // badge already subtracts live inventory against that gross amount separately.
+            let ownedHere = 0;
+            let neededQuantity = quantity;
+            if (cachedUnitCost.strategy === 'craft' && inventoryPool && depth > 0) {
+                const available = inventoryPool.get(itemHrid) || 0;
+                ownedHere = Math.min(available, quantity);
+                if (ownedHere > 0) inventoryPool.set(itemHrid, available - ownedHere);
+                neededQuantity = quantity - ownedHere;
+            }
             return {
                 itemHrid,
                 itemName,
                 quantity,
                 strategy: cachedUnitCost.strategy,
                 unitCost: cachedUnitCost.unitCost,
-                totalCost: cachedUnitCost.unitCost * quantity,
+                totalCost: cachedUnitCost.unitCost * neededQuantity,
                 buyPrice,
                 craftCost: cachedUnitCost.craftCost,
                 actionHrid: cachedUnitCost.actionHrid,
                 actionCategory: cachedUnitCost.actionCategory ?? null,
                 actionsNeeded:
-                    cachedUnitCost.strategy === 'craft' ? Math.ceil(quantity / (cachedUnitCost.outputCount || 1)) : 0,
+                    cachedUnitCost.strategy === 'craft' ? Math.ceil(neededQuantity / (cachedUnitCost.outputCount || 1)) : 0,
                 children:
                     cachedUnitCost.strategy === 'craft'
                         ? cachedUnitCost.childrenTemplate.map((c) =>
                               computeBestCraftingPlan(
                                   c.itemHrid,
-                                  c.qtyPerUnit * quantity,
+                                  c.qtyPerUnit * neededQuantity,
                                   mode,
                                   visited,
                                   memo,
@@ -19579,10 +19621,12 @@
                                   buyRawOnly,
                                   forceRootCraft,
                                   timeCostPerHour,
-                                  skipProcessing
+                                  skipProcessing,
+                                  inventoryPool
                               )
                           )
                         : [],
+                owned: ownedHere,
             };
         }
 
@@ -19686,6 +19730,9 @@
                 const qtyPerUnit = reducedCount * actionsForOne;
 
                 const inputQty = Math.ceil(reducedCount * Math.ceil(quantity / outputCount));
+                // Intentionally not passed inventoryPool: this pass is only estimating a per-unit
+                // cost for the buy-vs-craft decision below, which must stay ownership-independent.
+                // The real, inventory-aware children are built in the second pass further down.
                 const childPlan = computeBestCraftingPlan(
                     input.itemHrid,
                     inputQty,
@@ -19782,10 +19829,22 @@
             childrenTemplate: strategy === 'craft' ? childrenTemplate : [],
         });
 
+        // A 'craft' outcome reduces its required quantity against owned inventory (buying leaves
+        // keep the gross quantity — the shopping-list badge subtracts live inventory against that
+        // separately, so offsetting it here too would double-count the same owned units).
+        let owned = 0;
+        let neededQuantity = quantity;
+        if (!shouldBuy && inventoryPool && depth > 0) {
+            const available = inventoryPool.get(itemHrid) || 0;
+            owned = Math.min(available, quantity);
+            if (owned > 0) inventoryPool.set(itemHrid, available - owned);
+            neededQuantity = quantity - owned;
+        }
+
         // Build children for the actual quantities
         let children = [];
         if (!shouldBuy) {
-            const actionsNeeded = Math.ceil(quantity / outputCount);
+            const actionsNeeded = Math.ceil(neededQuantity / outputCount);
             children = [];
             if (groupedInputItems) {
                 for (const input of groupedInputItems) {
@@ -19804,7 +19863,8 @@
                             buyRawOnly,
                             forceRootCraft,
                             timeCostPerHour,
-                            skipProcessing
+                            skipProcessing,
+                            inventoryPool
                         )
                     );
                 }
@@ -19822,7 +19882,8 @@
                         buyRawOnly,
                         forceRootCraft,
                         timeCostPerHour,
-                        skipProcessing
+                        skipProcessing,
+                        inventoryPool
                     )
                 );
             }
@@ -19834,13 +19895,14 @@
             quantity,
             strategy,
             unitCost,
-            totalCost: unitCost * quantity,
+            totalCost: unitCost * neededQuantity,
             buyPrice,
             craftCost: craftCostPerUnit,
             actionHrid: strategy === 'craft' ? actionHrid : null,
             actionCategory: strategy === 'craft' ? (action.category ?? null) : null,
-            actionsNeeded: strategy === 'craft' ? Math.ceil(quantity / outputCount) : 0,
+            actionsNeeded: strategy === 'craft' ? Math.ceil(neededQuantity / outputCount) : 0,
             children,
+            owned,
         };
     }
 
@@ -20396,7 +20458,8 @@
                 buyIntermediates,
                 taskMode,
                 timeCostEnabled ? goldPerHour : 0,
-                noProcessing
+                noProcessing,
+                buildInventoryPool()
             );
         } catch (e) {
             console.error('[CraftingPlan] computeBestCraftingPlan error:', e);
@@ -20409,19 +20472,69 @@
         // Build content
         const content = document.createElement('div');
 
+        // === Whole-plan worth-it check ===
+        // Buy-vs-craft at each material tier only ever weighs raw gold cost (optionally with a time
+        // surcharge) against buy price — a sourcing question. It says nothing about whether crafting
+        // the ROOT item is actually a good use of time, which is a profit question: does the crafted
+        // output's sell value (after tax) minus the plan's real total cost, spread over the real
+        // wall-clock crafting time, clear your stated time value? Computed once up front so the top
+        // summary can recommend buying outright when the answer is no, even though every individual
+        // ingredient decision was locally correct.
+        const craftSteps = collectCraftSteps(plan);
+        let totalCraftSeconds = 0;
+        {
+            const gameDataForTime = dataManager.getInitClientData();
+            const skillsForTime = dataManager.getSkills();
+            const equipmentForTime = dataManager.getEquipment();
+            for (const step of craftSteps) {
+                if (!step.actionHrid) continue;
+                const actionDetails = gameDataForTime?.actionDetailMap?.[step.actionHrid];
+                if (!actionDetails) continue;
+                const stats = actionCalculator_js.calculateActionStats(actionDetails, {
+                    skills: skillsForTime,
+                    equipment: equipmentForTime,
+                    itemDetailMap: gameDataForTime.itemDetailMap,
+                });
+                const effMultiplier = efficiency_js.calculateEfficiencyMultiplier(stats.totalEfficiency);
+                totalCraftSeconds += (stats.actionTime * step.actionsNeeded) / effMultiplier;
+            }
+        }
+
+        let profitPerHour = null;
+        const rootItemDetails = dataManager.getItemDetails(plan.itemHrid);
+        if (rootItemDetails?.isTradable && totalCraftSeconds > 0) {
+            const rootSellPrice = marketData_js.getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
+            if (rootSellPrice !== null) {
+                const profit = profitHelpers_js.calculatePriceAfterTax(rootSellPrice) * plan.quantity - plan.totalCost;
+                profitPerHour = profit * (3600 / totalCraftSeconds);
+            }
+        }
+
+        // Only overrides the recommendation — never the underlying plan/shopping list/steps below,
+        // which still reflect the cheapest way to obtain the item if you decide to craft it anyway.
+        const worthCrafting =
+            !timeCostEnabled || goldPerHour <= 0 || profitPerHour === null || profitPerHour >= goldPerHour;
+
         // === Summary comparison ===
         const unitCostText = plan.unitCost === Infinity ? '?' : formatters_js.formatWithSeparator(Math.round(plan.unitCost));
         const buyText = plan.buyPrice !== null ? formatters_js.formatWithSeparator(Math.round(plan.buyPrice)) : 'N/A';
         const craftText = plan.craftCost !== null ? formatters_js.formatWithSeparator(Math.round(plan.craftCost)) : 'N/A';
-        const strategyText = plan.strategy === 'buy' ? 'Buy from market' : 'Craft from materials';
+        const strategyText = plan.strategy === 'buy' || !worthCrafting ? 'Buy from market' : 'Craft from materials';
+        const topLineCostText =
+            !worthCrafting && plan.buyPrice !== null ? formatters_js.formatWithSeparator(Math.round(plan.buyPrice)) : unitCostText;
+        const worthCraftingNote =
+            !worthCrafting && profitPerHour !== null
+                ? `<div style="color: ${config.COLOR_LOSS}; font-size: 0.85em; margin-top: 2px;">Crafting only nets ${formatters_js.formatKMB(Math.round(profitPerHour))}/hr — below your ${formatters_js.formatKMB(goldPerHour)}/hr time value</div>`
+                : '';
 
         const summary = document.createElement('div');
         summary.style.cssText = 'margin-bottom: 6px;';
         summary.innerHTML = `
         <div style="display: flex; justify-content: space-between; color: var(--text-color-primary, #fff);">
             <span>Optimal: <strong>${strategyText}</strong></span>
-            <span>${unitCostText}/ea</span>
+            <span>${topLineCostText}/ea</span>
         </div>
+        ${worthCraftingNote}
         <div style="display: flex; justify-content: space-between; color: var(--text-color-secondary, #888); font-size: 0.9em;">
             <span>Market buy: ${buyText}</span>
             <span>Craft cost: ${craftText}</span>
@@ -20682,7 +20795,7 @@
         }
 
         // === Crafting Steps (what to craft, in order) ===
-        const craftSteps = collectCraftSteps(plan);
+        // craftSteps and totalCraftSeconds were already computed above for the worth-it check.
 
         if (craftSteps.length > 0) {
             const divider2 = document.createElement('div');
@@ -20701,7 +20814,6 @@
             const gameData = dataManager.getInitClientData();
             const skills = dataManager.getSkills();
             const equipment = dataManager.getEquipment();
-            let totalCraftSeconds = 0;
             let totalXP = 0;
 
             for (let i = 0; i < craftSteps.length; i++) {
@@ -20718,8 +20830,9 @@
                             itemDetailMap: gameData.itemDetailMap,
                         });
                         const effMultiplier = efficiency_js.calculateEfficiencyMultiplier(stats.totalEfficiency);
+                        // totalCraftSeconds (used below) was already accumulated in the worth-it
+                        // check above — this is just the per-step figure for display.
                         const totalSeconds = (stats.actionTime * step.actionsNeeded) / effMultiplier;
-                        totalCraftSeconds += totalSeconds;
                         timeStr = ` (${formatters_js.timeReadable(totalSeconds)}`;
                     }
                     const expData = experienceCalculator_js.calculateExpPerHour(step.actionHrid);
@@ -20756,32 +20869,25 @@
             }
 
             // Profit from crafting = sell value of the crafted output (after market tax) minus
-            // total material/action cost
-            const itemDetails = dataManager.getItemDetails(plan.itemHrid);
-            if (itemDetails?.isTradable) {
-                const sellPrice = marketData_js.getItemPrice(plan.itemHrid, { mode, context: 'profit', side: 'sell' });
-                if (sellPrice !== null) {
-                    const sellPriceAfterTax = profitHelpers_js.calculatePriceAfterTax(sellPrice);
-                    const profit = sellPriceAfterTax * plan.quantity - plan.totalCost;
-                    const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
-                    content.appendChild(
-                        createRow('Profit from crafting', formatters_js.formatWithSeparator(Math.round(profit)), {
-                            leftColor: 'var(--text-color-primary, #fff)',
-                            rightColor: profitColor,
-                        })
-                    );
+            // total material/action cost. Reuses the sell price/profit already computed above for
+            // the worth-it check, for consistency between the two.
+            if (rootItemDetails?.isTradable && profitPerHour !== null) {
+                const profit = (profitPerHour * totalCraftSeconds) / 3600;
+                const profitColor = profit >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                content.appendChild(
+                    createRow('Profit from crafting', formatters_js.formatWithSeparator(Math.round(profit)), {
+                        leftColor: 'var(--text-color-primary, #fff)',
+                        rightColor: profitColor,
+                    })
+                );
 
-                    if (totalCraftSeconds > 0) {
-                        const profitPerHour = profit * (3600 / totalCraftSeconds);
-                        const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
-                        content.appendChild(
-                            createRow('Profit/hr from crafting', formatters_js.formatWithSeparator(Math.round(profitPerHour)), {
-                                leftColor: 'var(--text-color-primary, #fff)',
-                                rightColor: profitPerHourColor,
-                            })
-                        );
-                    }
-                }
+                const profitPerHourColor = profitPerHour >= 0 ? '#4ade80' : config.COLOR_LOSS;
+                content.appendChild(
+                    createRow('Profit/hr from crafting', formatters_js.formatWithSeparator(Math.round(profitPerHour)), {
+                        leftColor: 'var(--text-color-primary, #fff)',
+                        rightColor: profitPerHourColor,
+                    })
+                );
             }
         }
 
@@ -20882,6 +20988,22 @@
         });
 
         return tab;
+    }
+
+    /**
+     * Build a itemHrid → owned count pool from current inventory, for offsetting crafting-plan
+     * ingredient needs against materials already on hand. Enhanced items are excluded since they're
+     * not fungible with the base-quality material a recipe consumes.
+     * @returns {Map<string, number>}
+     */
+    function buildInventoryPool() {
+        const inventory = dataManager.getInventory() || [];
+        const pool = new Map();
+        for (const item of inventory) {
+            if (item.enhancementLevel) continue;
+            pool.set(item.itemHrid, (pool.get(item.itemHrid) || 0) + (item.count || 0));
+        }
+        return pool;
     }
 
     /**
