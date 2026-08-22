@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.15.0
+ * Version: 3.16.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -9741,6 +9741,9 @@
             this.settingHandler = () => {
                 this.combatCache.clear();
                 this.recommendations.clear();
+                // A skip threshold edit invalidates any cached room assignment (roomData.recommendedLevel) —
+                // without this, injectOverlays keeps showing the pre-edit room level for that skill.
+                this.roomData = null;
                 this.injectOverlays();
             };
             webSocketHook.on('setting_updated', this.settingHandler);
@@ -30318,15 +30321,19 @@
             <th style="${thStyle}">Base Level</th>
             <th style="${thStyle}">Max Room Level</th>
             <th style="${thStyle}">Clear at Max</th>
+            <th style="${thStyle}">Skip</th>
         </tr></thead><tbody>`;
 
             for (const r of results) {
                 const clearPct = ((r.clearChance || 0) * 100).toFixed(1);
+                const roomAssignmentLevel = labyrinthClearRate.getEffectiveLevel(`/skills/${r.skillId}`);
+                const recommendedSkip = r.maxLevel - roomAssignmentLevel + 1;
                 html += `<tr style="border-bottom:1px solid #1a1a1a;">
                 <td style="padding:3px 4px; color:#e0e0e0;">${r.skillName}</td>
                 <td style="${tdStyle} color:#ccc;">${r.baseLevel}</td>
                 <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
                 <td style="${tdStyle} color:#ccc;">${clearPct}%</td>
+                <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
             </tr>`;
             }
 
