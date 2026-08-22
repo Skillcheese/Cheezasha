@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cheezasha
 // @namespace    http://tampermonkey.net/
-// @version      3.15.0
+// @version      3.16.0
 // @downloadURL  https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @updateURL    https://raw.githubusercontent.com/Skillcheese/Cheezasha/releases/dist/Cheezasha.user.js
 // @description  Cheezasha - Enhanced tools for Milky Way Idle.
