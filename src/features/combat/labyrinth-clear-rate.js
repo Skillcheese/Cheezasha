@@ -54,6 +54,9 @@ class LabyrinthClearRate {
         this.settingHandler = () => {
             this.combatCache.clear();
             this.recommendations.clear();
+            // A skip threshold edit invalidates any cached room assignment (roomData.recommendedLevel) —
+            // without this, injectOverlays keeps showing the pre-edit room level for that skill.
+            this.roomData = null;
             this.injectOverlays();
         };
         webSocketHook.on('setting_updated', this.settingHandler);

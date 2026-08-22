@@ -1038,13 +1038,24 @@ class CraftingPlanDisplay {
         this.isInitialized = true;
         autofillManager.initialize();
 
-        const unregister = domObserver.onClass(
+        // Listen for the modal container rather than the inner SkillActionDetail panel itself:
+        // the game can reuse the same panel node across menu open/close cycles (no new node with
+        // that class gets inserted), but the modal wrapper is reliably re-added to the DOM every
+        // time the menu opens, so this fires consistently. Matches the pattern other action-panel
+        // features (e.g. panel-observer.js) already rely on for the same reason.
+        const unregisterModal = domObserver.onClass(
+            'CraftingPlan-Modal',
+            'Modal_modalContainer',
+            () => this._processActionPanels(),
+            { debounce: true }
+        );
+        const unregisterPanel = domObserver.onClass(
             'CraftingPlan',
             'SkillActionDetail_skillActionDetail',
             () => this._processActionPanels(),
             { debounce: true }
         );
-        this.unregisterHandlers.push(unregister);
+        this.unregisterHandlers.push(unregisterModal, unregisterPanel);
     }
 
     _processActionPanels() {

@@ -2338,15 +2338,19 @@ class LabSimUI {
             <th style="${thStyle}">Base Level</th>
             <th style="${thStyle}">Max Room Level</th>
             <th style="${thStyle}">Clear at Max</th>
+            <th style="${thStyle}">Skip</th>
         </tr></thead><tbody>`;
 
         for (const r of results) {
             const clearPct = ((r.clearChance || 0) * 100).toFixed(1);
+            const roomAssignmentLevel = labyrinthClearRate.getEffectiveLevel(`/skills/${r.skillId}`);
+            const recommendedSkip = r.maxLevel - roomAssignmentLevel + 1;
             html += `<tr style="border-bottom:1px solid #1a1a1a;">
                 <td style="padding:3px 4px; color:#e0e0e0;">${r.skillName}</td>
                 <td style="${tdStyle} color:#ccc;">${r.baseLevel}</td>
                 <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
                 <td style="${tdStyle} color:#ccc;">${clearPct}%</td>
+                <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
             </tr>`;
         }
 
