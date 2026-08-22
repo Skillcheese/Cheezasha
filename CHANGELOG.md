@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.16.0](https://github.com/Skillcheese/Cheezasha/compare/v3.15.0...v3.16.0) (2026-08-22)
+
+
+### Features
+
+* show recommended skip in labyrinth sim and fix crafting plan panel refresh ([ee13eb8](https://github.com/Skillcheese/Cheezasha/commit/ee13eb80b49344eb9ad907325b4511c2e9f1ef25))
+
 ## [3.15.0](https://github.com/Skillcheese/Cheezasha/compare/v3.14.3...v3.15.0) (2026-08-19)
 
 ### Features
