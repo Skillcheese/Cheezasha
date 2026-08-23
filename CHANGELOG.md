@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.17.0](https://github.com/Skillcheese/Cheezasha/compare/v3.16.0...v3.17.0) (2026-08-23)
+
+
+### Features
+
+* highlight labyrinth rooms by clear chance and add XP tracker ([c4c8e20](https://github.com/Skillcheese/Cheezasha/commit/c4c8e2038c3b8f7e8e5b12d8f24d39054cae7d44))
+
 ## [3.16.0](https://github.com/Skillcheese/Cheezasha/compare/v3.15.0...v3.16.0) (2026-08-22)
 
 ### Features
