@@ -21,6 +21,15 @@ const RECOMMEND_CLASS = 'mwi-labyrinth-recommend';
 const RECOMMEND_CONTROLS_CLASS = 'mwi-labyrinth-recommend-controls';
 const LIVE_PROGRESS_CLASS = 'mwi-labyrinth-live-progress';
 const LIVE_PROGRESS_STALE_MS = 5000;
+const GRID_HIGHLIGHT_CLASS = 'mwi-labyrinth-grid-highlight';
+const GRID_LABEL_CLASS = 'mwi-labyrinth-grid-label';
+const GRID_HIGHLIGHT_CONTROLS_CLASS = 'mwi-labyrinth-highlight-controls';
+const GRID_CELL_ATTR = 'data-mwi-lab-grid-cell';
+const GRID_YELLOW_BAND = 20; // percentage points below threshold still shown as yellow
+const GRID_COLOR_GREEN = 'rgba(68, 221, 68, 0.85)';
+const GRID_COLOR_YELLOW = 'rgba(240, 173, 78, 0.85)';
+const GRID_COLOR_RED = 'rgba(217, 83, 79, 0.85)';
+const GRID_COLOR_PENDING = 'rgba(150, 150, 170, 0.6)';
 
 class LabyrinthClearRate {
     constructor() {
@@ -37,6 +46,7 @@ class LabyrinthClearRate {
         this._recommendTargetPct = 70;
         this.liveProgressHandler = null;
         this.liveProgressTimeout = null;
+        this.gridObserverUnregister = null;
     }
 
     initialize() {
@@ -58,6 +68,7 @@ class LabyrinthClearRate {
             // without this, injectOverlays keeps showing the pre-edit room level for that skill.
             this.roomData = null;
             this.injectOverlays();
+            this.injectRoomGridHighlights();
         };
         webSocketHook.on('setting_updated', this.settingHandler);
 
@@ -65,6 +76,7 @@ class LabyrinthClearRate {
             this.combatCache.clear();
             this.recommendations.clear();
             this.injectOverlays();
+            this.injectRoomGridHighlights();
         };
         webSocketHook.on('loadouts_updated', this.loadoutsHandler);
 
@@ -79,7 +91,22 @@ class LabyrinthClearRate {
         );
         this.unregisterHandlers.push(unregister);
 
+        this.gridObserverUnregister = domObserver.onClass(
+            'LabyrinthClearRateGrid',
+            'LabyrinthPanel_roomGrid',
+            () => {
+                this.injectHighlightControls();
+                this.injectRoomGridHighlights();
+            },
+            { debounce: true }
+        );
+        this.unregisterHandlers.push(this.gridObserverUnregister);
+
         setTimeout(() => this.injectOverlays(), 500);
+        setTimeout(() => {
+            this.injectHighlightControls();
+            this.injectRoomGridHighlights();
+        }, 500);
 
         this.isInitialized = true;
     }
@@ -114,6 +141,8 @@ class LabyrinthClearRate {
         document.querySelectorAll(`.${RECOMMEND_CLASS}`).forEach((el) => el.remove());
         document.querySelectorAll(`.${RECOMMEND_CONTROLS_CLASS}`).forEach((el) => el.remove());
         document.querySelectorAll(`.${LIVE_PROGRESS_CLASS}`).forEach((el) => el.remove());
+        document.querySelectorAll(`.${GRID_HIGHLIGHT_CONTROLS_CLASS}`).forEach((el) => el.remove());
+        this.clearGridOverlays();
 
         this.roomData = null;
         this.combatCache.clear();
@@ -121,6 +150,7 @@ class LabyrinthClearRate {
         this.simRunning = false;
         this.recommendations.clear();
         this.recommendRunning = false;
+        this.gridObserverUnregister = null;
         this.isInitialized = false;
     }
 
@@ -129,6 +159,8 @@ class LabyrinthClearRate {
         if (roomData) {
             this.roomData = roomData;
             this.injectOverlays();
+            this.injectHighlightControls();
+            this.injectRoomGridHighlights();
         }
     }
 
@@ -847,18 +879,19 @@ class LabyrinthClearRate {
         }
     }
 
-    queueCombatSim(monsterHrid, roomLevel, badge) {
-        this.simQueue.push({ monsterHrid, roomLevel, badge });
+    queueCombatSim(monsterHrid, roomLevel, badge, onResult) {
+        this.simQueue.push({ monsterHrid, roomLevel, badge, onResult });
     }
 
     async processSimQueue() {
         if (this.simRunning) return;
         this.simRunning = true;
         while (this.simQueue.length > 0) {
-            const { monsterHrid, roomLevel, badge } = this.simQueue.shift();
-            if (!badge.isConnected) continue;
+            const { monsterHrid, roomLevel, badge, onResult } = this.simQueue.shift();
+            if (badge && !badge.isConnected) continue;
             const result = await this.computeCombatClear(monsterHrid, roomLevel);
-            if (badge.isConnected) this.updateBadge(badge, result, roomLevel);
+            if (badge && badge.isConnected) this.updateBadge(badge, result, roomLevel);
+            if (onResult) onResult(result);
         }
         this.simRunning = false;
     }
@@ -1283,6 +1316,212 @@ class LabyrinthClearRate {
         this.injectRecommendationBadges();
     }
 
+    /**
+     * Get the active highlight threshold (%), preferring the on-page input if present.
+     */
+    getHighlightThreshold() {
+        const input = document.getElementById('mwi-labyrinth-highlight-threshold');
+        const val = input ? parseInt(input.value, 10) : NaN;
+        if (Number.isFinite(val) && val >= 1 && val <= 100) return val;
+        return config.getSettingValue('labyrinthHighlightThreshold', 70);
+    }
+
+    /**
+     * Green at/above threshold, yellow within GRID_YELLOW_BAND points below it, red otherwise.
+     */
+    getGridHighlightColor(pct, threshold) {
+        if (pct >= threshold) return GRID_COLOR_GREEN;
+        if (pct > 0 && pct >= threshold - GRID_YELLOW_BAND) return GRID_COLOR_YELLOW;
+        return GRID_COLOR_RED;
+    }
+
+    /**
+     * Paint (or update) the highlight overlay + bottom label + tooltip for a single maze grid cell.
+     * clearChance of null renders a neutral "pending" color (combat sim still running).
+     * expectedSeconds is the amortized time-to-clear including retries after failed attempts.
+     */
+    paintGridCell(cell, clearChance, threshold, tooltip, expectedSeconds) {
+        cell.setAttribute(GRID_CELL_ATTR, '1');
+
+        let overlay = cell.querySelector(`.${GRID_HIGHLIGHT_CLASS}`);
+        if (!overlay) {
+            const cellStyle = getComputedStyle(cell);
+            if (cellStyle.position === 'static') cell.style.position = 'relative';
+            overlay = document.createElement('div');
+            overlay.className = GRID_HIGHLIGHT_CLASS;
+            overlay.style.cssText = 'position:absolute; inset:0; border-radius:4px; pointer-events:none; z-index:5;';
+            cell.appendChild(overlay);
+        }
+
+        const color =
+            clearChance === null ? GRID_COLOR_PENDING : this.getGridHighlightColor(clearChance * 100, threshold);
+        overlay.style.border = `2px solid ${color}`;
+        overlay.style.boxShadow = `inset 0 0 6px ${color}`;
+
+        let label = cell.querySelector(`.${GRID_LABEL_CLASS}`);
+        if (!label) {
+            label = document.createElement('div');
+            label.className = GRID_LABEL_CLASS;
+            label.style.cssText =
+                'position:absolute; left:2px; right:2px; bottom:2px; text-align:center; ' +
+                'font-size:0.62rem; font-weight:600; line-height:1.1; color:#fff; ' +
+                'text-shadow:0 1px 2px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9); ' +
+                'pointer-events:none; z-index:6; white-space:nowrap; overflow:hidden;';
+            cell.appendChild(label);
+        }
+        if (clearChance === null) {
+            label.textContent = '…';
+        } else {
+            const pct = Math.round(clearChance * 100);
+            const timeText = this.formatGridTime(expectedSeconds);
+            label.textContent = pct >= 99 ? timeText : `${pct}%${timeText}`;
+        }
+
+        cell.title = tooltip;
+    }
+
+    /**
+     * Remove all grid highlight overlays/labels and any tooltip text we added to cells.
+     */
+    clearGridOverlays() {
+        document.querySelectorAll(`.${GRID_HIGHLIGHT_CLASS}`).forEach((el) => el.remove());
+        document.querySelectorAll(`.${GRID_LABEL_CLASS}`).forEach((el) => el.remove());
+        document.querySelectorAll(`[${GRID_CELL_ATTR}]`).forEach((el) => {
+            el.removeAttribute(GRID_CELL_ATTR);
+            el.removeAttribute('title');
+        });
+    }
+
+    /**
+     * Color uncleared rooms on the maze grid green/yellow/red by estimated clear chance.
+     */
+    injectRoomGridHighlights() {
+        if (!config.getSetting('labyrinthHighlightRooms')) {
+            this.clearGridOverlays();
+            return;
+        }
+
+        const grid = document.querySelector('[class*="LabyrinthPanel_roomGrid"]');
+        if (!grid || !this.roomData) return;
+
+        this.clearGridOverlays();
+
+        const cells = grid.querySelectorAll('[class*="roomCell"]');
+        const threshold = this.getHighlightThreshold();
+
+        cells.forEach((cell) => {
+            const colIdx = Number(cell.getAttribute('data-room-x'));
+            const rowIdx = Number(cell.getAttribute('data-room-y'));
+            if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return;
+            const room = this.roomData[rowIdx]?.[colIdx];
+            if (!room || room.isCleared) return;
+
+            if (room.roomType === '/labyrinth_room_types/combat' && room.monsterHrid) {
+                const cached = this.getCachedCombatResult(room.monsterHrid, room.recommendedLevel);
+                if (cached) {
+                    this.paintGridCell(
+                        cell,
+                        cached.clearChance,
+                        threshold,
+                        this.formatTooltip(cached, room.recommendedLevel),
+                        cached.expectedSeconds
+                    );
+                } else {
+                    this.paintGridCell(cell, null, threshold, 'Simulating combat...');
+                    this.queueCombatSim(room.monsterHrid, room.recommendedLevel, null, () =>
+                        this.injectRoomGridHighlights()
+                    );
+                }
+                return;
+            }
+
+            if (!room.skillHrid) return;
+            const isEnhancing = room.skillHrid === '/skills/enhancing';
+            const result = isEnhancing
+                ? this.computeEnhancingClear(room.recommendedLevel)
+                : this.computeSkillingClear(room.skillHrid, room.recommendedLevel);
+            this.paintGridCell(
+                cell,
+                result.clearChance,
+                threshold,
+                this.formatTooltip(result, room.recommendedLevel),
+                result.expectedSeconds
+            );
+        });
+
+        this.processSimQueue();
+    }
+
+    /**
+     * Inject the "Highlight rooms" checkbox + threshold input above the maze grid.
+     */
+    injectHighlightControls() {
+        const grid = document.querySelector('[class*="LabyrinthPanel_roomGrid"]');
+        if (!grid) return;
+
+        const existing = document.querySelector(`.${GRID_HIGHLIGHT_CONTROLS_CLASS}`);
+        if (existing) {
+            const checkbox = document.getElementById('mwi-labyrinth-highlight-enabled');
+            const input = document.getElementById('mwi-labyrinth-highlight-threshold');
+            if (checkbox && !checkbox.dataset.userEdited)
+                checkbox.checked = config.getSetting('labyrinthHighlightRooms');
+            if (input && !input.dataset.userEdited) {
+                input.value = config.getSettingValue('labyrinthHighlightThreshold', 70);
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = GRID_HIGHLIGHT_CONTROLS_CLASS;
+        container.style.cssText =
+            'display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:0.8rem; flex-wrap:wrap;';
+
+        const checkboxLabel = document.createElement('label');
+        checkboxLabel.style.cssText =
+            'display:flex; align-items:center; gap:4px; color:#888; font-size:0.75rem; cursor:pointer;';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = 'mwi-labyrinth-highlight-enabled';
+        checkbox.checked = config.getSetting('labyrinthHighlightRooms');
+        checkbox.addEventListener('change', () => {
+            checkbox.dataset.userEdited = '1';
+            config.setSetting('labyrinthHighlightRooms', checkbox.checked);
+            this.injectRoomGridHighlights();
+        });
+
+        checkboxLabel.appendChild(checkbox);
+        checkboxLabel.appendChild(document.createTextNode('Highlight rooms'));
+
+        const thresholdLabel = document.createElement('span');
+        thresholdLabel.style.cssText = 'color:#888; font-size:0.75rem; white-space:nowrap;';
+        thresholdLabel.textContent = 'Threshold %';
+
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = 'mwi-labyrinth-highlight-threshold';
+        input.min = '1';
+        input.max = '100';
+        input.step = '1';
+        input.value = config.getSettingValue('labyrinthHighlightThreshold', 70);
+        input.style.cssText =
+            'width:50px; background:#1a1a2e; color:#e0e0e0; border:1px solid #555; border-radius:4px; padding:2px 4px; font-size:0.75rem; text-align:center;';
+        input.addEventListener('input', () => {
+            input.dataset.userEdited = '1';
+            const parsed = parseInt(input.value, 10);
+            if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 100) {
+                config.setSetting('labyrinthHighlightThreshold', parsed);
+            }
+            this.injectRoomGridHighlights();
+        });
+
+        container.appendChild(checkboxLabel);
+        container.appendChild(thresholdLabel);
+        container.appendChild(input);
+
+        grid.parentNode.insertBefore(container, grid);
+    }
+
     appendBadge(cell, result, roomLevel) {
         const badge = document.createElement('span');
         badge.className = BADGE_CLASS;
@@ -1540,6 +1779,15 @@ class LabyrinthClearRate {
         const m = Math.floor(s / 60);
         const rem = s % 60;
         return `~${m}:${rem.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * Compact time for the maze grid label: integer seconds, no "~", e.g. "359s".
+     */
+    formatGridTime(seconds) {
+        if (!Number.isFinite(seconds) || seconds <= 0) return '—';
+        if (seconds >= 9999) return '∞';
+        return `${Math.round(seconds)}s`;
     }
 }
 

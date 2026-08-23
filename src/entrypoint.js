@@ -472,6 +472,13 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'labyrinthXp',
+            name: 'Labyrinth XP Tracker',
+            category: 'Combat',
+            module: Combat.labyrinthXp,
+            async: false,
+        },
+        {
             key: 'loadoutSnapshot',
             name: 'Loadout Snapshots',
             category: 'Combat',
