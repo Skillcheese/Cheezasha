@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.16.0
+ * Version: 3.17.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -614,7 +614,7 @@
      */
 
 
-    const STORAGE_KEY_PREFIX$2 = 'loadout_snapshots';
+    const STORAGE_KEY_PREFIX$3 = 'loadout_snapshots';
 
     /**
      * Returns the active WebSocket hook instance.
@@ -631,9 +631,9 @@
      * Get character-scoped storage key.
      * @returns {string}
      */
-    function getStorageKey$2() {
+    function getStorageKey$3() {
         const charId = dataManager.getCurrentCharacterId() || 'default';
-        return `${STORAGE_KEY_PREFIX$2}_${charId}`;
+        return `${STORAGE_KEY_PREFIX$3}_${charId}`;
     }
 
     /**
@@ -748,7 +748,7 @@
             // Load from storage — loadouts_updated only fires when the user visits the loadouts
             // UI, so storage is always the source of snapshots at startup.
             if (Object.keys(this.snapshots).length === 0) {
-                const storageKey = getStorageKey$2();
+                const storageKey = getStorageKey$3();
                 // NOTE: getCurrentCharacterId() may be null at this point (before init_character_data
                 // arrives), so getStorageKey() may return 'loadout_snapshots_default'. We will reload
                 // from the correct key once character_initialized fires.
@@ -766,7 +766,7 @@
 
             // Reload from the correct character-scoped key once character data is available
             this.characterInitializedHandler = async () => {
-                const storageKey = getStorageKey$2();
+                const storageKey = getStorageKey$3();
                 const fresh = (await storage.getJSON(storageKey, 'settings', null)) || {};
                 if (Object.keys(fresh).length > 0) {
                     this.snapshots = fresh;
@@ -795,7 +795,7 @@
             }
 
             this.snapshots = newSnapshots;
-            storage.setJSON(getStorageKey$2(), this.snapshots, 'settings');
+            storage.setJSON(getStorageKey$3(), this.snapshots, 'settings');
             this._emitUpdate();
         }
 
@@ -820,7 +820,7 @@
                 }
             }
             if (changed) {
-                storage.setJSON(getStorageKey$2(), this.snapshots, 'settings');
+                storage.setJSON(getStorageKey$3(), this.snapshots, 'settings');
                 this._emitUpdate();
             }
             return changed;
@@ -939,12 +939,12 @@
      */
 
 
-    const STORAGE_KEY_PREFIX$1 = 'scroll_simulation';
+    const STORAGE_KEY_PREFIX$2 = 'scroll_simulation';
     const DEFAULT_KEY = '__default__';
 
-    function getStorageKey$1() {
+    function getStorageKey$2() {
         const charId = dataManager.getCurrentCharacterId() || 'default';
-        return `${STORAGE_KEY_PREFIX$1}_${charId}`;
+        return `${STORAGE_KEY_PREFIX$2}_${charId}`;
     }
 
     class ScrollSimulator {
@@ -956,7 +956,7 @@
 
         async initialize() {
             if (this.initialized) return;
-            const saved = await storage.getJSON(getStorageKey$1(), 'settings', {});
+            const saved = await storage.getJSON(getStorageKey$2(), 'settings', {});
             for (const [name, arr] of Object.entries(saved)) {
                 if (Array.isArray(arr)) {
                     this.scrollsByLoadout[name] = new Set(arr);
@@ -1005,7 +1005,7 @@
             for (const [name, set] of Object.entries(this.scrollsByLoadout)) {
                 toSave[name] = [...set];
             }
-            await storage.setJSON(getStorageKey$1(), toSave, 'settings');
+            await storage.setJSON(getStorageKey$2(), toSave, 'settings');
         }
     }
 
@@ -7044,7 +7044,7 @@
      */
 
 
-    const PANEL_ID$2 = 'mwi-dps-calculator';
+    const PANEL_ID$3 = 'mwi-dps-calculator';
     const PLAYERS_AREA_SELECTOR = 'BattlePanel_playersArea';
     const BATTLE_AREA_SELECTOR = '[class*="BattlePanel_battleArea"]';
     const MONSTERS_AREA_SELECTOR = 'BattlePanel_monstersArea';
@@ -7158,7 +7158,7 @@
                 this.combatActive = false;
                 this.battleStartTime = null;
                 this.totalStartTime = null;
-                document.getElementById(PANEL_ID$2)?.remove();
+                document.getElementById(PANEL_ID$3)?.remove();
             }
         }
 
@@ -7176,7 +7176,7 @@
             const battleArea = playersArea.closest(BATTLE_AREA_SELECTOR);
             if (!unit || !battleArea) return;
 
-            let el = document.getElementById(PANEL_ID$2);
+            let el = document.getElementById(PANEL_ID$3);
             if (!el || !el.isConnected) {
                 el = this._buildPanel();
             }
@@ -7202,7 +7202,7 @@
             const textColor = config.getSettingValue('color_text_primary') || config.COLOR_TEXT_PRIMARY;
 
             const el = document.createElement('div');
-            el.id = PANEL_ID$2;
+            el.id = PANEL_ID$3;
             el.style.cssText = `
             position: absolute;
             padding: 4px 8px;
@@ -7277,7 +7277,7 @@
         _refreshDisplay() {
             if (!this.combatActive) return;
 
-            const el = document.getElementById(PANEL_ID$2);
+            const el = document.getElementById(PANEL_ID$3);
             const playersArea = document.querySelector(`[class*="${PLAYERS_AREA_SELECTOR}"]`);
             const unit = playersArea?.querySelector(COMBAT_UNIT_SELECTOR);
             const battleArea = playersArea?.closest(BATTLE_AREA_SELECTOR);
@@ -7289,7 +7289,7 @@
         }
 
         _updateDisplay() {
-            const el = document.getElementById(PANEL_ID$2);
+            const el = document.getElementById(PANEL_ID$3);
             if (!el) return;
 
             const now = Date.now();
@@ -7331,7 +7331,7 @@
                 this.timerRegistry.clearAll();
                 this.timerRegistry = null;
             }
-            document.getElementById(PANEL_ID$2)?.remove();
+            document.getElementById(PANEL_ID$3)?.remove();
 
             this.combatActive = false;
             this.prevMonsterHp = [];
@@ -7351,15 +7351,15 @@
      */
 
 
-    const STORAGE_KEY_PREFIX = 'monsterBestLevels';
-    const STORE_NAME = 'labyrinth';
+    const STORAGE_KEY_PREFIX$1 = 'monsterBestLevels';
+    const STORE_NAME$1 = 'labyrinth';
     /**
      * Get character-scoped storage key for labyrinth best levels.
      * @returns {string}
      */
-    function getStorageKey() {
+    function getStorageKey$1() {
         const charId = dataManager.getCurrentCharacterId() || 'default';
-        return `${STORAGE_KEY_PREFIX}_${charId}`;
+        return `${STORAGE_KEY_PREFIX$1}_${charId}`;
     }
 
     const COMBAT_ROOM_TYPE = '/labyrinth_room_types/combat';
@@ -7499,7 +7499,7 @@
          */
         async loadData() {
             try {
-                const data = await storage.getJSON(getStorageKey(), STORE_NAME, {});
+                const data = await storage.getJSON(getStorageKey$1(), STORE_NAME$1, {});
                 this.monsterBestLevels = data || {};
             } catch (error) {
                 console.error('[LabyrinthTracker] Failed to load data:', error);
@@ -7512,7 +7512,7 @@
          */
         async saveData() {
             try {
-                await storage.setJSON(getStorageKey(), this.monsterBestLevels, STORE_NAME, true);
+                await storage.setJSON(getStorageKey$1(), this.monsterBestLevels, STORE_NAME$1, true);
             } catch (error) {
                 console.error('[LabyrinthTracker] Failed to save data:', error);
             }
@@ -9708,6 +9708,15 @@
     const RECOMMEND_CONTROLS_CLASS = 'mwi-labyrinth-recommend-controls';
     const LIVE_PROGRESS_CLASS = 'mwi-labyrinth-live-progress';
     const LIVE_PROGRESS_STALE_MS = 5000;
+    const GRID_HIGHLIGHT_CLASS = 'mwi-labyrinth-grid-highlight';
+    const GRID_LABEL_CLASS = 'mwi-labyrinth-grid-label';
+    const GRID_HIGHLIGHT_CONTROLS_CLASS = 'mwi-labyrinth-highlight-controls';
+    const GRID_CELL_ATTR = 'data-mwi-lab-grid-cell';
+    const GRID_YELLOW_BAND = 20; // percentage points below threshold still shown as yellow
+    const GRID_COLOR_GREEN = 'rgba(68, 221, 68, 0.85)';
+    const GRID_COLOR_YELLOW = 'rgba(240, 173, 78, 0.85)';
+    const GRID_COLOR_RED = 'rgba(217, 83, 79, 0.85)';
+    const GRID_COLOR_PENDING = 'rgba(150, 150, 170, 0.6)';
 
     class LabyrinthClearRate {
         constructor() {
@@ -9724,6 +9733,7 @@
             this._recommendTargetPct = 70;
             this.liveProgressHandler = null;
             this.liveProgressTimeout = null;
+            this.gridObserverUnregister = null;
         }
 
         initialize() {
@@ -9745,6 +9755,7 @@
                 // without this, injectOverlays keeps showing the pre-edit room level for that skill.
                 this.roomData = null;
                 this.injectOverlays();
+                this.injectRoomGridHighlights();
             };
             webSocketHook.on('setting_updated', this.settingHandler);
 
@@ -9752,6 +9763,7 @@
                 this.combatCache.clear();
                 this.recommendations.clear();
                 this.injectOverlays();
+                this.injectRoomGridHighlights();
             };
             webSocketHook.on('loadouts_updated', this.loadoutsHandler);
 
@@ -9766,7 +9778,22 @@
             );
             this.unregisterHandlers.push(unregister);
 
+            this.gridObserverUnregister = domObserver.onClass(
+                'LabyrinthClearRateGrid',
+                'LabyrinthPanel_roomGrid',
+                () => {
+                    this.injectHighlightControls();
+                    this.injectRoomGridHighlights();
+                },
+                { debounce: true }
+            );
+            this.unregisterHandlers.push(this.gridObserverUnregister);
+
             setTimeout(() => this.injectOverlays(), 500);
+            setTimeout(() => {
+                this.injectHighlightControls();
+                this.injectRoomGridHighlights();
+            }, 500);
 
             this.isInitialized = true;
         }
@@ -9801,6 +9828,8 @@
             document.querySelectorAll(`.${RECOMMEND_CLASS}`).forEach((el) => el.remove());
             document.querySelectorAll(`.${RECOMMEND_CONTROLS_CLASS}`).forEach((el) => el.remove());
             document.querySelectorAll(`.${LIVE_PROGRESS_CLASS}`).forEach((el) => el.remove());
+            document.querySelectorAll(`.${GRID_HIGHLIGHT_CONTROLS_CLASS}`).forEach((el) => el.remove());
+            this.clearGridOverlays();
 
             this.roomData = null;
             this.combatCache.clear();
@@ -9808,6 +9837,7 @@
             this.simRunning = false;
             this.recommendations.clear();
             this.recommendRunning = false;
+            this.gridObserverUnregister = null;
             this.isInitialized = false;
         }
 
@@ -9816,6 +9846,8 @@
             if (roomData) {
                 this.roomData = roomData;
                 this.injectOverlays();
+                this.injectHighlightControls();
+                this.injectRoomGridHighlights();
             }
         }
 
@@ -10534,18 +10566,19 @@
             }
         }
 
-        queueCombatSim(monsterHrid, roomLevel, badge) {
-            this.simQueue.push({ monsterHrid, roomLevel, badge });
+        queueCombatSim(monsterHrid, roomLevel, badge, onResult) {
+            this.simQueue.push({ monsterHrid, roomLevel, badge, onResult });
         }
 
         async processSimQueue() {
             if (this.simRunning) return;
             this.simRunning = true;
             while (this.simQueue.length > 0) {
-                const { monsterHrid, roomLevel, badge } = this.simQueue.shift();
-                if (!badge.isConnected) continue;
+                const { monsterHrid, roomLevel, badge, onResult } = this.simQueue.shift();
+                if (badge && !badge.isConnected) continue;
                 const result = await this.computeCombatClear(monsterHrid, roomLevel);
-                if (badge.isConnected) this.updateBadge(badge, result, roomLevel);
+                if (badge && badge.isConnected) this.updateBadge(badge, result, roomLevel);
+                if (onResult) onResult(result);
             }
             this.simRunning = false;
         }
@@ -10970,6 +11003,212 @@
             this.injectRecommendationBadges();
         }
 
+        /**
+         * Get the active highlight threshold (%), preferring the on-page input if present.
+         */
+        getHighlightThreshold() {
+            const input = document.getElementById('mwi-labyrinth-highlight-threshold');
+            const val = input ? parseInt(input.value, 10) : NaN;
+            if (Number.isFinite(val) && val >= 1 && val <= 100) return val;
+            return config.getSettingValue('labyrinthHighlightThreshold', 70);
+        }
+
+        /**
+         * Green at/above threshold, yellow within GRID_YELLOW_BAND points below it, red otherwise.
+         */
+        getGridHighlightColor(pct, threshold) {
+            if (pct >= threshold) return GRID_COLOR_GREEN;
+            if (pct > 0 && pct >= threshold - GRID_YELLOW_BAND) return GRID_COLOR_YELLOW;
+            return GRID_COLOR_RED;
+        }
+
+        /**
+         * Paint (or update) the highlight overlay + bottom label + tooltip for a single maze grid cell.
+         * clearChance of null renders a neutral "pending" color (combat sim still running).
+         * expectedSeconds is the amortized time-to-clear including retries after failed attempts.
+         */
+        paintGridCell(cell, clearChance, threshold, tooltip, expectedSeconds) {
+            cell.setAttribute(GRID_CELL_ATTR, '1');
+
+            let overlay = cell.querySelector(`.${GRID_HIGHLIGHT_CLASS}`);
+            if (!overlay) {
+                const cellStyle = getComputedStyle(cell);
+                if (cellStyle.position === 'static') cell.style.position = 'relative';
+                overlay = document.createElement('div');
+                overlay.className = GRID_HIGHLIGHT_CLASS;
+                overlay.style.cssText = 'position:absolute; inset:0; border-radius:4px; pointer-events:none; z-index:5;';
+                cell.appendChild(overlay);
+            }
+
+            const color =
+                clearChance === null ? GRID_COLOR_PENDING : this.getGridHighlightColor(clearChance * 100, threshold);
+            overlay.style.border = `2px solid ${color}`;
+            overlay.style.boxShadow = `inset 0 0 6px ${color}`;
+
+            let label = cell.querySelector(`.${GRID_LABEL_CLASS}`);
+            if (!label) {
+                label = document.createElement('div');
+                label.className = GRID_LABEL_CLASS;
+                label.style.cssText =
+                    'position:absolute; left:2px; right:2px; bottom:2px; text-align:center; ' +
+                    'font-size:0.62rem; font-weight:600; line-height:1.1; color:#fff; ' +
+                    'text-shadow:0 1px 2px rgba(0,0,0,0.9), 0 0 3px rgba(0,0,0,0.9); ' +
+                    'pointer-events:none; z-index:6; white-space:nowrap; overflow:hidden;';
+                cell.appendChild(label);
+            }
+            if (clearChance === null) {
+                label.textContent = '…';
+            } else {
+                const pct = Math.round(clearChance * 100);
+                const timeText = this.formatGridTime(expectedSeconds);
+                label.textContent = pct >= 99 ? timeText : `${pct}%${timeText}`;
+            }
+
+            cell.title = tooltip;
+        }
+
+        /**
+         * Remove all grid highlight overlays/labels and any tooltip text we added to cells.
+         */
+        clearGridOverlays() {
+            document.querySelectorAll(`.${GRID_HIGHLIGHT_CLASS}`).forEach((el) => el.remove());
+            document.querySelectorAll(`.${GRID_LABEL_CLASS}`).forEach((el) => el.remove());
+            document.querySelectorAll(`[${GRID_CELL_ATTR}]`).forEach((el) => {
+                el.removeAttribute(GRID_CELL_ATTR);
+                el.removeAttribute('title');
+            });
+        }
+
+        /**
+         * Color uncleared rooms on the maze grid green/yellow/red by estimated clear chance.
+         */
+        injectRoomGridHighlights() {
+            if (!config.getSetting('labyrinthHighlightRooms')) {
+                this.clearGridOverlays();
+                return;
+            }
+
+            const grid = document.querySelector('[class*="LabyrinthPanel_roomGrid"]');
+            if (!grid || !this.roomData) return;
+
+            this.clearGridOverlays();
+
+            const cells = grid.querySelectorAll('[class*="roomCell"]');
+            const threshold = this.getHighlightThreshold();
+
+            cells.forEach((cell) => {
+                const colIdx = Number(cell.getAttribute('data-room-x'));
+                const rowIdx = Number(cell.getAttribute('data-room-y'));
+                if (!Number.isInteger(colIdx) || !Number.isInteger(rowIdx)) return;
+                const room = this.roomData[rowIdx]?.[colIdx];
+                if (!room || room.isCleared) return;
+
+                if (room.roomType === '/labyrinth_room_types/combat' && room.monsterHrid) {
+                    const cached = this.getCachedCombatResult(room.monsterHrid, room.recommendedLevel);
+                    if (cached) {
+                        this.paintGridCell(
+                            cell,
+                            cached.clearChance,
+                            threshold,
+                            this.formatTooltip(cached, room.recommendedLevel),
+                            cached.expectedSeconds
+                        );
+                    } else {
+                        this.paintGridCell(cell, null, threshold, 'Simulating combat...');
+                        this.queueCombatSim(room.monsterHrid, room.recommendedLevel, null, () =>
+                            this.injectRoomGridHighlights()
+                        );
+                    }
+                    return;
+                }
+
+                if (!room.skillHrid) return;
+                const isEnhancing = room.skillHrid === '/skills/enhancing';
+                const result = isEnhancing
+                    ? this.computeEnhancingClear(room.recommendedLevel)
+                    : this.computeSkillingClear(room.skillHrid, room.recommendedLevel);
+                this.paintGridCell(
+                    cell,
+                    result.clearChance,
+                    threshold,
+                    this.formatTooltip(result, room.recommendedLevel),
+                    result.expectedSeconds
+                );
+            });
+
+            this.processSimQueue();
+        }
+
+        /**
+         * Inject the "Highlight rooms" checkbox + threshold input above the maze grid.
+         */
+        injectHighlightControls() {
+            const grid = document.querySelector('[class*="LabyrinthPanel_roomGrid"]');
+            if (!grid) return;
+
+            const existing = document.querySelector(`.${GRID_HIGHLIGHT_CONTROLS_CLASS}`);
+            if (existing) {
+                const checkbox = document.getElementById('mwi-labyrinth-highlight-enabled');
+                const input = document.getElementById('mwi-labyrinth-highlight-threshold');
+                if (checkbox && !checkbox.dataset.userEdited)
+                    checkbox.checked = config.getSetting('labyrinthHighlightRooms');
+                if (input && !input.dataset.userEdited) {
+                    input.value = config.getSettingValue('labyrinthHighlightThreshold', 70);
+                }
+                return;
+            }
+
+            const container = document.createElement('div');
+            container.className = GRID_HIGHLIGHT_CONTROLS_CLASS;
+            container.style.cssText =
+                'display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:0.8rem; flex-wrap:wrap;';
+
+            const checkboxLabel = document.createElement('label');
+            checkboxLabel.style.cssText =
+                'display:flex; align-items:center; gap:4px; color:#888; font-size:0.75rem; cursor:pointer;';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = 'mwi-labyrinth-highlight-enabled';
+            checkbox.checked = config.getSetting('labyrinthHighlightRooms');
+            checkbox.addEventListener('change', () => {
+                checkbox.dataset.userEdited = '1';
+                config.setSetting('labyrinthHighlightRooms', checkbox.checked);
+                this.injectRoomGridHighlights();
+            });
+
+            checkboxLabel.appendChild(checkbox);
+            checkboxLabel.appendChild(document.createTextNode('Highlight rooms'));
+
+            const thresholdLabel = document.createElement('span');
+            thresholdLabel.style.cssText = 'color:#888; font-size:0.75rem; white-space:nowrap;';
+            thresholdLabel.textContent = 'Threshold %';
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = 'mwi-labyrinth-highlight-threshold';
+            input.min = '1';
+            input.max = '100';
+            input.step = '1';
+            input.value = config.getSettingValue('labyrinthHighlightThreshold', 70);
+            input.style.cssText =
+                'width:50px; background:#1a1a2e; color:#e0e0e0; border:1px solid #555; border-radius:4px; padding:2px 4px; font-size:0.75rem; text-align:center;';
+            input.addEventListener('input', () => {
+                input.dataset.userEdited = '1';
+                const parsed = parseInt(input.value, 10);
+                if (Number.isFinite(parsed) && parsed >= 1 && parsed <= 100) {
+                    config.setSetting('labyrinthHighlightThreshold', parsed);
+                }
+                this.injectRoomGridHighlights();
+            });
+
+            container.appendChild(checkboxLabel);
+            container.appendChild(thresholdLabel);
+            container.appendChild(input);
+
+            grid.parentNode.insertBefore(container, grid);
+        }
+
         appendBadge(cell, result, roomLevel) {
             const badge = document.createElement('span');
             badge.className = BADGE_CLASS;
@@ -11228,6 +11467,15 @@
             const rem = s % 60;
             return `~${m}:${rem.toString().padStart(2, '0')}`;
         }
+
+        /**
+         * Compact time for the maze grid label: integer seconds, no "~", e.g. "359s".
+         */
+        formatGridTime(seconds) {
+            if (!Number.isFinite(seconds) || seconds <= 0) return '—';
+            if (seconds >= 9999) return '∞';
+            return `${Math.round(seconds)}s`;
+        }
     }
 
     const labyrinthClearRate = new LabyrinthClearRate();
@@ -11368,6 +11616,694 @@
     }
 
     const labyrinthTrialTimer = new LabyrinthTrialTimer();
+
+    /**
+     * Labyrinth XP Tracker
+     * Tracks per-skill XP gained during the current labyrinth run two ways, live:
+     *  1. Locally — by snapshotting skill XP when the labyrinth becomes active and diffing against
+     *     action_completed's endCharacterSkills as actions complete. No requests sent. Each
+     *     action_completed carries the single action that produced it as endCharacterAction — only
+     *     completions where that's /actions/labyrinth/explore are counted, so a background action
+     *     queue (e.g. a long-running craft/decompose job) that keeps completing in parallel with
+     *     the lab is correctly excluded. That same action's createdAt/updatedAt give its exact
+     *     start/end, so active duration is read directly rather than approximated from wall-clock
+     *     gaps between completions (which would count idle/waiting time as active).
+     *  2. Passively via loot_log_updated — the same data source the native "Loot & XP Log"
+     *     page uses, and that Cheezasha's own loot-log-stats.js already listens to. Cheezasha
+     *     never sends the get_loot_log request itself; it only reads whatever the server already
+     *     pushed (from you visiting that page, clicking its Refresh button, or any other code —
+     *     ours or the game's own — asking for it).
+     *
+     * Deliberately does NOT try to guess when a run "really" ended from the character's action
+     * queue (actions_updated) — an earlier version did, using heuristics like "a different action
+     * started", and that produced false positives (e.g. a queued background action appearing while
+     * still mid-lab) that wiped an in-progress run's data. labyrinth_updated's isActive only ever
+     * pauses/resumes local accumulation in place; it never wipes anything. The loot log is the only
+     * thing authorized to declare "this is a genuinely different run" — done by comparing the
+     * server's labyrinthStartedAt for the run against what we last synced to. This trades instant
+     * run-boundary detection for correctness: local may keep accumulating across what the server
+     * considers two separate runs until the next loot_log_updated arrives, at which point it's
+     * corrected exactly.
+     */
+
+
+    const ZERO_TIME = '0001-01-01T00:00:00Z';
+    const TOTAL_LEVEL_HRID = '/skills/total_level';
+    const LABYRINTH_EXPLORE_HRID = '/actions/labyrinth/explore';
+    const STORE_NAME = 'labyrinth';
+    const STORAGE_KEY_PREFIX = 'xpTrackerRun';
+
+    /**
+     * Get character-scoped storage key for the in-progress run snapshot.
+     * @returns {string}
+     */
+    function getStorageKey() {
+        const charId = dataManager.getCurrentCharacterId() || 'default';
+        return `${STORAGE_KEY_PREFIX}_${charId}`;
+    }
+
+    class LabyrinthXpTracker {
+        constructor() {
+            this.isInitialized = false;
+            this.local = null; // { isActive, startedAt, serverStartedAt, baseline, xpGains, actionCount, totalActiveMillis }
+            this.handlers = {};
+            this.listeners = [];
+        }
+
+        async initialize() {
+            if (this.isInitialized) return;
+            if (!config.getSetting('labyrinthXpTracker')) return;
+
+            // The tracker's run state only ever lived in memory, so refreshing the page mid-run
+            // wiped it entirely even though the run itself was still in progress server-side.
+            // getCurrentCharacterId() may still be null here (init_character_data hasn't arrived
+            // yet), in which case this reads the '_default'-keyed slot; the character_initialized
+            // handler below re-reads the correctly-scoped key once the real character ID is known.
+            const saved = await storage.get(getStorageKey(), STORE_NAME, null);
+            if (saved) {
+                this.local = saved;
+            }
+
+            this.handlers.lootLog = (data) => this._onLootLogUpdated(data);
+            this.handlers.labyrinthUpdated = (data) => this._onLabyrinthUpdated(data);
+            this.handlers.actionCompleted = (data) => this._onActionCompleted(data);
+            this.handlers.characterInitialized = () => this._reloadForCurrentCharacter();
+
+            webSocketHook.on('loot_log_updated', this.handlers.lootLog);
+            webSocketHook.on('labyrinth_updated', this.handlers.labyrinthUpdated);
+            dataManager.on('action_completed', this.handlers.actionCompleted);
+            dataManager.on('character_initialized', this.handlers.characterInitialized);
+
+            this.isInitialized = true;
+            this._notify();
+        }
+
+        /**
+         * Re-read the persisted run under the now-correctly-scoped (real character ID) storage key,
+         * in case initialize() ran before init_character_data arrived and only saw the '_default' slot.
+         * @private
+         */
+        async _reloadForCurrentCharacter() {
+            if (this.local) return; // already tracking a run (started/restored) — nothing to reload
+            const saved = await storage.get(getStorageKey(), STORE_NAME, null);
+            if (saved) {
+                this.local = saved;
+                this._notify();
+            }
+        }
+
+        disable() {
+            if (this.handlers.lootLog) webSocketHook.off('loot_log_updated', this.handlers.lootLog);
+            if (this.handlers.labyrinthUpdated) webSocketHook.off('labyrinth_updated', this.handlers.labyrinthUpdated);
+            if (this.handlers.actionCompleted) dataManager.off('action_completed', this.handlers.actionCompleted);
+            if (this.handlers.characterInitialized)
+                dataManager.off('character_initialized', this.handlers.characterInitialized);
+            this.handlers = {};
+
+            this.local = null;
+            this.listeners = [];
+            this.isInitialized = false;
+        }
+
+        /**
+         * @param {Object} data - labyrinth_updated message payload
+         */
+        _onLabyrinthUpdated(data) {
+            const isActive = !!data?.labyrinth?.isActive;
+
+            if (isActive) {
+                if (!this.local) {
+                    this._startLocalRun();
+                } else if (!this.local.isActive) {
+                    // Resume in place — isActive can pulse false→true between rooms (e.g. after a
+                    // failed/timed-out room) without you actually having left the lab. Never wipe
+                    // accumulated data here; only the loot log is authorized to do that.
+                    this.local.isActive = true;
+                    this._notify();
+                }
+            } else if (this.local?.isActive) {
+                // Keep the last stats on screen, just stop accumulating until it's active again.
+                this.local.isActive = false;
+                this._notify();
+            }
+        }
+
+        /** @private */
+        _startLocalRun() {
+            const skills = dataManager.characterSkills || [];
+            const baseline = {};
+            for (const skill of skills) {
+                if (skill?.skillHrid) baseline[skill.skillHrid] = skill.experience || 0;
+            }
+
+            this.local = {
+                isActive: true,
+                startedAt: Date.now(),
+                serverStartedAt: null,
+                baseline,
+                xpGains: {},
+                actionCount: 0,
+                totalActiveMillis: 0,
+                lastActionCreatedAt: null,
+                lastActionUpdatedAt: 0,
+            };
+            this._notify();
+        }
+
+        /**
+         * @param {Object} data - action_completed message payload
+         */
+        _onActionCompleted(data) {
+            if (!this.local?.isActive) return;
+
+            // action_completed carries the single action that just finished as endCharacterAction
+            // (not the endCharacterActions array — that's only on actions_updated). Whether inside
+            // the lab or not, this is an exact, authoritative tag for which action produced the
+            // skill gains below — background queue actions (e.g. a long-running decompose/craft
+            // job) keep completing in parallel with the lab and must not be counted.
+            const action = data.endCharacterAction;
+            if (action?.actionHrid !== LABYRINTH_EXPLORE_HRID) return;
+
+            const skills = data.endCharacterSkills;
+            if (!Array.isArray(skills) || skills.length === 0) return;
+
+            // The explore action is a single repeating action instance across the whole lab run —
+            // createdAt stays fixed at when it first started, while currentCount/updatedAt advance
+            // on every room. So updatedAt - createdAt is the CUMULATIVE elapsed time since the run
+            // began, not this one room's duration — summing that per completion would massively
+            // overcount. Only the time since the previous completion of this same action instance
+            // (tracked by createdAt staying the same) is this room's actual duration.
+            if (action.createdAt && action.updatedAt) {
+                const updatedMs = +new Date(action.updatedAt);
+                let addedMs;
+                if (this.local.lastActionCreatedAt !== action.createdAt) {
+                    // First completion seen for this action instance — nothing to diff against yet,
+                    // so this room's duration really is updatedAt - createdAt.
+                    const createdMs = +new Date(action.createdAt);
+                    addedMs = Math.max(0, updatedMs - createdMs);
+                } else {
+                    addedMs = Math.max(0, updatedMs - this.local.lastActionUpdatedAt);
+                }
+                this.local.totalActiveMillis += addedMs;
+
+                // TEMPORARY diagnostic — remove once the duration-per-completion bug is confirmed
+                // fixed. Run copy(JSON.stringify(window.__cheezashaActionDebug, null, 2)) in the
+                // console after reproducing, then paste.
+                window.__cheezashaActionDebug = window.__cheezashaActionDebug || [];
+                window.__cheezashaActionDebug.push({
+                    action,
+                    currentCount: action.currentCount,
+                    prevLastActionCreatedAt: this.local.lastActionCreatedAt,
+                    prevLastActionUpdatedAt: this.local.lastActionUpdatedAt,
+                    addedMs,
+                    totalActiveMillisAfter: this.local.totalActiveMillis,
+                });
+                if (window.__cheezashaActionDebug.length > 30) window.__cheezashaActionDebug.shift();
+
+                this.local.lastActionCreatedAt = action.createdAt;
+                this.local.lastActionUpdatedAt = updatedMs;
+            }
+
+            this.local.actionCount++;
+
+            for (const entry of skills) {
+                const hrid = entry?.skillHrid;
+                if (!hrid || hrid === TOTAL_LEVEL_HRID) continue;
+
+                if (!(hrid in this.local.baseline)) {
+                    // First time seeing this skill this run — nothing gained yet, just anchor it.
+                    this.local.baseline[hrid] = entry.experience;
+                    continue;
+                }
+
+                const gained = entry.experience - this.local.baseline[hrid];
+                if (gained > 0) this.local.xpGains[hrid] = gained;
+            }
+
+            this._notify();
+        }
+
+        /**
+         * @param {Object} data - loot_log_updated message payload
+         */
+        _onLootLogUpdated(data) {
+            const lootLog = data?.lootLog;
+            if (!Array.isArray(lootLog)) return;
+
+            // The server aggregates the entire current labyrinth run into a single entry tagged
+            // with a non-zero labyrinthStartedAt. The log can contain entries from past runs too,
+            // so pick the most recent one (highest labyrinthStartedAt) rather than the first match
+            // — otherwise a stale run's entry could be recalibrated against by mistake.
+            const entry = lootLog
+                .filter((e) => e?.labyrinthStartedAt && e.labyrinthStartedAt !== ZERO_TIME)
+                .reduce((latest, e) => (!latest || e.labyrinthStartedAt > latest.labyrinthStartedAt ? e : latest), null);
+            if (!entry) return;
+
+            // TEMPORARY diagnostic — remove once the "won't recalibrate down" bug is confirmed
+            // fixed. Run copy(JSON.stringify(window.__cheezashaLootLogDebug, null, 2)) after
+            // reproducing, then paste.
+            window.__cheezashaLootLogDebug = {
+                entry,
+                localBefore: this.local ? { ...this.local } : null,
+            };
+
+            if (!this.local) {
+                // No local run in progress (e.g. tracker just initialized) — adopt the server
+                // snapshot directly as the starting point for local live tracking.
+                this._adoptServerEntry(entry);
+            } else if (this.local.serverStartedAt && entry.labyrinthStartedAt !== this.local.serverStartedAt) {
+                // The server confirms this is a genuinely different run than the one we've been
+                // tracking locally (its own authoritative signal, not a guess) — start over from
+                // this snapshot instead of merging it into stale data from the previous run.
+                this._adoptServerEntry(entry);
+            } else {
+                // Same run — correct any drift in the live local tracker and keep counting from
+                // here, so XP gained after this point via the fast local path still shows up.
+                this._recalibrateFromServer(entry);
+            }
+            this._notify();
+        }
+
+        /**
+         * Replace local entirely with a fresh run seeded directly from a server snapshot.
+         * @param {Object} entry - loot log entry for the run to adopt
+         * @private
+         */
+        _adoptServerEntry(entry) {
+            const currentSkills = dataManager.characterSkills || [];
+            const currentExpByHrid = {};
+            for (const skill of currentSkills) {
+                if (skill?.skillHrid) currentExpByHrid[skill.skillHrid] = skill.experience || 0;
+            }
+
+            const baseline = {};
+            const xpGains = {};
+            for (const [hrid, gainedXp] of Object.entries(entry.xpGains || {})) {
+                if (hrid === TOTAL_LEVEL_HRID) continue;
+                const currentExp = currentExpByHrid[hrid];
+                if (currentExp == null) continue;
+                baseline[hrid] = currentExp - gainedXp;
+                xpGains[hrid] = gainedXp;
+            }
+
+            this.local = {
+                isActive: true,
+                startedAt: Date.now(),
+                serverStartedAt: entry.labyrinthStartedAt,
+                baseline,
+                xpGains,
+                actionCount: entry.actionCount || 0,
+                totalActiveMillis: entry.totalActiveMillis || 0,
+                lastActionCreatedAt: null,
+                lastActionUpdatedAt: 0,
+            };
+        }
+
+        /**
+         * Correct the live local tracker's running totals using an authoritative server snapshot,
+         * without losing the ability to keep accumulating locally afterward.
+         * @param {Object} entry - matching loot log entry for the current run
+         * @private
+         */
+        _recalibrateFromServer(entry) {
+            const currentSkills = dataManager.characterSkills || [];
+            const currentExpByHrid = {};
+            for (const skill of currentSkills) {
+                if (skill?.skillHrid) currentExpByHrid[skill.skillHrid] = skill.experience || 0;
+            }
+
+            // Rebuild xpGains entirely from the server snapshot rather than merging into whatever
+            // local had accumulated — the loot log is the authoritative source, so any stale/extra
+            // hrid local picked up (e.g. from a bug or a background action briefly misattributed)
+            // must not survive a recalibration.
+            const newXpGains = {};
+            for (const [hrid, gainedXp] of Object.entries(entry.xpGains || {})) {
+                if (hrid === TOTAL_LEVEL_HRID) continue;
+                const currentExp = currentExpByHrid[hrid];
+                if (currentExp == null) continue;
+                // Re-anchor the baseline so gainedXp-so-far matches the server exactly, while
+                // future action_completed diffs against it continue to add on top correctly.
+                this.local.baseline[hrid] = currentExp - gainedXp;
+                newXpGains[hrid] = gainedXp;
+            }
+            this.local.xpGains = newXpGains;
+            this.local.serverStartedAt = entry.labyrinthStartedAt;
+
+            // Trust the server's counts outright rather than taking the larger of the two — our
+            // local duration estimate can drift (e.g. failed/timed-out actions still ticking time
+            // that the server doesn't count), so max() would never let the server correct it back
+            // down; the loot log is always the best available source of truth.
+            this.local.actionCount = entry.actionCount || 0;
+            this.local.totalActiveMillis = entry.totalActiveMillis || 0;
+        }
+
+        /**
+         * @param {Function} cb
+         */
+        onUpdate(cb) {
+            if (!this.listeners.includes(cb)) this.listeners.push(cb);
+        }
+
+        /**
+         * @param {Function} cb
+         */
+        offUpdate(cb) {
+            this.listeners = this.listeners.filter((l) => l !== cb);
+        }
+
+        _notify() {
+            this._persist();
+            for (const cb of this.listeners) {
+                try {
+                    cb();
+                } catch (error) {
+                    console.error('[LabyrinthXpTracker] Listener error:', error);
+                }
+            }
+        }
+
+        /**
+         * Persist the current run snapshot (debounced) so it survives a page refresh mid-run.
+         * @private
+         */
+        _persist() {
+            if (!this.isInitialized) return;
+            storage.set(getStorageKey(), this.local, STORE_NAME);
+        }
+
+        /**
+         * @returns {{xpGains: Object, totalActiveMillis: number, startedAt: string, actionCount: number}|null}
+         */
+        getCurrentRunStats() {
+            if (!this.local) return null;
+
+            return {
+                xpGains: this.local.xpGains,
+                totalActiveMillis: this.local.totalActiveMillis,
+                startedAt: new Date(this.local.startedAt).toISOString(),
+                actionCount: this.local.actionCount,
+            };
+        }
+    }
+
+    const labyrinthXpTracker = new LabyrinthXpTracker();
+
+    /**
+     * Labyrinth XP UI
+     * Small floating panel showing per-skill and total XP/hr for the current labyrinth run.
+     */
+
+
+    const PANEL_ID$2 = 'mwi-lab-xp-panel';
+    const ACCENT$3 = '#4ecb71';
+    const ACCENT_BORDER$4 = 'rgba(78, 203, 113, 0.5)';
+    const ACCENT_BG$4 = 'rgba(78, 203, 113, 0.12)';
+
+    /**
+     * @param {number} ms
+     * @returns {string}
+     */
+    function formatDuration$1(ms) {
+        const totalSec = Math.max(0, Math.round(ms / 1000));
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    }
+
+    class LabyrinthXpUI {
+        constructor() {
+            this.panel = null;
+            this.isDragging = false;
+            this.dragOffset = { x: 0, y: 0 };
+            this.updateHandler = null;
+            this.tickInterval = null;
+        }
+
+        buildPanel() {
+            if (this.panel) return;
+
+            this.panel = document.createElement('div');
+            this.panel.id = PANEL_ID$2;
+            this.panel.style.cssText = `
+            position: fixed;
+            top: 60px;
+            right: 60px;
+            z-index: ${config.Z_FLOATING_PANEL};
+            background: rgba(10, 10, 20, 0.97);
+            border: 2px solid ${ACCENT_BORDER$4};
+            border-radius: 10px;
+            width: 320px;
+            max-height: 70vh;
+            display: none;
+            flex-direction: column;
+            font-family: 'Segoe UI', sans-serif;
+            color: #e0e0e0;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        `;
+
+            const header = document.createElement('div');
+            header.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            cursor: grab;
+            background: ${ACCENT_BG$4};
+            border-bottom: 1px solid ${ACCENT_BORDER$4};
+            border-radius: 8px 8px 0 0;
+            flex-shrink: 0;
+        `;
+            header.innerHTML = `
+            <span style="font-weight:700; font-size:14px; color:${ACCENT$3};">Labyrinth XP</span>
+            <button id="mwi-lab-xp-close" style="
+                background:none; border:none; color:#aaa; font-size:22px;
+                cursor:pointer; padding:0; line-height:1;">×</button>
+        `;
+            this._setupDrag(header);
+
+            const body = document.createElement('div');
+            body.id = 'mwi-lab-xp-body';
+            body.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+
+            this.panel.appendChild(header);
+            this.panel.appendChild(body);
+
+            document.body.appendChild(this.panel);
+            registerFloatingPanel(this.panel);
+
+            this.panel.querySelector('#mwi-lab-xp-close').addEventListener('click', () => this.toggle());
+            this.panel.addEventListener('mousedown', () => bringPanelToFront(this.panel));
+
+            this.updateHandler = () => this._render();
+            labyrinthXpTracker.onUpdate(this.updateHandler);
+
+            this._render();
+        }
+
+        toggle() {
+            if (!this.panel) this.buildPanel();
+            const visible = this.panel.style.display !== 'none';
+            if (visible) {
+                this.panel.style.display = 'none';
+                clearInterval(this.tickInterval);
+                this.tickInterval = null;
+            } else {
+                this.panel.style.display = 'flex';
+                bringPanelToFront(this.panel);
+                this._render();
+                clearInterval(this.tickInterval);
+                this.tickInterval = setInterval(() => this._render(), 1000);
+            }
+        }
+
+        destroy() {
+            clearInterval(this.tickInterval);
+            this.tickInterval = null;
+            if (this.updateHandler) {
+                labyrinthXpTracker.offUpdate(this.updateHandler);
+                this.updateHandler = null;
+            }
+            if (this.panel) {
+                unregisterFloatingPanel(this.panel);
+                this.panel.remove();
+                this.panel = null;
+            }
+        }
+
+        /** @private */
+        _render() {
+            const body = this.panel?.querySelector('#mwi-lab-xp-body');
+            if (!body) return;
+
+            const stats = labyrinthXpTracker.getCurrentRunStats();
+            const xpEntries = stats ? Object.entries(stats.xpGains) : [];
+            if (!stats || xpEntries.length === 0) {
+                body.innerHTML =
+                    '<div style="color:#666; text-align:center; padding:20px 0; font-size:12px;">' +
+                    'No labyrinth run data yet. Open the "Loot &amp; XP Log" page once (Cheezasha never requests ' +
+                    'this itself) — this panel will then update automatically as XP comes in.</div>';
+                return;
+            }
+
+            const hours = stats.totalActiveMillis > 0 ? stats.totalActiveMillis / 3600000 : 0;
+            const gameData = dataManager.getInitClientData();
+            const nameFor = (hrid) => gameData?.skillDetailMap?.[hrid]?.name || hrid.split('/').pop().replace(/_/g, ' ');
+
+            const rows = xpEntries
+                .map(([hrid, xp]) => ({ hrid, xp, xph: hours > 0 ? xp / hours : 0 }))
+                .sort((a, b) => b.xp - a.xp);
+            const totalXp = rows.reduce((sum, r) => sum + r.xp, 0);
+            const totalXph = hours > 0 ? totalXp / hours : 0;
+
+            const gridCols = 'grid-template-columns: minmax(0, 1fr) auto auto;';
+
+            let html = '<div style="display:flex; flex-direction:column;">';
+            for (const r of rows) {
+                html += `
+                <div style="display:grid; ${gridCols} align-items:center; column-gap:8px; padding:4px 2px; border-bottom:1px solid #1a1a1a;">
+                    <span style="color:#ccc; text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${nameFor(r.hrid)}</span>
+                    <span style="color:#888; text-align:right;">${formatters_js.formatKMB(r.xp)} xp</span>
+                    <span style="color:${ACCENT$3}; font-weight:600; min-width:64px; text-align:right;">${formatters_js.formatKMB(r.xph)} xp/h</span>
+                </div>`;
+            }
+            html += '</div>';
+
+            html += `
+            <div style="margin-top:8px; padding-top:8px; border-top:2px solid #333; display:grid; ${gridCols} align-items:center; column-gap:8px; font-weight:700;">
+                <span style="color:#fff;">Total</span>
+                <span style="color:#aaa; text-align:right;">${formatters_js.formatKMB(totalXp)} xp</span>
+                <span style="color:${ACCENT$3}; min-width:64px; text-align:right;">${formatters_js.formatKMB(totalXph)} xp/h</span>
+            </div>
+            <div style="margin-top:6px; color:#666; font-size:11px; text-align:center;">
+                Run duration: ${formatDuration$1(stats.totalActiveMillis)} · ${stats.actionCount} actions
+            </div>
+        `;
+
+            body.innerHTML = html;
+        }
+
+        /** @private */
+        _setupDrag(handle) {
+            handle.addEventListener('mousedown', (e) => {
+                if (e.target.tagName === 'BUTTON') return;
+                this.isDragging = true;
+                handle.style.cursor = 'grabbing';
+                const rect = this.panel.getBoundingClientRect();
+                this.dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+                const onMove = (e2) => {
+                    if (!this.isDragging) return;
+                    this.panel.style.left = `${e2.clientX - this.dragOffset.x}px`;
+                    this.panel.style.top = `${e2.clientY - this.dragOffset.y}px`;
+                    this.panel.style.right = 'auto';
+                };
+
+                const onUp = () => {
+                    this.isDragging = false;
+                    handle.style.cursor = 'grab';
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        }
+    }
+
+    const labyrinthXpUI = new LabyrinthXpUI();
+
+    /**
+     * Labyrinth XP Feature Module
+     * Injects an "XP" tab button (next to Lab Sim) into the game's Labyrinth page,
+     * toggling the Labyrinth XP panel.
+     */
+
+
+    const BUTTON_CLASS$2 = 'cheezasha-lab-xp-btn';
+
+    class LabyrinthXp {
+        constructor() {
+            this.isInitialized = false;
+            this.unregisterHandlers = [];
+        }
+
+        initialize() {
+            if (this.isInitialized) return;
+            if (!config.getSetting('labyrinthXpTracker')) return;
+
+            this.isInitialized = true;
+
+            labyrinthXpTracker.initialize();
+
+            const unregister = domObserver.onClass(
+                'LabyrinthXpButton',
+                'LabyrinthPanel_tabsComponentContainer',
+                (node) => {
+                    this._injectButton(node);
+                },
+                { debounce: true }
+            );
+            this.unregisterHandlers.push(unregister);
+
+            const existingPanel = document.querySelector('[class*="LabyrinthPanel_tabsComponentContainer"]');
+            if (existingPanel) {
+                this._injectButton(existingPanel);
+            }
+        }
+
+        /**
+         * @param {HTMLElement} tabsContainer - The LabyrinthPanel_tabsComponentContainer element
+         */
+        _injectButton(tabsContainer) {
+            if (!tabsContainer || tabsContainer.querySelector(`.${BUTTON_CLASS$2}`)) return;
+
+            const innerContainer = tabsContainer.querySelector('[class*="TabsComponent_tabsContainer"] > div > div > div');
+            if (!innerContainer) return;
+
+            const button = document.createElement('div');
+            button.className = 'MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1q2h7u5 ' + BUTTON_CLASS$2;
+            button.textContent = 'XP';
+            button.style.cssText =
+                'cursor: pointer; background: linear-gradient(135deg, #2e9e4f, #1a6b33); color: #fff; border-radius: 4px; padding: 4px 10px; font-size: 12px; white-space: nowrap;';
+
+            button.addEventListener('click', () => {
+                labyrinthXpUI.toggle();
+            });
+
+            innerContainer.appendChild(button);
+        }
+
+        /**
+         * Debug helper — inspect the tracker's raw internal state from the console via
+         * window.Cheezasha.Combat.labyrinthXp.getDebugState()
+         */
+        getDebugState() {
+            return {
+                local: labyrinthXpTracker.local,
+            };
+        }
+
+        disable() {
+            for (const unregister of this.unregisterHandlers) {
+                unregister();
+            }
+            this.unregisterHandlers = [];
+
+            labyrinthXpUI.destroy();
+            labyrinthXpTracker.disable();
+
+            document.querySelectorAll(`.${BUTTON_CLASS$2}`).forEach((btn) => btn.remove());
+
+            this.isInitialized = false;
+        }
+    }
+
+    const labyrinthXp = new LabyrinthXp();
 
     /**
      * Combat Simulator Export Module
@@ -36771,6 +37707,7 @@ self.onmessage = function (e) {
         labyrinthShopPrices,
         labyrinthClearRate,
         labyrinthTrialTimer,
+        labyrinthXp,
         combatSimIntegration,
         combatSimExport: {
             constructExportObject,

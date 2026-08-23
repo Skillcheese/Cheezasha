@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.16.0
+ * Version: 3.17.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -2360,6 +2360,23 @@
                     default: true,
                     help: 'Shows expected clear time and success rate on labyrinth skilling room tiles',
                 },
+                labyrinthHighlightRooms: {
+                    id: 'labyrinthHighlightRooms',
+                    label: 'Labyrinth: Highlight rooms by clear chance',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Colors uncleared rooms on the maze grid green/yellow/red based on estimated clear chance vs. the threshold below (also editable directly on the Labyrinth page)',
+                },
+                labyrinthHighlightThreshold: {
+                    id: 'labyrinthHighlightThreshold',
+                    label: 'Labyrinth: Highlight clear-chance threshold (%)',
+                    type: 'number',
+                    default: 70,
+                    min: 1,
+                    max: 100,
+                    step: 1,
+                    help: 'Rooms at or above this clear chance are highlighted green; well below it, red; in between, yellow',
+                },
                 labyrinthRecommendTargetRate: {
                     id: 'labyrinthRecommendTargetRate',
                     label: 'Labyrinth: Recommend target clear rate (%)',
@@ -2386,6 +2403,13 @@
                     type: 'checkbox',
                     default: true,
                     help: 'Shows live clear chance during active labyrinth skilling/enhancing rooms',
+                },
+                labyrinthXpTracker: {
+                    id: 'labyrinthXpTracker',
+                    label: 'Labyrinth: XP tracker panel',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Adds an "XP" button next to Lab Sim on the Labyrinth page showing per-skill and total XP/hr for the current run. Reads the same data as the native "Loot & XP Log" page passively — Cheezasha never requests it, only the game or you (opening that page) does',
                 },
                 labyrinthTrialTimerMarker: {
                     id: 'labyrinthTrialTimerMarker',
