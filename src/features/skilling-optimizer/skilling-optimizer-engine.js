@@ -6,6 +6,7 @@
  */
 
 import dataManager from '../../core/data-manager.js';
+import marketAPI from '../../api/marketplace.js';
 import {
     scoreEquipmentSetup,
     findOptimalTeas,
@@ -51,13 +52,13 @@ for (const [eqType, loc] of Object.entries(EQUIPMENT_TYPE_TO_LOCATION)) {
     LOCATION_TO_EQUIPMENT_TYPES[loc].push(eqType);
 }
 
-// Enhancement breakpoints — same as combat upgrade advisor
-const BREAKPOINTS_DEFAULT = [7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-const BREAKPOINTS_JEWELRY = [5, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-const BREAKPOINTS_BACK = [3, 5, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-
-const JEWELRY_LOCATIONS = new Set(['/item_locations/neck', '/item_locations/ring', '/item_locations/earrings']);
+// Every enhancement level 1-20 gives its own distinct stat bonus (see ENHANCEMENT_BONUSES in
+// enhancement-multipliers.js), so all of them are scored — unlike the combat upgrade advisor,
+// which intentionally checks only a sparse set of "typical" combat-gear checkpoints, this
+// optimizer is meant to answer "what can I buy right now at this exact + level", so skipping
+// levels would hide real, buyable options (e.g. a +9 that's cheaper than +10).
+const FULL_LEVEL_RANGE = Array.from({ length: 20 }, (_, i) => i + 1);
+const REFINED_LEVEL_RANGE = FULL_LEVEL_RANGE.filter((lvl) => lvl >= 10);
 
 export const SKILLING_LOCATIONS = [
     // Skill-specific tools (shown first)
@@ -156,11 +157,9 @@ export function getPlayerSkillLevel(skillName) {
  * @param {string} itemHrid
  * @returns {number[]}
  */
-function getBreakpoints(locationHrid, itemHrid) {
-    if (itemHrid.includes('_refined')) return BREAKPOINTS_REFINED;
-    if (JEWELRY_LOCATIONS.has(locationHrid)) return BREAKPOINTS_JEWELRY;
-    if (locationHrid === '/item_locations/back') return BREAKPOINTS_BACK;
-    return BREAKPOINTS_DEFAULT;
+function getBreakpoints(_locationHrid, itemHrid) {
+    // Refined items can't be enhanced below +10
+    return itemHrid.includes('_refined') ? REFINED_LEVEL_RANGE : FULL_LEVEL_RANGE;
 }
 
 /**
@@ -186,7 +185,12 @@ function meetsLevelRequirements(itemDetail, playerLevels) {
     for (const req of itemDetail.equipmentDetail?.levelRequirements || []) {
         if (!req.levelTypeHrid) continue;
         const skillHrid = req.levelTypeHrid.replace('/level_types/', '/skills/');
-        const playerLevel = playerLevels.get(skillHrid) ?? 1;
+        // Some accessories (e.g. Task Shop rewards) gate on a non-skill requirement type, like
+        // task level, that isn't tracked in playerLevels at all. Defaulting an unrecognized type
+        // to level 1 would make any such item look permanently locked and silently disappear —
+        // only enforce requirements against skills we actually have a level for.
+        if (!playerLevels.has(skillHrid)) continue;
+        const playerLevel = playerLevels.get(skillHrid);
         if (playerLevel < req.level) return false;
     }
     return true;
@@ -207,10 +211,28 @@ function getCandidatesForSlot(locationHrid, playerLevels, itemDetailMap) {
         .filter(([_hrid, detail]) => {
             if (!detail.equipmentDetail) return false;
             if (!validEqTypes.has(detail.equipmentDetail.type)) return false;
-            if (!detail.equipmentDetail.noncombatStats) return false;
+            // Require at least one actual non-zero noncombat stat (confirmed via live game data:
+            // pure-combat accessories carry an EMPTY noncombatStats object — `{}` — not a missing
+            // one, so a truthy-object check alone wasn't the problem; but leaving every item
+            // unfiltered meant scoring hundreds of irrelevant combat rings/earrings per skill,
+            // which is slow enough to look like the slot never finishes. This keeps the candidate
+            // pool to only items that could possibly matter.
+            const stats = detail.equipmentDetail.noncombatStats;
+            if (!stats || !Object.values(stats).some((v) => v > 0)) return false;
             return meetsLevelRequirements(detail, playerLevels);
         })
         .map(([hrid, detail]) => ({ hrid, name: detail.name }));
+}
+
+/**
+ * Get the market buy price (ask) for an item at a given enhancement level.
+ * @param {string} itemHrid
+ * @param {number} enhancementLevel
+ * @returns {number|null}
+ */
+function getItemCost(itemHrid, enhancementLevel) {
+    const price = marketAPI.getPrice(itemHrid, enhancementLevel);
+    return price?.ask ?? null;
 }
 
 /**
@@ -223,8 +245,18 @@ function getCandidatesForSlot(locationHrid, playerLevels, itemDetailMap) {
  * @param {number} playerLevel
  * @returns {number}
  */
-function scoreCandidate(itemHrid, locationHrid, skillName, goal, enhancementLevel, playerLevel, selectedActionHrids) {
-    const equipment = new Map([[locationHrid, { itemHrid, enhancementLevel }]]);
+function scoreCandidate(
+    itemHrid,
+    locationHrid,
+    skillName,
+    goal,
+    enhancementLevel,
+    playerLevel,
+    selectedActionHrids,
+    baseEquipment = null
+) {
+    const equipment = new Map(baseEquipment);
+    equipment.set(locationHrid, { itemHrid, enhancementLevel });
     return scoreEquipmentSetup(skillName, goal, equipment, playerLevel, selectedActionHrids);
 }
 
@@ -311,6 +343,10 @@ export function getSkillDrinkItems() {
 
     const result = [];
     for (const [hrid, detail] of Object.entries(gameData.itemDetailMap)) {
+        // Restrict to actual drinks — some Labyrinth scrolls (e.g. Scroll of Gourmet) carry the
+        // same buff types (gourmet, efficiency, etc.) but are one-off consumables, not something
+        // reliably available to base a gear purchase decision on. Only teas belong here.
+        if (!detail.categoryHrid?.includes('drink')) continue;
         if (!detail.consumableDetail?.buffs?.length) continue;
         const hasSkillBuff = detail.consumableDetail.buffs.some(
             (b) => SKILLING_BUFF_TYPES.has(b.typeHrid) || b.typeHrid?.endsWith('_level')
@@ -323,127 +359,364 @@ export function getSkillDrinkItems() {
 }
 
 /**
+ * Yield control back to the browser (lets the UI repaint a progress bar / stay responsive)
+ * before resuming the next chunk of work.
+ * @returns {Promise<void>}
+ */
+function yieldToUI() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Build a slot's breakpoint progression plus its cost-vs-score Pareto frontier (used by the
+ * budget view), given a generic scoring function. Shared by both the normal per-item scoring
+ * path and the drink-concentration path (items like Guzzling Pouch, whose only value is
+ * amplifying teas, so they must be scored with an actual tea loadout applied).
+ * @param {string} locationHrid
+ * @param {Array<{hrid: string, name: string}>} candidates
+ * @param {(itemHrid: string, effectiveLevel: number, goalName: 'xp'|'gold') => number} scoreFn
+ * @param {number} baseline - Score with nothing equipped in this slot, for the active goal
+ * @param {number} xpBaseline
+ * @param {number} goldBaseline
+ * @param {string} goal - 'xp' or 'gold'
+ * @returns {{progression: Array<Object>, paretoCandidates: Array<Object>}|null} null if no
+ *  candidate ever beats baseline
+ */
+function computeSlotResult(locationHrid, candidates, scoreFn, baseline, xpBaseline, goldBaseline, goal) {
+    const allBreakpoints = new Set();
+    for (const candidate of candidates) {
+        for (const bp of getBreakpoints(locationHrid, candidate.hrid)) {
+            allBreakpoints.add(bp);
+        }
+    }
+    const sortedBreakpoints = [...allBreakpoints].sort((a, b) => a - b);
+
+    const progression = [];
+    let lastWinnerHrid = null;
+    // Every (item, effective enhancement level) pair scored, regardless of whether it won its
+    // breakpoint — used to build the budget view's cost-vs-score Pareto frontier so items that
+    // are merely close (e.g. a "Holy" tier tool) but never outright win a breakpoint can still
+    // show up there instead of being invisible.
+    const allScoredByKey = new Map();
+
+    for (const bp of sortedBreakpoints) {
+        let bestItem = null;
+        let bestScore = baseline;
+
+        for (const candidate of candidates) {
+            // Refined items can't be enhanced below +10
+            const effectiveLevel = candidate.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
+            const score = scoreFn(candidate.hrid, effectiveLevel, goal);
+
+            const key = `${candidate.hrid}:${effectiveLevel}`;
+            if (!allScoredByKey.has(key)) {
+                allScoredByKey.set(key, {
+                    itemHrid: candidate.hrid,
+                    itemName: candidate.name,
+                    breakpoint: effectiveLevel,
+                    score,
+                });
+            }
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestItem = candidate;
+            }
+        }
+
+        const effectiveLevelOf = (hrid) => (hrid.includes('_refined') ? Math.max(bp, 10) : bp);
+
+        progression.push({
+            breakpoint: bp,
+            itemHrid: bestItem?.hrid ?? null,
+            itemName: bestItem?.name ?? null,
+            score: bestScore,
+            xpScore: !bestItem
+                ? xpBaseline
+                : goal === 'xp'
+                  ? bestScore
+                  : scoreFn(bestItem.hrid, effectiveLevelOf(bestItem.hrid), 'xp'),
+            goldScore: !bestItem
+                ? goldBaseline
+                : goal === 'gold'
+                  ? bestScore
+                  : scoreFn(bestItem.hrid, effectiveLevelOf(bestItem.hrid), 'gold'),
+            isChange: (bestItem?.hrid ?? null) !== lastWinnerHrid,
+            cost: bestItem ? getItemCost(bestItem.hrid, effectiveLevelOf(bestItem.hrid)) : null,
+        });
+
+        const lastEntry = progression[progression.length - 1];
+        lastEntry.goldGainPerHour = lastEntry.goldScore - goldBaseline;
+        lastEntry.paybackHours =
+            lastEntry.cost != null && lastEntry.goldGainPerHour > 0 ? lastEntry.cost / lastEntry.goldGainPerHour : null;
+
+        lastWinnerHrid = bestItem?.hrid ?? null;
+    }
+
+    // Only include slots where at least one item beats the baseline
+    if (!progression.some((p) => p.itemHrid !== null)) return null;
+
+    // Build the cost-vs-score Pareto frontier: price every scored (item, level) pair, sort
+    // cheapest-first, and keep only entries that beat every cheaper alternative's score. This
+    // surfaces any genuinely-better item at its price point — including ones that never won a
+    // breakpoint outright — while dropping anything a cheaper option already matches or beats.
+    const priced = [];
+    for (const entry of allScoredByKey.values()) {
+        const cost = getItemCost(entry.itemHrid, entry.breakpoint);
+        if (cost == null) continue; // unpriced items can't be judged "affordable" — omit entirely
+        priced.push({ ...entry, cost });
+    }
+    priced.sort((a, b) => a.cost - b.cost);
+
+    // Ranked by gold gain specifically — not the skill's primary goal — because the budget view is
+    // inherently a gold cost-effectiveness tool. A production skill's main progression ranks by XP
+    // (more reliable than gold since it doesn't depend on market prices), but that would silently
+    // drop gold-only accessories like a Rare Find ring/earring (zero XP benefit, pure gold upside)
+    // before they ever reached the "does it profit gold?" check.
+    const paretoCandidates = [];
+    let bestGoldSoFar = -Infinity;
+    for (const entry of priced) {
+        const xpScore = goal === 'xp' ? entry.score : scoreFn(entry.itemHrid, entry.breakpoint, 'xp');
+        const goldScore = goal === 'gold' ? entry.score : scoreFn(entry.itemHrid, entry.breakpoint, 'gold');
+        if (goldScore <= bestGoldSoFar) continue;
+        bestGoldSoFar = goldScore;
+
+        const goldGainPerHour = goldScore - goldBaseline;
+
+        paretoCandidates.push({
+            ...entry,
+            xpScore,
+            goldScore,
+            goldGainPerHour,
+            paybackHours: goldGainPerHour > 0 ? entry.cost / goldGainPerHour : null,
+        });
+    }
+
+    return { progression, paretoCandidates };
+}
+
+/**
  * Optimize a skill for the given player level and selected actions.
  * Equipment is always scored for XP (efficiency/speed benefit both goals equally).
  * Returns per-slot progression plus tea results for both XP and Gold goals.
  *
+ * Runs slot-by-slot, yielding to the UI thread between slots so a progress bar can update and
+ * the panel doesn't freeze during the (synchronous, CPU-bound) scoring work.
+ *
  * @param {string} skillName
  * @param {number} playerLevel
  * @param {Set<string>|null} selectedActionHrids - HRIDs of actions to score against, or null for all
- * @returns {Object|null}
+ * @param {Function} [onProgress] - Called with (completed, total) as slots/steps finish
+ * @param {Map|null} [baseEquipment] - Equipment to hold fixed in every other slot while each
+ *  candidate is scored, and to score as the baseline. Defaults to the player's live equipment;
+ *  pass a saved loadout's equipment map instead to compare against that loadout specifically.
+ * @returns {Promise<Object|null>}
  */
-export function optimizeSkill(skillName, playerLevel, selectedActionHrids = null) {
-    // Gathering skills: score for Gold — captures gathering quantity, rare/essence find + speed/efficiency.
-    // Production skills: score for XP — more reliable since it doesn't depend on market prices.
-    const goal = GATHERING_SKILLS.has(skillName.toLowerCase()) ? 'gold' : 'xp';
+export async function optimizeSkill(
+    skillName,
+    playerLevel,
+    selectedActionHrids = null,
+    onProgress = null,
+    baseEquipment = null
+) {
+    // Rank every skill's default equipment progression by Gold — captures gathering quantity,
+    // rare/essence find, and market-priced output value, not just raw XP. Production skills used
+    // to rank by XP instead (steadier since it ignores market prices), but that silently hid any
+    // item whose only benefit is gold (Rare Find, Essence Find, Gathering Quantity accessories).
+    const goal = 'gold';
     const gameData = dataManager.getInitClientData();
     if (!gameData?.itemDetailMap) return null;
 
     const { itemDetailMap } = gameData;
     const playerLevels = buildPlayerLevelMap(skillName, playerLevel);
 
-    const xpBaseline = scoreEquipmentSetup(skillName, 'xp', new Map(), playerLevel, selectedActionHrids);
-    const goldBaseline = scoreEquipmentSetup(skillName, 'gold', new Map(), playerLevel, selectedActionHrids);
+    // Every slot is scored against this same equipment held fixed elsewhere (this slot swapped
+    // to the candidate, every other slot left as-is), not against an empty setup — scoring
+    // against an empty loadout produced a near-zero (sometimes negative) baseline for skills
+    // where profit depends on other equipped gear, which made % gains either silently disappear
+    // (baseline <= 0) or explode into absurd values (baseline near zero). Defaults to the
+    // player's live equipment; the UI passes a compared loadout's equipment here instead when one
+    // is selected, so every score in the results is consistent with that same loadout.
+    const currentEquipment = baseEquipment ?? dataManager.getEquipment();
+
+    const xpBaseline = scoreEquipmentSetup(skillName, 'xp', currentEquipment, playerLevel, selectedActionHrids);
+    const goldBaseline = scoreEquipmentSetup(skillName, 'gold', currentEquipment, playerLevel, selectedActionHrids);
     const baseline = goal === 'xp' ? xpBaseline : goldBaseline;
+
+    /**
+     * Every slot shares the same baseline (your real current loadout, tea-less) since a
+     * candidate's score already swaps in only that one slot against the same currentEquipment.
+     * @returns {{slotBaseline: number, slotXpBaseline: number, slotGoldBaseline: number}}
+     */
+    const getSlotBaselines = () => ({
+        slotBaseline: baseline,
+        slotXpBaseline: xpBaseline,
+        slotGoldBaseline: goldBaseline,
+    });
 
     const slots = {};
     const optimalEquipmentAtMax = new Map();
+    // Slots whose only candidates give a drinkConcentration bonus (e.g. Guzzling Pouch) — those
+    // items are worth nothing scored in isolation (no teas active), so they're deferred and
+    // rescored once a tea loadout exists to actually amplify. See the block after the main loop.
+    const concentrationSlots = [];
+
+    // +2 extra steps for the final XP/Gold tea-optimization passes below (more added later if any
+    // drink-concentration slots are deferred).
+    let totalSteps = SKILLING_LOCATIONS.length + 2;
+    let completedSteps = 0;
+    const reportProgress = () => onProgress?.(completedSteps, totalSteps);
+    reportProgress();
 
     for (const locationHrid of SKILLING_LOCATIONS) {
+        await yieldToUI();
+        completedSteps++;
+        reportProgress();
         const candidates = getCandidatesForSlot(locationHrid, playerLevels, itemDetailMap);
         if (!candidates.length) continue;
 
-        // Collect union of all breakpoints across candidates (refined items differ)
-        const allBreakpoints = new Set();
-        for (const candidate of candidates) {
-            for (const bp of getBreakpoints(locationHrid, candidate.hrid)) {
-                allBreakpoints.add(bp);
-            }
-        }
-        const sortedBreakpoints = [...allBreakpoints].sort((a, b) => a - b);
-
-        const progression = [];
-        let lastWinnerHrid = null;
-
-        for (const bp of sortedBreakpoints) {
-            let bestItem = null;
-            let bestScore = baseline;
-
-            for (const candidate of candidates) {
-                // Refined items can't be enhanced below +10
-                const effectiveLevel = candidate.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                const score = scoreCandidate(
-                    candidate.hrid,
-                    locationHrid,
-                    skillName,
-                    goal,
-                    effectiveLevel,
-                    playerLevel,
-                    selectedActionHrids
-                );
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestItem = candidate;
-                }
-            }
-
-            progression.push({
-                breakpoint: bp,
-                itemHrid: bestItem?.hrid ?? null,
-                itemName: bestItem?.name ?? null,
-                score: bestScore,
-                xpScore: (() => {
-                    if (!bestItem) return xpBaseline;
-                    if (goal === 'xp') return bestScore;
-                    const eBp = bestItem.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                    return scoreCandidate(
-                        bestItem.hrid,
-                        locationHrid,
-                        skillName,
-                        'xp',
-                        eBp,
-                        playerLevel,
-                        selectedActionHrids
-                    );
-                })(),
-                goldScore: (() => {
-                    if (!bestItem) return goldBaseline;
-                    if (goal === 'gold') return bestScore;
-                    const eBp = bestItem.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                    return scoreCandidate(
-                        bestItem.hrid,
-                        locationHrid,
-                        skillName,
-                        'gold',
-                        eBp,
-                        playerLevel,
-                        selectedActionHrids
-                    );
-                })(),
-                isChange: (bestItem?.hrid ?? null) !== lastWinnerHrid,
-            });
-
-            lastWinnerHrid = bestItem?.hrid ?? null;
+        // Items whose only stat is drinkConcentration (e.g. Guzzling Pouch) score as zero gain
+        // when tested alone with no teas active — defer them until a tea loadout exists.
+        const hasDrinkConcentration = candidates.some(
+            (c) => (itemDetailMap[c.hrid]?.equipmentDetail?.noncombatStats?.drinkConcentration ?? 0) > 0
+        );
+        if (hasDrinkConcentration) {
+            concentrationSlots.push({ locationHrid, candidates });
+            continue;
         }
 
-        // Only include slots where at least one item beats the baseline
-        if (!progression.some((p) => p.itemHrid !== null)) continue;
+        const scoreFn = (itemHrid, effectiveLevel, goalName) =>
+            scoreCandidate(
+                itemHrid,
+                locationHrid,
+                skillName,
+                goalName,
+                effectiveLevel,
+                playerLevel,
+                selectedActionHrids,
+                currentEquipment
+            );
+
+        const { slotBaseline, slotXpBaseline, slotGoldBaseline } = getSlotBaselines();
+        const result = computeSlotResult(
+            locationHrid,
+            candidates,
+            scoreFn,
+            slotBaseline,
+            slotXpBaseline,
+            slotGoldBaseline,
+            goal
+        );
+        if (!result) continue;
 
         slots[locationHrid] = {
             name: SLOT_DISPLAY_NAMES[locationHrid] || locationHrid,
             candidateCount: candidates.length,
-            progression,
+            slotXpBaseline,
+            slotGoldBaseline,
+            ...result,
         };
 
         // Record the optimal item at max breakpoint for tea optimization
-        const maxEntry = progression[progression.length - 1];
+        const maxEntry = result.progression[result.progression.length - 1];
         if (maxEntry?.itemHrid) {
             optimalEquipmentAtMax.set(locationHrid, { itemHrid: maxEntry.itemHrid, enhancementLevel: 20 });
         }
     }
 
+    // Drink-concentration slots (e.g. pouch): now that optimalEquipmentAtMax reflects every other
+    // slot's winner, find a preliminary tea loadout for each goal and rescore these slots'
+    // candidates with that tea loadout actually applied, so their real value (amplifying tea
+    // effects) shows up instead of always reading as zero gain.
+    if (concentrationSlots.length) {
+        totalSteps += 1 + concentrationSlots.length;
+
+        await yieldToUI();
+        completedSteps++;
+        reportProgress();
+
+        const prelimXpTeas = (
+            findOptimalTeas(skillName, 'xp', null, null, null, null, optimalEquipmentAtMax, selectedActionHrids)
+                ?.optimal?.teas ?? []
+        ).map((t) => t.hrid);
+        const prelimGoldTeas = (
+            findOptimalTeas(skillName, 'gold', null, null, null, null, optimalEquipmentAtMax, selectedActionHrids)
+                ?.optimal?.teas ?? []
+        ).map((t) => t.hrid);
+        const teasForGoal = { xp: prelimXpTeas, gold: prelimGoldTeas };
+
+        const perfWithoutSlot = (locationHrid, goalName) => {
+            const equipment = new Map(optimalEquipmentAtMax);
+            equipment.delete(locationHrid);
+            const perf = calculateSkillPerformance(
+                skillName,
+                equipment,
+                teasForGoal[goalName],
+                playerLevel,
+                selectedActionHrids
+            );
+            return goalName === 'xp' ? perf.xpPerHour : perf.goldPerHour;
+        };
+
+        for (const { locationHrid, candidates } of concentrationSlots) {
+            await yieldToUI();
+            completedSteps++;
+            reportProgress();
+
+            const scoreFn = (itemHrid, effectiveLevel, goalName) => {
+                const equipment = new Map(optimalEquipmentAtMax);
+                equipment.set(locationHrid, { itemHrid, enhancementLevel: effectiveLevel });
+                const perf = calculateSkillPerformance(
+                    skillName,
+                    equipment,
+                    teasForGoal[goalName],
+                    playerLevel,
+                    selectedActionHrids
+                );
+                return goalName === 'xp' ? perf.xpPerHour : perf.goldPerHour;
+            };
+
+            const currentItem = currentEquipment.get(locationHrid);
+            const currentXp = currentItem?.itemHrid
+                ? scoreFn(currentItem.itemHrid, currentItem.enhancementLevel || 0, 'xp')
+                : -Infinity;
+            const currentGold = currentItem?.itemHrid
+                ? scoreFn(currentItem.itemHrid, currentItem.enhancementLevel || 0, 'gold')
+                : -Infinity;
+            const slotXpBaseline = Math.max(perfWithoutSlot(locationHrid, 'xp'), currentXp);
+            const slotGoldBaseline = Math.max(perfWithoutSlot(locationHrid, 'gold'), currentGold);
+            const slotBaseline = goal === 'xp' ? slotXpBaseline : slotGoldBaseline;
+
+            const result = computeSlotResult(
+                locationHrid,
+                candidates,
+                scoreFn,
+                slotBaseline,
+                slotXpBaseline,
+                slotGoldBaseline,
+                goal
+            );
+            if (!result) continue;
+
+            slots[locationHrid] = {
+                name: SLOT_DISPLAY_NAMES[locationHrid] || locationHrid,
+                candidateCount: candidates.length,
+                slotXpBaseline,
+                slotGoldBaseline,
+                ...result,
+            };
+
+            const maxEntry = result.progression[result.progression.length - 1];
+            if (maxEntry?.itemHrid) {
+                optimalEquipmentAtMax.set(locationHrid, { itemHrid: maxEntry.itemHrid, enhancementLevel: 20 });
+            }
+        }
+    }
+
     // Run tea optimizer for both goals with optimal equipment at max enhancement
+    await yieldToUI();
+    completedSteps++;
+    reportProgress();
     const xpTeaResult = findOptimalTeas(
         skillName,
         'xp',
@@ -454,6 +727,10 @@ export function optimizeSkill(skillName, playerLevel, selectedActionHrids = null
         optimalEquipmentAtMax,
         selectedActionHrids
     );
+
+    await yieldToUI();
+    completedSteps++;
+    reportProgress();
     const goldTeaResult = findOptimalTeas(
         skillName,
         'gold',

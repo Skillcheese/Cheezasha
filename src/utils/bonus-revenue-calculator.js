@@ -16,9 +16,16 @@ import { calculateHouseRareFind } from './house-efficiency.js';
  * @param {number} actionsPerHour - Base actions per hour (efficiency not applied)
  * @param {Map} characterEquipment - Equipment map
  * @param {Object} itemDetailMap - Item details map
+ * @param {Object} [options] - Optional flags
+ * @param {boolean} [options.excludePersonalBuffs=false] - Skip personal (Labyrinth seal/scroll) buffs.
+ *  Used by the skilling optimizer, which scores hypothetical equipment/tea setups to inform a
+ *  purchase decision — a temporary scroll buff that happens to be active right now isn't something
+ *  a gear purchase should be justified against, so it's excluded there while still applying normally
+ *  for real-time tile/profit displays elsewhere.
  * @returns {Object} Bonus revenue data with essence and rare find drops
  */
-export function calculateBonusRevenue(actionDetails, actionsPerHour, characterEquipment, itemDetailMap) {
+export function calculateBonusRevenue(actionDetails, actionsPerHour, characterEquipment, itemDetailMap, options = {}) {
+    const { excludePersonalBuffs = false } = options;
     // Get Essence Find bonus from equipment
     const essenceFindBonus = parseEssenceFindBonus(characterEquipment, itemDetailMap);
 
@@ -27,8 +34,9 @@ export function calculateBonusRevenue(actionDetails, actionsPerHour, characterEq
     const houseRareFindBonus = calculateHouseRareFind();
     const achievementRareFindBonus =
         dataManager.getAchievementBuffFlatBoost(actionDetails.type, '/buff_types/rare_find') * 100;
-    const personalRareFindBonus =
-        dataManager.getPersonalBuffFlatBoost(actionDetails.type, '/buff_types/rare_find') * 100;
+    const personalRareFindBonus = excludePersonalBuffs
+        ? 0
+        : dataManager.getPersonalBuffFlatBoost(actionDetails.type, '/buff_types/rare_find') * 100;
 
     const guildBuffs = dataManager.characterData?.guildActionTypeBuffsMap?.[actionDetails.type] || [];
     const guildRareFindBonus =

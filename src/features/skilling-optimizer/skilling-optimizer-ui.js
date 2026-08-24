@@ -20,13 +20,29 @@ import {
     SLOT_DISPLAY_NAMES,
     SKILL_TOOL_LOCATION,
 } from './skilling-optimizer-engine.js';
-import { scoreEquipmentSetup } from '../../utils/tea-optimizer.js';
 import { formatKMB } from '../../utils/formatters.js';
 import { buildEnhancementLevelMap } from '../../utils/loadout-scraper.js';
 import loadoutSnapshotLocal from '../combat/loadout-snapshot.js';
 
 function getLoadoutSnapshot() {
     return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshotLocal;
+}
+
+/**
+ * Parse a gold shorthand string (e.g. "63M", "500k", "1.2b") into a number. A bare number with no
+ * suffix is assumed to be in millions (e.g. "100" → 100M, "1" → 1M) since that's the scale gold
+ * budgets are usually discussed in.
+ * @param {string} str
+ * @returns {number} Parsed value, or NaN if unparseable
+ */
+function parseKMB(str) {
+    const match = str
+        .trim()
+        .toLowerCase()
+        .match(/^(\d+\.?\d*)\s*([kmb]?)$/);
+    if (!match) return NaN;
+    const multipliers = { k: 1e3, m: 1e6, b: 1e9 };
+    return parseFloat(match[1]) * (multipliers[match[2]] || 1e6);
 }
 
 const TAB_CLASS = 'cheezasha-skilling-opt-tab';
@@ -48,6 +64,7 @@ class SkillingSimulatorUI {
         this.currentMode = 'simulator'; // 'simulator' | 'optimizer'
         this.lastOptimizerResult = null;
         this.optimizerLoadout = null;
+        this.budget = null; // null = no cap, otherwise max gold cost/slot to show as viable
 
         // Simulator state
         this.currentSkill = 'Woodcutting';
@@ -307,6 +324,35 @@ class SkillingSimulatorUI {
             });
             compareRow.appendChild(compareLabel);
             compareRow.appendChild(compareSelect);
+
+            // Budget filter
+            const budgetLabel = document.createElement('span');
+            budgetLabel.textContent = 'Budget:';
+            budgetLabel.style.cssText =
+                'color: rgba(255,255,255,0.5); font-size: 12px; width: 48px; flex-shrink: 0; text-align: right;';
+            const budgetInput = document.createElement('input');
+            budgetInput.type = 'text';
+            budgetInput.placeholder = 'e.g. 63 = 63M';
+            budgetInput.value = this.budget != null ? formatKMB(this.budget) : '';
+            budgetInput.style.cssText =
+                'width: 80px; background: #2a2a2a; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 4px 8px; font-size: 12px;';
+            budgetInput.addEventListener('change', () => {
+                const raw = budgetInput.value.trim();
+                if (!raw) {
+                    this.budget = null;
+                    budgetInput.style.borderColor = 'rgba(255,255,255,0.2)';
+                    return;
+                }
+                const value = parseKMB(raw);
+                if (isNaN(value) || value <= 0) {
+                    budgetInput.style.borderColor = '#c0392b';
+                    return;
+                }
+                this.budget = value;
+                budgetInput.style.borderColor = 'rgba(255,255,255,0.2)';
+            });
+            compareRow.appendChild(budgetLabel);
+            compareRow.appendChild(budgetInput);
             panel.appendChild(compareRow);
 
             const optimizeBtn = document.createElement('button');
@@ -319,86 +365,118 @@ class SkillingSimulatorUI {
                 font-size: 12px; font-weight: 700; cursor: pointer;
             `;
 
+            const progressWrap = document.createElement('div');
+            progressWrap.style.cssText = 'display: none; align-items: center; gap: 8px; margin-top: 10px;';
+            const progressTrack = document.createElement('div');
+            progressTrack.style.cssText =
+                'flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden;';
+            const progressFill = document.createElement('div');
+            progressFill.style.cssText = `height: 100%; width: 0%; background: ${config.COLOR_ACCENT}; transition: width 0.15s ease;`;
+            progressTrack.appendChild(progressFill);
+            const progressLabel = document.createElement('span');
+            progressLabel.style.cssText = 'font-size: 11px; color: rgba(255,255,255,0.5); flex-shrink: 0;';
+            progressWrap.appendChild(progressTrack);
+            progressWrap.appendChild(progressLabel);
+
             const resultsArea = document.createElement('div');
             resultsArea.style.marginTop = '16px';
 
-            optimizeBtn.addEventListener('click', () => {
+            optimizeBtn.addEventListener('click', async () => {
                 optimizeBtn.textContent = 'Optimizing…';
                 optimizeBtn.disabled = true;
-                requestAnimationFrame(() =>
-                    setTimeout(() => {
-                        const result = optimizeSkill(this.currentSkill, this.currentLevel, this.selectedActionHrids);
-                        this.lastOptimizerResult = result;
+                resultsArea.innerHTML = '';
+                progressWrap.style.display = 'flex';
+                progressFill.style.width = '0%';
+                progressLabel.textContent = '';
 
-                        // Build equipment map using player's actual owned enhancement levels
-                        const enhMap = buildEnhancementLevelMap();
-                        const achievableEquipment = new Map();
-                        if (result) {
-                            for (const [locationHrid, slotData] of Object.entries(result.slots)) {
-                                const best = slotData.progression[slotData.progression.length - 1];
-                                if (best?.itemHrid) {
-                                    achievableEquipment.set(locationHrid, {
-                                        itemHrid: best.itemHrid,
-                                        enhancementLevel: enhMap.get(best.itemHrid) ?? 0,
-                                    });
-                                }
-                            }
-                        }
+                // Build the full loadout equipment map for comparison, if one is selected — every
+                // slot's candidate is scored with all OTHER slots held fixed to this loadout
+                // (rather than your live gear), so results are consistent with what's compared.
+                const loadoutEquipment = new Map();
+                if (this.optimizerLoadout) {
+                    for (const eq of this.optimizerLoadout.equipment || []) {
+                        if (eq.itemHrid)
+                            loadoutEquipment.set(eq.itemLocationHrid, {
+                                itemHrid: eq.itemHrid,
+                                enhancementLevel: eq.enhancementLevel || 0,
+                            });
+                    }
+                }
 
-                        // Performance with achievable equipment and optimal teas for each goal
-                        const xpAchievable = result
-                            ? findOptimalTeas(
-                                  this.currentSkill,
-                                  'xp',
-                                  null,
-                                  null,
-                                  null,
-                                  null,
-                                  achievableEquipment,
-                                  this.selectedActionHrids
-                              )
-                            : null;
-                        const goldAchievable = result
-                            ? findOptimalTeas(
-                                  this.currentSkill,
-                                  'gold',
-                                  null,
-                                  null,
-                                  null,
-                                  null,
-                                  achievableEquipment,
-                                  this.selectedActionHrids
-                              )
-                            : null;
-
-                        // Build loadout item map for comparison
-                        const loadoutItemMap = new Map();
-                        if (this.optimizerLoadout) {
-                            for (const eq of this.optimizerLoadout.equipment || []) {
-                                if (eq.itemHrid)
-                                    loadoutItemMap.set(eq.itemLocationHrid, {
-                                        itemHrid: eq.itemHrid,
-                                        enhancementLevel: eq.enhancementLevel || 0,
-                                    });
-                            }
-                        }
-
-                        optimizeBtn.textContent = 'Optimize';
-                        optimizeBtn.disabled = false;
-                        resultsArea.innerHTML = '';
-                        if (result) {
-                            this._renderOptimizerResults(
-                                resultsArea,
-                                result,
-                                { xpResult: xpAchievable, goldResult: goldAchievable },
-                                loadoutItemMap.size > 0 ? loadoutItemMap : null
-                            );
-                        }
-                    }, 0)
+                const result = await optimizeSkill(
+                    this.currentSkill,
+                    this.currentLevel,
+                    this.selectedActionHrids,
+                    (completed, total) => {
+                        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                        progressFill.style.width = `${pct}%`;
+                        progressLabel.textContent = `${completed}/${total}`;
+                    },
+                    loadoutEquipment.size > 0 ? loadoutEquipment : null
                 );
+                this.lastOptimizerResult = result;
+
+                // Build equipment map using player's actual owned enhancement levels
+                const enhMap = buildEnhancementLevelMap();
+                const achievableEquipment = new Map();
+                if (result) {
+                    for (const [locationHrid, slotData] of Object.entries(result.slots)) {
+                        const best = slotData.progression[slotData.progression.length - 1];
+                        if (best?.itemHrid) {
+                            achievableEquipment.set(locationHrid, {
+                                itemHrid: best.itemHrid,
+                                enhancementLevel: enhMap.get(best.itemHrid) ?? 0,
+                            });
+                        }
+                    }
+                }
+
+                // Performance with achievable equipment and optimal teas for each goal
+                const xpAchievable = result
+                    ? findOptimalTeas(
+                          this.currentSkill,
+                          'xp',
+                          null,
+                          null,
+                          null,
+                          null,
+                          achievableEquipment,
+                          this.selectedActionHrids
+                      )
+                    : null;
+                const goldAchievable = result
+                    ? findOptimalTeas(
+                          this.currentSkill,
+                          'gold',
+                          null,
+                          null,
+                          null,
+                          null,
+                          achievableEquipment,
+                          this.selectedActionHrids
+                      )
+                    : null;
+
+                // Reuse the same loadout equipment map used as the scoring base above, for the
+                // per-slot "≠ loadout item" diff indicator.
+                const loadoutItemMap = loadoutEquipment;
+
+                optimizeBtn.textContent = 'Optimize';
+                optimizeBtn.disabled = false;
+                progressWrap.style.display = 'none';
+                resultsArea.innerHTML = '';
+                if (result) {
+                    this._renderOptimizerResults(
+                        resultsArea,
+                        result,
+                        { xpResult: xpAchievable, goldResult: goldAchievable },
+                        loadoutItemMap.size > 0 ? loadoutItemMap : null
+                    );
+                }
             });
 
             panel.appendChild(optimizeBtn);
+            panel.appendChild(progressWrap);
             panel.appendChild(resultsArea);
 
             if (this.lastOptimizerResult)
@@ -1066,18 +1144,15 @@ class SkillingSimulatorUI {
         for (const [locationHrid, slotData] of slotEntries) {
             const loadoutEntry = loadoutItemMap?.get(locationHrid) ?? null;
 
-            // Use the loadout item's score as the baseline when a compare is selected,
-            // so percentages show improvement over what the user currently has.
-            // Fall back to global empty baseline when no compare is set.
-            let slotXpBaseline = result.xpBaseline;
-            let slotGoldBaseline = result.goldBaseline;
-            if (loadoutEntry) {
-                const equipment = new Map([[locationHrid, loadoutEntry]]);
-                slotXpBaseline = scoreEquipmentSetup(result.skill, 'xp', equipment, result.playerLevel);
-                slotGoldBaseline = scoreEquipmentSetup(result.skill, 'gold', equipment, result.playerLevel);
-            }
+            // The engine already scored every candidate (and the baseline) against the same fixed
+            // equipment in every other slot — your live gear by default, or the compared loadout
+            // when one was selected at Optimize time (see the optimizeSkill call site) — so the
+            // per-slot baseline it returns is already consistent with these entries. No need to
+            // recompute anything here.
+            const slotXpBaseline = slotData.slotXpBaseline ?? result.xpBaseline;
+            const slotGoldBaseline = slotData.slotGoldBaseline ?? result.goldBaseline;
 
-            this._renderSlotRow(container, slotData, loadoutEntry, slotXpBaseline, slotGoldBaseline);
+            this._renderSlotRow(container, slotData, loadoutEntry, slotXpBaseline, slotGoldBaseline, this.budget);
         }
 
         const xpResult = achievableStats?.xpResult;
@@ -1108,13 +1183,16 @@ class SkillingSimulatorUI {
 
         const note = document.createElement('div');
         note.style.cssText = 'margin-top: 12px; font-size: 10px; color: rgba(255,255,255,0.3); font-style: italic;';
-        note.textContent = loadoutItemMap
+        const baselineNote = loadoutItemMap
             ? '% shows gain over your compared loadout item for each slot.'
-            : '% shows gain over an empty slot. Select a loadout in Compare to see gains over your current gear.';
+            : '% shows gain over your currently equipped item in each slot (or an empty slot if nothing is equipped there). Select a loadout in Compare to measure against that instead.';
+        note.textContent = this.budget
+            ? `${baselineNote} Greyed-out items exceed your ${formatKMB(this.budget)} budget; the highlighted pick is the best option within it.`
+            : baselineNote;
         container.appendChild(note);
     }
 
-    _renderSlotRow(container, slotData, loadoutEntry = null, xpBaseline = 0, goldBaseline = 0) {
+    _renderSlotRow(container, slotData, loadoutEntry = null, xpBaseline = 0, goldBaseline = 0, budget = null) {
         const loadoutItemHrid = loadoutEntry?.itemHrid ?? null;
         const optimalItemHrid = slotData.progression[slotData.progression.length - 1]?.itemHrid;
 
@@ -1152,8 +1230,71 @@ class SkillingSimulatorUI {
         const spriteUrl =
             document.querySelector('use[href*="items_sprite"]')?.getAttribute('href')?.split('#')[0] ?? null;
 
-        if (loadoutEntry) {
+        if (budget != null) {
+            // Budget view: show only genuine cost-vs-score improvements (the Pareto frontier
+            // computed in optimizeSkill), so every row shown is actually worth considering —
+            // never a strictly-worse or unpriced item. Rows past the budget are greyed out; the
+            // priciest one still within budget is starred as the best affordable pick.
+            // Only worth buying if it actually raises gold/hr — a pure XP or no-op upgrade isn't
+            // an "investment" with a payback time, so it doesn't belong in a budget comparison.
+            const paretoCandidates = (slotData.paretoCandidates || []).filter((e) => e.goldGainPerHour > 0);
+            const withinBudget = paretoCandidates.filter((e) => e.cost <= budget);
+            const bestAffordable = withinBudget[withinBudget.length - 1] || null;
+
+            if (!paretoCandidates.length) {
+                const none = document.createElement('div');
+                none.style.cssText =
+                    'padding: 1px 0 1px 6px; font-size: 11px; color: rgba(255,255,255,0.25); font-style: italic;';
+                none.textContent = 'No priced items with a gold/hr gain for this slot.';
+                row.appendChild(none);
+            }
+
+            for (const entry of paretoCandidates) {
+                const overBudget = entry.cost > budget;
+                const isBest = entry === bestAffordable;
+
+                const entryRow = document.createElement('div');
+                entryRow.style.cssText = `display: flex; align-items: baseline; gap: 8px; padding: 1px 0 1px 6px; ${overBudget ? 'opacity: 0.35;' : ''}`;
+
+                const bpSpan = document.createElement('span');
+                bpSpan.style.cssText =
+                    'font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; min-width: 32px;';
+                bpSpan.textContent = `+${entry.breakpoint}`;
+                entryRow.appendChild(bpSpan);
+
+                const nameSpan = document.createElement('span');
+                nameSpan.style.cssText = `font-size: 12px; color: ${isBest ? config.COLOR_PROFIT : 'rgba(255,255,255,0.85)'}; font-weight: ${isBest ? '600' : '400'};`;
+                nameSpan.textContent = (isBest ? '★ ' : '') + entry.itemName;
+                entryRow.appendChild(nameSpan);
+
+                const gainEl = this._makeGainEl(entry.xpScore, xpBaseline, entry.goldScore, goldBaseline, spriteUrl);
+                if (gainEl) entryRow.appendChild(gainEl);
+
+                row.appendChild(entryRow);
+
+                const costEl = this._makeCostEl(
+                    entry.cost,
+                    entry.paybackHours,
+                    spriteUrl,
+                    entry.goldGainPerHour,
+                    goldBaseline
+                );
+                if (costEl) {
+                    costEl.style.paddingLeft = '32px';
+                    if (overBudget) {
+                        const overLabel = document.createElement('span');
+                        overLabel.style.cssText = `color: ${config.COLOR_WARNING}; font-style: italic;`;
+                        overLabel.textContent = ' · over budget';
+                        costEl.appendChild(overLabel);
+                    }
+                    row.appendChild(costEl);
+                }
+            }
+        } else if (loadoutEntry) {
             // Per-breakpoint view: one row per enhancement level where the user has something to gain
+            // over the compared loadout. Show every qualifying breakpoint (not just the first) so
+            // higher tiers of the same item — e.g. +4, +5 Earrings of Rare Find — aren't hidden just
+            // because a lower tier already cleared the bar.
             let prevItemHrid = null;
             let anyVisible = false;
             for (const entry of slotData.progression) {
@@ -1194,8 +1335,17 @@ class SkillingSimulatorUI {
                 if (gainEl) entryRow.appendChild(gainEl);
 
                 row.appendChild(entryRow);
+
+                const costEl = this._makeCostEl(
+                    entry.cost,
+                    entry.paybackHours,
+                    spriteUrl,
+                    entry.goldGainPerHour,
+                    goldBaseline
+                );
+                if (costEl) row.appendChild(costEl);
+
                 prevItemHrid = entry.itemHrid;
-                break; // only show the immediate next step
             }
             if (!anyVisible) {
                 const none = document.createElement('div');
@@ -1228,6 +1378,15 @@ class SkillingSimulatorUI {
                 if (gainEl) tierRow.appendChild(gainEl);
 
                 row.appendChild(tierRow);
+
+                const costEl = this._makeCostEl(
+                    tier.cost,
+                    tier.paybackHours,
+                    spriteUrl,
+                    tier.goldGainPerHour,
+                    goldBaseline
+                );
+                if (costEl) row.appendChild(costEl);
             }
         }
 
@@ -1279,6 +1438,59 @@ class SkillingSimulatorUI {
         return wrapper;
     }
 
+    _formatPaybackHours(hours) {
+        if (hours < 24) return `${hours.toFixed(1)}h`;
+        const days = hours / 24;
+        if (days < 365) return `${days.toFixed(1)}d`;
+        return `${(days / 365).toFixed(1)}y`;
+    }
+
+    _makeCostEl(cost, paybackHours, spriteUrl, goldGainPerHour = null, goldBaseline = 0) {
+        if (cost == null) return null;
+
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText =
+            'font-size: 10px; color: rgba(255,255,255,0.4); padding-left: 6px; display: flex; align-items: center; gap: 4px;';
+
+        wrapper.appendChild(document.createTextNode('Cost: '));
+        wrapper.appendChild(document.createTextNode(formatKMB(cost)));
+        if (spriteUrl) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', '10');
+            svg.setAttribute('height', '10');
+            svg.style.flexShrink = '0';
+            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttribute('href', `${spriteUrl}#coin`);
+            svg.appendChild(use);
+            wrapper.appendChild(svg);
+        } else {
+            wrapper.appendChild(document.createTextNode('G'));
+        }
+
+        if (goldBaseline > 0 && goldGainPerHour > 0) {
+            const percentGain = (goldGainPerHour / goldBaseline) * 100;
+            if (percentGain > 0) {
+                const perPercent = document.createElement('span');
+                perPercent.textContent = ` · ${formatKMB(cost / percentGain)}/1%`;
+                wrapper.appendChild(perPercent);
+            }
+        }
+
+        if (paybackHours != null) {
+            const payback = document.createElement('span');
+            payback.style.color = paybackHours <= 24 * 30 ? config.COLOR_PROFIT : config.COLOR_WARNING;
+            payback.textContent = ` · payback: ${this._formatPaybackHours(paybackHours)}`;
+            wrapper.appendChild(payback);
+        } else {
+            const noPayback = document.createElement('span');
+            noPayback.style.cssText = 'font-style: italic;';
+            noPayback.textContent = ' · no gold/hr gain';
+            wrapper.appendChild(noPayback);
+        }
+
+        return wrapper;
+    }
+
     _groupTiers(progression) {
         const tiers = [];
         let current = null;
@@ -1297,9 +1509,15 @@ class SkillingSimulatorUI {
                     score: entry.score,
                     xpScore: entry.xpScore,
                     goldScore: entry.goldScore,
+                    cost: entry.cost,
+                    goldGainPerHour: entry.goldGainPerHour,
+                    paybackHours: entry.paybackHours,
                 };
             } else {
                 current.toBp = entry.breakpoint;
+                current.cost = entry.cost;
+                current.goldGainPerHour = entry.goldGainPerHour;
+                current.paybackHours = entry.paybackHours;
             }
         }
         if (current) tiers.push(current);

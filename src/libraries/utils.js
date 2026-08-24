@@ -37,6 +37,7 @@ import * as pricingHelper from '../utils/pricing-helper.js';
 import * as cleanupRegistry from '../utils/cleanup-registry.js';
 import * as houseCostCalculator from '../utils/house-cost-calculator.js';
 import * as enhancementCalculator from '../utils/enhancement-calculator.js';
+import * as teaOptimizer from '../utils/tea-optimizer.js';
 
 // Export to global namespace
 const cheezashaRoot = window.Cheezasha || {};
@@ -78,6 +79,7 @@ cheezashaRoot.Utils = {
     cleanupRegistry,
     houseCostCalculator,
     enhancementCalculator,
+    teaOptimizer,
 };
 
 console.log('[Cheezasha] Utils library loaded');
