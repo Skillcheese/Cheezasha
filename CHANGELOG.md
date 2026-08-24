@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.17.1](https://github.com/Skillcheese/Cheezasha/compare/v3.17.0...v3.17.1) (2026-08-24)
+
+### Bug Fixes
+
+- show all profitable equipment tiers and exclude personal buffs from skilling optimizer ([b94e163](https://github.com/Skillcheese/Cheezasha/commit/b94e1638bb870b025468536c38e526105923a6bd))
+
 ## [3.17.0](https://github.com/Skillcheese/Cheezasha/compare/v3.16.0...v3.17.0) (2026-08-23)
 
 ### Features
