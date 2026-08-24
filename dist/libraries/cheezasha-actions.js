@@ -1,7 +1,7 @@
 /**
  * Cheezasha Actions Library
  * Production, gathering, and alchemy features
- * Version: 3.17.0
+ * Version: 3.17.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -13742,11 +13742,17 @@
         const skillHrid = actionDetails.experienceGain.skillHrid;
         const currentXpData = experienceParser_js.calculateExperienceMultiplier(skillHrid, actionDetails.type);
 
-        // Replace current tea wisdom with our calculated tea wisdom
+        // calculateExperienceMultiplier reads equipment/charm wisdom from the player's LIVE gear
+        // (via resolveActionContext), not from the candidate `equipment` being scored here — so a
+        // wisdom/experience-granting item (e.g. Philosopher's ring/earrings) being tested as a
+        // candidate would never show its own bonus unless it happened to already be equipped live.
+        // Swap those two components out for ones computed from the candidate equipment instead.
         const currentTeaWisdom = currentXpData.breakdown?.consumableWisdom || 0;
-        const baseWisdomWithoutTea = currentXpData.totalWisdom - currentTeaWisdom;
-        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
-        const charmExperience = currentXpData.charmExperience || 0;
+        const liveEquipmentWisdom = currentXpData.breakdown?.equipmentWisdom || 0;
+        const baseWisdomWithoutTeaOrEquipment = currentXpData.totalWisdom - currentTeaWisdom - liveEquipmentWisdom;
+        const candidateEquipmentWisdom = experienceParser_js.parseEquipmentWisdom(equipment, itemDetailMap).total;
+        const totalWisdomWithOurTea = baseWisdomWithoutTeaOrEquipment + buffs.wisdom + candidateEquipmentWisdom;
+        const charmExperience = experienceParser_js.parseCharmExperience(equipment, skillHrid, itemDetailMap).total;
         const xpMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
 
         // XP per hour
@@ -13850,8 +13856,11 @@
             totalRevenue += itemsPerHour * rawPrice;
         }
 
-        // Add bonus revenue from essence and rare find drops
-        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        // Add bonus revenue from essence and rare find drops. Personal (scroll) buffs are excluded —
+        // a temporary Labyrinth seal buff shouldn't inflate the numbers used to justify a gear purchase.
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap, {
+            excludePersonalBuffs: true,
+        });
         const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
         totalRevenue += efficiencyBoostedBonusRevenue;
 
@@ -13951,8 +13960,12 @@
         // Profit per hour (with efficiency applied once)
         const grossProfitPerHour = actionsPerHour * profitPerAction * efficiencyMultiplier;
 
-        // Add bonus revenue from essence and rare find drops (same as tile calculation)
-        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        // Add bonus revenue from essence and rare find drops (same as tile calculation). Personal
+        // (scroll) buffs are excluded — a temporary Labyrinth seal buff shouldn't inflate the numbers
+        // used to justify a gear purchase.
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap, {
+            excludePersonalBuffs: true,
+        });
         const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
         // Apply market tax to revenue portion only (including bonus revenue)
@@ -14060,12 +14073,20 @@
         const successRate = Math.max(0, Math.min(1.0, baseSuccessRate * (1 + levelPenalty) * (1 + teaBonusOverride)));
 
         // XP per action: success gives full XP, failure gives 10%
-        // Wisdom multiplier — replace current tea wisdom with our hypothetical tea wisdom
+        // Wisdom multiplier — replace current tea wisdom AND live equipment/charm wisdom with the
+        // hypothetical tea and the candidate equipment being scored (calculateExperienceMultiplier
+        // otherwise always reads the player's currently-equipped gear, not calcContext.equipment).
         const xpData = experienceParser_js.calculateExperienceMultiplier('/skills/alchemy', '/action_types/alchemy');
         const currentTeaWisdom = xpData.breakdown?.consumableWisdom || 0;
-        const baseWisdomWithoutTea = xpData.totalWisdom - currentTeaWisdom;
-        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
-        const charmExperience = xpData.charmExperience || 0;
+        const liveEquipmentWisdom = xpData.breakdown?.equipmentWisdom || 0;
+        const baseWisdomWithoutTeaOrEquipment = xpData.totalWisdom - currentTeaWisdom - liveEquipmentWisdom;
+        const candidateEquipmentWisdom = experienceParser_js.parseEquipmentWisdom(calcContext.equipment, calcContext.itemDetailMap).total;
+        const totalWisdomWithOurTea = baseWisdomWithoutTeaOrEquipment + buffs.wisdom + candidateEquipmentWisdom;
+        const charmExperience = experienceParser_js.parseCharmExperience(
+            calcContext.equipment,
+            '/skills/alchemy',
+            calcContext.itemDetailMap
+        ).total;
         const wisdomMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
 
         const fullXP = baseXP * wisdomMultiplier;
@@ -18918,7 +18939,7 @@
      * @param {string} str
      * @returns {number} Parsed value, or NaN if invalid
      */
-    function parseKMB(str) {
+    function parseKMB$1(str) {
         const s = str.trim().toLowerCase();
         const match = s.match(/^(\d+\.?\d*)\s*([kmb]?)$/);
         if (!match) return NaN;
@@ -19339,7 +19360,7 @@
                 const raw = input.value.trim();
                 if (!raw) return;
 
-                const budget = parseKMB(raw);
+                const budget = parseKMB$1(raw);
                 if (isNaN(budget) || budget <= 0) {
                     input.style.borderColor = '#c0392b';
                     const t = setTimeout(() => {
@@ -27692,13 +27713,13 @@
         LOCATION_TO_EQUIPMENT_TYPES[loc].push(eqType);
     }
 
-    // Enhancement breakpoints — same as combat upgrade advisor
-    const BREAKPOINTS_DEFAULT = [7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-    const BREAKPOINTS_JEWELRY = [5, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-    const BREAKPOINTS_BACK = [3, 5, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-    const BREAKPOINTS_REFINED = [10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-
-    const JEWELRY_LOCATIONS = new Set(['/item_locations/neck', '/item_locations/ring', '/item_locations/earrings']);
+    // Every enhancement level 1-20 gives its own distinct stat bonus (see ENHANCEMENT_BONUSES in
+    // enhancement-multipliers.js), so all of them are scored — unlike the combat upgrade advisor,
+    // which intentionally checks only a sparse set of "typical" combat-gear checkpoints, this
+    // optimizer is meant to answer "what can I buy right now at this exact + level", so skipping
+    // levels would hide real, buyable options (e.g. a +9 that's cheaper than +10).
+    const FULL_LEVEL_RANGE = Array.from({ length: 20 }, (_, i) => i + 1);
+    const REFINED_LEVEL_RANGE = FULL_LEVEL_RANGE.filter((lvl) => lvl >= 10);
 
     const SKILLING_LOCATIONS = [
         // Skill-specific tools (shown first)
@@ -27797,11 +27818,9 @@
      * @param {string} itemHrid
      * @returns {number[]}
      */
-    function getBreakpoints(locationHrid, itemHrid) {
-        if (itemHrid.includes('_refined')) return BREAKPOINTS_REFINED;
-        if (JEWELRY_LOCATIONS.has(locationHrid)) return BREAKPOINTS_JEWELRY;
-        if (locationHrid === '/item_locations/back') return BREAKPOINTS_BACK;
-        return BREAKPOINTS_DEFAULT;
+    function getBreakpoints(_locationHrid, itemHrid) {
+        // Refined items can't be enhanced below +10
+        return itemHrid.includes('_refined') ? REFINED_LEVEL_RANGE : FULL_LEVEL_RANGE;
     }
 
     /**
@@ -27827,7 +27846,12 @@
         for (const req of itemDetail.equipmentDetail?.levelRequirements || []) {
             if (!req.levelTypeHrid) continue;
             const skillHrid = req.levelTypeHrid.replace('/level_types/', '/skills/');
-            const playerLevel = playerLevels.get(skillHrid) ?? 1;
+            // Some accessories (e.g. Task Shop rewards) gate on a non-skill requirement type, like
+            // task level, that isn't tracked in playerLevels at all. Defaulting an unrecognized type
+            // to level 1 would make any such item look permanently locked and silently disappear —
+            // only enforce requirements against skills we actually have a level for.
+            if (!playerLevels.has(skillHrid)) continue;
+            const playerLevel = playerLevels.get(skillHrid);
             if (playerLevel < req.level) return false;
         }
         return true;
@@ -27848,10 +27872,28 @@
             .filter(([_hrid, detail]) => {
                 if (!detail.equipmentDetail) return false;
                 if (!validEqTypes.has(detail.equipmentDetail.type)) return false;
-                if (!detail.equipmentDetail.noncombatStats) return false;
+                // Require at least one actual non-zero noncombat stat (confirmed via live game data:
+                // pure-combat accessories carry an EMPTY noncombatStats object — `{}` — not a missing
+                // one, so a truthy-object check alone wasn't the problem; but leaving every item
+                // unfiltered meant scoring hundreds of irrelevant combat rings/earrings per skill,
+                // which is slow enough to look like the slot never finishes. This keeps the candidate
+                // pool to only items that could possibly matter.
+                const stats = detail.equipmentDetail.noncombatStats;
+                if (!stats || !Object.values(stats).some((v) => v > 0)) return false;
                 return meetsLevelRequirements(detail, playerLevels);
             })
             .map(([hrid, detail]) => ({ hrid, name: detail.name }));
+    }
+
+    /**
+     * Get the market buy price (ask) for an item at a given enhancement level.
+     * @param {string} itemHrid
+     * @param {number} enhancementLevel
+     * @returns {number|null}
+     */
+    function getItemCost(itemHrid, enhancementLevel) {
+        const price = marketAPI.getPrice(itemHrid, enhancementLevel);
+        return price?.ask ?? null;
     }
 
     /**
@@ -27864,8 +27906,18 @@
      * @param {number} playerLevel
      * @returns {number}
      */
-    function scoreCandidate(itemHrid, locationHrid, skillName, goal, enhancementLevel, playerLevel, selectedActionHrids) {
-        const equipment = new Map([[locationHrid, { itemHrid, enhancementLevel }]]);
+    function scoreCandidate(
+        itemHrid,
+        locationHrid,
+        skillName,
+        goal,
+        enhancementLevel,
+        playerLevel,
+        selectedActionHrids,
+        baseEquipment = null
+    ) {
+        const equipment = new Map(baseEquipment);
+        equipment.set(locationHrid, { itemHrid, enhancementLevel });
         return scoreEquipmentSetup(skillName, goal, equipment, playerLevel, selectedActionHrids);
     }
 
@@ -27952,6 +28004,10 @@
 
         const result = [];
         for (const [hrid, detail] of Object.entries(gameData.itemDetailMap)) {
+            // Restrict to actual drinks — some Labyrinth scrolls (e.g. Scroll of Gourmet) carry the
+            // same buff types (gourmet, efficiency, etc.) but are one-off consumables, not something
+            // reliably available to base a gear purchase decision on. Only teas belong here.
+            if (!detail.categoryHrid?.includes('drink')) continue;
             if (!detail.consumableDetail?.buffs?.length) continue;
             const hasSkillBuff = detail.consumableDetail.buffs.some(
                 (b) => SKILLING_BUFF_TYPES.has(b.typeHrid) || b.typeHrid?.endsWith('_level')
@@ -27964,127 +28020,361 @@
     }
 
     /**
+     * Yield control back to the browser (lets the UI repaint a progress bar / stay responsive)
+     * before resuming the next chunk of work.
+     * @returns {Promise<void>}
+     */
+    function yieldToUI() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    /**
+     * Build a slot's breakpoint progression plus its cost-vs-score Pareto frontier (used by the
+     * budget view), given a generic scoring function. Shared by both the normal per-item scoring
+     * path and the drink-concentration path (items like Guzzling Pouch, whose only value is
+     * amplifying teas, so they must be scored with an actual tea loadout applied).
+     * @param {string} locationHrid
+     * @param {Array<{hrid: string, name: string}>} candidates
+     * @param {(itemHrid: string, effectiveLevel: number, goalName: 'xp'|'gold') => number} scoreFn
+     * @param {number} baseline - Score with nothing equipped in this slot, for the active goal
+     * @param {number} xpBaseline
+     * @param {number} goldBaseline
+     * @param {string} goal - 'xp' or 'gold'
+     * @returns {{progression: Array<Object>, paretoCandidates: Array<Object>}|null} null if no
+     *  candidate ever beats baseline
+     */
+    function computeSlotResult(locationHrid, candidates, scoreFn, baseline, xpBaseline, goldBaseline, goal) {
+        const allBreakpoints = new Set();
+        for (const candidate of candidates) {
+            for (const bp of getBreakpoints(locationHrid, candidate.hrid)) {
+                allBreakpoints.add(bp);
+            }
+        }
+        const sortedBreakpoints = [...allBreakpoints].sort((a, b) => a - b);
+
+        const progression = [];
+        let lastWinnerHrid = null;
+        // Every (item, effective enhancement level) pair scored, regardless of whether it won its
+        // breakpoint — used to build the budget view's cost-vs-score Pareto frontier so items that
+        // are merely close (e.g. a "Holy" tier tool) but never outright win a breakpoint can still
+        // show up there instead of being invisible.
+        const allScoredByKey = new Map();
+
+        for (const bp of sortedBreakpoints) {
+            let bestItem = null;
+            let bestScore = baseline;
+
+            for (const candidate of candidates) {
+                // Refined items can't be enhanced below +10
+                const effectiveLevel = candidate.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
+                const score = scoreFn(candidate.hrid, effectiveLevel, goal);
+
+                const key = `${candidate.hrid}:${effectiveLevel}`;
+                if (!allScoredByKey.has(key)) {
+                    allScoredByKey.set(key, {
+                        itemHrid: candidate.hrid,
+                        itemName: candidate.name,
+                        breakpoint: effectiveLevel,
+                        score,
+                    });
+                }
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestItem = candidate;
+                }
+            }
+
+            const effectiveLevelOf = (hrid) => (hrid.includes('_refined') ? Math.max(bp, 10) : bp);
+
+            progression.push({
+                breakpoint: bp,
+                itemHrid: bestItem?.hrid ?? null,
+                itemName: bestItem?.name ?? null,
+                score: bestScore,
+                xpScore: !bestItem
+                    ? xpBaseline
+                    : scoreFn(bestItem.hrid, effectiveLevelOf(bestItem.hrid), 'xp'),
+                goldScore: !bestItem
+                    ? goldBaseline
+                    : bestScore
+                      ,
+                isChange: (bestItem?.hrid ?? null) !== lastWinnerHrid,
+                cost: bestItem ? getItemCost(bestItem.hrid, effectiveLevelOf(bestItem.hrid)) : null,
+            });
+
+            const lastEntry = progression[progression.length - 1];
+            lastEntry.goldGainPerHour = lastEntry.goldScore - goldBaseline;
+            lastEntry.paybackHours =
+                lastEntry.cost != null && lastEntry.goldGainPerHour > 0 ? lastEntry.cost / lastEntry.goldGainPerHour : null;
+
+            lastWinnerHrid = bestItem?.hrid ?? null;
+        }
+
+        // Only include slots where at least one item beats the baseline
+        if (!progression.some((p) => p.itemHrid !== null)) return null;
+
+        // Build the cost-vs-score Pareto frontier: price every scored (item, level) pair, sort
+        // cheapest-first, and keep only entries that beat every cheaper alternative's score. This
+        // surfaces any genuinely-better item at its price point — including ones that never won a
+        // breakpoint outright — while dropping anything a cheaper option already matches or beats.
+        const priced = [];
+        for (const entry of allScoredByKey.values()) {
+            const cost = getItemCost(entry.itemHrid, entry.breakpoint);
+            if (cost == null) continue; // unpriced items can't be judged "affordable" — omit entirely
+            priced.push({ ...entry, cost });
+        }
+        priced.sort((a, b) => a.cost - b.cost);
+
+        // Ranked by gold gain specifically — not the skill's primary goal — because the budget view is
+        // inherently a gold cost-effectiveness tool. A production skill's main progression ranks by XP
+        // (more reliable than gold since it doesn't depend on market prices), but that would silently
+        // drop gold-only accessories like a Rare Find ring/earring (zero XP benefit, pure gold upside)
+        // before they ever reached the "does it profit gold?" check.
+        const paretoCandidates = [];
+        let bestGoldSoFar = -Infinity;
+        for (const entry of priced) {
+            const xpScore = scoreFn(entry.itemHrid, entry.breakpoint, 'xp');
+            const goldScore = entry.score ;
+            if (goldScore <= bestGoldSoFar) continue;
+            bestGoldSoFar = goldScore;
+
+            const goldGainPerHour = goldScore - goldBaseline;
+
+            paretoCandidates.push({
+                ...entry,
+                xpScore,
+                goldScore,
+                goldGainPerHour,
+                paybackHours: goldGainPerHour > 0 ? entry.cost / goldGainPerHour : null,
+            });
+        }
+
+        return { progression, paretoCandidates };
+    }
+
+    /**
      * Optimize a skill for the given player level and selected actions.
      * Equipment is always scored for XP (efficiency/speed benefit both goals equally).
      * Returns per-slot progression plus tea results for both XP and Gold goals.
      *
+     * Runs slot-by-slot, yielding to the UI thread between slots so a progress bar can update and
+     * the panel doesn't freeze during the (synchronous, CPU-bound) scoring work.
+     *
      * @param {string} skillName
      * @param {number} playerLevel
      * @param {Set<string>|null} selectedActionHrids - HRIDs of actions to score against, or null for all
-     * @returns {Object|null}
+     * @param {Function} [onProgress] - Called with (completed, total) as slots/steps finish
+     * @param {Map|null} [baseEquipment] - Equipment to hold fixed in every other slot while each
+     *  candidate is scored, and to score as the baseline. Defaults to the player's live equipment;
+     *  pass a saved loadout's equipment map instead to compare against that loadout specifically.
+     * @returns {Promise<Object|null>}
      */
-    function optimizeSkill(skillName, playerLevel, selectedActionHrids = null) {
-        // Gathering skills: score for Gold — captures gathering quantity, rare/essence find + speed/efficiency.
-        // Production skills: score for XP — more reliable since it doesn't depend on market prices.
-        const goal = GATHERING_SKILLS.has(skillName.toLowerCase()) ? 'gold' : 'xp';
+    async function optimizeSkill(
+        skillName,
+        playerLevel,
+        selectedActionHrids = null,
+        onProgress = null,
+        baseEquipment = null
+    ) {
+        // Rank every skill's default equipment progression by Gold — captures gathering quantity,
+        // rare/essence find, and market-priced output value, not just raw XP. Production skills used
+        // to rank by XP instead (steadier since it ignores market prices), but that silently hid any
+        // item whose only benefit is gold (Rare Find, Essence Find, Gathering Quantity accessories).
+        const goal = 'gold';
         const gameData = dataManager.getInitClientData();
         if (!gameData?.itemDetailMap) return null;
 
         const { itemDetailMap } = gameData;
         const playerLevels = buildPlayerLevelMap(skillName, playerLevel);
 
-        const xpBaseline = scoreEquipmentSetup(skillName, 'xp', new Map(), playerLevel, selectedActionHrids);
-        const goldBaseline = scoreEquipmentSetup(skillName, 'gold', new Map(), playerLevel, selectedActionHrids);
-        const baseline = goal === 'xp' ? xpBaseline : goldBaseline;
+        // Every slot is scored against this same equipment held fixed elsewhere (this slot swapped
+        // to the candidate, every other slot left as-is), not against an empty setup — scoring
+        // against an empty loadout produced a near-zero (sometimes negative) baseline for skills
+        // where profit depends on other equipped gear, which made % gains either silently disappear
+        // (baseline <= 0) or explode into absurd values (baseline near zero). Defaults to the
+        // player's live equipment; the UI passes a compared loadout's equipment here instead when one
+        // is selected, so every score in the results is consistent with that same loadout.
+        const currentEquipment = baseEquipment ?? dataManager.getEquipment();
+
+        const xpBaseline = scoreEquipmentSetup(skillName, 'xp', currentEquipment, playerLevel, selectedActionHrids);
+        const goldBaseline = scoreEquipmentSetup(skillName, 'gold', currentEquipment, playerLevel, selectedActionHrids);
+        const baseline = goldBaseline;
+
+        /**
+         * Every slot shares the same baseline (your real current loadout, tea-less) since a
+         * candidate's score already swaps in only that one slot against the same currentEquipment.
+         * @returns {{slotBaseline: number, slotXpBaseline: number, slotGoldBaseline: number}}
+         */
+        const getSlotBaselines = () => ({
+            slotBaseline: baseline,
+            slotXpBaseline: xpBaseline,
+            slotGoldBaseline: goldBaseline,
+        });
 
         const slots = {};
         const optimalEquipmentAtMax = new Map();
+        // Slots whose only candidates give a drinkConcentration bonus (e.g. Guzzling Pouch) — those
+        // items are worth nothing scored in isolation (no teas active), so they're deferred and
+        // rescored once a tea loadout exists to actually amplify. See the block after the main loop.
+        const concentrationSlots = [];
+
+        // +2 extra steps for the final XP/Gold tea-optimization passes below (more added later if any
+        // drink-concentration slots are deferred).
+        let totalSteps = SKILLING_LOCATIONS.length + 2;
+        let completedSteps = 0;
+        const reportProgress = () => onProgress?.(completedSteps, totalSteps);
+        reportProgress();
 
         for (const locationHrid of SKILLING_LOCATIONS) {
+            await yieldToUI();
+            completedSteps++;
+            reportProgress();
             const candidates = getCandidatesForSlot(locationHrid, playerLevels, itemDetailMap);
             if (!candidates.length) continue;
 
-            // Collect union of all breakpoints across candidates (refined items differ)
-            const allBreakpoints = new Set();
-            for (const candidate of candidates) {
-                for (const bp of getBreakpoints(locationHrid, candidate.hrid)) {
-                    allBreakpoints.add(bp);
-                }
-            }
-            const sortedBreakpoints = [...allBreakpoints].sort((a, b) => a - b);
-
-            const progression = [];
-            let lastWinnerHrid = null;
-
-            for (const bp of sortedBreakpoints) {
-                let bestItem = null;
-                let bestScore = baseline;
-
-                for (const candidate of candidates) {
-                    // Refined items can't be enhanced below +10
-                    const effectiveLevel = candidate.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                    const score = scoreCandidate(
-                        candidate.hrid,
-                        locationHrid,
-                        skillName,
-                        goal,
-                        effectiveLevel,
-                        playerLevel,
-                        selectedActionHrids
-                    );
-
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestItem = candidate;
-                    }
-                }
-
-                progression.push({
-                    breakpoint: bp,
-                    itemHrid: bestItem?.hrid ?? null,
-                    itemName: bestItem?.name ?? null,
-                    score: bestScore,
-                    xpScore: (() => {
-                        if (!bestItem) return xpBaseline;
-                        if (goal === 'xp') return bestScore;
-                        const eBp = bestItem.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                        return scoreCandidate(
-                            bestItem.hrid,
-                            locationHrid,
-                            skillName,
-                            'xp',
-                            eBp,
-                            playerLevel,
-                            selectedActionHrids
-                        );
-                    })(),
-                    goldScore: (() => {
-                        if (!bestItem) return goldBaseline;
-                        if (goal === 'gold') return bestScore;
-                        const eBp = bestItem.hrid.includes('_refined') ? Math.max(bp, 10) : bp;
-                        return scoreCandidate(
-                            bestItem.hrid,
-                            locationHrid,
-                            skillName,
-                            'gold',
-                            eBp,
-                            playerLevel,
-                            selectedActionHrids
-                        );
-                    })(),
-                    isChange: (bestItem?.hrid ?? null) !== lastWinnerHrid,
-                });
-
-                lastWinnerHrid = bestItem?.hrid ?? null;
+            // Items whose only stat is drinkConcentration (e.g. Guzzling Pouch) score as zero gain
+            // when tested alone with no teas active — defer them until a tea loadout exists.
+            const hasDrinkConcentration = candidates.some(
+                (c) => (itemDetailMap[c.hrid]?.equipmentDetail?.noncombatStats?.drinkConcentration ?? 0) > 0
+            );
+            if (hasDrinkConcentration) {
+                concentrationSlots.push({ locationHrid, candidates });
+                continue;
             }
 
-            // Only include slots where at least one item beats the baseline
-            if (!progression.some((p) => p.itemHrid !== null)) continue;
+            const scoreFn = (itemHrid, effectiveLevel, goalName) =>
+                scoreCandidate(
+                    itemHrid,
+                    locationHrid,
+                    skillName,
+                    goalName,
+                    effectiveLevel,
+                    playerLevel,
+                    selectedActionHrids,
+                    currentEquipment
+                );
+
+            const { slotBaseline, slotXpBaseline, slotGoldBaseline } = getSlotBaselines();
+            const result = computeSlotResult(
+                locationHrid,
+                candidates,
+                scoreFn,
+                slotBaseline,
+                slotXpBaseline,
+                slotGoldBaseline,
+                goal
+            );
+            if (!result) continue;
 
             slots[locationHrid] = {
                 name: SLOT_DISPLAY_NAMES[locationHrid] || locationHrid,
                 candidateCount: candidates.length,
-                progression,
+                slotXpBaseline,
+                slotGoldBaseline,
+                ...result,
             };
 
             // Record the optimal item at max breakpoint for tea optimization
-            const maxEntry = progression[progression.length - 1];
+            const maxEntry = result.progression[result.progression.length - 1];
             if (maxEntry?.itemHrid) {
                 optimalEquipmentAtMax.set(locationHrid, { itemHrid: maxEntry.itemHrid, enhancementLevel: 20 });
             }
         }
 
+        // Drink-concentration slots (e.g. pouch): now that optimalEquipmentAtMax reflects every other
+        // slot's winner, find a preliminary tea loadout for each goal and rescore these slots'
+        // candidates with that tea loadout actually applied, so their real value (amplifying tea
+        // effects) shows up instead of always reading as zero gain.
+        if (concentrationSlots.length) {
+            totalSteps += 1 + concentrationSlots.length;
+
+            await yieldToUI();
+            completedSteps++;
+            reportProgress();
+
+            const prelimXpTeas = (
+                findOptimalTeas(skillName, 'xp', null, null, null, null, optimalEquipmentAtMax, selectedActionHrids)
+                    ?.optimal?.teas ?? []
+            ).map((t) => t.hrid);
+            const prelimGoldTeas = (
+                findOptimalTeas(skillName, 'gold', null, null, null, null, optimalEquipmentAtMax, selectedActionHrids)
+                    ?.optimal?.teas ?? []
+            ).map((t) => t.hrid);
+            const teasForGoal = { xp: prelimXpTeas, gold: prelimGoldTeas };
+
+            const perfWithoutSlot = (locationHrid, goalName) => {
+                const equipment = new Map(optimalEquipmentAtMax);
+                equipment.delete(locationHrid);
+                const perf = calculateSkillPerformance(
+                    skillName,
+                    equipment,
+                    teasForGoal[goalName],
+                    playerLevel,
+                    selectedActionHrids
+                );
+                return goalName === 'xp' ? perf.xpPerHour : perf.goldPerHour;
+            };
+
+            for (const { locationHrid, candidates } of concentrationSlots) {
+                await yieldToUI();
+                completedSteps++;
+                reportProgress();
+
+                const scoreFn = (itemHrid, effectiveLevel, goalName) => {
+                    const equipment = new Map(optimalEquipmentAtMax);
+                    equipment.set(locationHrid, { itemHrid, enhancementLevel: effectiveLevel });
+                    const perf = calculateSkillPerformance(
+                        skillName,
+                        equipment,
+                        teasForGoal[goalName],
+                        playerLevel,
+                        selectedActionHrids
+                    );
+                    return goalName === 'xp' ? perf.xpPerHour : perf.goldPerHour;
+                };
+
+                const currentItem = currentEquipment.get(locationHrid);
+                const currentXp = currentItem?.itemHrid
+                    ? scoreFn(currentItem.itemHrid, currentItem.enhancementLevel || 0, 'xp')
+                    : -Infinity;
+                const currentGold = currentItem?.itemHrid
+                    ? scoreFn(currentItem.itemHrid, currentItem.enhancementLevel || 0, 'gold')
+                    : -Infinity;
+                const slotXpBaseline = Math.max(perfWithoutSlot(locationHrid, 'xp'), currentXp);
+                const slotGoldBaseline = Math.max(perfWithoutSlot(locationHrid, 'gold'), currentGold);
+                const slotBaseline = slotGoldBaseline;
+
+                const result = computeSlotResult(
+                    locationHrid,
+                    candidates,
+                    scoreFn,
+                    slotBaseline,
+                    slotXpBaseline,
+                    slotGoldBaseline,
+                    goal
+                );
+                if (!result) continue;
+
+                slots[locationHrid] = {
+                    name: SLOT_DISPLAY_NAMES[locationHrid] || locationHrid,
+                    candidateCount: candidates.length,
+                    slotXpBaseline,
+                    slotGoldBaseline,
+                    ...result,
+                };
+
+                const maxEntry = result.progression[result.progression.length - 1];
+                if (maxEntry?.itemHrid) {
+                    optimalEquipmentAtMax.set(locationHrid, { itemHrid: maxEntry.itemHrid, enhancementLevel: 20 });
+                }
+            }
+        }
+
         // Run tea optimizer for both goals with optimal equipment at max enhancement
+        await yieldToUI();
+        completedSteps++;
+        reportProgress();
         const xpTeaResult = findOptimalTeas(
             skillName,
             'xp',
@@ -28095,6 +28385,10 @@
             optimalEquipmentAtMax,
             selectedActionHrids
         );
+
+        await yieldToUI();
+        completedSteps++;
+        reportProgress();
         const goldTeaResult = findOptimalTeas(
             skillName,
             'gold',
@@ -28161,6 +28455,23 @@
         return window.Cheezasha?.Combat?.loadoutSnapshot || loadoutSnapshot;
     }
 
+    /**
+     * Parse a gold shorthand string (e.g. "63M", "500k", "1.2b") into a number. A bare number with no
+     * suffix is assumed to be in millions (e.g. "100" → 100M, "1" → 1M) since that's the scale gold
+     * budgets are usually discussed in.
+     * @param {string} str
+     * @returns {number} Parsed value, or NaN if unparseable
+     */
+    function parseKMB(str) {
+        const match = str
+            .trim()
+            .toLowerCase()
+            .match(/^(\d+\.?\d*)\s*([kmb]?)$/);
+        if (!match) return NaN;
+        const multipliers = { k: 1e3, m: 1e6, b: 1e9 };
+        return parseFloat(match[1]) * (multipliers[match[2]] || 1e6);
+    }
+
     const TAB_CLASS = 'cheezasha-skilling-opt-tab';
     const PANEL_CLASS = 'cheezasha-skilling-opt-panel';
     const HIDE_CLASS = 'cheezasha-opt-hide-content';
@@ -28180,6 +28491,7 @@
             this.currentMode = 'simulator'; // 'simulator' | 'optimizer'
             this.lastOptimizerResult = null;
             this.optimizerLoadout = null;
+            this.budget = null; // null = no cap, otherwise max gold cost/slot to show as viable
 
             // Simulator state
             this.currentSkill = 'Woodcutting';
@@ -28439,6 +28751,35 @@
                 });
                 compareRow.appendChild(compareLabel);
                 compareRow.appendChild(compareSelect);
+
+                // Budget filter
+                const budgetLabel = document.createElement('span');
+                budgetLabel.textContent = 'Budget:';
+                budgetLabel.style.cssText =
+                    'color: rgba(255,255,255,0.5); font-size: 12px; width: 48px; flex-shrink: 0; text-align: right;';
+                const budgetInput = document.createElement('input');
+                budgetInput.type = 'text';
+                budgetInput.placeholder = 'e.g. 63 = 63M';
+                budgetInput.value = this.budget != null ? formatters_js.formatKMB(this.budget) : '';
+                budgetInput.style.cssText =
+                    'width: 80px; background: #2a2a2a; color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 4px 8px; font-size: 12px;';
+                budgetInput.addEventListener('change', () => {
+                    const raw = budgetInput.value.trim();
+                    if (!raw) {
+                        this.budget = null;
+                        budgetInput.style.borderColor = 'rgba(255,255,255,0.2)';
+                        return;
+                    }
+                    const value = parseKMB(raw);
+                    if (isNaN(value) || value <= 0) {
+                        budgetInput.style.borderColor = '#c0392b';
+                        return;
+                    }
+                    this.budget = value;
+                    budgetInput.style.borderColor = 'rgba(255,255,255,0.2)';
+                });
+                compareRow.appendChild(budgetLabel);
+                compareRow.appendChild(budgetInput);
                 panel.appendChild(compareRow);
 
                 const optimizeBtn = document.createElement('button');
@@ -28451,86 +28792,118 @@
                 font-size: 12px; font-weight: 700; cursor: pointer;
             `;
 
+                const progressWrap = document.createElement('div');
+                progressWrap.style.cssText = 'display: none; align-items: center; gap: 8px; margin-top: 10px;';
+                const progressTrack = document.createElement('div');
+                progressTrack.style.cssText =
+                    'flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden;';
+                const progressFill = document.createElement('div');
+                progressFill.style.cssText = `height: 100%; width: 0%; background: ${config.COLOR_ACCENT}; transition: width 0.15s ease;`;
+                progressTrack.appendChild(progressFill);
+                const progressLabel = document.createElement('span');
+                progressLabel.style.cssText = 'font-size: 11px; color: rgba(255,255,255,0.5); flex-shrink: 0;';
+                progressWrap.appendChild(progressTrack);
+                progressWrap.appendChild(progressLabel);
+
                 const resultsArea = document.createElement('div');
                 resultsArea.style.marginTop = '16px';
 
-                optimizeBtn.addEventListener('click', () => {
+                optimizeBtn.addEventListener('click', async () => {
                     optimizeBtn.textContent = 'Optimizing…';
                     optimizeBtn.disabled = true;
-                    requestAnimationFrame(() =>
-                        setTimeout(() => {
-                            const result = optimizeSkill(this.currentSkill, this.currentLevel, this.selectedActionHrids);
-                            this.lastOptimizerResult = result;
+                    resultsArea.innerHTML = '';
+                    progressWrap.style.display = 'flex';
+                    progressFill.style.width = '0%';
+                    progressLabel.textContent = '';
 
-                            // Build equipment map using player's actual owned enhancement levels
-                            const enhMap = buildEnhancementLevelMap();
-                            const achievableEquipment = new Map();
-                            if (result) {
-                                for (const [locationHrid, slotData] of Object.entries(result.slots)) {
-                                    const best = slotData.progression[slotData.progression.length - 1];
-                                    if (best?.itemHrid) {
-                                        achievableEquipment.set(locationHrid, {
-                                            itemHrid: best.itemHrid,
-                                            enhancementLevel: enhMap.get(best.itemHrid) ?? 0,
-                                        });
-                                    }
-                                }
-                            }
+                    // Build the full loadout equipment map for comparison, if one is selected — every
+                    // slot's candidate is scored with all OTHER slots held fixed to this loadout
+                    // (rather than your live gear), so results are consistent with what's compared.
+                    const loadoutEquipment = new Map();
+                    if (this.optimizerLoadout) {
+                        for (const eq of this.optimizerLoadout.equipment || []) {
+                            if (eq.itemHrid)
+                                loadoutEquipment.set(eq.itemLocationHrid, {
+                                    itemHrid: eq.itemHrid,
+                                    enhancementLevel: eq.enhancementLevel || 0,
+                                });
+                        }
+                    }
 
-                            // Performance with achievable equipment and optimal teas for each goal
-                            const xpAchievable = result
-                                ? findOptimalTeas(
-                                      this.currentSkill,
-                                      'xp',
-                                      null,
-                                      null,
-                                      null,
-                                      null,
-                                      achievableEquipment,
-                                      this.selectedActionHrids
-                                  )
-                                : null;
-                            const goldAchievable = result
-                                ? findOptimalTeas(
-                                      this.currentSkill,
-                                      'gold',
-                                      null,
-                                      null,
-                                      null,
-                                      null,
-                                      achievableEquipment,
-                                      this.selectedActionHrids
-                                  )
-                                : null;
-
-                            // Build loadout item map for comparison
-                            const loadoutItemMap = new Map();
-                            if (this.optimizerLoadout) {
-                                for (const eq of this.optimizerLoadout.equipment || []) {
-                                    if (eq.itemHrid)
-                                        loadoutItemMap.set(eq.itemLocationHrid, {
-                                            itemHrid: eq.itemHrid,
-                                            enhancementLevel: eq.enhancementLevel || 0,
-                                        });
-                                }
-                            }
-
-                            optimizeBtn.textContent = 'Optimize';
-                            optimizeBtn.disabled = false;
-                            resultsArea.innerHTML = '';
-                            if (result) {
-                                this._renderOptimizerResults(
-                                    resultsArea,
-                                    result,
-                                    { xpResult: xpAchievable, goldResult: goldAchievable },
-                                    loadoutItemMap.size > 0 ? loadoutItemMap : null
-                                );
-                            }
-                        }, 0)
+                    const result = await optimizeSkill(
+                        this.currentSkill,
+                        this.currentLevel,
+                        this.selectedActionHrids,
+                        (completed, total) => {
+                            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                            progressFill.style.width = `${pct}%`;
+                            progressLabel.textContent = `${completed}/${total}`;
+                        },
+                        loadoutEquipment.size > 0 ? loadoutEquipment : null
                     );
+                    this.lastOptimizerResult = result;
+
+                    // Build equipment map using player's actual owned enhancement levels
+                    const enhMap = buildEnhancementLevelMap();
+                    const achievableEquipment = new Map();
+                    if (result) {
+                        for (const [locationHrid, slotData] of Object.entries(result.slots)) {
+                            const best = slotData.progression[slotData.progression.length - 1];
+                            if (best?.itemHrid) {
+                                achievableEquipment.set(locationHrid, {
+                                    itemHrid: best.itemHrid,
+                                    enhancementLevel: enhMap.get(best.itemHrid) ?? 0,
+                                });
+                            }
+                        }
+                    }
+
+                    // Performance with achievable equipment and optimal teas for each goal
+                    const xpAchievable = result
+                        ? findOptimalTeas(
+                              this.currentSkill,
+                              'xp',
+                              null,
+                              null,
+                              null,
+                              null,
+                              achievableEquipment,
+                              this.selectedActionHrids
+                          )
+                        : null;
+                    const goldAchievable = result
+                        ? findOptimalTeas(
+                              this.currentSkill,
+                              'gold',
+                              null,
+                              null,
+                              null,
+                              null,
+                              achievableEquipment,
+                              this.selectedActionHrids
+                          )
+                        : null;
+
+                    // Reuse the same loadout equipment map used as the scoring base above, for the
+                    // per-slot "≠ loadout item" diff indicator.
+                    const loadoutItemMap = loadoutEquipment;
+
+                    optimizeBtn.textContent = 'Optimize';
+                    optimizeBtn.disabled = false;
+                    progressWrap.style.display = 'none';
+                    resultsArea.innerHTML = '';
+                    if (result) {
+                        this._renderOptimizerResults(
+                            resultsArea,
+                            result,
+                            { xpResult: xpAchievable, goldResult: goldAchievable },
+                            loadoutItemMap.size > 0 ? loadoutItemMap : null
+                        );
+                    }
                 });
 
                 panel.appendChild(optimizeBtn);
+                panel.appendChild(progressWrap);
                 panel.appendChild(resultsArea);
 
                 if (this.lastOptimizerResult)
@@ -29198,18 +29571,15 @@
             for (const [locationHrid, slotData] of slotEntries) {
                 const loadoutEntry = loadoutItemMap?.get(locationHrid) ?? null;
 
-                // Use the loadout item's score as the baseline when a compare is selected,
-                // so percentages show improvement over what the user currently has.
-                // Fall back to global empty baseline when no compare is set.
-                let slotXpBaseline = result.xpBaseline;
-                let slotGoldBaseline = result.goldBaseline;
-                if (loadoutEntry) {
-                    const equipment = new Map([[locationHrid, loadoutEntry]]);
-                    slotXpBaseline = scoreEquipmentSetup(result.skill, 'xp', equipment, result.playerLevel);
-                    slotGoldBaseline = scoreEquipmentSetup(result.skill, 'gold', equipment, result.playerLevel);
-                }
+                // The engine already scored every candidate (and the baseline) against the same fixed
+                // equipment in every other slot — your live gear by default, or the compared loadout
+                // when one was selected at Optimize time (see the optimizeSkill call site) — so the
+                // per-slot baseline it returns is already consistent with these entries. No need to
+                // recompute anything here.
+                const slotXpBaseline = slotData.slotXpBaseline ?? result.xpBaseline;
+                const slotGoldBaseline = slotData.slotGoldBaseline ?? result.goldBaseline;
 
-                this._renderSlotRow(container, slotData, loadoutEntry, slotXpBaseline, slotGoldBaseline);
+                this._renderSlotRow(container, slotData, loadoutEntry, slotXpBaseline, slotGoldBaseline, this.budget);
             }
 
             const xpResult = achievableStats?.xpResult;
@@ -29240,13 +29610,16 @@
 
             const note = document.createElement('div');
             note.style.cssText = 'margin-top: 12px; font-size: 10px; color: rgba(255,255,255,0.3); font-style: italic;';
-            note.textContent = loadoutItemMap
+            const baselineNote = loadoutItemMap
                 ? '% shows gain over your compared loadout item for each slot.'
-                : '% shows gain over an empty slot. Select a loadout in Compare to see gains over your current gear.';
+                : '% shows gain over your currently equipped item in each slot (or an empty slot if nothing is equipped there). Select a loadout in Compare to measure against that instead.';
+            note.textContent = this.budget
+                ? `${baselineNote} Greyed-out items exceed your ${formatters_js.formatKMB(this.budget)} budget; the highlighted pick is the best option within it.`
+                : baselineNote;
             container.appendChild(note);
         }
 
-        _renderSlotRow(container, slotData, loadoutEntry = null, xpBaseline = 0, goldBaseline = 0) {
+        _renderSlotRow(container, slotData, loadoutEntry = null, xpBaseline = 0, goldBaseline = 0, budget = null) {
             const loadoutItemHrid = loadoutEntry?.itemHrid ?? null;
             const optimalItemHrid = slotData.progression[slotData.progression.length - 1]?.itemHrid;
 
@@ -29284,8 +29657,71 @@
             const spriteUrl =
                 document.querySelector('use[href*="items_sprite"]')?.getAttribute('href')?.split('#')[0] ?? null;
 
-            if (loadoutEntry) {
+            if (budget != null) {
+                // Budget view: show only genuine cost-vs-score improvements (the Pareto frontier
+                // computed in optimizeSkill), so every row shown is actually worth considering —
+                // never a strictly-worse or unpriced item. Rows past the budget are greyed out; the
+                // priciest one still within budget is starred as the best affordable pick.
+                // Only worth buying if it actually raises gold/hr — a pure XP or no-op upgrade isn't
+                // an "investment" with a payback time, so it doesn't belong in a budget comparison.
+                const paretoCandidates = (slotData.paretoCandidates || []).filter((e) => e.goldGainPerHour > 0);
+                const withinBudget = paretoCandidates.filter((e) => e.cost <= budget);
+                const bestAffordable = withinBudget[withinBudget.length - 1] || null;
+
+                if (!paretoCandidates.length) {
+                    const none = document.createElement('div');
+                    none.style.cssText =
+                        'padding: 1px 0 1px 6px; font-size: 11px; color: rgba(255,255,255,0.25); font-style: italic;';
+                    none.textContent = 'No priced items with a gold/hr gain for this slot.';
+                    row.appendChild(none);
+                }
+
+                for (const entry of paretoCandidates) {
+                    const overBudget = entry.cost > budget;
+                    const isBest = entry === bestAffordable;
+
+                    const entryRow = document.createElement('div');
+                    entryRow.style.cssText = `display: flex; align-items: baseline; gap: 8px; padding: 1px 0 1px 6px; ${overBudget ? 'opacity: 0.35;' : ''}`;
+
+                    const bpSpan = document.createElement('span');
+                    bpSpan.style.cssText =
+                        'font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; min-width: 32px;';
+                    bpSpan.textContent = `+${entry.breakpoint}`;
+                    entryRow.appendChild(bpSpan);
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.style.cssText = `font-size: 12px; color: ${isBest ? config.COLOR_PROFIT : 'rgba(255,255,255,0.85)'}; font-weight: ${isBest ? '600' : '400'};`;
+                    nameSpan.textContent = (isBest ? '★ ' : '') + entry.itemName;
+                    entryRow.appendChild(nameSpan);
+
+                    const gainEl = this._makeGainEl(entry.xpScore, xpBaseline, entry.goldScore, goldBaseline, spriteUrl);
+                    if (gainEl) entryRow.appendChild(gainEl);
+
+                    row.appendChild(entryRow);
+
+                    const costEl = this._makeCostEl(
+                        entry.cost,
+                        entry.paybackHours,
+                        spriteUrl,
+                        entry.goldGainPerHour,
+                        goldBaseline
+                    );
+                    if (costEl) {
+                        costEl.style.paddingLeft = '32px';
+                        if (overBudget) {
+                            const overLabel = document.createElement('span');
+                            overLabel.style.cssText = `color: ${config.COLOR_WARNING}; font-style: italic;`;
+                            overLabel.textContent = ' · over budget';
+                            costEl.appendChild(overLabel);
+                        }
+                        row.appendChild(costEl);
+                    }
+                }
+            } else if (loadoutEntry) {
                 // Per-breakpoint view: one row per enhancement level where the user has something to gain
+                // over the compared loadout. Show every qualifying breakpoint (not just the first) so
+                // higher tiers of the same item — e.g. +4, +5 Earrings of Rare Find — aren't hidden just
+                // because a lower tier already cleared the bar.
                 let prevItemHrid = null;
                 let anyVisible = false;
                 for (const entry of slotData.progression) {
@@ -29326,8 +29762,17 @@
                     if (gainEl) entryRow.appendChild(gainEl);
 
                     row.appendChild(entryRow);
+
+                    const costEl = this._makeCostEl(
+                        entry.cost,
+                        entry.paybackHours,
+                        spriteUrl,
+                        entry.goldGainPerHour,
+                        goldBaseline
+                    );
+                    if (costEl) row.appendChild(costEl);
+
                     prevItemHrid = entry.itemHrid;
-                    break; // only show the immediate next step
                 }
                 if (!anyVisible) {
                     const none = document.createElement('div');
@@ -29360,6 +29805,15 @@
                     if (gainEl) tierRow.appendChild(gainEl);
 
                     row.appendChild(tierRow);
+
+                    const costEl = this._makeCostEl(
+                        tier.cost,
+                        tier.paybackHours,
+                        spriteUrl,
+                        tier.goldGainPerHour,
+                        goldBaseline
+                    );
+                    if (costEl) row.appendChild(costEl);
                 }
             }
 
@@ -29411,6 +29865,59 @@
             return wrapper;
         }
 
+        _formatPaybackHours(hours) {
+            if (hours < 24) return `${hours.toFixed(1)}h`;
+            const days = hours / 24;
+            if (days < 365) return `${days.toFixed(1)}d`;
+            return `${(days / 365).toFixed(1)}y`;
+        }
+
+        _makeCostEl(cost, paybackHours, spriteUrl, goldGainPerHour = null, goldBaseline = 0) {
+            if (cost == null) return null;
+
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText =
+                'font-size: 10px; color: rgba(255,255,255,0.4); padding-left: 6px; display: flex; align-items: center; gap: 4px;';
+
+            wrapper.appendChild(document.createTextNode('Cost: '));
+            wrapper.appendChild(document.createTextNode(formatters_js.formatKMB(cost)));
+            if (spriteUrl) {
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('width', '10');
+                svg.setAttribute('height', '10');
+                svg.style.flexShrink = '0';
+                const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                use.setAttribute('href', `${spriteUrl}#coin`);
+                svg.appendChild(use);
+                wrapper.appendChild(svg);
+            } else {
+                wrapper.appendChild(document.createTextNode('G'));
+            }
+
+            if (goldBaseline > 0 && goldGainPerHour > 0) {
+                const percentGain = (goldGainPerHour / goldBaseline) * 100;
+                if (percentGain > 0) {
+                    const perPercent = document.createElement('span');
+                    perPercent.textContent = ` · ${formatters_js.formatKMB(cost / percentGain)}/1%`;
+                    wrapper.appendChild(perPercent);
+                }
+            }
+
+            if (paybackHours != null) {
+                const payback = document.createElement('span');
+                payback.style.color = paybackHours <= 24 * 30 ? config.COLOR_PROFIT : config.COLOR_WARNING;
+                payback.textContent = ` · payback: ${this._formatPaybackHours(paybackHours)}`;
+                wrapper.appendChild(payback);
+            } else {
+                const noPayback = document.createElement('span');
+                noPayback.style.cssText = 'font-style: italic;';
+                noPayback.textContent = ' · no gold/hr gain';
+                wrapper.appendChild(noPayback);
+            }
+
+            return wrapper;
+        }
+
         _groupTiers(progression) {
             const tiers = [];
             let current = null;
@@ -29429,9 +29936,15 @@
                         score: entry.score,
                         xpScore: entry.xpScore,
                         goldScore: entry.goldScore,
+                        cost: entry.cost,
+                        goldGainPerHour: entry.goldGainPerHour,
+                        paybackHours: entry.paybackHours,
                     };
                 } else {
                     current.toBp = entry.breakpoint;
+                    current.cost = entry.cost;
+                    current.goldGainPerHour = entry.goldGainPerHour;
+                    current.paybackHours = entry.paybackHours;
                 }
             }
             if (current) tiers.push(current);

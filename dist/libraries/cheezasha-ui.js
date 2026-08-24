@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.17.0
+ * Version: 3.17.1
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -16372,11 +16372,17 @@ ${starCSS}
         const skillHrid = actionDetails.experienceGain.skillHrid;
         const currentXpData = experienceParser_js.calculateExperienceMultiplier(skillHrid, actionDetails.type);
 
-        // Replace current tea wisdom with our calculated tea wisdom
+        // calculateExperienceMultiplier reads equipment/charm wisdom from the player's LIVE gear
+        // (via resolveActionContext), not from the candidate `equipment` being scored here — so a
+        // wisdom/experience-granting item (e.g. Philosopher's ring/earrings) being tested as a
+        // candidate would never show its own bonus unless it happened to already be equipped live.
+        // Swap those two components out for ones computed from the candidate equipment instead.
         const currentTeaWisdom = currentXpData.breakdown?.consumableWisdom || 0;
-        const baseWisdomWithoutTea = currentXpData.totalWisdom - currentTeaWisdom;
-        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
-        const charmExperience = currentXpData.charmExperience || 0;
+        const liveEquipmentWisdom = currentXpData.breakdown?.equipmentWisdom || 0;
+        const baseWisdomWithoutTeaOrEquipment = currentXpData.totalWisdom - currentTeaWisdom - liveEquipmentWisdom;
+        const candidateEquipmentWisdom = experienceParser_js.parseEquipmentWisdom(equipment, itemDetailMap).total;
+        const totalWisdomWithOurTea = baseWisdomWithoutTeaOrEquipment + buffs.wisdom + candidateEquipmentWisdom;
+        const charmExperience = experienceParser_js.parseCharmExperience(equipment, skillHrid, itemDetailMap).total;
         const xpMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
 
         // XP per hour
@@ -16480,8 +16486,11 @@ ${starCSS}
             totalRevenue += itemsPerHour * rawPrice;
         }
 
-        // Add bonus revenue from essence and rare find drops
-        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        // Add bonus revenue from essence and rare find drops. Personal (scroll) buffs are excluded —
+        // a temporary Labyrinth seal buff shouldn't inflate the numbers used to justify a gear purchase.
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap, {
+            excludePersonalBuffs: true,
+        });
         const efficiencyBoostedBonusRevenue = bonusRevenue.totalBonusRevenue * efficiencyMultiplier;
         totalRevenue += efficiencyBoostedBonusRevenue;
 
@@ -16581,8 +16590,12 @@ ${starCSS}
         // Profit per hour (with efficiency applied once)
         const grossProfitPerHour = actionsPerHour * profitPerAction * efficiencyMultiplier;
 
-        // Add bonus revenue from essence and rare find drops (same as tile calculation)
-        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap);
+        // Add bonus revenue from essence and rare find drops (same as tile calculation). Personal
+        // (scroll) buffs are excluded — a temporary Labyrinth seal buff shouldn't inflate the numbers
+        // used to justify a gear purchase.
+        const bonusRevenue = bonusRevenueCalculator_js.calculateBonusRevenue(actionDetails, actionsPerHour, equipment, itemDetailMap, {
+            excludePersonalBuffs: true,
+        });
         const efficiencyBoostedBonusRevenue = (bonusRevenue?.totalBonusRevenue || 0) * efficiencyMultiplier;
 
         // Apply market tax to revenue portion only (including bonus revenue)
@@ -16690,12 +16703,20 @@ ${starCSS}
         const successRate = Math.max(0, Math.min(1.0, baseSuccessRate * (1 + levelPenalty) * (1 + teaBonusOverride)));
 
         // XP per action: success gives full XP, failure gives 10%
-        // Wisdom multiplier — replace current tea wisdom with our hypothetical tea wisdom
+        // Wisdom multiplier — replace current tea wisdom AND live equipment/charm wisdom with the
+        // hypothetical tea and the candidate equipment being scored (calculateExperienceMultiplier
+        // otherwise always reads the player's currently-equipped gear, not calcContext.equipment).
         const xpData = experienceParser_js.calculateExperienceMultiplier('/skills/alchemy', '/action_types/alchemy');
         const currentTeaWisdom = xpData.breakdown?.consumableWisdom || 0;
-        const baseWisdomWithoutTea = xpData.totalWisdom - currentTeaWisdom;
-        const totalWisdomWithOurTea = baseWisdomWithoutTea + buffs.wisdom;
-        const charmExperience = xpData.charmExperience || 0;
+        const liveEquipmentWisdom = xpData.breakdown?.equipmentWisdom || 0;
+        const baseWisdomWithoutTeaOrEquipment = xpData.totalWisdom - currentTeaWisdom - liveEquipmentWisdom;
+        const candidateEquipmentWisdom = experienceParser_js.parseEquipmentWisdom(calcContext.equipment, calcContext.itemDetailMap).total;
+        const totalWisdomWithOurTea = baseWisdomWithoutTeaOrEquipment + buffs.wisdom + candidateEquipmentWisdom;
+        const charmExperience = experienceParser_js.parseCharmExperience(
+            calcContext.equipment,
+            '/skills/alchemy',
+            calcContext.itemDetailMap
+        ).total;
         const wisdomMultiplier = 1 + totalWisdomWithOurTea / 100 + charmExperience / 100;
 
         const fullXP = baseXP * wisdomMultiplier;
