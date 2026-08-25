@@ -313,24 +313,24 @@ class DataManager {
                 }
             }
 
-            // CRITICAL: Update inventory from action_completed (this is how inventory updates during gathering!)
+            // CRITICAL: Update inventory/equipment from action_completed (this is how inventory
+            // updates during gathering, and how an equipped item's enhancementLevel updates when
+            // an enhancing action succeeds on a currently-equipped item, not just inventory ones).
             if (data.endCharacterItems && Array.isArray(data.endCharacterItems) && this.characterItems) {
-                for (const endItem of data.endCharacterItems) {
-                    // Only update inventory items
-                    if (endItem.itemLocationHrid !== '/item_locations/inventory') {
-                        continue;
-                    }
-
-                    // Find and update the item in inventory
-                    const index = this.characterItems.findIndex((invItem) => invItem.id === endItem.id);
+                for (const item of data.endCharacterItems) {
+                    const index = this.characterItems.findIndex((invItem) => invItem.id === item.id);
                     if (index !== -1) {
-                        // Update existing item
-                        this.characterItems[index].count = endItem.count;
-                    } else {
-                        // Add new item to inventory
-                        this.characterItems.push(endItem);
+                        if (item.count === 0) {
+                            this.characterItems.splice(index, 1);
+                        } else {
+                            Object.assign(this.characterItems[index], item);
+                        }
+                    } else if (item.count > 0) {
+                        this.characterItems.push(item);
                     }
                 }
+
+                this.updateEquipmentMap(this.characterItems);
 
                 // Notify items_updated listeners (e.g. networth) of the inventory change
                 this.emit('items_updated', data);
@@ -378,7 +378,7 @@ class DataManager {
                     }
                 }
 
-                this.updateEquipmentMap(data.endCharacterItems);
+                this.updateEquipmentMap(this.characterItems);
             }
 
             this.emit('items_updated', data);
@@ -403,7 +403,7 @@ class DataManager {
                     }
                 }
 
-                this.updateEquipmentMap(data.endCharacterItems);
+                this.updateEquipmentMap(this.characterItems);
                 this.emit('items_updated', data);
             }
 
@@ -516,17 +516,19 @@ class DataManager {
     }
 
     /**
-     * Update equipment map from character items
-     * @param {Array} items - Character items array
+     * Rebuild the equipment map from the full character items list. Rebuilding from scratch
+     * (rather than incrementally patching from a partial diff) avoids order-dependent bugs when
+     * a single update batch both removes an item from a slot and equips a new one into that same
+     * slot (e.g. selling an equipped item while a loadout auto-equips the next-best one in) —
+     * an incremental patch could apply the removal after the addition and leave the slot showing
+     * the old item, or delete it entirely, depending on array order.
+     * @param {Array} items - Full character items array (this.characterItems)
      */
     updateEquipmentMap(items) {
+        this.characterEquipment.clear();
         for (const item of items) {
-            if (item.itemLocationHrid !== '/item_locations/inventory') {
-                if (item.count === 0) {
-                    this.characterEquipment.delete(item.itemLocationHrid);
-                } else {
-                    this.characterEquipment.set(item.itemLocationHrid, item);
-                }
+            if (item.itemLocationHrid !== '/item_locations/inventory' && item.count > 0) {
+                this.characterEquipment.set(item.itemLocationHrid, item);
             }
         }
     }

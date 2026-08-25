@@ -2271,6 +2271,12 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
               : [null];
 
     let best = null;
+    // Each weapon variant runs its own independent combo search with its own {current, total}
+    // scale. Reporting those straight through reset the aggregate progress to 0 every time a new
+    // variant began, undoing the previous variant's progress. Rescale each variant's fraction
+    // into its 1/weaponRuns.length slice of one cumulative current/total pair instead.
+    const weaponRunsTotal = weaponRuns.length;
+    let variantIndex = 0;
     for (const variant of weaponRuns) {
         const elementLabel = variant ? ELEMENTAL_DAMAGE_TYPE_LABELS[variant.damageType] : null;
         const runPlayerDTOs = playerDTOs.slice();
@@ -2304,9 +2310,23 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                 poolSize,
                 specialization,
             },
-            (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
+            (p) => {
+                const description = elementLabel ? `[${elementLabel}] ${p?.description || ''}` : p?.description;
+                if (p?.current == null || !p?.total) {
+                    onProgress?.({ description });
+                    return;
+                }
+                onProgress?.({
+                    current: variantIndex + p.current / p.total,
+                    total: weaponRunsTotal,
+                    description,
+                });
+            }
         );
-        if (!candidates.length) continue;
+        if (!candidates.length) {
+            variantIndex++;
+            continue;
+        }
 
         let cursor = 0;
         let comboDone = 0;
@@ -2319,8 +2339,8 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                     const candidate = candidates[cursor++];
                     const label = elementLabel ? `[${elementLabel}] ${candidate.description}` : candidate.description;
                     onProgress?.({
-                        current: comboDone,
-                        total: comboTotal,
+                        current: variantIndex + comboDone / comboTotal,
+                        total: weaponRunsTotal,
                         description: `Testing combo: ${label}`,
                     });
 
@@ -2363,11 +2383,16 @@ export async function optimizeLabyrinthAbilities(params, onProgress) {
                         };
                     }
                     comboDone++;
-                    onProgress?.({ current: comboDone, total: comboTotal, description: label });
+                    onProgress?.({
+                        current: variantIndex + comboDone / comboTotal,
+                        total: weaponRunsTotal,
+                        description: label,
+                    });
                 }
             })
         );
         if (runBest && (!best || isLabyrinthResultBetter(runBest, best))) best = runBest;
+        variantIndex++;
     }
 
     return best;

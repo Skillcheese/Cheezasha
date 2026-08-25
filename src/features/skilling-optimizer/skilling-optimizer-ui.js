@@ -52,6 +52,17 @@ const HIDE_CLASS = 'cheezasha-opt-hide-content';
 const STYLE_EL = document.createElement('style');
 STYLE_EL.textContent = `.${HIDE_CLASS} [class*="TabsComponent_tabPanelsContainer"] { display: none !important; }`;
 
+// Columns for the sortable results table. 'type' controls both alignment and comparator.
+const RESULT_TABLE_COLUMNS = [
+    { key: 'slotName', label: 'Slot', type: 'string' },
+    { key: 'itemName', label: 'Item', type: 'string' },
+    { key: 'cost', label: 'Cost', type: 'number' },
+    { key: 'costPer1Pct', label: 'Cost/1%', type: 'number' },
+    { key: 'paybackHours', label: 'Payback', type: 'number' },
+    { key: 'xpGain', label: 'ΔXP/hr', type: 'number' },
+    { key: 'goldGain', label: 'ΔGold/hr', type: 'number' },
+];
+
 class SkillingSimulatorUI {
     constructor() {
         this.tabBtn = null;
@@ -63,7 +74,10 @@ class SkillingSimulatorUI {
         // Mode
         this.currentMode = 'simulator'; // 'simulator' | 'optimizer'
         this.lastOptimizerResult = null;
-        this.optimizerLoadout = null;
+        this.optimizerLoadoutName = null;
+        this._resultRows = []; // Flattened rows for the results table (cached for re-sorting)
+        this._resultsSortKey = null;
+        this._resultsSortDir = 'asc';
         this.budget = null; // null = no cap, otherwise max gold cost/slot to show as viable
 
         // Simulator state
@@ -311,16 +325,11 @@ class SkillingSimulatorUI {
                 const opt = document.createElement('option');
                 opt.value = snap.name;
                 opt.textContent = snap.name + (snap.isDefault ? ' ★' : '');
-                if (this.optimizerLoadout?.name === snap.name) opt.selected = true;
+                if (this.optimizerLoadoutName === snap.name) opt.selected = true;
                 compareSelect.appendChild(opt);
             }
             compareSelect.addEventListener('change', () => {
-                const name = compareSelect.value;
-                this.optimizerLoadout = name
-                    ? getLoadoutSnapshot()
-                          .getAllSnapshots()
-                          .find((s) => s.name === name) || null
-                    : null;
+                this.optimizerLoadoutName = compareSelect.value || null;
             });
             compareRow.appendChild(compareLabel);
             compareRow.appendChild(compareSelect);
@@ -393,8 +402,13 @@ class SkillingSimulatorUI {
                 // slot's candidate is scored with all OTHER slots held fixed to this loadout
                 // (rather than your live gear), so results are consistent with what's compared.
                 const loadoutEquipment = new Map();
-                if (this.optimizerLoadout) {
-                    for (const eq of this.optimizerLoadout.equipment || []) {
+                const selectedLoadout = this.optimizerLoadoutName
+                    ? getLoadoutSnapshot()
+                          .getAllSnapshots()
+                          .find((s) => s.name === this.optimizerLoadoutName)
+                    : null;
+                if (selectedLoadout) {
+                    for (const eq of selectedLoadout.equipment || []) {
                         if (eq.itemHrid)
                             loadoutEquipment.set(eq.itemLocationHrid, {
                                 itemHrid: eq.itemHrid,
@@ -1141,19 +1155,9 @@ class SkillingSimulatorUI {
         }
 
         container.appendChild(this._makeSectionHeader('Equipment Progression'));
-        for (const [locationHrid, slotData] of slotEntries) {
-            const loadoutEntry = loadoutItemMap?.get(locationHrid) ?? null;
 
-            // The engine already scored every candidate (and the baseline) against the same fixed
-            // equipment in every other slot — your live gear by default, or the compared loadout
-            // when one was selected at Optimize time (see the optimizeSkill call site) — so the
-            // per-slot baseline it returns is already consistent with these entries. No need to
-            // recompute anything here.
-            const slotXpBaseline = slotData.slotXpBaseline ?? result.xpBaseline;
-            const slotGoldBaseline = slotData.slotGoldBaseline ?? result.goldBaseline;
-
-            this._renderSlotRow(container, slotData, loadoutEntry, slotXpBaseline, slotGoldBaseline, this.budget);
-        }
+        this._resultRows = this._collectResultRows(result, loadoutItemMap, this.budget);
+        container.appendChild(this._renderResultsTable());
 
         const xpResult = achievableStats?.xpResult;
         const goldResult = achievableStats?.goldResult;
@@ -1184,258 +1188,215 @@ class SkillingSimulatorUI {
         const note = document.createElement('div');
         note.style.cssText = 'margin-top: 12px; font-size: 10px; color: rgba(255,255,255,0.3); font-style: italic;';
         const baselineNote = loadoutItemMap
-            ? '% shows gain over your compared loadout item for each slot.'
-            : '% shows gain over your currently equipped item in each slot (or an empty slot if nothing is equipped there). Select a loadout in Compare to measure against that instead.';
+            ? 'Gains are measured against your compared loadout item for each slot. Click a column header to sort.'
+            : 'Gains are measured against your currently equipped item in each slot (or an empty slot if nothing is equipped there). Select a loadout in Compare to measure against that instead. Click a column header to sort.';
         note.textContent = this.budget
-            ? `${baselineNote} Greyed-out items exceed your ${formatKMB(this.budget)} budget; the highlighted pick is the best option within it.`
+            ? `${baselineNote} Items over your ${formatKMB(this.budget)} budget are hidden; the highlighted row in each slot is the best option within it.`
             : baselineNote;
         container.appendChild(note);
     }
 
-    _renderSlotRow(container, slotData, loadoutEntry = null, xpBaseline = 0, goldBaseline = 0, budget = null) {
-        const loadoutItemHrid = loadoutEntry?.itemHrid ?? null;
-        const optimalItemHrid = slotData.progression[slotData.progression.length - 1]?.itemHrid;
+    /**
+     * Flatten every slot's candidates into one row list for the sortable results table. The row
+     * source depends on view mode: budget view uses the cost-vs-score Pareto frontier (already
+     * budget-filtered — see the Optimize click handler), Compare-loadout view uses per-breakpoint
+     * entries that beat the compared loadout item, and the default view groups consecutive
+     * breakpoints of the same item into tiers that beat the player's live equipment.
+     * @param {Object} result - optimizeSkill result
+     * @param {Map|null} loadoutItemMap - compared loadout equipment, if one is selected
+     * @param {number|null} budget - max gold cost/slot, if a budget filter is set
+     * @returns {Array<Object>} row objects for _renderResultsTable
+     */
+    _collectResultRows(result, loadoutItemMap, budget) {
+        const rows = [];
 
-        const row = document.createElement('div');
-        row.style.cssText = 'margin-bottom: 10px;';
+        const pushRow = (slotData, entry, bpLabel, highlight, xpBaseline, goldBaseline) => {
+            const goldGain = entry.goldGainPerHour ?? entry.goldScore - goldBaseline;
+            const percentGain = goldBaseline > 0 && goldGain > 0 ? (goldGain / goldBaseline) * 100 : null;
+            rows.push({
+                slotName: slotData.name,
+                itemName: entry.itemName,
+                bpLabel,
+                cost: entry.cost ?? null,
+                costPer1Pct: percentGain ? entry.cost / percentGain : null,
+                paybackHours: entry.paybackHours ?? null,
+                xpGain: entry.xpScore - xpBaseline,
+                goldGain,
+                highlight,
+            });
+        };
 
-        // Slot label + loadout diff indicator
-        const headerRow = document.createElement('div');
-        headerRow.style.cssText = 'display: flex; align-items: center; gap: 6px; margin-bottom: 2px;';
+        for (const [locationHrid, slotData] of Object.entries(result.slots)) {
+            const loadoutEntry = loadoutItemMap?.get(locationHrid) ?? null;
+            // The engine already scored every candidate (and the baseline) against the same fixed
+            // equipment in every other slot — your live gear by default, or the compared loadout
+            // when one was selected at Optimize time — so the per-slot baseline it returns is
+            // already consistent with these entries. No need to recompute anything here.
+            const xpBaseline = slotData.slotXpBaseline ?? result.xpBaseline;
+            const goldBaseline = slotData.slotGoldBaseline ?? result.goldBaseline;
 
-        const slotLabel = document.createElement('div');
-        slotLabel.style.cssText =
-            'font-size: 10px; color: rgba(255,255,255,0.38); text-transform: uppercase; letter-spacing: 0.04em;';
-        slotLabel.textContent = slotData.name;
-        headerRow.appendChild(slotLabel);
-
-        if (loadoutItemHrid !== null) {
-            const enhStr = ` +${loadoutEntry.enhancementLevel}`;
-            if (loadoutItemHrid === optimalItemHrid) {
-                const check = document.createElement('span');
-                check.textContent = `✓${enhStr}`;
-                check.style.cssText = `font-size: 10px; color: ${config.COLOR_PROFIT};`;
-                headerRow.appendChild(check);
+            if (budget != null) {
+                // Only genuine cost-vs-score improvements (the Pareto frontier computed in
+                // optimizeSkill) that are actually affordable — items over budget are dropped
+                // entirely. Only worth buying if it actually raises gold/hr — a pure XP or no-op
+                // upgrade isn't an "investment" with a payback time, so it doesn't belong here.
+                const paretoCandidates = (slotData.paretoCandidates || []).filter((e) => e.goldGainPerHour > 0);
+                const withinBudget = paretoCandidates.filter((e) => e.cost <= budget);
+                const bestAffordable = withinBudget[withinBudget.length - 1] || null;
+                for (const entry of withinBudget) {
+                    pushRow(
+                        slotData,
+                        entry,
+                        `+${entry.breakpoint}`,
+                        entry === bestAffordable,
+                        xpBaseline,
+                        goldBaseline
+                    );
+                }
+            } else if (loadoutEntry) {
+                // One row per enhancement level where the user has something to gain over the
+                // compared loadout. Show every qualifying breakpoint (not just the first) so
+                // higher tiers of the same item aren't hidden just because a lower tier already
+                // cleared the bar.
+                const loadoutItemHrid = loadoutEntry.itemHrid ?? null;
+                for (const entry of slotData.progression) {
+                    if (!entry.itemHrid) continue;
+                    const xpDelta = entry.xpScore - xpBaseline;
+                    const goldDelta = entry.goldScore - goldBaseline;
+                    if (xpDelta <= 0 && goldDelta <= 0) continue;
+                    pushRow(
+                        slotData,
+                        entry,
+                        `+${entry.breakpoint}`,
+                        entry.itemHrid !== loadoutItemHrid,
+                        xpBaseline,
+                        goldBaseline
+                    );
+                }
             } else {
-                const diff = document.createElement('span');
-                const loadoutName = loadoutItemHrid ? this._getItemName(loadoutItemHrid) || loadoutItemHrid : 'empty';
-                diff.textContent = `≠ ${loadoutName}${enhStr}`;
-                diff.style.cssText = `font-size: 10px; color: ${config.COLOR_WARNING}; font-style: italic;`;
-                headerRow.appendChild(diff);
+                // Grouped tier view (no compare selected): collapse same-item runs into one row.
+                const tiers = this._groupTiers(slotData.progression);
+                for (let i = 0; i < tiers.length; i++) {
+                    const tier = tiers[i];
+                    const isLast = i === tiers.length - 1;
+                    const bpLabel =
+                        tier.fromBp === tier.toBp
+                            ? `+${tier.fromBp}`
+                            : isLast
+                              ? `+${tier.fromBp}+`
+                              : `+${tier.fromBp} – +${tier.toBp}`;
+                    pushRow(slotData, tier, bpLabel, i > 0, xpBaseline, goldBaseline);
+                }
             }
         }
 
-        row.appendChild(headerRow);
-
-        const spriteUrl =
-            document.querySelector('use[href*="items_sprite"]')?.getAttribute('href')?.split('#')[0] ?? null;
-
-        if (budget != null) {
-            // Budget view: show only genuine cost-vs-score improvements (the Pareto frontier
-            // computed in optimizeSkill), so every row shown is actually worth considering —
-            // never a strictly-worse or unpriced item. Rows past the budget are greyed out; the
-            // priciest one still within budget is starred as the best affordable pick.
-            // Only worth buying if it actually raises gold/hr — a pure XP or no-op upgrade isn't
-            // an "investment" with a payback time, so it doesn't belong in a budget comparison.
-            const paretoCandidates = (slotData.paretoCandidates || []).filter((e) => e.goldGainPerHour > 0);
-            const withinBudget = paretoCandidates.filter((e) => e.cost <= budget);
-            const bestAffordable = withinBudget[withinBudget.length - 1] || null;
-
-            if (!paretoCandidates.length) {
-                const none = document.createElement('div');
-                none.style.cssText =
-                    'padding: 1px 0 1px 6px; font-size: 11px; color: rgba(255,255,255,0.25); font-style: italic;';
-                none.textContent = 'No priced items with a gold/hr gain for this slot.';
-                row.appendChild(none);
-            }
-
-            for (const entry of paretoCandidates) {
-                const overBudget = entry.cost > budget;
-                const isBest = entry === bestAffordable;
-
-                const entryRow = document.createElement('div');
-                entryRow.style.cssText = `display: flex; align-items: baseline; gap: 8px; padding: 1px 0 1px 6px; ${overBudget ? 'opacity: 0.35;' : ''}`;
-
-                const bpSpan = document.createElement('span');
-                bpSpan.style.cssText =
-                    'font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; min-width: 32px;';
-                bpSpan.textContent = `+${entry.breakpoint}`;
-                entryRow.appendChild(bpSpan);
-
-                const nameSpan = document.createElement('span');
-                nameSpan.style.cssText = `font-size: 12px; color: ${isBest ? config.COLOR_PROFIT : 'rgba(255,255,255,0.85)'}; font-weight: ${isBest ? '600' : '400'};`;
-                nameSpan.textContent = (isBest ? '★ ' : '') + entry.itemName;
-                entryRow.appendChild(nameSpan);
-
-                const gainEl = this._makeGainEl(entry.xpScore, xpBaseline, entry.goldScore, goldBaseline, spriteUrl);
-                if (gainEl) entryRow.appendChild(gainEl);
-
-                row.appendChild(entryRow);
-
-                const costEl = this._makeCostEl(
-                    entry.cost,
-                    entry.paybackHours,
-                    spriteUrl,
-                    entry.goldGainPerHour,
-                    goldBaseline
-                );
-                if (costEl) {
-                    costEl.style.paddingLeft = '32px';
-                    if (overBudget) {
-                        const overLabel = document.createElement('span');
-                        overLabel.style.cssText = `color: ${config.COLOR_WARNING}; font-style: italic;`;
-                        overLabel.textContent = ' · over budget';
-                        costEl.appendChild(overLabel);
-                    }
-                    row.appendChild(costEl);
-                }
-            }
-        } else if (loadoutEntry) {
-            // Per-breakpoint view: one row per enhancement level where the user has something to gain
-            // over the compared loadout. Show every qualifying breakpoint (not just the first) so
-            // higher tiers of the same item — e.g. +4, +5 Earrings of Rare Find — aren't hidden just
-            // because a lower tier already cleared the bar.
-            let prevItemHrid = null;
-            let anyVisible = false;
-            for (const entry of slotData.progression) {
-                if (!entry.itemHrid) {
-                    prevItemHrid = null;
-                    continue;
-                }
-                const xpDelta = entry.xpScore - xpBaseline;
-                const goldDelta = entry.goldScore - goldBaseline;
-                if (xpDelta <= 0 && goldDelta <= 0) {
-                    prevItemHrid = entry.itemHrid;
-                    continue;
-                }
-                anyVisible = true;
-
-                const entryRow = document.createElement('div');
-                entryRow.style.cssText = 'display: flex; align-items: baseline; gap: 8px; padding: 1px 0 1px 6px;';
-
-                const bpSpan = document.createElement('span');
-                bpSpan.style.cssText =
-                    'font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; min-width: 32px;';
-                bpSpan.textContent = `+${entry.breakpoint}`;
-                entryRow.appendChild(bpSpan);
-
-                const isRepeat = entry.itemHrid === prevItemHrid;
-                const isDifferentFromLoadout = entry.itemHrid !== loadoutItemHrid;
-                const nameColor = isRepeat
-                    ? 'rgba(255,255,255,0.3)'
-                    : isDifferentFromLoadout
-                      ? config.COLOR_ACCENT
-                      : 'rgba(255,255,255,0.85)';
-                const nameSpan = document.createElement('span');
-                nameSpan.style.cssText = `font-size: 12px; color: ${nameColor}; font-weight: ${!isRepeat && isDifferentFromLoadout ? '600' : '400'};`;
-                nameSpan.textContent = entry.itemName;
-                entryRow.appendChild(nameSpan);
-
-                const gainEl = this._makeGainEl(entry.xpScore, xpBaseline, entry.goldScore, goldBaseline, spriteUrl);
-                if (gainEl) entryRow.appendChild(gainEl);
-
-                row.appendChild(entryRow);
-
-                const costEl = this._makeCostEl(
-                    entry.cost,
-                    entry.paybackHours,
-                    spriteUrl,
-                    entry.goldGainPerHour,
-                    goldBaseline
-                );
-                if (costEl) row.appendChild(costEl);
-
-                prevItemHrid = entry.itemHrid;
-            }
-            if (!anyVisible) {
-                const none = document.createElement('div');
-                none.style.cssText =
-                    'padding: 1px 0 1px 6px; font-size: 11px; color: rgba(255,255,255,0.25); font-style: italic;';
-                none.textContent = 'Already at optimal enhancement';
-                row.appendChild(none);
-            }
-        } else {
-            // Grouped tier view (no compare selected): collapse same-item runs into one row
-            const tiers = this._groupTiers(slotData.progression);
-            for (let i = 0; i < tiers.length; i++) {
-                const tier = tiers[i];
-                const tierRow = document.createElement('div');
-                tierRow.style.cssText = 'display: flex; align-items: baseline; gap: 8px; padding: 1px 0 1px 6px;';
-
-                const range = document.createElement('span');
-                range.style.cssText =
-                    'font-size: 10px; color: rgba(255,255,255,0.35); flex-shrink: 0; min-width: 56px;';
-                const isLast = i === tiers.length - 1;
-                range.textContent = isLast ? `+${tier.fromBp}+` : `+${tier.fromBp} – +${tier.toBp}`;
-                tierRow.appendChild(range);
-
-                const name = document.createElement('span');
-                name.style.cssText = `font-size: 12px; color: ${i === 0 ? 'rgba(255,255,255,0.85)' : config.COLOR_ACCENT}; font-weight: ${i > 0 ? '600' : '400'};`;
-                name.textContent = tier.itemName;
-                tierRow.appendChild(name);
-
-                const gainEl = this._makeGainEl(tier.xpScore, xpBaseline, tier.goldScore, goldBaseline, spriteUrl);
-                if (gainEl) tierRow.appendChild(gainEl);
-
-                row.appendChild(tierRow);
-
-                const costEl = this._makeCostEl(
-                    tier.cost,
-                    tier.paybackHours,
-                    spriteUrl,
-                    tier.goldGainPerHour,
-                    goldBaseline
-                );
-                if (costEl) row.appendChild(costEl);
-            }
-        }
-
-        container.appendChild(row);
+        return rows;
     }
 
-    _makeGainEl(xpScore, xpBaseline, goldScore, goldBaseline, spriteUrl) {
-        const gainParts = [];
+    /**
+     * Render this._resultRows as a table with clickable, sortable column headers. Re-invoked
+     * (replacing itself in place) whenever a header is clicked, since sorting only needs to
+     * reorder already-computed rows rather than recompute anything.
+     * @returns {HTMLElement}
+     */
+    _renderResultsTable() {
+        const rows = this._resultRows;
 
-        if (xpBaseline > 0 && xpScore > xpBaseline) {
-            const delta = xpScore - xpBaseline;
-            const pct = ((delta / xpBaseline) * 100).toFixed(1);
-            const span = document.createElement('span');
-            span.textContent = `+${formatKMB(delta)} XP (+${pct}%)`;
-            gainParts.push(span);
+        if (!rows.length) {
+            const empty = document.createElement('div');
+            empty.style.cssText = 'color: rgba(255,255,255,0.25); font-size: 11px; font-style: italic;';
+            empty.textContent = 'No items to show.';
+            return empty;
         }
 
-        if (goldBaseline > 0 && goldScore > goldBaseline) {
-            const delta = goldScore - goldBaseline;
-            const pct = ((delta / goldBaseline) * 100).toFixed(1);
-            const span = document.createElement('span');
-            span.style.cssText = 'display: inline-flex; align-items: center; gap: 2px;';
-            span.appendChild(document.createTextNode(`+${formatKMB(delta)}`));
-            if (spriteUrl) {
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svg.setAttribute('width', '12');
-                svg.setAttribute('height', '12');
-                svg.style.flexShrink = '0';
-                const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-                use.setAttribute('href', `${spriteUrl}#coin`);
-                svg.appendChild(use);
-                span.appendChild(svg);
-            } else {
-                span.appendChild(document.createTextNode(' G'));
-            }
-            span.appendChild(document.createTextNode(` (+${pct}%)`));
-            gainParts.push(span);
-        }
+        const sortKey = this._resultsSortKey;
+        const sortDir = this._resultsSortDir;
+        const sortedRows = sortKey
+            ? [...rows].sort((a, b) => {
+                  const colDef = RESULT_TABLE_COLUMNS.find((c) => c.key === sortKey);
+                  const av = a[sortKey];
+                  const bv = b[sortKey];
+                  if (colDef.type === 'string') {
+                      const cmp = (av || '').toLowerCase().localeCompare((bv || '').toLowerCase());
+                      return sortDir === 'asc' ? cmp : -cmp;
+                  }
+                  // Numbers: rows with no value (e.g. no gold/hr gain) always sort to the bottom.
+                  if (av == null && bv == null) return 0;
+                  if (av == null) return 1;
+                  if (bv == null) return -1;
+                  const cmp = av - bv;
+                  return sortDir === 'asc' ? cmp : -cmp;
+              })
+            : rows;
 
-        if (!gainParts.length) return null;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = 'overflow-x: auto;';
 
-        const wrapper = document.createElement('span');
-        wrapper.style.cssText =
-            'font-size: 10px; color: rgba(140,210,140,0.65); margin-left: auto; flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;';
-        for (let i = 0; i < gainParts.length; i++) {
-            if (i > 0) wrapper.appendChild(document.createTextNode(' · '));
-            wrapper.appendChild(gainParts[i]);
+        const table = document.createElement('table');
+        table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: 12px;';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        for (const col of RESULT_TABLE_COLUMNS) {
+            const isActive = sortKey === col.key;
+            const th = document.createElement('th');
+            th.style.cssText = `
+                text-align: ${col.type === 'number' ? 'right' : 'left'};
+                padding: 4px 8px; border-bottom: 1px solid rgba(255,255,255,0.15);
+                color: ${isActive ? config.COLOR_ACCENT : 'rgba(255,255,255,0.5)'};
+                font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+                cursor: pointer; user-select: none; white-space: nowrap;
+            `;
+            th.textContent = col.label + (isActive ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
+            th.addEventListener('click', () => {
+                if (this._resultsSortKey === col.key) {
+                    this._resultsSortDir = this._resultsSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this._resultsSortKey = col.key;
+                    this._resultsSortDir = 'asc';
+                }
+                wrap.replaceWith(this._renderResultsTable());
+            });
+            headRow.appendChild(th);
         }
-        return wrapper;
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const fmtCell = (value, formatter) => {
+            const td = document.createElement('td');
+            td.style.cssText =
+                'padding: 3px 8px; text-align: right; color: rgba(255,255,255,0.75); white-space: nowrap;';
+            td.textContent = value != null ? formatter(value) : '—';
+            return td;
+        };
+
+        const tbody = document.createElement('tbody');
+        for (const row of sortedRows) {
+            const tr = document.createElement('tr');
+            tr.style.cssText = `border-bottom: 1px solid rgba(255,255,255,0.06); ${row.highlight ? `background: ${config.COLOR_ACCENT}11;` : ''}`;
+
+            const slotTd = document.createElement('td');
+            slotTd.style.cssText = 'padding: 3px 8px; color: rgba(255,255,255,0.55); white-space: nowrap;';
+            slotTd.textContent = row.slotName;
+            tr.appendChild(slotTd);
+
+            const itemTd = document.createElement('td');
+            itemTd.style.cssText = `padding: 3px 8px; white-space: nowrap; color: ${row.highlight ? config.COLOR_PROFIT : 'rgba(255,255,255,0.85)'}; font-weight: ${row.highlight ? '600' : '400'};`;
+            itemTd.textContent = `${row.highlight ? '★ ' : ''}${row.itemName} ${row.bpLabel}`;
+            tr.appendChild(itemTd);
+
+            tr.appendChild(fmtCell(row.cost, (v) => formatKMB(v)));
+            tr.appendChild(fmtCell(row.costPer1Pct, (v) => formatKMB(v)));
+            tr.appendChild(fmtCell(row.paybackHours, (v) => this._formatPaybackHours(v)));
+            tr.appendChild(fmtCell(row.xpGain, (v) => `${v > 0 ? '+' : ''}${formatKMB(v)}`));
+            tr.appendChild(fmtCell(row.goldGain, (v) => `${v > 0 ? '+' : ''}${formatKMB(v)}`));
+
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+
+        wrap.appendChild(table);
+        return wrap;
     }
 
     _formatPaybackHours(hours) {
@@ -1443,52 +1404,6 @@ class SkillingSimulatorUI {
         const days = hours / 24;
         if (days < 365) return `${days.toFixed(1)}d`;
         return `${(days / 365).toFixed(1)}y`;
-    }
-
-    _makeCostEl(cost, paybackHours, spriteUrl, goldGainPerHour = null, goldBaseline = 0) {
-        if (cost == null) return null;
-
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText =
-            'font-size: 10px; color: rgba(255,255,255,0.4); padding-left: 6px; display: flex; align-items: center; gap: 4px;';
-
-        wrapper.appendChild(document.createTextNode('Cost: '));
-        wrapper.appendChild(document.createTextNode(formatKMB(cost)));
-        if (spriteUrl) {
-            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svg.setAttribute('width', '10');
-            svg.setAttribute('height', '10');
-            svg.style.flexShrink = '0';
-            const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttribute('href', `${spriteUrl}#coin`);
-            svg.appendChild(use);
-            wrapper.appendChild(svg);
-        } else {
-            wrapper.appendChild(document.createTextNode('G'));
-        }
-
-        if (goldBaseline > 0 && goldGainPerHour > 0) {
-            const percentGain = (goldGainPerHour / goldBaseline) * 100;
-            if (percentGain > 0) {
-                const perPercent = document.createElement('span');
-                perPercent.textContent = ` · ${formatKMB(cost / percentGain)}/1%`;
-                wrapper.appendChild(perPercent);
-            }
-        }
-
-        if (paybackHours != null) {
-            const payback = document.createElement('span');
-            payback.style.color = paybackHours <= 24 * 30 ? config.COLOR_PROFIT : config.COLOR_WARNING;
-            payback.textContent = ` · payback: ${this._formatPaybackHours(paybackHours)}`;
-            wrapper.appendChild(payback);
-        } else {
-            const noPayback = document.createElement('span');
-            noPayback.style.cssText = 'font-style: italic;';
-            noPayback.textContent = ' · no gold/hr gain';
-            wrapper.appendChild(noPayback);
-        }
-
-        return wrapper;
     }
 
     _groupTiers(progression) {
