@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.17.2](https://github.com/Skillcheese/Cheezasha/compare/v3.17.1...v3.17.2) (2026-08-25)
+
+### Bug Fixes
+
+- correct equipment sync, progress bars, and skilling optimizer table ([534bee9](https://github.com/Skillcheese/Cheezasha/commit/534bee979f4a422e33e2a9527b5c057caf44a669))
+
 ## [3.17.1](https://github.com/Skillcheese/Cheezasha/compare/v3.17.0...v3.17.1) (2026-08-24)
 
 ### Bug Fixes
