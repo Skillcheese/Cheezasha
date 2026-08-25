@@ -1,7 +1,7 @@
 /**
  * Cheezasha Utils Library
  * All utility modules
- * Version: 3.17.1
+ * Version: 3.17.2
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -669,6 +669,35 @@
         }
 
         /**
+         * Resolve a snapshot's equipment against current inventory ownership. Snapshots only get a
+         * full refresh from the server when the player visits the in-game Loadouts tab, so a stored
+         * enhancement level goes stale the moment the player enhances/buys/sells their way to a new
+         * highest-owned level without opening that tab. Rather than caching a level and trying to
+         * keep it in sync via update events, just resolve it live from the current inventory every
+         * time a snapshot is read — there's no staleness to chase that way.
+         * @param {Object} snapshot
+         * @returns {Array<{itemLocationHrid: string, itemHrid: string, enhancementLevel: number}>}
+         */
+        _resolveEquipment(snapshot) {
+            // Exact-mode snapshots intentionally hold a frozen level — never resolve those live.
+            if (snapshot.useExactEnhancement || !snapshot.equipment?.length) return snapshot.equipment || [];
+
+            const inventory = dataManager.getInventory() || [];
+            return snapshot.equipment.map((eq) => {
+                if (!eq.itemHrid) return eq;
+                let highestOwned = -1;
+                for (const item of inventory) {
+                    if (item.itemHrid === eq.itemHrid && item.count > 0) {
+                        const level = item.enhancementLevel || 0;
+                        if (level > highestOwned) highestOwned = level;
+                    }
+                }
+                // Fall back to the stored level if nothing is currently owned (e.g. mid-trade).
+                return highestOwned >= 0 ? { ...eq, enhancementLevel: highestOwned } : eq;
+            });
+        }
+
+        /**
          * Register a callback to be called whenever snapshots are updated.
          * @param {Function} fn
          */
@@ -822,7 +851,7 @@
         getSnapshotForSkill(actionTypeHrid) {
             const snapshot = this._findSnapshot(actionTypeHrid);
             if (!snapshot || !snapshot.equipment?.length) return null;
-            return new Map(snapshot.equipment.map((e) => [e.itemLocationHrid, e]));
+            return new Map(this._resolveEquipment(snapshot).map((e) => [e.itemLocationHrid, e]));
         }
 
         /**
@@ -841,11 +870,14 @@
         }
 
         /**
-         * Get all saved loadout snapshots as a flat array.
+         * Get all saved loadout snapshots as a flat array, with equipment enhancement levels
+         * resolved live against current inventory ownership (see _resolveEquipment).
          * @returns {Array<Object>} Array of snapshot objects
          */
         getAllSnapshots() {
-            return Object.values(this.snapshots).sort((a, b) => a.ordinal - b.ordinal);
+            return Object.values(this.snapshots)
+                .sort((a, b) => a.ordinal - b.ordinal)
+                .map((s) => ({ ...s, equipment: this._resolveEquipment(s) }));
         }
 
         /**

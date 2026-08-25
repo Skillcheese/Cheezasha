@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.17.1
+ * Version: 3.17.2
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -716,6 +716,35 @@
         }
 
         /**
+         * Resolve a snapshot's equipment against current inventory ownership. Snapshots only get a
+         * full refresh from the server when the player visits the in-game Loadouts tab, so a stored
+         * enhancement level goes stale the moment the player enhances/buys/sells their way to a new
+         * highest-owned level without opening that tab. Rather than caching a level and trying to
+         * keep it in sync via update events, just resolve it live from the current inventory every
+         * time a snapshot is read — there's no staleness to chase that way.
+         * @param {Object} snapshot
+         * @returns {Array<{itemLocationHrid: string, itemHrid: string, enhancementLevel: number}>}
+         */
+        _resolveEquipment(snapshot) {
+            // Exact-mode snapshots intentionally hold a frozen level — never resolve those live.
+            if (snapshot.useExactEnhancement || !snapshot.equipment?.length) return snapshot.equipment || [];
+
+            const inventory = dataManager.getInventory() || [];
+            return snapshot.equipment.map((eq) => {
+                if (!eq.itemHrid) return eq;
+                let highestOwned = -1;
+                for (const item of inventory) {
+                    if (item.itemHrid === eq.itemHrid && item.count > 0) {
+                        const level = item.enhancementLevel || 0;
+                        if (level > highestOwned) highestOwned = level;
+                    }
+                }
+                // Fall back to the stored level if nothing is currently owned (e.g. mid-trade).
+                return highestOwned >= 0 ? { ...eq, enhancementLevel: highestOwned } : eq;
+            });
+        }
+
+        /**
          * Register a callback to be called whenever snapshots are updated.
          * @param {Function} fn
          */
@@ -869,7 +898,7 @@
         getSnapshotForSkill(actionTypeHrid) {
             const snapshot = this._findSnapshot(actionTypeHrid);
             if (!snapshot || !snapshot.equipment?.length) return null;
-            return new Map(snapshot.equipment.map((e) => [e.itemLocationHrid, e]));
+            return new Map(this._resolveEquipment(snapshot).map((e) => [e.itemLocationHrid, e]));
         }
 
         /**
@@ -888,11 +917,14 @@
         }
 
         /**
-         * Get all saved loadout snapshots as a flat array.
+         * Get all saved loadout snapshots as a flat array, with equipment enhancement levels
+         * resolved live against current inventory ownership (see _resolveEquipment).
          * @returns {Array<Object>} Array of snapshot objects
          */
         getAllSnapshots() {
-            return Object.values(this.snapshots).sort((a, b) => a.ordinal - b.ordinal);
+            return Object.values(this.snapshots)
+                .sort((a, b) => a.ordinal - b.ordinal)
+                .map((s) => ({ ...s, equipment: this._resolveEquipment(s) }));
         }
 
         /**
@@ -17919,6 +17951,12 @@
                   : [null];
 
         let best = null;
+        // Each weapon variant runs its own independent combo search with its own {current, total}
+        // scale. Reporting those straight through reset the aggregate progress to 0 every time a new
+        // variant began, undoing the previous variant's progress. Rescale each variant's fraction
+        // into its 1/weaponRuns.length slice of one cumulative current/total pair instead.
+        const weaponRunsTotal = weaponRuns.length;
+        let variantIndex = 0;
         for (const variant of weaponRuns) {
             const elementLabel = variant ? ELEMENTAL_DAMAGE_TYPE_LABELS[variant.damageType] : null;
             const runPlayerDTOs = playerDTOs.slice();
@@ -17952,9 +17990,23 @@
                     poolSize,
                     specialization,
                 },
-                (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
+                (p) => {
+                    const description = elementLabel ? `[${elementLabel}] ${p?.description || ''}` : p?.description;
+                    if (p?.current == null || !p?.total) {
+                        onProgress?.({ description });
+                        return;
+                    }
+                    onProgress?.({
+                        current: variantIndex + p.current / p.total,
+                        total: weaponRunsTotal,
+                        description,
+                    });
+                }
             );
-            if (!candidates.length) continue;
+            if (!candidates.length) {
+                variantIndex++;
+                continue;
+            }
 
             let cursor = 0;
             let comboDone = 0;
@@ -17967,8 +18019,8 @@
                         const candidate = candidates[cursor++];
                         const label = elementLabel ? `[${elementLabel}] ${candidate.description}` : candidate.description;
                         onProgress?.({
-                            current: comboDone,
-                            total: comboTotal,
+                            current: variantIndex + comboDone / comboTotal,
+                            total: weaponRunsTotal,
                             description: `Testing combo: ${label}`,
                         });
 
@@ -18011,11 +18063,16 @@
                             };
                         }
                         comboDone++;
-                        onProgress?.({ current: comboDone, total: comboTotal, description: label });
+                        onProgress?.({
+                            current: variantIndex + comboDone / comboTotal,
+                            total: weaponRunsTotal,
+                            description: label,
+                        });
                     }
                 })
             );
             if (runBest && (!best || isLabyrinthResultBetter(runBest, best))) best = runBest;
+            variantIndex++;
         }
 
         return best;
@@ -29945,6 +30002,12 @@
             // every distinct stage currently in flight reflects reality instead.
             const optimizeProgressSlots = new Map();
             let optimizeProgressSeq = 0;
+            // New monsters register their slot (and its total) only once their search actually
+            // starts, so the shared denominator grows mid-run — a fresh slot's total landing before
+            // its current has caught up makes the percentage (and thus the bar) drop even though no
+            // work was undone. Clamp to the highest percent seen this run so the bar only fills
+            // forward; it still reaches 100% once every slot is complete.
+            let optimizeProgressMaxPercent = 0;
             const renderOptimizeProgress = () => {
                 let sumCurrent = 0;
                 let sumTotal = 0;
@@ -29961,16 +30024,27 @@
                     return;
                 }
                 const percent = Math.round((sumCurrent / sumTotal) * 100);
-                progress2Fill.style.width = `${percent}%`;
-                progress2Text.textContent = `${sumTotal - sumCurrent} / ${sumTotal} combos left to check`;
+                optimizeProgressMaxPercent = Math.max(optimizeProgressMaxPercent, percent);
+                progress2Fill.style.width = `${optimizeProgressMaxPercent}%`;
+                // sumCurrent/sumTotal can be fractional (multi-stage/multi-variant slots report a
+                // rescaled fraction of their stage), so round for display.
+                progress2Text.textContent = `${Math.round(sumTotal - sumCurrent)} / ${Math.round(sumTotal)} combos left to check`;
                 progress2Detail.textContent = [...activeDescriptions].join(' · ');
             };
             const makeOptimizeProgress = () => {
                 const slotId = optimizeProgressSeq++;
                 return ({ current, total, description }) => {
                     if (current == null || !total) return;
+                    // Keep completed slots (current pinned to total) instead of deleting them —
+                    // removing a finished monster's total from the sum shrank the denominator and
+                    // made the bar visibly jump backward as each monster completed. Some callers
+                    // signal completion with a throwaway {current: 1, total: 1} rather than the
+                    // slot's real total — pin to whichever total is larger so that throwaway value
+                    // can't shrink a total this slot already reported.
                     if (current >= total) {
-                        optimizeProgressSlots.delete(slotId);
+                        const prevTotal = optimizeProgressSlots.get(slotId)?.total || 0;
+                        const finalTotal = Math.max(total, prevTotal);
+                        optimizeProgressSlots.set(slotId, { current: finalTotal, total: finalTotal, description: null });
                     } else {
                         optimizeProgressSlots.set(slotId, { current, total, description });
                     }
@@ -29985,6 +30059,10 @@
             // call finishing and the next progress update landing.
             const findMaxProgressSlots = new Map();
             let findMaxProgressSeq = 0;
+            // Same rationale as optimizeProgressMaxPercent above — a newly-started monster's slot
+            // adds to the denominator before its numerator catches up, so clamp to the highest
+            // percent seen this run rather than letting the bar visibly drop.
+            let findMaxProgressMaxPercent = 0;
             const renderFindMaxProgress = () => {
                 let sumCurrent = 0;
                 let sumTotal = 0;
@@ -30001,7 +30079,8 @@
                     return;
                 }
                 const percent = Math.round((sumCurrent / sumTotal) * 100);
-                progress3Fill.style.width = `${percent}%`;
+                findMaxProgressMaxPercent = Math.max(findMaxProgressMaxPercent, percent);
+                progress3Fill.style.width = `${findMaxProgressMaxPercent}%`;
                 progress3Text.textContent = `Find Max search — ${sumCurrent} / ${sumTotal} steps`;
                 progress3Detail.textContent = [...activeDescriptions].join(' · ');
             };
@@ -30009,8 +30088,16 @@
                 const slotId = findMaxProgressSeq++;
                 return ({ current, total, description }) => {
                     if (current == null || !total) return;
+                    // Keep completed slots (current pinned to total) instead of deleting them —
+                    // removing a finished monster's total from the sum shrank the denominator and
+                    // made the bar visibly jump backward as each monster completed. Completion is
+                    // often signaled with a throwaway {current: 1, total: 1} rather than the slot's
+                    // real total (e.g. totalRounds+1) — pin to whichever total is larger so that
+                    // throwaway value can't shrink a total this slot already reported.
                     if (current >= total) {
-                        findMaxProgressSlots.delete(slotId);
+                        const prevTotal = findMaxProgressSlots.get(slotId)?.total || 0;
+                        const finalTotal = Math.max(total, prevTotal);
+                        findMaxProgressSlots.set(slotId, { current: finalTotal, total: finalTotal, description: null });
                     } else {
                         findMaxProgressSlots.set(slotId, { current, total, description });
                     }
