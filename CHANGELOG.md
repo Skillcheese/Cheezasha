@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.18.0](https://github.com/Skillcheese/Cheezasha/compare/v3.17.3...v3.18.0) (2026-08-26)
+
+### Features
+
+- **combat-sim:** merge lab upgrade analysis into sim results ([3fd1a97](https://github.com/Skillcheese/Cheezasha/commit/3fd1a9796e9eb8d736cd1ddef276552cb4c425f6))
+- **flip-ui:** add hide enhanced/equipment filters for flip opportunities ([00224ed](https://github.com/Skillcheese/Cheezasha/commit/00224ed6c4e02f422c655358ad16b8fbffb127f4))
+
 ## [3.17.3](https://github.com/Skillcheese/Cheezasha/compare/v3.17.2...v3.17.3) (2026-08-26)
 
 ### Reverts
