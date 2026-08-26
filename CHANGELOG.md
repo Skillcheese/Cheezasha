@@ -2,10 +2,9 @@
 
 ## [3.17.3](https://github.com/Skillcheese/Cheezasha/compare/v3.17.2...v3.17.3) (2026-08-26)
 
-
 ### Reverts
 
-* undo optimize-progress and labyrinth variant rescaling fixes, keep findMax pinning ([7ae28b6](https://github.com/Skillcheese/Cheezasha/commit/7ae28b6bc13699d0561f5f9d5427f827f4f09251))
+- undo optimize-progress and labyrinth variant rescaling fixes, keep findMax pinning ([7ae28b6](https://github.com/Skillcheese/Cheezasha/commit/7ae28b6bc13699d0561f5f9d5427f827f4f09251))
 
 ## [3.17.2](https://github.com/Skillcheese/Cheezasha/compare/v3.17.1...v3.17.2) (2026-08-25)
 
