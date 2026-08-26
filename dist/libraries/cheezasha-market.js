@@ -1,7 +1,7 @@
 /**
  * Cheezasha Market Library
  * Market, inventory, and economy features
- * Version: 3.17.3
+ * Version: 3.18.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -16875,6 +16875,8 @@ self.onmessage = function (e) {
             this.activeTab = 'opportunities'; // 'opportunities' | 'charts'
             this.opportunitySubTab = 'margin'; // 'margin' | 'outliers'
             this.selectedChartItemKey = null; // "itemHrid:enh"
+            this.hideEnhanced = false;
+            this.hideEquipment = false;
         }
 
         async initialize() {
@@ -16887,6 +16889,8 @@ self.onmessage = function (e) {
             this.marginThreshold = await storage.get('flipMarginThreshold', 'settings', 0.02);
             this.maxSpreadRatio = await storage.get('flipMaxSpreadRatio', 'settings', 3);
             this.deviationThreshold = await storage.get('flipDeviationThreshold', 'settings', 0.1);
+            this.hideEnhanced = await storage.get('flipHideEnhanced', 'settings', false);
+            this.hideEquipment = await storage.get('flipHideEquipment', 'settings', false);
 
             this.addMarketplaceTab();
         }
@@ -17124,10 +17128,42 @@ self.onmessage = function (e) {
 
             budgetLabel.appendChild(budgetInput);
 
+            const hideEnhancedLabel = document.createElement('label');
+            hideEnhancedLabel.style.cssText = 'display:flex; align-items:center; gap:4px; cursor:pointer;';
+
+            const hideEnhancedCheckbox = document.createElement('input');
+            hideEnhancedCheckbox.type = 'checkbox';
+            hideEnhancedCheckbox.checked = this.hideEnhanced;
+            hideEnhancedCheckbox.addEventListener('change', () => {
+                this.hideEnhanced = hideEnhancedCheckbox.checked;
+                storage.set('flipHideEnhanced', this.hideEnhanced, 'settings', true);
+                this.renderTable();
+            });
+
+            hideEnhancedLabel.appendChild(hideEnhancedCheckbox);
+            hideEnhancedLabel.append('Hide enhanced');
+
+            const hideEquipmentLabel = document.createElement('label');
+            hideEquipmentLabel.style.cssText = 'display:flex; align-items:center; gap:4px; cursor:pointer;';
+
+            const hideEquipmentCheckbox = document.createElement('input');
+            hideEquipmentCheckbox.type = 'checkbox';
+            hideEquipmentCheckbox.checked = this.hideEquipment;
+            hideEquipmentCheckbox.addEventListener('change', () => {
+                this.hideEquipment = hideEquipmentCheckbox.checked;
+                storage.set('flipHideEquipment', this.hideEquipment, 'settings', true);
+                this.renderTable();
+            });
+
+            hideEquipmentLabel.appendChild(hideEquipmentCheckbox);
+            hideEquipmentLabel.append('Hide equipment');
+
             const sharedControls = document.createElement('div');
             sharedControls.style.cssText =
                 'display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center; color:#e0e0e0; font-size:13px;';
             sharedControls.appendChild(budgetLabel);
+            sharedControls.appendChild(hideEnhancedLabel);
+            sharedControls.appendChild(hideEquipmentLabel);
 
             const subTabBar = document.createElement('div');
             subTabBar.style.cssText = 'display:flex; gap:6px; margin-bottom:15px;';
@@ -17297,14 +17333,27 @@ self.onmessage = function (e) {
         }
 
         renderTable() {
+            const filterEnhanced = (records) => {
+                let filtered = records;
+                if (this.hideEnhanced) {
+                    filtered = filtered.filter((r) => !r.enhancementLevel);
+                }
+                if (this.hideEquipment) {
+                    filtered = filtered.filter((r) => !dataManager.getItemDetails(r.itemHrid)?.equipmentDetail);
+                }
+                return filtered;
+            };
+
             this._renderSection({
                 container: this.marginTableContainer,
                 columns: MARGIN_COLUMNS,
-                records: flipAnalyzer.analyzeMarginFlips({
-                    marginThreshold: this.marginThreshold,
-                    maxSpreadRatio: this.maxSpreadRatio,
-                    budget: this.budget,
-                }),
+                records: filterEnhanced(
+                    flipAnalyzer.analyzeMarginFlips({
+                        marginThreshold: this.marginThreshold,
+                        maxSpreadRatio: this.maxSpreadRatio,
+                        budget: this.budget,
+                    })
+                ),
                 sortColumnKey: 'marginSortColumn',
                 sortDirectionKey: 'marginSortDirection',
                 emptyText: 'No profitable margin flips right now — try lowering the min margin.',
@@ -17313,10 +17362,12 @@ self.onmessage = function (e) {
             this._renderSection({
                 container: this.outlierTableContainer,
                 columns: OUTLIER_COLUMNS,
-                records: flipAnalyzer.analyzeOutliers({
-                    deviationThreshold: this.deviationThreshold,
-                    budget: this.budget,
-                }),
+                records: filterEnhanced(
+                    flipAnalyzer.analyzeOutliers({
+                        deviationThreshold: this.deviationThreshold,
+                        budget: this.budget,
+                    })
+                ),
                 sortColumnKey: 'outlierSortColumn',
                 sortDirectionKey: 'outlierSortDirection',
                 emptyText: 'No outliers yet — the sampler needs a few marketplace.json polls before deviations show up.',

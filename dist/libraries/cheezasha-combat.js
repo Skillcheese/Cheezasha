@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.17.3
+ * Version: 3.18.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -18728,30 +18728,35 @@
     ];
 
     /**
-     * Generate labyrinth buff upgrade candidates from characterInfo.
-     * @returns {Array} Buff candidates with type 'labyrinth_buff'
+     * List the not-yet-maxed Labyrinth combat token upgrades (Combat Damage, Attack Speed, Cast
+     * Speed, Critical Rate), each as a standalone +1-level candidate — the same shape
+     * optimizeLabyrinthLabUpgrades tests, exposed separately so callers can run their own sims
+     * against the resulting buff sets (e.g. an aggregate summary across many monsters).
+     * @returns {Array<{key: string, name: string, description: string, currentLevel: number,
+     *  maxLevel: number, tokenCost: number, uniqueKey: string, typeHrid: string, valueKey: string,
+     *  step: number}>}
      */
-    function generateLabyrinthBuffCandidates() {
+    function getLabyrinthCombatUpgradeCandidates() {
         const info = dataManager.characterData?.characterInfo;
         if (!info) return [];
 
         const candidates = [];
         for (const def of LABYRINTH_BUFF_DEFS) {
+            if (def.category !== 'combat') continue;
             const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
             if (currentLevel >= def.maxLevel) continue;
 
             candidates.push({
-                type: 'labyrinth_buff',
-                category: def.category,
-                buffKey: def.key,
+                key: def.key,
+                name: def.name,
+                description: `${def.name} Lv${currentLevel}→${currentLevel + 1}`,
                 currentLevel,
-                step: def.step,
+                maxLevel: def.maxLevel,
                 tokenCost: def.tokenCost * (currentLevel + 1),
-                description: `${def.name} Lv${currentLevel}\u2192${currentLevel + 1}`,
                 uniqueKey: def.uniqueKey,
                 typeHrid: def.typeHrid,
                 valueKey: def.valueKey,
-                metric: def.metric,
+                step: def.step,
             });
         }
         return candidates;
@@ -18788,257 +18793,132 @@
     }
 
     /**
-     * Run labyrinth upgrade analysis: baseline sim + equipment sims + buff sims.
-     * Ranks upgrades by win rate / clear rate delta, grouped by cost type (token vs gold).
-     * @param {Object} params
-     * @param {Array} params.playerDTOs - Player DTOs (only first used — labyrinth is solo)
-     * @param {number} params.playerIndex - Index of the player to analyze
-     * @param {string} params.monsterHrid - Labyrinth monster HRID
-     * @param {number} params.roomLevel - Room level to test at
-     * @param {string[]} params.crates - Crate item HRIDs
-     * @param {number} params.hours - Hours to simulate per candidate
-     * @param {Object} params.communityBuffs - Community buffs
-     * @param {Array} [params.labyrinthCombatBuffs] - Combat buffs from labyrinth upgrades
-     * @param {string} params.upgradeMode - 'equipment', 'ability_level', or 'ability_swap'
-     * @param {number} [params.abilityTargetLevel] - Target ability level
-     * @param {Function} onProgress - Called with { current, total, description }
-     * @param {Object} [options] - { abortSignal: () => boolean }
-     * @returns {Promise<Object>} { baseline, results: [{candidate, costType, ...}] }
+     * Test buying a single extra level of each not-yet-maxed Labyrinth combat token upgrade (Combat
+     * Damage, Attack Speed, Cast Speed, Critical Rate) for a single monster/room level, in isolation
+     * — never combined — and reports whichever one improves the result the most (see
+     * isLabyrinthResultBetter). This answers "which upgrade should I buy first", not "what's the
+     * best full spend" — each candidate is a standalone +1 level, one sim per candidate plus one
+     * baseline sim, so the caller can see the marginal value of every upgrade type side by side.
+     * @param {Object} params - { playerDTOs, playerIndex, gameData, monsterHrid, roomLevel, crates,
+     *  hours, communityBuffs, labyrinthCombatBuffs } — no budget: every not-yet-maxed combat buff is
+     *  tested and each result reports its own token cost, so the caller can rank by cost/value.
+     * @param {Function} [onProgress] - Called with { current, total, description }
+     * @returns {Promise<{winRate: number, attempts: number, encounters: number, deaths: number,
+     *  labyrinthCombatBuffs: Array, description: string, cost: number, tokenCost: number,
+     *  costType: 'token', baseline: {winRate: number, attempts: number, encounters: number},
+     *  allCandidateResults: Array<{key: string, description: string, cost: number, winRate: number,
+     *  attempts: number, encounters: number}>}|null>} Null only when there's no combat buff left to
+     *  test at all — otherwise every tested candidate's own sim result is included (not just the
+     *  winner) so a caller aggregating across many monsters can reuse these sims instead of
+     *  re-running them.
      */
-    async function runLabyrinthUpgradeAnalysis(params, onProgress, options = {}) {
+    async function optimizeLabyrinthLabUpgrades(params, onProgress) {
         const {
             playerDTOs,
             playerIndex,
+            gameData,
             monsterHrid,
             roomLevel,
             crates,
             hours,
             communityBuffs,
             labyrinthCombatBuffs = [],
-            upgradeMode,
-            abilityLevelType,
-            abilityTargetLevel,
-            skipBackSlot,
         } = params;
-        const { abortSignal } = options;
-        const gameData = buildGameDataPayload();
-        if (!gameData) throw new Error('No game data available');
-
-        const playerDTO = playerDTOs[playerIndex];
 
         const zoneHrid =
             Object.keys(gameData.actionDetailMap).find((k) => k.includes('/actions/combat/')) || '/actions/combat/fly';
 
-        // Generate equipment candidates
-        const candidates = generateCandidates(
-            playerDTO,
-            gameData,
-            upgradeMode,
-            abilityTargetLevel,
-            abilityLevelType,
-            skipBackSlot
-        );
-        const candidatesWithCost = candidates.map((c) => ({
-            ...c,
-            cost: calculateUpgradeCost(c, gameData),
-        }));
+        const info = dataManager.characterData?.characterInfo;
+        if (!info) return null;
 
-        // Generate buff candidates (skilling buffs handled in skilling tab)
-        const buffCandidates = generateLabyrinthBuffCandidates();
-        const combatBuffCandidates = buffCandidates.filter((c) => c.category === 'combat');
-        const experienceBuffCandidates = buffCandidates.filter((c) => c.category === 'experience');
+        const combatDefs = LABYRINTH_BUFF_DEFS.filter((d) => d.category === 'combat');
 
-        const total = candidatesWithCost.length + combatBuffCandidates.length + experienceBuffCandidates.length + 1;
-        let current = 0;
-
-        // Run baseline labyrinth sim
-        onProgress?.({ current: 0, total, description: 'Running baseline...' });
-        const baselineResult = await runLabyrinthSimulation({
-            gameData,
-            playerDTOs: [playerDTOs[playerIndex]],
-            zoneHrid,
-            monsterHrid,
-            roomLevel,
-            crates,
-            hours,
-            communityBuffs,
-            labyrinthCombatBuffs,
-        });
-        current++;
-
-        if (abortSignal?.()) return { baseline: null, results: [] };
-
-        const baselineAttempts = baselineResult.labyAttemptCount || 1;
-        const baselineEncounters = baselineResult.encounters || 0;
-        const baselineWinRate = baselineEncounters / baselineAttempts;
-
-        onProgress?.({ current, total, description: `Baseline: ${(baselineWinRate * 100).toFixed(1)}%` });
-
-        const results = [];
-
-        // ── Equipment / ability sims (fanned out across the worker pool) ──
-        let candidateCursor = 0;
-        const candidateWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
-        await Promise.all(
-            Array.from({ length: candidateWorkerCount }, async () => {
-                while (candidateCursor < candidatesWithCost.length && !abortSignal?.()) {
-                    const candidate = candidatesWithCost[candidateCursor++];
-
-                    onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
-
-                    // Shallow-clone only the container this candidate touches (abilities array or
-                    // equipment map) instead of deep-cloning the whole player DTO — each candidate
-                    // still gets its own independent objects, safe for concurrent execution.
-                    const basePlayer = playerDTOs[playerIndex];
-                    let modifiedDTO;
-
-                    if (candidate.reorderSlots) {
-                        const abilities = basePlayer.abilities.slice();
-                        candidate.reorderSlots.forEach((slotIdx, i) => {
-                            abilities[slotIdx] = candidate.reorderAbilities[i];
-                        });
-                        modifiedDTO = { ...basePlayer, abilities };
-                    } else if (candidate.slot.startsWith('ability_')) {
-                        const slotIdx = parseInt(candidate.slot.split('_')[1]);
-                        const abilities = basePlayer.abilities.slice();
-                        abilities[slotIdx] = {
-                            hrid: candidate.upgradeHrid,
-                            level: candidate.upgradeLevel,
-                            triggers: null,
-                        };
-                        modifiedDTO = { ...basePlayer, abilities };
-                    } else if (candidate.type === 'cross_slot') {
-                        const equipment = { ...basePlayer.equipment };
-                        for (const slot of candidate.clearedSlots) {
-                            equipment[slot] = null;
-                        }
-                        for (const [slot, item] of Object.entries(candidate.addedSlots)) {
-                            equipment[slot] = item;
-                        }
-                        modifiedDTO = { ...basePlayer, equipment };
-                    } else {
-                        modifiedDTO = {
-                            ...basePlayer,
-                            equipment: {
-                                ...basePlayer.equipment,
-                                [candidate.slot]: {
-                                    hrid: candidate.upgradeHrid,
-                                    enhancementLevel: candidate.upgradeLevel,
-                                },
-                            },
-                        };
-                    }
-
-                    const simResult = await runLabyrinthSimulation({
-                        gameData,
-                        playerDTOs: [modifiedDTO],
-                        zoneHrid,
-                        monsterHrid,
-                        roomLevel,
-                        crates,
-                        hours,
-                        communityBuffs,
-                        labyrinthCombatBuffs,
-                    });
-
-                    if (abortSignal?.()) break;
-
-                    const attempts = simResult.labyAttemptCount || 1;
-                    const encounters = simResult.encounters || 0;
-                    const winRate = encounters / attempts;
-                    const winRateDelta = winRate - baselineWinRate;
-
-                    results.push({
-                        candidate,
-                        costType: 'gold',
-                        cost: candidate.cost,
-                        winRate,
-                        winRateDelta,
-                        goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
-                        metricType: 'winRate',
-                    });
-                    current++;
-                    onProgress?.({ current, total, description: candidate.description });
-                }
-            })
-        );
-
-        // ── Combat buff sims (fanned out across the worker pool) ──
-        let buffCursor = 0;
-        const buffWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combatBuffCandidates.length));
-        await Promise.all(
-            Array.from({ length: buffWorkerCount }, async () => {
-                while (buffCursor < combatBuffCandidates.length && !abortSignal?.()) {
-                    const buffCandidate = combatBuffCandidates[buffCursor++];
-
-                    onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
-
-                    const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
-                    const simResult = await runLabyrinthSimulation({
-                        gameData,
-                        playerDTOs: [playerDTOs[playerIndex]],
-                        zoneHrid,
-                        monsterHrid,
-                        roomLevel,
-                        crates,
-                        hours,
-                        communityBuffs,
-                        labyrinthCombatBuffs: modifiedBuffs,
-                    });
-
-                    if (abortSignal?.()) break;
-
-                    const attempts = simResult.labyAttemptCount || 1;
-                    const encounters = simResult.encounters || 0;
-                    const winRate = encounters / attempts;
-                    const winRateDelta = winRate - baselineWinRate;
-
-                    results.push({
-                        candidate: buffCandidate,
-                        costType: 'token',
-                        tokenCost: buffCandidate.tokenCost,
-                        winRate,
-                        winRateDelta,
-                        metricType: 'winRate',
-                    });
-                    current++;
-                    onProgress?.({ current, total, description: buffCandidate.description });
-                }
-            })
-        );
-
-        // ── Experience buff (flat % increase, no sim needed) ──
-        for (const buffCandidate of experienceBuffCandidates) {
-            const currentBonus = buffCandidate.currentLevel * buffCandidate.step;
-            const newBonus = (buffCandidate.currentLevel + 1) * buffCandidate.step;
-            const xpDeltaPct = ((1 + newBonus) / (1 + currentBonus) - 1) * 100;
-
-            results.push({
-                candidate: buffCandidate,
-                costType: 'token',
-                tokenCost: buffCandidate.tokenCost,
-                xpDeltaPct,
-                metricType: 'experience',
+        const runSim = async (buffs) => {
+            const simResult = await runLabyrinthSimulation({
+                gameData,
+                playerDTOs: [playerDTOs[playerIndex]],
+                zoneHrid,
+                monsterHrid,
+                roomLevel,
+                crates,
+                hours,
+                communityBuffs,
+                labyrinthCombatBuffs: buffs,
             });
+            const attempts = simResult.labyAttemptCount || 1;
+            const encounters = simResult.encounters || 0;
+            const deaths = simResult.deaths?.player1 || 0;
+            const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
+            return { winRate: encounters / attempts, attempts, encounters, deaths, totalDamageDealt };
+        };
+
+        // Candidates: one +1-level buy per not-yet-maxed combat buff.
+        const candidateDefs = combatDefs.filter((def) => {
+            const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
+            return currentLevel < def.maxLevel;
+        });
+        if (!candidateDefs.length) return null;
+
+        // +1 baseline sim, +1 sim per candidate — matches what's actually run below.
+        const total = candidateDefs.length + 1;
+        let current = 0;
+        onProgress?.({ current, total, description: 'Running baseline...' });
+        const baseline = await runSim(labyrinthCombatBuffs);
+        current++;
+        onProgress?.({ current, total, description: 'Baseline complete' });
+
+        let best = null;
+        const allCandidateResults = [];
+        for (const def of candidateDefs) {
+            const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
+            const label = `${def.name} Lv${currentLevel}→${currentLevel + 1}`;
+            onProgress?.({ current, total, description: `Testing: ${label}` });
+
+            const candidateBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, {
+                uniqueKey: def.uniqueKey,
+                typeHrid: def.typeHrid,
+                valueKey: def.valueKey,
+                step: def.step,
+            });
+            const result = await runSim(candidateBuffs);
+            const cost = def.tokenCost * (currentLevel + 1);
+
+            allCandidateResults.push({
+                key: def.key,
+                description: label,
+                cost,
+                winRate: result.winRate,
+                attempts: result.attempts,
+                encounters: result.encounters,
+            });
+
+            if (isLabyrinthResultBetter(result, baseline) && (!best || isLabyrinthResultBetter(result, best.result))) {
+                best = { result, buffs: candidateBuffs, description: label, cost };
+            }
+
             current++;
-            onProgress?.({ current, total, description: buffCandidate.description });
+            onProgress?.({ current, total, description: label });
         }
 
-        // Sort: token results first, then gold; within each group by best delta descending
-        results.sort((a, b) => {
-            if (a.costType !== b.costType) return a.costType === 'token' ? -1 : 1;
-            const aDelta = a.winRateDelta ?? a.clearRateDelta ?? a.xpDeltaPct ?? 0;
-            const bDelta = b.winRateDelta ?? b.clearRateDelta ?? b.xpDeltaPct ?? 0;
-            return bDelta - aDelta;
-        });
+        // When nothing beats baseline, still report baseline itself (with its own description) so the
+        // caller's isLabyrinthResultBetter(optimized, best) check correctly reads "no improvement" —
+        // but allCandidateResults is always populated, since every candidate really was simmed above.
+        const chosen = best ?? {
+            result: baseline,
+            buffs: labyrinthCombatBuffs,
+            description: 'No lab upgrade helps',
+            cost: 0,
+        };
 
         return {
-            baseline: {
-                winRate: baselineWinRate,
-                encounters: baselineEncounters,
-                attempts: baselineAttempts,
-            },
-            results,
+            ...chosen.result,
+            labyrinthCombatBuffs: chosen.buffs,
+            description: chosen.description,
+            cost: chosen.cost,
+            tokenCost: chosen.cost,
+            costType: 'token',
+            baseline: { winRate: baseline.winRate, attempts: baseline.attempts, encounters: baseline.encounters },
+            allCandidateResults,
         };
     }
 
@@ -29007,7 +28887,7 @@
     /**
      * Lab Sim UI
      * Floating panel for configuring and running labyrinth simulations.
-     * Four tabs: Configure (editor + crate selectors), Monsters, Upgrade, Skilling.
+     * Three tabs: Configure (editor + crate selectors), Monsters, Skilling.
      */
 
 
@@ -29044,7 +28924,6 @@
             this._maxLevel = null;
             this._labyFindMaxMode = false;
             this._labyResults = null;
-            this._upgradeAborted = false;
             this._skillingAborted = false;
             this._skillLoadouts = {};
             this._skillLoadoutsLoaded = false;
@@ -29119,12 +28998,9 @@
             tabBar.innerHTML = `
             <button id="mwi-labsim-tab-configure" style="${tabStyle(true)}">Configure</button>
             <button id="mwi-labsim-tab-monsters" style="${tabStyle(false)}">Monsters</button>
-            <button id="mwi-labsim-tab-upgrade" style="${tabStyle(false)}">Upgrade</button>
             <button id="mwi-labsim-tab-skilling" style="${tabStyle(false)}">Skilling</button>
         `;
 
-            const selectStyle =
-                'background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; flex:1; min-width:0;';
             const inputStyle =
                 'width:60px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444; border-radius:4px; padding:3px 6px; font-size:12px; text-align:center;';
 
@@ -29243,6 +29119,7 @@
                 <option value="none">Don't Optimize</option>
                 <option value="abilities">Optimize Abilities</option>
                 <option value="equipment">Optimize Equipment</option>
+                <option value="lab_upgrades">Optimize Lab Upgrades</option>
                 <option value="everything">Optimize Everything (4-pass)</option>
             </select>
             <span id="mwi-labsim-optimize-budget-group" style="display:none; align-items:center; gap:4px;">
@@ -29318,65 +29195,6 @@
             monstersContent.appendChild(monsterFilterSection);
             monstersContent.appendChild(monstersProgress);
             monstersContent.appendChild(monstersResults);
-
-            // ── Upgrade tab ──
-            const upgradeContent = document.createElement('div');
-            upgradeContent.id = 'mwi-labsim-upgrade-content';
-            upgradeContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
-
-            const upgradeControls = document.createElement('div');
-            upgradeControls.style.cssText = `
-            display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-            padding: 10px 14px; border-bottom: 1px solid #222; flex-shrink: 0;
-        `;
-            upgradeControls.innerHTML = `
-            <label style="color:#888; font-size:12px;">Monster</label>
-            <select id="mwi-labsim-upgrade-monster" style="${selectStyle}"></select>
-            <label style="color:#888; font-size:12px;">Player</label>
-            <select id="mwi-labsim-upgrade-player" style="${selectStyle}"></select>
-            <button id="mwi-labsim-upgrade-run" style="
-                margin-left: auto;
-                background: ${ACCENT_BTN_BG};
-                color: ${ACCENT};
-                border: 1px solid ${ACCENT_BTN_BORDER};
-                border-radius: 6px;
-                padding: 5px 14px;
-                font-size: 12px;
-                font-weight: 600;
-                cursor: pointer;
-                font-family: inherit;">Analyze</button>
-            <button id="mwi-labsim-upgrade-stop" style="
-                display:none;
-                background:rgba(244, 67, 54, 0.2);
-                border:1px solid rgba(244, 67, 54, 0.4);
-                color:#f44336;
-                border-radius:4px;
-                padding:5px 10px;
-                font-size:12px;
-                font-weight:600;
-                cursor:pointer;
-                font-family:inherit;">Stop</button>
-        `;
-
-            const upgradeProgress = document.createElement('div');
-            upgradeProgress.id = 'mwi-labsim-upgrade-progress';
-            upgradeProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
-            upgradeProgress.innerHTML = `
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div style="flex:1; background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
-                    <div id="mwi-labsim-upgrade-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
-                    <span id="mwi-labsim-upgrade-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">0 / 0</span>
-                </div>
-            </div>
-        `;
-
-            const upgradeResults = document.createElement('div');
-            upgradeResults.id = 'mwi-labsim-upgrade-results';
-            upgradeResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
-
-            upgradeContent.appendChild(upgradeControls);
-            upgradeContent.appendChild(upgradeProgress);
-            upgradeContent.appendChild(upgradeResults);
 
             // ── Skilling tab ──
             const skillingContent = document.createElement('div');
@@ -29497,7 +29315,6 @@
             this.panel.appendChild(tabBar);
             this.panel.appendChild(configureContent);
             this.panel.appendChild(monstersContent);
-            this.panel.appendChild(upgradeContent);
             this.panel.appendChild(skillingContent);
             this.panel.appendChild(status);
 
@@ -29532,15 +29349,9 @@
             this.panel
                 .querySelector('#mwi-labsim-tab-monsters')
                 .addEventListener('click', () => this._switchTab('monsters'));
-            this.panel.querySelector('#mwi-labsim-tab-upgrade').addEventListener('click', () => this._switchTab('upgrade'));
             this.panel
                 .querySelector('#mwi-labsim-tab-skilling')
                 .addEventListener('click', () => this._switchTab('skilling'));
-
-            // Upgrade listeners
-            this.panel.querySelector('#mwi-labsim-upgrade-monster').addEventListener('change', (e) => {
-                this._onMonsterChange(e.target.value);
-            });
 
             // Monsters listeners
             this.panel.querySelector('#mwi-labsim-run').addEventListener('click', () => this._onSimulate());
@@ -29559,16 +29370,12 @@
             this.panel.querySelector('#mwi-labsim-optimize-mode').addEventListener('change', (e) => {
                 const budgetGroup = this.panel.querySelector('#mwi-labsim-optimize-budget-group');
                 const budgetLabel = this.panel.querySelector('#mwi-labsim-optimize-budget-label');
-                budgetGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
+                budgetGroup.style.display =
+                    e.target.value === 'none' || e.target.value === 'lab_upgrades' ? 'none' : 'inline-flex';
                 budgetLabel.textContent = e.target.value === 'equipment' ? 'Max Cost (M)' : 'Budget (M)';
                 const specializationGroup = this.panel.querySelector('#mwi-labsim-optimize-specialization-group');
-                specializationGroup.style.display = e.target.value === 'none' ? 'none' : 'inline-flex';
-            });
-
-            // Upgrade listeners
-            this.panel.querySelector('#mwi-labsim-upgrade-run').addEventListener('click', () => this._onUpgradeAnalyze());
-            this.panel.querySelector('#mwi-labsim-upgrade-stop').addEventListener('click', () => {
-                this._upgradeAborted = true;
+                specializationGroup.style.display =
+                    e.target.value === 'none' || e.target.value === 'lab_upgrades' ? 'none' : 'inline-flex';
             });
 
             // Skilling listeners
@@ -29585,7 +29392,6 @@
                 this._renderSkillLoadoutTable();
             });
 
-            this._populateMonsters();
             this._populateLoadoutFilter();
             this._populateMonsterFilter();
             this.panel.querySelector('#mwi-labsim-loadout-filter').addEventListener('change', () => {
@@ -29613,21 +29419,6 @@
                 getAbilityDetailMap: () => this._abilityDetailMapForTooltips,
                 getLevelExperienceTable: () => this._levelExperienceTableForTooltips,
             });
-        }
-
-        /** @private */
-        _populateMonsters() {
-            const select = this.panel?.querySelector('#mwi-labsim-upgrade-monster');
-            if (!select) return;
-
-            const monsters = getLabyrinthMonsters();
-            select.innerHTML = '';
-            for (const monster of monsters) {
-                const option = document.createElement('option');
-                option.value = monster.hrid;
-                option.textContent = monster.name;
-                select.appendChild(option);
-            }
         }
 
         /**
@@ -29686,43 +29477,6 @@
             </label>`
                 )
                 .join('');
-        }
-
-        /** @private */
-        _onMonsterChange(monsterHrid) {
-            if (!monsterHrid || !this._editor?.isInitialized()) return;
-            const monsterId = monsterHrid.split('/').pop();
-            const pascal = monsterId
-                .split('_')
-                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join('');
-            const loadoutId = dataManager.characterData?.characterSetting?.[`labyrinthLoadout${pascal}`];
-            if (!loadoutId) return;
-            const snapshot = loadoutSnapshot.snapshots[loadoutId];
-            if (!snapshot?.name) return;
-            this._editor.applyLoadoutByName(snapshot.name);
-        }
-
-        /** @private */
-        _populateUpgradePlayerSelector() {
-            const select = this.panel?.querySelector('#mwi-labsim-upgrade-player');
-            if (!select) return;
-
-            const playerInfo = this._editor?.getPlayerInfo() || [];
-            select.innerHTML = '';
-            playerInfo.forEach((p, i) => {
-                const option = document.createElement('option');
-                option.value = i;
-                option.textContent = p.name || `Player ${i + 1}`;
-                select.appendChild(option);
-            });
-
-            if (playerInfo.length === 0) {
-                const option = document.createElement('option');
-                option.value = 0;
-                option.textContent = 'Player 1';
-                select.appendChild(option);
-            }
         }
 
         /** @private */
@@ -29806,11 +29560,9 @@
             this._activeTab = tab;
             const configureContent = this.panel.querySelector('#mwi-labsim-configure-content');
             const monstersContent = this.panel.querySelector('#mwi-labsim-monsters-content');
-            const upgradeContent = this.panel.querySelector('#mwi-labsim-upgrade-content');
             const skillingContent = this.panel.querySelector('#mwi-labsim-skilling-content');
             const tabConfigure = this.panel.querySelector('#mwi-labsim-tab-configure');
             const tabMonsters = this.panel.querySelector('#mwi-labsim-tab-monsters');
-            const tabUpgrade = this.panel.querySelector('#mwi-labsim-tab-upgrade');
             const tabSkilling = this.panel.querySelector('#mwi-labsim-tab-skilling');
 
             const activeStyle = `flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:${ACCENT_BG}; color:${ACCENT}; border-bottom:2px solid ${ACCENT};`;
@@ -29819,11 +29571,9 @@
 
             configureContent.style.display = 'none';
             monstersContent.style.display = 'none';
-            upgradeContent.style.display = 'none';
             skillingContent.style.display = 'none';
             tabConfigure.style.cssText = inactiveStyle;
             tabMonsters.style.cssText = inactiveStyle;
-            tabUpgrade.style.cssText = inactiveStyle;
             tabSkilling.style.cssText = inactiveStyle;
 
             if (tab === 'configure') {
@@ -29834,10 +29584,6 @@
                 tabMonsters.style.cssText = activeStyle;
                 this._populateLoadoutFilter();
                 this._populateMonsterFilter();
-            } else if (tab === 'upgrade') {
-                upgradeContent.style.display = 'flex';
-                tabUpgrade.style.cssText = activeStyle;
-                this._populateUpgradePlayerSelector();
             } else if (tab === 'skilling') {
                 skillingContent.style.display = 'flex';
                 tabSkilling.style.cssText = activeStyle;
@@ -29970,13 +29716,19 @@
             // independent combo search — a single shared {current, total} would flicker as whichever
             // call last reported overwrote the bar. Instead each concurrent search gets its own slot
             // (via makeOptimizeProgress()) and the bar shows the combined remaining count across
-            // every search still in flight; a slot is dropped once its search completes. The detail
-            // line's description is also kept per-slot (not one shared variable) — a single shared
-            // description looked like it was "going backwards" (e.g. 3/4 then 2/4) whenever a slower
-            // monster's earlier-stage update landed after a faster monster's later-stage one. Showing
-            // every distinct stage currently in flight reflects reality instead.
+            // every search still in flight. The detail line's description is also kept per-slot (not
+            // one shared variable) — a single shared description looked like it was "going backwards"
+            // (e.g. 3/4 then 2/4) whenever a slower monster's earlier-stage update landed after a
+            // faster monster's later-stage one. Showing every distinct stage currently in flight
+            // reflects reality instead.
             const optimizeProgressSlots = new Map();
             let optimizeProgressSeq = 0;
+            // New monsters register their slot (and its total) only once their search actually
+            // starts, so the shared denominator grows mid-run — a fresh slot's total landing before
+            // its current has caught up makes the percentage (and thus the bar) drop even though no
+            // work was undone. Clamp to the highest percent seen this run so the bar only fills
+            // forward; it still reaches 100% once every slot is complete.
+            let optimizeProgressMaxPercent = 0;
             const renderOptimizeProgress = () => {
                 let sumCurrent = 0;
                 let sumTotal = 0;
@@ -29993,7 +29745,8 @@
                     return;
                 }
                 const percent = Math.round((sumCurrent / sumTotal) * 100);
-                progress2Fill.style.width = `${percent}%`;
+                optimizeProgressMaxPercent = Math.max(optimizeProgressMaxPercent, percent);
+                progress2Fill.style.width = `${optimizeProgressMaxPercent}%`;
                 progress2Text.textContent = `${sumTotal - sumCurrent} / ${sumTotal} combos left to check`;
                 progress2Detail.textContent = [...activeDescriptions].join(' · ');
             };
@@ -30001,8 +29754,16 @@
                 const slotId = optimizeProgressSeq++;
                 return ({ current, total, description }) => {
                     if (current == null || !total) return;
+                    // Keep completed slots (current pinned to total) instead of deleting them —
+                    // removing a finished monster's total from the sum shrank the denominator and
+                    // made the bar (and the "X left to check" count) visibly jump backward as each
+                    // monster completed. Completion is often signaled with a throwaway {current: 1,
+                    // total: 1} rather than the slot's real total — pin to whichever total is larger
+                    // so that throwaway value can't shrink a total this slot already reported.
                     if (current >= total) {
-                        optimizeProgressSlots.delete(slotId);
+                        const prevTotal = optimizeProgressSlots.get(slotId)?.total || 0;
+                        const finalTotal = Math.max(total, prevTotal);
+                        optimizeProgressSlots.set(slotId, { current: finalTotal, total: finalTotal, description: null });
                     } else {
                         optimizeProgressSlots.set(slotId, { current, total, description });
                     }
@@ -30114,7 +29875,10 @@
                         makeOptimizeProgress
                     );
 
-                    this._labyResults = { mode: 'sim', results, roomLevel, hours };
+                    const labUpgradesSummary =
+                        optimizeMode === 'lab_upgrades' ? this._aggregateLabUpgradesSummary(results) : null;
+
+                    this._labyResults = { mode: 'sim', results, roomLevel, hours, simStartTime, labUpgradesSummary };
                     await this._displayAllMobsSimResults(results, roomLevel, hours, simStartTime, gameData);
                 }
             } catch (error) {
@@ -30179,6 +29943,7 @@
         _pickOptimizer(optimizeMode) {
             if (optimizeMode === 'abilities') return optimizeLabyrinthAbilities;
             if (optimizeMode === 'everything') return optimizeLabyrinthEverything;
+            if (optimizeMode === 'lab_upgrades') return optimizeLabyrinthLabUpgrades;
             return optimizeLabyrinthEquipment;
         }
 
@@ -30198,6 +29963,60 @@
             const dto = structuredClone(baseDTO);
             applyLoadoutSnapshotToDTO(dto, loadoutName, gameData);
             return { playerDTOs: [dto], loadoutName };
+        }
+
+        /**
+         * Aggregate view for Lab Upgrades mode: combine every filtered monster's baseline, then each
+         * not-yet-maxed combat token upgrade applied account-wide (never per-monster), into one
+         * overall win rate per row — "if I bought this one upgrade, what's my combined success rate
+         * across every monster I'm testing" rather than the per-monster "which upgrade is best for
+         * this specific mob" table already shown below it.
+         *
+         * Reuses the sims optimizeLabyrinthLabUpgrades already ran per monster (each monster tests
+         * every not-yet-maxed candidate in isolation — see its allCandidateResults) instead of
+         * re-simulating every monster again per candidate. A monster whose optimizer never ran
+         * (optimize skipped as already-good-enough, or a mode other than lab_upgrades was mixed in)
+         * falls back to its own baseline sim for every candidate row, since no per-candidate data
+         * exists for it.
+         * @param {Array} results - Rows from _runAllMonstersSim(), each optionally carrying
+         *  labUpgradeBaseline / labUpgradeCandidateResults (see the lab_upgrades branch there).
+         * @returns {Array<{label: string, winRate: number, deltaPct: number|null,
+         *  cost: number|null}>|null} Null if there's no combat buff left to test.
+         * @private
+         */
+        _aggregateLabUpgradesSummary(results) {
+            const candidates = getLabyrinthCombatUpgradeCandidates();
+            if (!candidates.length) return null;
+
+            let baselineEncounters = 0;
+            let baselineAttempts = 0;
+            for (const r of results) {
+                const b = r.labUpgradeBaseline;
+                if (!b) continue;
+                baselineEncounters += b.encounters || 0;
+                baselineAttempts += b.attempts || 0;
+            }
+            const baselineWinRate = baselineAttempts > 0 ? baselineEncounters / baselineAttempts : 0;
+
+            const rows = [{ label: 'Baseline', winRate: baselineWinRate, deltaPct: null, cost: null }];
+            for (const candidate of candidates) {
+                let encounters = 0;
+                let attempts = 0;
+                for (const r of results) {
+                    const candidateResult = r.labUpgradeCandidateResults?.find((c) => c.key === candidate.key);
+                    const fallback = r.labUpgradeBaseline;
+                    const source = candidateResult ?? fallback;
+                    if (!source) continue;
+                    encounters += source.encounters || 0;
+                    attempts += source.attempts || 0;
+                }
+                const winRate = attempts > 0 ? encounters / attempts : 0;
+                const deltaPct =
+                    baselineWinRate === 0 ? (winRate > 0 ? 100 : 0) : ((winRate - baselineWinRate) / baselineWinRate) * 100;
+                rows.push({ label: candidate.description, winRate, deltaPct, cost: candidate.tokenCost });
+            }
+
+            return rows;
         }
 
         /**
@@ -30256,10 +30075,18 @@
                         const winRate = attempts > 0 ? encounters / attempts : 0;
 
                         let best = { winRate, encounters, attempts, deaths, totalDamageDealt, loadoutName };
+                        const preOptimizeWinRate = winRate;
+                        // Fallback for the Lab Upgrades aggregate summary when this monster's optimizer
+                        // never ran (optimize skipped, or a different mode) — its own baseline sim is
+                        // the best data available, so it stands in for every candidate row too.
+                        if (optimizeMode === 'lab_upgrades') {
+                            best.labUpgradeBaseline = { winRate, attempts, encounters };
+                        }
 
                         const shouldOptimize =
                             (optimizeMode === 'abilities' ||
                                 optimizeMode === 'equipment' ||
+                                optimizeMode === 'lab_upgrades' ||
                                 optimizeMode === 'everything') &&
                             winRate < OPTIMIZE_SKIP_WIN_RATE;
                         if (optimizeMode !== 'none' && winRate >= OPTIMIZE_SKIP_WIN_RATE) {
@@ -30308,6 +30135,22 @@
                                               optimized,
                                               true
                                           ),
+                                          // Relative (multiplicative) change, not percentage points — e.g. 3% → 6%
+                                          // win rate is a +100% gain, not +3.
+                                          winRateDeltaPct:
+                                              preOptimizeWinRate === 0
+                                                  ? optimized.winRate > 0
+                                                      ? 100
+                                                      : 0
+                                                  : ((optimized.winRate - preOptimizeWinRate) / preOptimizeWinRate) * 100,
+                                          cost: optimized.tokenCost ?? optimized.cost ?? null,
+                                          costType: optimized.costType === 'token' ? 'token' : 'gold',
+                                          ...(optimizeMode === 'lab_upgrades'
+                                              ? {
+                                                    labUpgradeBaseline: optimized.baseline ?? best.labUpgradeBaseline,
+                                                    labUpgradeCandidateResults: optimized.allCandidateResults,
+                                                }
+                                              : {}),
                                       }
                                     : {
                                           ...best,
@@ -30317,6 +30160,12 @@
                                               optimized,
                                               false
                                           ),
+                                          ...(optimizeMode === 'lab_upgrades'
+                                              ? {
+                                                    labUpgradeBaseline: optimized.baseline ?? best.labUpgradeBaseline,
+                                                    labUpgradeCandidateResults: optimized.allCandidateResults,
+                                                }
+                                              : {}),
                                       };
                             } else {
                                 best = {
@@ -30506,7 +30355,12 @@
 
                         let best;
 
-                        if (optimizeMode === 'abilities' || optimizeMode === 'equipment' || optimizeMode === 'everything') {
+                        if (
+                            optimizeMode === 'abilities' ||
+                            optimizeMode === 'equipment' ||
+                            optimizeMode === 'lab_upgrades' ||
+                            optimizeMode === 'everything'
+                        ) {
                             if (onProgress) onProgress(done, total, `${monster.name} (optimizing ${optimizeMode})`);
                             // Re-run the optimizer at every level the binary search tries, not just
                             // once at the un-optimized max — a loadout optimized for level 100 isn't
@@ -30723,26 +30577,114 @@
             };
         }
 
+        /**
+         * Render the Lab Upgrades aggregate summary table (baseline + one row per combat token
+         * upgrade, each an account-wide combined win rate across every filtered monster) above the
+         * per-monster results table. Returns an empty string when there's nothing to show, so it can
+         * be prepended unconditionally.
+         * @param {Array<{label: string, winRate: number, deltaPct: number|null, cost: number|null}>|null} summary
+         * @returns {string}
+         * @private
+         */
+        _buildLabUpgradesSummaryHtml(summary) {
+            if (!summary?.length) return '';
+
+            const thStyle = 'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333;';
+            const thLeftStyle = 'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333;';
+            const tdStyle = 'padding:3px 4px; text-align:right;';
+
+            let html = `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
+            Lab Upgrades — Combined Win Rate Across Filtered Monsters
+        </div>`;
+            html += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px;">';
+            html += `<thead><tr>
+            <th style="${thLeftStyle}">Upgrade</th>
+            <th style="${thStyle}">Win Rate</th>
+            <th style="${thStyle}" title="Relative change vs. baseline, e.g. 3% → 6% is +100%, not +3.">Δ Win Rate %</th>
+            <th style="${thStyle}">Cost</th>
+            <th style="${thStyle}" title="Relative win-rate % change per token spent.">Δ% / Token</th>
+        </tr></thead><tbody>`;
+
+            for (const row of summary) {
+                const winRatePct = row.winRate * 100;
+                const color = winRatePct >= 95 ? '#4caf50' : winRatePct >= 50 ? '#ff9800' : '#f44336';
+                const deltaColor = row.deltaPct == null ? '#555' : row.deltaPct > 0 ? '#4caf50' : '#888';
+                const perToken = row.deltaPct != null && row.cost > 0 ? row.deltaPct / row.cost : null;
+                html += `<tr style="border-bottom:1px solid #1a1a1a;">
+                <td style="padding:3px 4px; color:#e0e0e0; font-weight:${row.deltaPct == null ? 700 : 400};">${row.label}</td>
+                <td style="${tdStyle} color:${color}; font-weight:600;">${winRatePct.toFixed(2)}%</td>
+                <td style="${tdStyle} color:${deltaColor};">${row.deltaPct == null ? '—' : `${row.deltaPct >= 0 ? '+' : ''}${row.deltaPct.toFixed(2)}%`}</td>
+                <td style="${tdStyle} color:#ccc;">${row.cost != null ? `${formatters_js.formatWithSeparator(row.cost)} tokens` : '—'}</td>
+                <td style="${tdStyle} color:#ccc;">${perToken != null ? perToken.toFixed(4) : '—'}</td>
+            </tr>`;
+            }
+
+            html += '</tbody></table>';
+            return html;
+        }
+
         /** @private */
         async _displayAllMobsSimResults(results, roomLevel, hours, simStartTime, gameData) {
             const container = this.panel?.querySelector('#mwi-labsim-results');
             if (!container) return;
 
             const totalElapsed = formatElapsed((Date.now() - simStartTime) / 1000);
-            const sorted = [...results].sort((a, b) => b.winRate - a.winRate);
+
+            const winRateDeltaPerToken = (r) => {
+                if (r.costType !== 'token' || !(r.cost > 0) || r.winRateDeltaPct == null) return -Infinity;
+                return r.winRateDeltaPct / r.cost;
+            };
+            // Column definitions: `get` extracts the numeric value a click on that header sorts by.
+            // Monster/Loadout aren't sortable columns (no numeric value) so they're left out.
+            const columns = {
+                winRate: { get: (r) => r.winRate, defaultDir: 'desc' },
+                winRateDelta: { get: (r) => r.winRateDeltaPct ?? -Infinity, defaultDir: 'desc' },
+                cost: { get: (r) => (r.cost != null ? r.cost : -Infinity), defaultDir: 'asc' },
+                winRateDeltaPerToken: { get: (r) => winRateDeltaPerToken(r), defaultDir: 'desc' },
+                encounters: { get: (r) => r.encounters, defaultDir: 'desc' },
+                deaths: { get: (r) => r.deaths, defaultDir: 'asc' },
+            };
+            // Sort state persists across re-renders (sim re-runs, tab switches) so a chosen sort
+            // sticks instead of resetting to Win Rate every time.
+            if (!this._monstersSortKey || !columns[this._monstersSortKey]) {
+                this._monstersSortKey = 'winRate';
+                this._monstersSortDir = 'desc';
+            }
+            const sortKey = this._monstersSortKey;
+            const sortDir = this._monstersSortDir;
+            const sorted = [...results].sort((a, b) => {
+                const delta = columns[sortKey].get(a) - columns[sortKey].get(b);
+                return sortDir === 'asc' ? delta : -delta;
+            });
+
             const thStyle = 'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333;';
             const thLeftStyle = 'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333;';
             const tdStyle = 'padding:3px 4px; text-align:right;';
+            const showDeltaColumns = results.some((r) => r.winRateDeltaPct != null);
 
-            let html = `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
+            const sortableTh = (key, label, align = 'right', title = 'Click to sort') => {
+                const style = align === 'right' ? thStyle : thLeftStyle;
+                const active = key === sortKey;
+                const arrow = active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+                return `<th data-sort-key="${key}" style="${style} cursor:pointer; user-select:none; ${active ? `color:${ACCENT};` : ''}" title="${title}">${label}${arrow}</th>`;
+            };
+
+            let html = this._buildLabUpgradesSummaryHtml(this._labyResults?.labUpgradesSummary);
+
+            html += `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">
             All Labyrinth Mobs — Level ${roomLevel} (${hours}h)
         </div>`;
             html += '<table style="width:100%; border-collapse:collapse; font-size:12px;">';
             html += `<thead><tr>
             <th style="${thLeftStyle}">Monster</th>
-            <th style="${thStyle}">Win Rate</th>
-            <th style="${thStyle}">Encounters</th>
-            <th style="${thStyle}">Deaths</th>
+            ${sortableTh('winRate', 'Win Rate')}
+            ${
+                showDeltaColumns
+                    ? `${sortableTh('winRateDelta', 'Δ Win Rate %', 'right', 'Relative change in win rate, e.g. 3% → 6% is +100%, not +3. Click to sort.')}${sortableTh('cost', 'Cost')}${sortableTh('winRateDeltaPerToken', 'Δ% / Token', 'right', 'Relative win-rate % change per token spent. Click to sort.')}`
+                    : ''
+            }
+            ${sortableTh('encounters', 'Encounters')}
+            ${sortableTh('deaths', 'Deaths')}
             <th style="${thLeftStyle}">Loadout</th>
         </tr></thead><tbody>`;
 
@@ -30750,9 +30692,21 @@
             for (const r of sorted) {
                 const winRatePct = r.winRate * 100;
                 const color = winRatePct >= 95 ? '#4caf50' : winRatePct >= 50 ? '#ff9800' : '#f44336';
+                let deltaCells = '';
+                if (showDeltaColumns) {
+                    const hasDelta = r.winRateDeltaPct != null;
+                    const deltaColor = !hasDelta ? '#555' : r.winRateDeltaPct > 0 ? '#4caf50' : '#888';
+                    const perToken = winRateDeltaPerToken(r);
+                    deltaCells = `
+                    <td style="${tdStyle} color:${deltaColor};">${hasDelta ? `${r.winRateDeltaPct >= 0 ? '+' : ''}${r.winRateDeltaPct.toFixed(2)}%` : '—'}</td>
+                    <td style="${tdStyle} color:#ccc;">${r.cost != null ? `${formatters_js.formatWithSeparator(r.cost)}${r.costType === 'token' ? ' tokens' : ''}` : '—'}</td>
+                    <td style="${tdStyle} color:#ccc;">${perToken > -Infinity ? perToken.toFixed(4) : '—'}</td>
+                `;
+                }
                 html += `<tr style="border-bottom:1px solid #1a1a1a;">
                 <td style="padding:3px 4px; color:#e0e0e0;">${r.monsterName}</td>
                 <td style="${tdStyle} color:${color}; font-weight:600;">${winRatePct.toFixed(2)}%</td>
+                ${deltaCells}
                 <td style="${tdStyle} color:#ccc;">${formatters_js.formatWithSeparator(r.encounters)}</td>
                 <td style="${tdStyle} color:${r.deaths > 0 ? '#f44336' : '#4caf50'};">${formatters_js.formatWithSeparator(r.deaths)}</td>
                 <td style="padding:3px 4px; color:#888; font-size:11px; max-width:360px; white-space:normal; word-break:break-word; line-height:1.5;">${formatCell(r.loadoutName)}</td>
@@ -30761,6 +30715,19 @@
 
             html += `</tbody></table><div style="color:#555; font-size:10px; margin-top:6px;">Completed in ${totalElapsed}</div>`;
             container.innerHTML = html;
+
+            container.querySelectorAll('th[data-sort-key]').forEach((th) => {
+                th.addEventListener('click', () => {
+                    const key = th.dataset.sortKey;
+                    if (this._monstersSortKey === key) {
+                        this._monstersSortDir = this._monstersSortDir === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this._monstersSortKey = key;
+                        this._monstersSortDir = columns[key].defaultDir;
+                    }
+                    this._displayAllMobsSimResults(results, roomLevel, hours, simStartTime, gameData);
+                });
+            });
 
             this._setStatus(`Simulated ${results.length} labyrinth mobs at level ${roomLevel}.`);
         }
@@ -30805,274 +30772,6 @@
             container.innerHTML = html;
 
             this._setStatus(`Found max levels for ${results.length} labyrinth mobs.`);
-        }
-
-        /** @private */
-        async _onUpgradeAnalyze() {
-            const playerIndex = parseInt(this.panel.querySelector('#mwi-labsim-upgrade-player')?.value) || 0;
-            const roomLevel = parseInt(this.panel.querySelector('#mwi-labsim-level')?.value) || 100;
-            const monsterHrid = this.panel.querySelector('#mwi-labsim-upgrade-monster')?.value;
-            const hours = Math.min(
-                10000,
-                Math.max(1, parseInt(this.panel.querySelector('#mwi-labsim-hours')?.value) || 10)
-            );
-
-            if (!monsterHrid) {
-                this._setStatus('Select a monster in the Upgrade tab first.');
-                return;
-            }
-
-            const crates = this.getSelectedCrates();
-
-            const gameData = buildGameDataPayload();
-            if (!gameData) {
-                this._setStatus('No game data available.');
-                return;
-            }
-
-            let playerDTOs;
-            const editedDTOs = this._editor?.getEditedDTOs();
-            if (editedDTOs) {
-                playerDTOs = Object.values(editedDTOs);
-            } else {
-                const result = await buildAllPlayerDTOs();
-                playerDTOs = result.players;
-            }
-
-            if (!playerDTOs?.length || !playerDTOs[playerIndex]) {
-                this._setStatus('No player data available.');
-                return;
-            }
-
-            const communityBuffs = getCommunityBuffs();
-            const labyrinthCombatBuffs = labyrinthClearRate.getLabyrinthCombatBuffs();
-
-            const progressEl = this.panel.querySelector('#mwi-labsim-upgrade-progress');
-            const resultsEl = this.panel.querySelector('#mwi-labsim-upgrade-results');
-            const runBtn = this.panel.querySelector('#mwi-labsim-upgrade-run');
-            const stopBtn = this.panel.querySelector('#mwi-labsim-upgrade-stop');
-            progressEl.style.display = 'block';
-            resultsEl.innerHTML = '';
-            runBtn.style.display = 'none';
-            stopBtn.style.display = 'inline-block';
-            this._upgradeAborted = false;
-
-            try {
-                const analysisResult = await runLabyrinthUpgradeAnalysis(
-                    {
-                        playerDTOs,
-                        playerIndex,
-                        monsterHrid,
-                        roomLevel,
-                        crates,
-                        hours,
-                        communityBuffs,
-                        labyrinthCombatBuffs,
-                        upgradeMode: 'equipment',
-                    },
-                    ({ current, total, description }) => {
-                        if (this._upgradeAborted) return;
-                        const fill = this.panel.querySelector('#mwi-labsim-upgrade-progress-fill');
-                        const text = this.panel.querySelector('#mwi-labsim-upgrade-progress-text');
-                        if (fill) fill.style.width = `${Math.round((current / total) * 100)}%`;
-                        if (text) text.textContent = `${current} / ${total}: ${description}`;
-                    },
-                    { abortSignal: () => this._upgradeAborted }
-                );
-
-                this._renderUpgradeResults(analysisResult, resultsEl);
-            } catch (error) {
-                if (error.message !== 'Cancelled' && error.message !== 'Aborted') {
-                    console.error('[LabSimUI] Upgrade analysis failed:', error);
-                    this._setStatus('Upgrade analysis failed: ' + error.message);
-                }
-            } finally {
-                progressEl.style.display = 'none';
-                runBtn.style.display = '';
-                stopBtn.style.display = 'none';
-            }
-        }
-
-        /** @private */
-        _renderUpgradeResults(analysisResult, container) {
-            const results = analysisResult?.results;
-            if (!results || !results.length) {
-                container.innerHTML =
-                    '<div style="color:#888; font-size:12px; padding:20px 0; text-align:center;">No upgrade candidates found.</div>';
-                this._setStatus('No upgrade candidates found.');
-                return;
-            }
-
-            const tokenResults = results.filter((r) => r.costType === 'token');
-            const goldResults = results.filter((r) => r.costType === 'gold');
-            const thStyle =
-                'text-align:right; padding:4px; color:#888; border-bottom:1px solid #333; cursor:pointer; user-select:none;';
-            const thLeftStyle =
-                'text-align:left; padding:4px; color:#888; border-bottom:1px solid #333; cursor:pointer; user-select:none;';
-            const tdStyle = 'padding:3px 4px; text-align:right;';
-
-            // Pre-compute row data for sorting
-            const tokenRows = tokenResults.map((r) => {
-                let rateVal, deltaVal, rateStr;
-
-                if (r.metricType === 'clearRate') {
-                    rateVal = (r.clearRate || 0) * 100;
-                    deltaVal = (r.clearRateDelta || 0) * 100;
-                    rateStr = rateVal.toFixed(1) + '%';
-                } else if (r.metricType === 'experience') {
-                    rateVal = 0;
-                    deltaVal = r.xpDeltaPct || 0;
-                    rateStr = 'XP';
-                } else {
-                    rateVal = (r.winRate || 0) * 100;
-                    deltaVal = (r.winRateDelta || 0) * 100;
-                    rateStr = rateVal.toFixed(2) + '%';
-                }
-
-                const deltaColor = deltaVal > 0 ? '#4caf50' : deltaVal < 0 ? '#f44336' : '#888';
-                const deltaStr = (deltaVal >= 0 ? '+' : '') + deltaVal.toFixed(2) + '%';
-
-                const tokenCost = r.tokenCost || 0;
-                const tokensPerPct = deltaVal > 0 ? Math.round(tokenCost / deltaVal) : Infinity;
-                const tokensPerPctStr = deltaVal > 0 ? formatters_js.formatWithSeparator(tokensPerPct) : '\u2014';
-
-                return {
-                    desc: r.candidate?.description || '',
-                    tokenCost,
-                    rateVal,
-                    rateStr,
-                    deltaVal,
-                    deltaStr,
-                    deltaColor,
-                    tokensPerPct,
-                    tokensPerPctStr,
-                };
-            });
-
-            const goldRows = goldResults.map((r) => {
-                const delta = (r.winRateDelta || 0) * 100;
-                const deltaColor = delta > 0 ? '#4caf50' : delta < 0 ? '#f44336' : '#888';
-                const cost = r.cost || 0;
-                const winRate = (r.winRate || 0) * 100;
-                const goldPerPct = delta > 0 && cost ? Math.round(cost / delta) : Infinity;
-
-                return {
-                    desc: r.candidate?.description || '',
-                    cost,
-                    costStr: cost ? formatters_js.formatWithSeparator(cost) : '\u2014',
-                    winRate,
-                    winRateStr: winRate.toFixed(2) + '%',
-                    deltaVal: delta,
-                    deltaStr: (delta >= 0 ? '+' : '') + delta.toFixed(2) + '%',
-                    deltaColor,
-                    goldPerPct,
-                    goldPerPctStr: delta > 0 && cost ? formatters_js.formatWithSeparator(goldPerPct) : '\u2014',
-                };
-            });
-
-            // Sort state
-            const sortState = { token: { key: 'tokensPerPct', dir: 'asc' }, gold: { key: 'goldPerPct', dir: 'asc' } };
-
-            const sortRows = (rows, key, dir) => {
-                rows.sort((a, b) => {
-                    const av = a[key],
-                        bv = b[key];
-                    if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
-                    return dir === 'asc' ? av - bv : bv - av;
-                });
-            };
-
-            const arrow = (dir) => (dir === 'asc' ? ' \u25B2' : ' \u25BC');
-
-            const renderTokenTable = () => {
-                const s = sortState.token;
-                const th = (label, key, align) => {
-                    const style = align === 'left' ? thLeftStyle : thStyle;
-                    const ind = s.key === key ? arrow(s.dir) : '';
-                    return `<th data-sort-key="${key}" data-table="token" style="${style}">${label}${ind}</th>`;
-                };
-
-                let html = `<div style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:4px;">Token Upgrades</div>`;
-                html += '<table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:12px;">';
-                html += `<thead><tr>
-                ${th('Upgrade', 'desc', 'left')}
-                ${th('Tokens', 'tokenCost', 'right')}
-                ${th('Rate', 'rateVal', 'right')}
-                ${th('Delta', 'deltaVal', 'right')}
-                ${th('Tokens/1%', 'tokensPerPct', 'right')}
-            </tr></thead><tbody>`;
-
-                for (const row of tokenRows) {
-                    html += `<tr style="border-bottom:1px solid #1a1a1a;">
-                    <td style="padding:3px 4px; color:#e0e0e0;">${row.desc}</td>
-                    <td style="${tdStyle} color:#ccc;">${row.tokenCost || '\u2014'}</td>
-                    <td style="${tdStyle} color:#ccc;">${row.rateStr}</td>
-                    <td style="${tdStyle} color:${row.deltaColor}; font-weight:600;">${row.deltaStr}</td>
-                    <td style="${tdStyle} color:#888;">${row.tokensPerPctStr}</td>
-                </tr>`;
-                }
-                html += '</tbody></table>';
-                return html;
-            };
-
-            const renderGoldTable = () => {
-                const s = sortState.gold;
-                const th = (label, key, align) => {
-                    const style = align === 'left' ? thLeftStyle : thStyle;
-                    const ind = s.key === key ? arrow(s.dir) : '';
-                    return `<th data-sort-key="${key}" data-table="gold" style="${style}">${label}${ind}</th>`;
-                };
-
-                let html = `<div style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:4px;">Gold Upgrades</div>`;
-                html += '<table style="width:100%; border-collapse:collapse; font-size:11px;">';
-                html += `<thead><tr>
-                ${th('Upgrade', 'desc', 'left')}
-                ${th('Cost', 'cost', 'right')}
-                ${th('Win Rate', 'winRate', 'right')}
-                ${th('Delta', 'deltaVal', 'right')}
-                ${th('Gold/1%', 'goldPerPct', 'right')}
-            </tr></thead><tbody>`;
-
-                for (const row of goldRows) {
-                    html += `<tr style="border-bottom:1px solid #1a1a1a;">
-                    <td style="padding:3px 4px; color:#e0e0e0;">${row.desc}</td>
-                    <td style="${tdStyle} color:#ccc;">${row.costStr}</td>
-                    <td style="${tdStyle} color:#ccc;">${row.winRateStr}</td>
-                    <td style="${tdStyle} color:${row.deltaColor}; font-weight:600;">${row.deltaStr}</td>
-                    <td style="${tdStyle} color:#888;">${row.goldPerPctStr}</td>
-                </tr>`;
-                }
-                html += '</tbody></table>';
-                return html;
-            };
-
-            const renderAll = () => {
-                sortRows(tokenRows, sortState.token.key, sortState.token.dir);
-                sortRows(goldRows, sortState.gold.key, sortState.gold.dir);
-                let html = '';
-                if (tokenResults.length > 0) html += renderTokenTable();
-                if (goldResults.length > 0) html += renderGoldTable();
-                container.innerHTML = html;
-            };
-
-            renderAll();
-
-            container.addEventListener('click', (e) => {
-                const th = e.target.closest('th[data-sort-key]');
-                if (!th) return;
-                const table = th.dataset.table;
-                const key = th.dataset.sortKey;
-                const state = sortState[table];
-                if (state.key === key) {
-                    state.dir = state.dir === 'desc' ? 'asc' : 'desc';
-                } else {
-                    state.key = key;
-                    state.dir = key === 'desc' ? 'asc' : 'desc';
-                }
-                renderAll();
-            });
-
-            this._setStatus(`${results.length} upgrade candidates analyzed.`);
         }
 
         /** @private */
@@ -31581,7 +31280,6 @@
             this.panel.style.display = visible ? 'none' : 'flex';
             if (!visible) {
                 bringPanelToFront(this.panel);
-                this._populateMonsters();
                 if (!this._editor.isInitialized()) {
                     this._editor.initEditor();
                 }
