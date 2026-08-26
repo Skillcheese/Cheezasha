@@ -1,7 +1,7 @@
 /**
  * Cheezasha Combat Library
  * Combat, abilities, and combat stats features
- * Version: 3.17.2
+ * Version: 3.17.3
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -17951,12 +17951,6 @@
                   : [null];
 
         let best = null;
-        // Each weapon variant runs its own independent combo search with its own {current, total}
-        // scale. Reporting those straight through reset the aggregate progress to 0 every time a new
-        // variant began, undoing the previous variant's progress. Rescale each variant's fraction
-        // into its 1/weaponRuns.length slice of one cumulative current/total pair instead.
-        const weaponRunsTotal = weaponRuns.length;
-        let variantIndex = 0;
         for (const variant of weaponRuns) {
             const elementLabel = variant ? ELEMENTAL_DAMAGE_TYPE_LABELS[variant.damageType] : null;
             const runPlayerDTOs = playerDTOs.slice();
@@ -17990,23 +17984,9 @@
                     poolSize,
                     specialization,
                 },
-                (p) => {
-                    const description = elementLabel ? `[${elementLabel}] ${p?.description || ''}` : p?.description;
-                    if (p?.current == null || !p?.total) {
-                        onProgress?.({ description });
-                        return;
-                    }
-                    onProgress?.({
-                        current: variantIndex + p.current / p.total,
-                        total: weaponRunsTotal,
-                        description,
-                    });
-                }
+                (p) => onProgress?.(elementLabel ? { ...p, description: `[${elementLabel}] ${p?.description || ''}` } : p)
             );
-            if (!candidates.length) {
-                variantIndex++;
-                continue;
-            }
+            if (!candidates.length) continue;
 
             let cursor = 0;
             let comboDone = 0;
@@ -18019,8 +17999,8 @@
                         const candidate = candidates[cursor++];
                         const label = elementLabel ? `[${elementLabel}] ${candidate.description}` : candidate.description;
                         onProgress?.({
-                            current: variantIndex + comboDone / comboTotal,
-                            total: weaponRunsTotal,
+                            current: comboDone,
+                            total: comboTotal,
                             description: `Testing combo: ${label}`,
                         });
 
@@ -18063,16 +18043,11 @@
                             };
                         }
                         comboDone++;
-                        onProgress?.({
-                            current: variantIndex + comboDone / comboTotal,
-                            total: weaponRunsTotal,
-                            description: label,
-                        });
+                        onProgress?.({ current: comboDone, total: comboTotal, description: label });
                     }
                 })
             );
             if (runBest && (!best || isLabyrinthResultBetter(runBest, best))) best = runBest;
-            variantIndex++;
         }
 
         return best;
@@ -30002,12 +29977,6 @@
             // every distinct stage currently in flight reflects reality instead.
             const optimizeProgressSlots = new Map();
             let optimizeProgressSeq = 0;
-            // New monsters register their slot (and its total) only once their search actually
-            // starts, so the shared denominator grows mid-run — a fresh slot's total landing before
-            // its current has caught up makes the percentage (and thus the bar) drop even though no
-            // work was undone. Clamp to the highest percent seen this run so the bar only fills
-            // forward; it still reaches 100% once every slot is complete.
-            let optimizeProgressMaxPercent = 0;
             const renderOptimizeProgress = () => {
                 let sumCurrent = 0;
                 let sumTotal = 0;
@@ -30024,27 +29993,16 @@
                     return;
                 }
                 const percent = Math.round((sumCurrent / sumTotal) * 100);
-                optimizeProgressMaxPercent = Math.max(optimizeProgressMaxPercent, percent);
-                progress2Fill.style.width = `${optimizeProgressMaxPercent}%`;
-                // sumCurrent/sumTotal can be fractional (multi-stage/multi-variant slots report a
-                // rescaled fraction of their stage), so round for display.
-                progress2Text.textContent = `${Math.round(sumTotal - sumCurrent)} / ${Math.round(sumTotal)} combos left to check`;
+                progress2Fill.style.width = `${percent}%`;
+                progress2Text.textContent = `${sumTotal - sumCurrent} / ${sumTotal} combos left to check`;
                 progress2Detail.textContent = [...activeDescriptions].join(' · ');
             };
             const makeOptimizeProgress = () => {
                 const slotId = optimizeProgressSeq++;
                 return ({ current, total, description }) => {
                     if (current == null || !total) return;
-                    // Keep completed slots (current pinned to total) instead of deleting them —
-                    // removing a finished monster's total from the sum shrank the denominator and
-                    // made the bar visibly jump backward as each monster completed. Some callers
-                    // signal completion with a throwaway {current: 1, total: 1} rather than the
-                    // slot's real total — pin to whichever total is larger so that throwaway value
-                    // can't shrink a total this slot already reported.
                     if (current >= total) {
-                        const prevTotal = optimizeProgressSlots.get(slotId)?.total || 0;
-                        const finalTotal = Math.max(total, prevTotal);
-                        optimizeProgressSlots.set(slotId, { current: finalTotal, total: finalTotal, description: null });
+                        optimizeProgressSlots.delete(slotId);
                     } else {
                         optimizeProgressSlots.set(slotId, { current, total, description });
                     }
@@ -30059,9 +30017,11 @@
             // call finishing and the next progress update landing.
             const findMaxProgressSlots = new Map();
             let findMaxProgressSeq = 0;
-            // Same rationale as optimizeProgressMaxPercent above — a newly-started monster's slot
-            // adds to the denominator before its numerator catches up, so clamp to the highest
-            // percent seen this run rather than letting the bar visibly drop.
+            // New monsters register their slot (and its total) only once their search actually
+            // starts, so the shared denominator grows mid-run — a fresh slot's total landing before
+            // its current has caught up makes the percentage (and thus the bar) drop even though no
+            // work was undone. Clamp to the highest percent seen this run so the bar only fills
+            // forward; it still reaches 100% once every slot is complete.
             let findMaxProgressMaxPercent = 0;
             const renderFindMaxProgress = () => {
                 let sumCurrent = 0;

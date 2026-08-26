@@ -1,7 +1,7 @@
 /**
  * Cheezasha Utils Library
  * All utility modules
- * Version: 3.17.2
+ * Version: 3.17.3
  * License: CC-BY-NC-SA-4.0
  */
 
