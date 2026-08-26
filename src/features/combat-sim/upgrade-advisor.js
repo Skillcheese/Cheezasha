@@ -3048,30 +3048,35 @@ const LABYRINTH_SKILLS = [
 ];
 
 /**
- * Generate labyrinth buff upgrade candidates from characterInfo.
- * @returns {Array} Buff candidates with type 'labyrinth_buff'
+ * List the not-yet-maxed Labyrinth combat token upgrades (Combat Damage, Attack Speed, Cast
+ * Speed, Critical Rate), each as a standalone +1-level candidate — the same shape
+ * optimizeLabyrinthLabUpgrades tests, exposed separately so callers can run their own sims
+ * against the resulting buff sets (e.g. an aggregate summary across many monsters).
+ * @returns {Array<{key: string, name: string, description: string, currentLevel: number,
+ *  maxLevel: number, tokenCost: number, uniqueKey: string, typeHrid: string, valueKey: string,
+ *  step: number}>}
  */
-export function generateLabyrinthBuffCandidates() {
+export function getLabyrinthCombatUpgradeCandidates() {
     const info = dataManager.characterData?.characterInfo;
     if (!info) return [];
 
     const candidates = [];
     for (const def of LABYRINTH_BUFF_DEFS) {
+        if (def.category !== 'combat') continue;
         const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
         if (currentLevel >= def.maxLevel) continue;
 
         candidates.push({
-            type: 'labyrinth_buff',
-            category: def.category,
-            buffKey: def.key,
+            key: def.key,
+            name: def.name,
+            description: `${def.name} Lv${currentLevel}→${currentLevel + 1}`,
             currentLevel,
-            step: def.step,
+            maxLevel: def.maxLevel,
             tokenCost: def.tokenCost * (currentLevel + 1),
-            description: `${def.name} Lv${currentLevel}\u2192${currentLevel + 1}`,
             uniqueKey: def.uniqueKey,
             typeHrid: def.typeHrid,
             valueKey: def.valueKey,
-            metric: def.metric,
+            step: def.step,
         });
     }
     return candidates;
@@ -3083,7 +3088,7 @@ export function generateLabyrinthBuffCandidates() {
  * @param {Object} candidate - Buff candidate with uniqueKey/typeHrid/valueKey/step
  * @returns {Array} Modified buffs array
  */
-function buildModifiedCombatBuffs(baseBuffs, candidate) {
+export function buildModifiedCombatBuffs(baseBuffs, candidate) {
     const uniqueHrid = `/buff_uniques/labyrinth_upgrade_${candidate.uniqueKey}`;
     const modified = JSON.parse(JSON.stringify(baseBuffs));
 
@@ -3108,257 +3113,132 @@ function buildModifiedCombatBuffs(baseBuffs, candidate) {
 }
 
 /**
- * Run labyrinth upgrade analysis: baseline sim + equipment sims + buff sims.
- * Ranks upgrades by win rate / clear rate delta, grouped by cost type (token vs gold).
- * @param {Object} params
- * @param {Array} params.playerDTOs - Player DTOs (only first used — labyrinth is solo)
- * @param {number} params.playerIndex - Index of the player to analyze
- * @param {string} params.monsterHrid - Labyrinth monster HRID
- * @param {number} params.roomLevel - Room level to test at
- * @param {string[]} params.crates - Crate item HRIDs
- * @param {number} params.hours - Hours to simulate per candidate
- * @param {Object} params.communityBuffs - Community buffs
- * @param {Array} [params.labyrinthCombatBuffs] - Combat buffs from labyrinth upgrades
- * @param {string} params.upgradeMode - 'equipment', 'ability_level', or 'ability_swap'
- * @param {number} [params.abilityTargetLevel] - Target ability level
- * @param {Function} onProgress - Called with { current, total, description }
- * @param {Object} [options] - { abortSignal: () => boolean }
- * @returns {Promise<Object>} { baseline, results: [{candidate, costType, ...}] }
+ * Test buying a single extra level of each not-yet-maxed Labyrinth combat token upgrade (Combat
+ * Damage, Attack Speed, Cast Speed, Critical Rate) for a single monster/room level, in isolation
+ * — never combined — and reports whichever one improves the result the most (see
+ * isLabyrinthResultBetter). This answers "which upgrade should I buy first", not "what's the
+ * best full spend" — each candidate is a standalone +1 level, one sim per candidate plus one
+ * baseline sim, so the caller can see the marginal value of every upgrade type side by side.
+ * @param {Object} params - { playerDTOs, playerIndex, gameData, monsterHrid, roomLevel, crates,
+ *  hours, communityBuffs, labyrinthCombatBuffs } — no budget: every not-yet-maxed combat buff is
+ *  tested and each result reports its own token cost, so the caller can rank by cost/value.
+ * @param {Function} [onProgress] - Called with { current, total, description }
+ * @returns {Promise<{winRate: number, attempts: number, encounters: number, deaths: number,
+ *  labyrinthCombatBuffs: Array, description: string, cost: number, tokenCost: number,
+ *  costType: 'token', baseline: {winRate: number, attempts: number, encounters: number},
+ *  allCandidateResults: Array<{key: string, description: string, cost: number, winRate: number,
+ *  attempts: number, encounters: number}>}|null>} Null only when there's no combat buff left to
+ *  test at all — otherwise every tested candidate's own sim result is included (not just the
+ *  winner) so a caller aggregating across many monsters can reuse these sims instead of
+ *  re-running them.
  */
-export async function runLabyrinthUpgradeAnalysis(params, onProgress, options = {}) {
+export async function optimizeLabyrinthLabUpgrades(params, onProgress) {
     const {
         playerDTOs,
         playerIndex,
+        gameData,
         monsterHrid,
         roomLevel,
         crates,
         hours,
         communityBuffs,
         labyrinthCombatBuffs = [],
-        upgradeMode,
-        abilityLevelType,
-        abilityTargetLevel,
-        skipBackSlot,
     } = params;
-    const { abortSignal } = options;
-    const gameData = buildGameDataPayload();
-    if (!gameData) throw new Error('No game data available');
-
-    const playerDTO = playerDTOs[playerIndex];
 
     const zoneHrid =
         Object.keys(gameData.actionDetailMap).find((k) => k.includes('/actions/combat/')) || '/actions/combat/fly';
 
-    // Generate equipment candidates
-    const candidates = generateCandidates(
-        playerDTO,
-        gameData,
-        upgradeMode,
-        abilityTargetLevel,
-        abilityLevelType,
-        skipBackSlot
-    );
-    const candidatesWithCost = candidates.map((c) => ({
-        ...c,
-        cost: calculateUpgradeCost(c, gameData),
-    }));
+    const info = dataManager.characterData?.characterInfo;
+    if (!info) return null;
 
-    // Generate buff candidates (skilling buffs handled in skilling tab)
-    const buffCandidates = generateLabyrinthBuffCandidates();
-    const combatBuffCandidates = buffCandidates.filter((c) => c.category === 'combat');
-    const experienceBuffCandidates = buffCandidates.filter((c) => c.category === 'experience');
+    const combatDefs = LABYRINTH_BUFF_DEFS.filter((d) => d.category === 'combat');
 
-    const total = candidatesWithCost.length + combatBuffCandidates.length + experienceBuffCandidates.length + 1;
-    let current = 0;
-
-    // Run baseline labyrinth sim
-    onProgress?.({ current: 0, total, description: 'Running baseline...' });
-    const baselineResult = await runLabyrinthSimulation({
-        gameData,
-        playerDTOs: [playerDTOs[playerIndex]],
-        zoneHrid,
-        monsterHrid,
-        roomLevel,
-        crates,
-        hours,
-        communityBuffs,
-        labyrinthCombatBuffs,
-    });
-    current++;
-
-    if (abortSignal?.()) return { baseline: null, results: [] };
-
-    const baselineAttempts = baselineResult.labyAttemptCount || 1;
-    const baselineEncounters = baselineResult.encounters || 0;
-    const baselineWinRate = baselineEncounters / baselineAttempts;
-
-    onProgress?.({ current, total, description: `Baseline: ${(baselineWinRate * 100).toFixed(1)}%` });
-
-    const results = [];
-
-    // ── Equipment / ability sims (fanned out across the worker pool) ──
-    let candidateCursor = 0;
-    const candidateWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), candidatesWithCost.length));
-    await Promise.all(
-        Array.from({ length: candidateWorkerCount }, async () => {
-            while (candidateCursor < candidatesWithCost.length && !abortSignal?.()) {
-                const candidate = candidatesWithCost[candidateCursor++];
-
-                onProgress?.({ current, total, description: `Simulating: ${candidate.description}` });
-
-                // Shallow-clone only the container this candidate touches (abilities array or
-                // equipment map) instead of deep-cloning the whole player DTO — each candidate
-                // still gets its own independent objects, safe for concurrent execution.
-                const basePlayer = playerDTOs[playerIndex];
-                let modifiedDTO;
-
-                if (candidate.reorderSlots) {
-                    const abilities = basePlayer.abilities.slice();
-                    candidate.reorderSlots.forEach((slotIdx, i) => {
-                        abilities[slotIdx] = candidate.reorderAbilities[i];
-                    });
-                    modifiedDTO = { ...basePlayer, abilities };
-                } else if (candidate.slot.startsWith('ability_')) {
-                    const slotIdx = parseInt(candidate.slot.split('_')[1]);
-                    const abilities = basePlayer.abilities.slice();
-                    abilities[slotIdx] = {
-                        hrid: candidate.upgradeHrid,
-                        level: candidate.upgradeLevel,
-                        triggers: null,
-                    };
-                    modifiedDTO = { ...basePlayer, abilities };
-                } else if (candidate.type === 'cross_slot') {
-                    const equipment = { ...basePlayer.equipment };
-                    for (const slot of candidate.clearedSlots) {
-                        equipment[slot] = null;
-                    }
-                    for (const [slot, item] of Object.entries(candidate.addedSlots)) {
-                        equipment[slot] = item;
-                    }
-                    modifiedDTO = { ...basePlayer, equipment };
-                } else {
-                    modifiedDTO = {
-                        ...basePlayer,
-                        equipment: {
-                            ...basePlayer.equipment,
-                            [candidate.slot]: {
-                                hrid: candidate.upgradeHrid,
-                                enhancementLevel: candidate.upgradeLevel,
-                            },
-                        },
-                    };
-                }
-
-                const simResult = await runLabyrinthSimulation({
-                    gameData,
-                    playerDTOs: [modifiedDTO],
-                    zoneHrid,
-                    monsterHrid,
-                    roomLevel,
-                    crates,
-                    hours,
-                    communityBuffs,
-                    labyrinthCombatBuffs,
-                });
-
-                if (abortSignal?.()) break;
-
-                const attempts = simResult.labyAttemptCount || 1;
-                const encounters = simResult.encounters || 0;
-                const winRate = encounters / attempts;
-                const winRateDelta = winRate - baselineWinRate;
-
-                results.push({
-                    candidate,
-                    costType: 'gold',
-                    cost: candidate.cost,
-                    winRate,
-                    winRateDelta,
-                    goldPerWinRate: winRateDelta > 0 ? candidate.cost / (winRateDelta * 100) : Infinity,
-                    metricType: 'winRate',
-                });
-                current++;
-                onProgress?.({ current, total, description: candidate.description });
-            }
-        })
-    );
-
-    // ── Combat buff sims (fanned out across the worker pool) ──
-    let buffCursor = 0;
-    const buffWorkerCount = Math.max(1, Math.min(getMaxBatchWorkers(), combatBuffCandidates.length));
-    await Promise.all(
-        Array.from({ length: buffWorkerCount }, async () => {
-            while (buffCursor < combatBuffCandidates.length && !abortSignal?.()) {
-                const buffCandidate = combatBuffCandidates[buffCursor++];
-
-                onProgress?.({ current, total, description: `Simulating: ${buffCandidate.description}` });
-
-                const modifiedBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, buffCandidate);
-                const simResult = await runLabyrinthSimulation({
-                    gameData,
-                    playerDTOs: [playerDTOs[playerIndex]],
-                    zoneHrid,
-                    monsterHrid,
-                    roomLevel,
-                    crates,
-                    hours,
-                    communityBuffs,
-                    labyrinthCombatBuffs: modifiedBuffs,
-                });
-
-                if (abortSignal?.()) break;
-
-                const attempts = simResult.labyAttemptCount || 1;
-                const encounters = simResult.encounters || 0;
-                const winRate = encounters / attempts;
-                const winRateDelta = winRate - baselineWinRate;
-
-                results.push({
-                    candidate: buffCandidate,
-                    costType: 'token',
-                    tokenCost: buffCandidate.tokenCost,
-                    winRate,
-                    winRateDelta,
-                    metricType: 'winRate',
-                });
-                current++;
-                onProgress?.({ current, total, description: buffCandidate.description });
-            }
-        })
-    );
-
-    // ── Experience buff (flat % increase, no sim needed) ──
-    for (const buffCandidate of experienceBuffCandidates) {
-        const currentBonus = buffCandidate.currentLevel * buffCandidate.step;
-        const newBonus = (buffCandidate.currentLevel + 1) * buffCandidate.step;
-        const xpDeltaPct = ((1 + newBonus) / (1 + currentBonus) - 1) * 100;
-
-        results.push({
-            candidate: buffCandidate,
-            costType: 'token',
-            tokenCost: buffCandidate.tokenCost,
-            xpDeltaPct,
-            metricType: 'experience',
+    const runSim = async (buffs) => {
+        const simResult = await runLabyrinthSimulation({
+            gameData,
+            playerDTOs: [playerDTOs[playerIndex]],
+            zoneHrid,
+            monsterHrid,
+            roomLevel,
+            crates,
+            hours,
+            communityBuffs,
+            labyrinthCombatBuffs: buffs,
         });
+        const attempts = simResult.labyAttemptCount || 1;
+        const encounters = simResult.encounters || 0;
+        const deaths = simResult.deaths?.player1 || 0;
+        const totalDamageDealt = simResult.totalDamageDealt?.player1 || 0;
+        return { winRate: encounters / attempts, attempts, encounters, deaths, totalDamageDealt };
+    };
+
+    // Candidates: one +1-level buy per not-yet-maxed combat buff.
+    const candidateDefs = combatDefs.filter((def) => {
+        const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
+        return currentLevel < def.maxLevel;
+    });
+    if (!candidateDefs.length) return null;
+
+    // +1 baseline sim, +1 sim per candidate — matches what's actually run below.
+    const total = candidateDefs.length + 1;
+    let current = 0;
+    onProgress?.({ current, total, description: 'Running baseline...' });
+    const baseline = await runSim(labyrinthCombatBuffs);
+    current++;
+    onProgress?.({ current, total, description: 'Baseline complete' });
+
+    let best = null;
+    const allCandidateResults = [];
+    for (const def of candidateDefs) {
+        const currentLevel = Math.max(0, Math.floor(Number(info[def.key]) || 0));
+        const label = `${def.name} Lv${currentLevel}→${currentLevel + 1}`;
+        onProgress?.({ current, total, description: `Testing: ${label}` });
+
+        const candidateBuffs = buildModifiedCombatBuffs(labyrinthCombatBuffs, {
+            uniqueKey: def.uniqueKey,
+            typeHrid: def.typeHrid,
+            valueKey: def.valueKey,
+            step: def.step,
+        });
+        const result = await runSim(candidateBuffs);
+        const cost = def.tokenCost * (currentLevel + 1);
+
+        allCandidateResults.push({
+            key: def.key,
+            description: label,
+            cost,
+            winRate: result.winRate,
+            attempts: result.attempts,
+            encounters: result.encounters,
+        });
+
+        if (isLabyrinthResultBetter(result, baseline) && (!best || isLabyrinthResultBetter(result, best.result))) {
+            best = { result, buffs: candidateBuffs, description: label, cost };
+        }
+
         current++;
-        onProgress?.({ current, total, description: buffCandidate.description });
+        onProgress?.({ current, total, description: label });
     }
 
-    // Sort: token results first, then gold; within each group by best delta descending
-    results.sort((a, b) => {
-        if (a.costType !== b.costType) return a.costType === 'token' ? -1 : 1;
-        const aDelta = a.winRateDelta ?? a.clearRateDelta ?? a.xpDeltaPct ?? 0;
-        const bDelta = b.winRateDelta ?? b.clearRateDelta ?? b.xpDeltaPct ?? 0;
-        return bDelta - aDelta;
-    });
+    // When nothing beats baseline, still report baseline itself (with its own description) so the
+    // caller's isLabyrinthResultBetter(optimized, best) check correctly reads "no improvement" —
+    // but allCandidateResults is always populated, since every candidate really was simmed above.
+    const chosen = best ?? {
+        result: baseline,
+        buffs: labyrinthCombatBuffs,
+        description: 'No lab upgrade helps',
+        cost: 0,
+    };
 
     return {
-        baseline: {
-            winRate: baselineWinRate,
-            encounters: baselineEncounters,
-            attempts: baselineAttempts,
-        },
-        results,
+        ...chosen.result,
+        labyrinthCombatBuffs: chosen.buffs,
+        description: chosen.description,
+        cost: chosen.cost,
+        tokenCost: chosen.cost,
+        costType: 'token',
+        baseline: { winRate: baseline.winRate, attempts: baseline.attempts, encounters: baseline.encounters },
+        allCandidateResults,
     };
 }
 
@@ -3768,8 +3648,6 @@ export default {
     generateCandidates,
     calculateUpgradeCost,
     runUpgradeAnalysis,
-    runLabyrinthUpgradeAnalysis,
-    generateLabyrinthBuffCandidates,
     getEquipmentTierProgression,
     computeSkillingClearRatesFromEditor,
     generateSkillingEquipmentCandidates,
