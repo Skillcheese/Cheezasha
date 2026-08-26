@@ -136,7 +136,7 @@ if (isCombatSimulatorPage()) {
     const cheezashaRoot = targetWindow.Cheezasha || {};
     targetWindow.Cheezasha = cheezashaRoot;
 
-    cheezashaRoot.version = '3.17.2';
+    cheezashaRoot.version = '3.17.3';
 
     cheezashaRoot.features = {
         list: () => config.getFeaturesByCategory(),
