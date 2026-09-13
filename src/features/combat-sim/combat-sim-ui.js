@@ -4702,6 +4702,22 @@ class CombatSimUI {
     }
 
     /**
+     * Whether a build should be included under the given style filter — shared between the
+     * checklist display and the actual run, so a stale-checked build from before a style switch
+     * can never sneak into the simulation just because it's still ticked.
+     * @param {Object} dto - Build's player DTO
+     * @param {Object} gameData - Game data from buildGameDataPayload()
+     * @param {string} styleFilter - 'all'|'melee'|'ranged'|'magic'
+     * @returns {boolean}
+     * @private
+     */
+    _buildMatchesStyleFilter(dto, gameData, styleFilter) {
+        if (styleFilter === 'all') return true;
+        const style = dto ? this._classifyDtoStyle(dto, gameData) : 'all';
+        return style === 'all' || style === styleFilter;
+    }
+
+    /**
      * Expand every combat zone into one entry per difficulty tier — the Progression tab always
      * scans every zone (a zone's viability doesn't depend on combat style; only which saved
      * Builds are offered does), unlike the checklist-driven All Zones tab.
@@ -4788,8 +4804,7 @@ class CombatSimUI {
         const rows = [];
         for (const build of builds) {
             const dto = simBuilds.get(build.name);
-            const style = dto ? this._classifyDtoStyle(dto, gameData) : 'all';
-            if (styleFilter !== 'all' && style !== 'all' && style !== styleFilter) continue;
+            if (!this._buildMatchesStyleFilter(dto, gameData, styleFilter)) continue;
 
             // A build defaults to checked the first time it's ever shown (e.g. right after
             // saving it, or the first time a style filter reveals it) — otherwise switching the
@@ -4840,18 +4855,13 @@ class CombatSimUI {
             return;
         }
 
-        const selectedBuildNames = Array.from(this._progressionSelectedBuilds);
-        if (selectedBuildNames.length === 0) {
-            this._setStatus(
-                'No builds checked — simulating current gear only for the whole time budget. Check a build below to plan a gear climb.'
-            );
-        }
         const targetHours = Math.max(1, parseFloat(this.panel?.querySelector('#mwi-csim-prog-hours')?.value) || 1000);
         const brewGoldPerHr = Math.max(0, parseFloat(this.panel?.querySelector('#mwi-csim-prog-brewgph')?.value) || 0);
         const objectiveWeight = Math.min(
             1,
             Math.max(0, (parseFloat(this.panel?.querySelector('#mwi-csim-prog-weight')?.value) || 0) / 100)
         );
+        const styleFilter = this.panel?.querySelector('#mwi-csim-prog-style')?.value || 'all';
 
         const gameData = buildGameDataPayload();
         if (!gameData) {
@@ -4859,14 +4869,23 @@ class CombatSimUI {
             return;
         }
 
-        const builds = selectedBuildNames
+        // Re-check against the current style filter here too, not just at display time — a
+        // build checked before switching styles must never sneak into the run just because its
+        // (now-hidden) checkbox is still ticked.
+        const builds = Array.from(this._progressionSelectedBuilds)
             .map((name) => {
                 const dto = simBuilds.get(name);
-                if (!dto) return null;
+                if (!dto || !this._buildMatchesStyleFilter(dto, gameData, styleFilter)) return null;
                 dto.hrid = 'player1';
                 return { name, dto };
             })
             .filter(Boolean);
+
+        if (builds.length === 0) {
+            this._setStatus(
+                'No builds checked (matching the current style filter) — simulating current gear only for the whole time budget.'
+            );
+        }
 
         const runDto = structuredClone(currentDTO);
         runDto.hrid = 'player1';
