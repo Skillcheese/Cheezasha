@@ -126,6 +126,10 @@ class CombatSimUI {
         this._progressionSelectedBuilds = new Set();
         this._progressionSeenBuilds = new Set(); // builds ever shown — new ones default to checked
         this._progressionLastResult = null;
+        // Caches raw per-zone sim results by exact DTO+zones+hours content, so re-running the
+        // analysis (e.g. after only nudging the hours/objective slider) skips re-simulating any
+        // build whose gear/abilities/consumables/skills haven't actually changed.
+        this._progressionZoneCache = new Map();
     }
 
     /**
@@ -933,6 +937,15 @@ class CombatSimUI {
                 font-weight:600;
                 cursor:pointer;
                 font-family:inherit;">Stop</button>
+            <button id="mwi-csim-prog-clear-cache" title="Force every checked build to be re-simulated on the next run, instead of reusing cached rates" style="
+                background:transparent;
+                border:1px solid #555;
+                color:#888;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:11px;
+                cursor:pointer;
+                font-family:inherit;">Clear Cache</button>
         `;
 
         const progWeightRow = document.createElement('div');
@@ -1099,6 +1112,10 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-prog-stop').addEventListener('click', () => {
             this._progressionAborted = true;
             cancelAllZonesSimulation();
+        });
+        this.panel.querySelector('#mwi-csim-prog-clear-cache').addEventListener('click', () => {
+            this._progressionZoneCache.clear();
+            this._setStatus('Progression zone cache cleared — next run will re-simulate everything.');
         });
         this.panel.querySelector('#mwi-csim-prog-style').addEventListener('change', () => {
             this._populateProgressionBuilds();
@@ -4904,10 +4921,16 @@ class CombatSimUI {
 
         try {
             const stages = await runProgressionZoneSearch(
-                { currentDTO: runDto, builds, zones, gameData, options: { hours: 0.5, objectiveWeight } },
-                (percent, label) => {
+                {
+                    currentDTO: runDto,
+                    builds,
+                    zones,
+                    gameData,
+                    options: { hours: 0.5, objectiveWeight, cache: this._progressionZoneCache },
+                },
+                (percent, label, cached) => {
                     if (progressFill) progressFill.style.width = `${percent}%`;
-                    if (progressText) progressText.textContent = `${percent}% (${label})`;
+                    if (progressText) progressText.textContent = `${percent}% (${label}${cached ? ' — cached' : ''})`;
                 }
             );
 
@@ -5016,8 +5039,9 @@ class CombatSimUI {
                 const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
                 const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
                 const costLabel = stage.cost > 0 ? `, cost from prior stage: ${formatKMB(Math.round(stage.cost))}` : '';
+                const cacheLabel = stage.bestZone?.cached ? ' (cached)' : '';
                 stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
-                stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}</span>`;
+                stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}${cacheLabel}</span>`;
                 stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp${costLabel}</span>`;
                 stageHtml += `</div>`;
             }

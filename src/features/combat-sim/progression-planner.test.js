@@ -28,8 +28,13 @@ vi.mock('./combat-sim-adapter.js', () => ({
     calculateSimRevenue: (...args) => mockCalculateSimRevenue(...args),
 }));
 
-const { buildStagesFromResults, findBestZoneForDTO, getRequiredLevelsForEquipment, runProgressionZoneSearch } =
-    await import('./progression-planner.js');
+const {
+    buildStagesFromResults,
+    findBestZoneForDTO,
+    getRequiredLevelsForEquipment,
+    runProgressionZoneSearch,
+    simulateDtoAcrossZones,
+} = await import('./progression-planner.js');
 
 describe('buildStagesFromResults', () => {
     it('always puts current gear first regardless of price, with zero cost', () => {
@@ -272,6 +277,78 @@ describe('findBestZoneForDTO', () => {
     it('returns null when there are no zones', async () => {
         const best = await findBestZoneForDTO({ hrid: 'player1' }, [], {}, {});
         expect(best).toBeNull();
+    });
+
+    describe('caching', () => {
+        it('reuses a cached result for the same DTO/zones/hours instead of re-simulating', async () => {
+            mockRunAllZonesSimulation.mockClear();
+            mockZoneResults([
+                { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
+            ]);
+            const cache = new Map();
+            const dto = { hrid: 'player1' };
+
+            const first = await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1, cache, hours: 1 });
+            const second = await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1, cache, hours: 1 });
+
+            expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(1);
+            expect(first.cached).toBeFalsy();
+            expect(second.cached).toBe(true);
+            expect(second.xpPerHr).toBe(first.xpPerHr);
+        });
+
+        it('re-simulates when the DTO content changes (e.g. different gear)', async () => {
+            mockRunAllZonesSimulation.mockClear();
+            mockZoneResults([
+                { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
+            ]);
+            const cache = new Map();
+
+            await findBestZoneForDTO({ hrid: 'player1', gear: 'A' }, [zones[0]], {}, { objectiveWeight: 1, cache });
+            await findBestZoneForDTO({ hrid: 'player1', gear: 'B' }, [zones[0]], {}, { objectiveWeight: 1, cache });
+
+            expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(2);
+        });
+
+        it('does not use the cache at all when none is provided', async () => {
+            mockRunAllZonesSimulation.mockClear();
+            mockZoneResults([
+                { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
+            ]);
+            const dto = { hrid: 'player1' };
+
+            await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1 });
+            await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1 });
+
+            expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(2);
+        });
+    });
+});
+
+describe('simulateDtoAcrossZones', () => {
+    it('returns raw unranked per-zone candidates', async () => {
+        mockRunAllZonesSimulation.mockClear();
+        mockRunAllZonesSimulation.mockResolvedValue([
+            { _testIdx: 0, simulatedTime: 3600 * 1e9, experienceGained: { player1: { attack: 10_000 } } },
+            { _testIdx: 1, simulatedTime: 3600 * 1e9, experienceGained: { player1: { attack: 5_000 } } },
+        ]);
+        mockCalculateSimRevenue.mockImplementation((simResult) => ({
+            netPerHour: [500_000, 900_000][simResult._testIdx],
+        }));
+        const zones = [
+            { zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' },
+            { zoneHrid: '/zone/b', difficultyTier: 0, name: 'Zone B' },
+        ];
+
+        const candidates = await simulateDtoAcrossZones({ hrid: 'player1' }, zones, {}, {});
+
+        expect(candidates).toHaveLength(2);
+        expect(candidates[0].goldPerHr).toBe(500_000);
+        expect(candidates[1].goldPerHr).toBe(900_000);
+    });
+
+    it('returns an empty array when there are no zones', async () => {
+        expect(await simulateDtoAcrossZones({ hrid: 'player1' }, [], {}, {})).toEqual([]);
     });
 });
 

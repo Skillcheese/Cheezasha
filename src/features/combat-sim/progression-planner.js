@@ -93,24 +93,37 @@ export function getRequiredLevelsForEquipment(equipment, gameData) {
 }
 
 /**
- * Simulate a single DTO across every given zone and return its best zone, ranked by the same
- * gold/XP objective slider optimizeProgression uses: at each zone, gold/hr and total XP/hr are
- * min-max normalized against every OTHER zone tried for this same DTO, then blended by
- * `objectiveWeight` (0 = pick the best gold/hr zone, 1 = pick the best XP/hr zone). Runs inside
- * the userscript only (spins up real combat-sim Web Workers).
+ * Stable cache key for a DTO's simulated rates: covers everything that can change what the sim
+ * actually produces (gear, abilities, consumables, skills, zones scanned, sim duration) but
+ * deliberately excludes `objectiveWeight`, which only affects how an already-simulated set of
+ * zones gets ranked, not the simulation itself.
+ * @param {Object} dto
+ * @param {Array<{zoneHrid: string, difficultyTier: number}>} zones
+ * @param {number} hours
+ * @param {Object} communityBuffs
+ * @returns {string}
+ */
+function buildZoneCacheKey(dto, zones, hours, communityBuffs) {
+    return JSON.stringify({ dto, zones: zones.map((z) => [z.zoneHrid, z.difficultyTier]), hours, communityBuffs });
+}
+
+/**
+ * Simulate a single DTO across every given zone and return the raw per-zone results (goldPerHr,
+ * xpPerHr, xpPerHrBySkill) — unranked. Runs inside the userscript only (spins up real combat-sim
+ * Web Workers). Split out from `findBestZoneForDTO` so the (expensive) simulation step can be
+ * cached independently of the (cheap) objective-weight ranking step.
  * @param {Object} dto - Player DTO to test (equipment/abilities/consumables/skills)
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} zones
  * @param {Object} gameData - Game data from buildGameDataPayload()
  * @param {Object} [options]
  * @param {number} [options.hours=1] - Simulated hours per zone (short — this is a scan, not a final result)
  * @param {Object} [options.communityBuffs] - { mooPass, comExp, comDrop }
- * @param {number} [options.objectiveWeight=1] - 0 = rank zones by gold/hr, 1 = rank by total XP/hr, in between blends both
  * @param {Function} [onProgress] - Called with (percent: 0-100)
- * @returns {Promise<{zoneHrid: string, difficultyTier: number, name: string, goldPerHr: number, xpPerHr: number, xpPerHrBySkill: Object<string, number>}|null>}
+ * @returns {Promise<Array<{zoneHrid: string, difficultyTier: number, name: string, goldPerHr: number, xpPerHr: number, xpPerHrBySkill: Object<string, number>}>>}
  */
-export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onProgress) {
-    const { hours = 1, communityBuffs = {}, objectiveWeight = 1 } = options;
-    if (!zones?.length) return null;
+export async function simulateDtoAcrossZones(dto, zones, gameData, options = {}, onProgress) {
+    const { hours = 1, communityBuffs = {} } = options;
+    if (!zones?.length) return [];
 
     const playerHrid = dto.hrid || 'player1';
     const simZones = zones.map((z) => ({ zoneHrid: z.zoneHrid, difficultyTier: z.difficultyTier }));
@@ -146,6 +159,43 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
         candidates.push({ ...zones[i], goldPerHr, xpPerHr, xpPerHrBySkill });
     }
 
+    return candidates;
+}
+
+/**
+ * Simulate a single DTO across every given zone (or reuse a cached result — see `options.cache`)
+ * and return its best zone, ranked by the same gold/XP objective slider optimizeProgression uses:
+ * at each zone, gold/hr and total XP/hr are min-max normalized against every OTHER zone tried for
+ * this same DTO, then blended by `objectiveWeight` (0 = pick the best gold/hr zone, 1 = pick the
+ * best XP/hr zone). Runs inside the userscript only (spins up real combat-sim Web Workers).
+ * @param {Object} dto - Player DTO to test (equipment/abilities/consumables/skills)
+ * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} zones
+ * @param {Object} gameData - Game data from buildGameDataPayload()
+ * @param {Object} [options]
+ * @param {number} [options.hours=1] - Simulated hours per zone (short — this is a scan, not a final result)
+ * @param {Object} [options.communityBuffs] - { mooPass, comExp, comDrop }
+ * @param {number} [options.objectiveWeight=1] - 0 = rank zones by gold/hr, 1 = rank by total XP/hr, in between blends both
+ * @param {Map<string, Array>} [options.cache] - Optional cache of raw per-zone sim results, keyed
+ *   by DTO content + zones + hours + communityBuffs. Reused as long as none of those change —
+ *   independent of `objectiveWeight`, which only affects ranking below, not what gets cached.
+ * @param {Function} [onProgress] - Called with (percent: 0-100)
+ * @returns {Promise<{zoneHrid: string, difficultyTier: number, name: string, goldPerHr: number, xpPerHr: number, xpPerHrBySkill: Object<string, number>, cached: boolean}|null>}
+ */
+export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onProgress) {
+    const { hours = 1, communityBuffs = {}, objectiveWeight = 1, cache } = options;
+    if (!zones?.length) return null;
+
+    const cacheKey = cache ? buildZoneCacheKey(dto, zones, hours, communityBuffs) : null;
+    let candidates;
+    let cached = false;
+    if (cache && cache.has(cacheKey)) {
+        candidates = cache.get(cacheKey);
+        cached = true;
+    } else {
+        candidates = await simulateDtoAcrossZones(dto, zones, gameData, options, onProgress);
+        if (cache) cache.set(cacheKey, candidates);
+    }
+
     if (candidates.length === 0) return null;
 
     const golds = candidates.map((c) => c.goldPerHr);
@@ -164,7 +214,7 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
         if (!best || score > best.score) best = { ...candidate, score };
     }
 
-    return best;
+    return best ? { ...best, cached } : null;
 }
 
 /**
@@ -187,7 +237,9 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} params.zones - Zones to scan
  * @param {Object} params.gameData - Game data from buildGameDataPayload()
  * @param {Object} [params.options] - Passed through to findBestZoneForDTO (hours, communityBuffs, objectiveWeight)
- * @param {Function} [onProgress] - Called with (percent: 0-100, label: string) as each build's scan completes
+ * @param {Function} [onProgress] - Called with (percent: 0-100, label: string, cached: boolean|undefined)
+ *   as each build's scan completes — `cached` is true when a matching `options.cache` entry was
+ *   reused instead of running a fresh simulation
  * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object|null}>>}
  */
 export async function runProgressionZoneSearch({ currentDTO, builds, zones, gameData, options = {} }, onProgress) {
@@ -204,6 +256,7 @@ export async function runProgressionZoneSearch({ currentDTO, builds, zones, game
     for (let i = 0; i < builds.length; i++) {
         const entry = builds[i];
         const bestZone = await findBestZoneForDTO(entry.dto, zones, gameData, options);
+        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name, bestZone?.cached);
         buildResults.push({
             name: entry.name,
             equipment: entry.dto.equipment,
@@ -212,7 +265,6 @@ export async function runProgressionZoneSearch({ currentDTO, builds, zones, game
             requiredLevels: getRequiredLevelsForEquipment(entry.dto.equipment, gameData),
             bestZone,
         });
-        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name);
     }
 
     return buildStagesFromResults({ currentStage, builds: buildResults });
