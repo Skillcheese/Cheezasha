@@ -17,6 +17,9 @@
 import { runAllZonesSimulation } from './all-zones-runner.js';
 import { calculateSimRevenue } from './combat-sim-adapter.js';
 import { calculateGearUpgradeCost, estimateEquipmentPrice } from './gear-price.js';
+import { COMBAT_SKILLS } from './level-target-core.js';
+
+const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key}`));
 
 /**
  * Turn a set of already-simulated gear stages into the ordered, incrementally-priced stage
@@ -61,8 +64,13 @@ export function buildStagesFromResults({ currentStage, builds }) {
 }
 
 /**
- * Extract the highest level requirement per skill across every equipped item in a loadout, from
- * live game data (item level requirements aren't known statically).
+ * Extract the highest COMBAT-skill level requirement per skill across every equipped item in a
+ * loadout, from live game data (item level requirements aren't known statically).
+ *
+ * Non-combat requirements (a pouch/back item gated behind an artisan skill, a "total level"
+ * milestone gate, etc.) are deliberately ignored here — this planner only tracks combat XP, so
+ * a gate on, say, Alchemy would otherwise show as permanently unmeetable ("you don't have the
+ * level") even though it has nothing to do with combat progression.
  * @param {Object} equipment - dto.equipment: { [equipmentTypeHrid]: { hrid, enhancementLevel } }
  * @param {Object} gameData - Game data from buildGameDataPayload()
  * @returns {Array<{skillHrid: string, level: number}>}
@@ -75,6 +83,7 @@ export function getRequiredLevelsForEquipment(equipment, gameData) {
         if (!item?.hrid) continue;
         const requirements = itemDetailMap[item.hrid]?.equipmentDetail?.levelRequirements || [];
         for (const req of requirements) {
+            if (!COMBAT_SKILL_HRIDS.has(req.skillHrid)) continue;
             const current = maxBySkill.get(req.skillHrid) || 0;
             if (req.level > current) maxBySkill.set(req.skillHrid, req.level);
         }

@@ -157,6 +157,15 @@ describe('getRequiredLevelsForEquipment', () => {
                 },
             },
             '/items/no_requirement_item': { equipmentDetail: { levelRequirements: [] } },
+            '/items/utility_pouch': {
+                equipmentDetail: {
+                    levelRequirements: [
+                        { skillHrid: '/skills/alchemy', level: 80 },
+                        { skillHrid: '/skills/total_level', level: 1250 },
+                        { skillHrid: '/skills/magic', level: 95 }, // still counted — it's a combat skill
+                    ],
+                },
+            },
         },
     };
 
@@ -181,6 +190,15 @@ describe('getRequiredLevelsForEquipment', () => {
     it('returns an empty array for gear with no requirements', () => {
         const equipment = { '/equipment_types/main_hand': { hrid: '/items/no_requirement_item', enhancementLevel: 0 } };
         expect(getRequiredLevelsForEquipment(equipment, gameData)).toEqual([]);
+    });
+
+    it('ignores non-combat skill requirements (artisan skills, total level) entirely', () => {
+        const equipment = { '/equipment_types/pouch': { hrid: '/items/utility_pouch', enhancementLevel: 0 } };
+
+        const result = getRequiredLevelsForEquipment(equipment, gameData);
+
+        // Only the magic requirement survives — alchemy and total_level are dropped.
+        expect(result).toEqual([{ skillHrid: '/skills/magic', level: 95 }]);
     });
 
     it('handles empty equipment and missing item data gracefully', () => {
