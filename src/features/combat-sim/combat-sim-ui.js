@@ -4929,7 +4929,7 @@ class CombatSimUI {
             });
 
             this._progressionLastResult = { stages, result, startingSkillXp };
-            this._displayProgressionResults(result, startingSkillXp, stages.length <= 1, stages);
+            this._displayProgressionResults(result, startingSkillXp, stages.length <= 1, stages, startingGold);
             this._setStatus('Progression analysis complete.');
         } catch (error) {
             console.error('[CombatSimUI] Progression analysis failed:', error);
@@ -4949,9 +4949,10 @@ class CombatSimUI {
      * @param {Object<string, number>} startingSkillXp
      * @param {boolean} [noBuildsSelected] - True when only "Current Gear" was simulated
      * @param {Array<Object>} [stages] - The stages the run was built from (for zone lookups)
+     * @param {number} [startingGold=0] - Real banked gold the plan started from
      * @private
      */
-    _displayProgressionResults(result, startingSkillXp, noBuildsSelected, stages = []) {
+    _displayProgressionResults(result, startingSkillXp, noBuildsSelected, stages = [], startingGold = 0) {
         const container = this.panel?.querySelector('#mwi-csim-prog-results');
         if (!container) return;
 
@@ -5008,13 +5009,14 @@ class CombatSimUI {
         // so an unexpectedly high number can be checked directly against that zone in Configure.
         if (stages.length > 0) {
             let stageHtml = `<div style="margin-bottom:10px; font-size:11px;">`;
-            stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only)</div>`;
+            stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only) — starting gold: ${formatKMB(Math.round(startingGold))}</div>`;
             for (const stage of stages) {
                 const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
                 const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
+                const costLabel = stage.cost > 0 ? `, cost from prior stage: ${formatKMB(Math.round(stage.cost))}` : '';
                 stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
                 stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}</span>`;
-                stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp</span>`;
+                stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp${costLabel}</span>`;
                 stageHtml += `</div>`;
             }
             stageHtml += `</div>`;
