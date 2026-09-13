@@ -4725,10 +4725,13 @@ class CombatSimUI {
      * @private
      */
     _getCurrentSkillXp() {
+        const combatSkillHrids = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key}`));
         const skills = dataManager.getSkills() || [];
         const result = {};
         for (const skill of skills) {
-            if (skill?.skillHrid) result[skill.skillHrid] = skill.experience || 0;
+            if (skill?.skillHrid && combatSkillHrids.has(skill.skillHrid)) {
+                result[skill.skillHrid] = skill.experience || 0;
+            }
         }
         return result;
     }
