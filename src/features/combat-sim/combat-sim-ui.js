@@ -4961,6 +4961,8 @@ class CombatSimUI {
             return;
         }
 
+        const skillLabel = (hrid) => hrid.split('/').pop();
+
         let warningHtml = '';
         if (noBuildsSelected) {
             warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
@@ -4970,13 +4972,26 @@ class CombatSimUI {
             // No candidate ever left the zero-activity placeholder — none of the checked builds
             // are level-eligible at your real current levels, and pre-brewing can never fix
             // that (money can't buy a combat level). Say so plainly instead of showing a
-            // "recommended" strategy that quietly makes zero progress for the whole budget.
+            // "recommended" strategy that quietly makes zero progress for the whole budget, and
+            // show exactly which skill/level check is failing for each build so it's checkable
+            // against what the character actually has equipped/leveled.
+            let reqDetails = '';
+            for (const stage of stages) {
+                if (stage.name === 'Current Gear' || !stage.requiredLevels?.length) continue;
+                const reqLines = stage.requiredLevels
+                    .map((req) => {
+                        const currentLevel = getLevelForXp(startingSkillXp[req.skillHrid] || 0);
+                        const met = currentLevel >= req.level;
+                        return `<span style="color:${met ? '#8c8' : '#f66'};">${skillLabel(req.skillHrid)} ${currentLevel}/${req.level}${met ? ' ✓' : ''}</span>`;
+                    })
+                    .join(', ');
+                reqDetails += `<div style="margin-top:4px;">${stage.name}: ${reqLines}</div>`;
+            }
             warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
                 None of the checked builds are level-eligible at your current character's real levels, so no combat can happen at all in this plan (current gear is never simulated). Level up through your normal play first, or check a lower-requirement build, then re-run.
+                ${reqDetails}
             </div>`;
         }
-
-        const skillLabel = (hrid) => hrid.split('/').pop();
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
             const stage = stageByName.get(stageName);
