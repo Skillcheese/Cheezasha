@@ -12,6 +12,9 @@ import {
 } from './combat-sim-adapter.js';
 import loadoutSnapshot from '../combat/loadout-snapshot.js';
 import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
+import simBuilds from './sim-builds.js';
+import { resolveItemPrice } from '../../utils/profit-helpers.js';
+import { formatKMB } from '../../utils/formatters.js';
 
 const ACCENT = '#4a9eff';
 const ACCENT_BG = 'rgba(74, 158, 255, 0.12)';
@@ -40,6 +43,9 @@ export class SimEditor {
         this._missingMembers = [];
         this._editorInitialized = false;
         this._selectedLoadoutName = '';
+        this._selectedBuildName = '';
+        this._buildSaveAsOpen = false;
+        this._buildRenameOpen = false;
     }
 
     getEditedDTOs() {
@@ -60,6 +66,9 @@ export class SimEditor {
     getSelectedLoadoutName() {
         return this._selectedLoadoutName;
     }
+    getSelectedBuildName() {
+        return this._selectedBuildName;
+    }
 
     /**
      * Apply a named loadout to the active player DTO and re-render.
@@ -68,7 +77,24 @@ export class SimEditor {
     applyLoadoutByName(loadoutName) {
         if (!loadoutName || !this._editedDTOs) return;
         this._selectedLoadoutName = loadoutName;
+        this._selectedBuildName = '';
         this._applyLoadoutToDTO(loadoutName);
+        this.renderEditor();
+    }
+
+    /**
+     * Apply a saved fictional build to the active player DTO and re-render.
+     * @param {string} buildName - Build name
+     */
+    applyBuildByName(buildName) {
+        if (!buildName || !this._editedDTOs) return;
+        const activePlayer = this._activeEditPlayer;
+        const dto = simBuilds.get(buildName);
+        if (!dto || !activePlayer) return;
+        dto.hrid = activePlayer;
+        this._selectedBuildName = buildName;
+        this._selectedLoadoutName = '';
+        this._editedDTOs[activePlayer] = dto;
         this.renderEditor();
     }
 
@@ -80,6 +106,7 @@ export class SimEditor {
         if (!editorArea) return;
 
         try {
+            await simBuilds.initialize();
             const { players, playerInfo, selfHrid, missingMembers } = await buildAllPlayerDTOs();
             if (!players.length) {
                 editorArea.innerHTML =
@@ -123,6 +150,9 @@ export class SimEditor {
         this._activeEditPlayer = 'player1';
         this._missingMembers = [];
         this._editorInitialized = true;
+        // openWithExternalDTO can be the first-ever render (e.g. opened from a profile card
+        // before the panel's normal initEditor() flow runs), so builds may not be loaded yet.
+        simBuilds.initialize().then(() => this.renderEditor());
         this.renderEditor();
     }
 
@@ -158,6 +188,7 @@ export class SimEditor {
         this._missingMembers = [];
         this._editorInitialized = true;
         this._selectedLoadoutName = '';
+        this._selectedBuildName = '';
 
         this.renderEditor();
     }
@@ -173,6 +204,7 @@ export class SimEditor {
         this._selfHrid = null;
         this._missingMembers = [];
         this._selectedLoadoutName = '';
+        this._selectedBuildName = '';
     }
 
     /**
@@ -326,6 +358,8 @@ export class SimEditor {
                 padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;
                 font-family:inherit; flex-shrink:0;">Reset to Current</button>`;
             html += '</div>';
+
+            html += this._renderBuildRow();
         }
 
         if (!this.skillingMode) {
@@ -342,6 +376,59 @@ export class SimEditor {
 
         editorArea.innerHTML = html;
         this._wireEditorEvents(editorArea, dto);
+    }
+
+    /**
+     * Render the "Build" row: dropdown of saved fictional builds plus
+     * Save / Save As / Rename / Delete controls.
+     * @private
+     */
+    _renderBuildRow() {
+        const builds = simBuilds.list();
+        const hasSelection = !!this._selectedBuildName && simBuilds.has(this._selectedBuildName);
+
+        let html = `<div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">`;
+        html += `<label style="color:#888; font-size:11px; flex-shrink:0;">Build</label>`;
+        html += `<select id="mwi-csim-build-select" style="
+            flex:1; min-width:0; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+            border-radius:4px; padding:2px 6px; font-size:12px; font-family:inherit;">`;
+        html += `<option value=""${!this._selectedBuildName ? ' selected' : ''}>— None —</option>`;
+        for (const build of builds) {
+            const selected = this._selectedBuildName === build.name ? ' selected' : '';
+            html += `<option value="${build.name}"${selected}>${build.name}</option>`;
+        }
+        html += `</select>`;
+
+        const btnStyle = `background:rgba(255,255,255,0.04); border:1px solid #333; color:#aaa;
+            padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit; flex-shrink:0;`;
+        html += `<button id="mwi-csim-build-save" style="${btnStyle}"${!hasSelection ? ' disabled' : ''}
+            title="Overwrite the selected build with the current setup">Save</button>`;
+        html += `<button id="mwi-csim-build-save-as" style="${btnStyle}" title="Save the current setup as a new build">Save As</button>`;
+        html += `<button id="mwi-csim-build-rename" style="${btnStyle}"${!hasSelection ? ' disabled' : ''}
+            title="Rename the selected build">Rename</button>`;
+        html += `<button id="mwi-csim-build-delete" style="${btnStyle}"${!hasSelection ? ' disabled' : ''}
+            title="Delete the selected build">Delete</button>`;
+        html += '</div>';
+
+        if (this._buildSaveAsOpen || this._buildRenameOpen) {
+            const isRename = this._buildRenameOpen;
+            const prefill = isRename ? this._selectedBuildName : '';
+            html += `<div id="mwi-csim-build-name-row" style="display:flex; gap:6px; margin-bottom:8px;">`;
+            html += `<input id="mwi-csim-build-name-input" type="text" value="${prefill}" placeholder="Build name" style="
+                flex:1; min-width:0; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
+                border-radius:4px; padding:3px 6px; font-size:12px; font-family:inherit; box-sizing:border-box;">`;
+            html += `<button id="mwi-csim-build-name-confirm" style="
+                background:${ACCENT_BTN_BG}; border:1px solid ${ACCENT_BTN_BORDER}; color:${ACCENT};
+                padding:3px 12px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;
+                font-weight:600;">${isRename ? 'Rename' : 'Save'}</button>`;
+            html += `<button id="mwi-csim-build-name-cancel" style="
+                background:rgba(255,255,255,0.04); border:1px solid #333; color:#888;
+                padding:3px 12px; border-radius:4px; font-size:11px; cursor:pointer; font-family:inherit;">Cancel</button>`;
+            html += `<span id="mwi-csim-build-name-error" style="color:#f44; font-size:11px; align-self:center;"></span>`;
+            html += '</div>';
+        }
+
+        return html;
     }
 
     /** @private */
@@ -381,9 +468,28 @@ export class SimEditor {
         };
 
         const equippedCount = slotOrder.filter((s) => dto.equipment[s]).length;
+        const itemPrices = {};
+        let totalPrice = 0;
+        let hasMissingPrice = false;
+        for (const slotType of slotOrder) {
+            const equip = dto.equipment[slotType];
+            if (!equip) continue;
+            const { price, missing } = resolveItemPrice(equip.hrid, {
+                enhancementLevel: equip.enhancementLevel || 0,
+                side: 'buy',
+                context: 'profit',
+            });
+            itemPrices[slotType] = price;
+            totalPrice += price;
+            if (missing) hasMissingPrice = true;
+        }
+
         let html = `<div style="margin-bottom:10px;">`;
-        html += `<div style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;" data-toggle="equip-section">`;
-        html += `<span data-arrow="equip-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Equipment (${equippedCount} items)`;
+        html += `<div style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;" data-toggle="equip-section">`;
+        html += `<span style="flex:1;"><span data-arrow="equip-section" style="display:inline-block; width:14px; font-size:10px;">&#9654;</span> Equipment (${equippedCount} items)</span>`;
+        if (equippedCount > 0) {
+            html += `<span style="color:#e8a87c; font-weight:600;" title="Estimated buy cost at current market ${hasMissingPrice ? '(some items missing price data)' : ''}">~${formatKMB(Math.round(totalPrice))}${hasMissingPrice ? ' ⚠' : ''}</span>`;
+        }
         html += '</div>';
         html += `<div id="mwi-csim-equip-section" style="display:none;">`;
 
@@ -402,6 +508,8 @@ export class SimEditor {
 
             const item = itemDetailMap[equip.hrid];
             const name = item?.name || equip.hrid.split('/').pop();
+            const price = itemPrices[slotType] || 0;
+            const priceStr = price > 0 ? formatKMB(Math.round(price)) : '—';
 
             html += `<div style="display:flex; align-items:center; gap:6px; padding:2px 0; font-size:12px;">`;
             html += `<span style="color:#888; width:70px; flex-shrink:0;">${label}</span>`;
@@ -411,6 +519,7 @@ export class SimEditor {
                 data-enhance-slot="${slotType}"
                 style="width:36px; background:#1a1a2e; color:#e0e0e0; border:1px solid #444;
                 border-radius:3px; padding:1px 3px; font-size:12px; text-align:center;">`;
+            html += `<span style="color:#e8a87c; font-size:11px; width:52px; text-align:right; flex-shrink:0;">${priceStr}</span>`;
             html += `<button data-equipment-slot="${slotType}" style="background:rgba(255,255,255,0.06); border:1px solid #444; color:#aaa; padding:1px 6px; border-radius:3px; font-size:11px; cursor:pointer; font-family:inherit;">change</button>`;
             html += '</div>';
         }
@@ -1310,6 +1419,7 @@ export class SimEditor {
                 }
                 this._editedDTOs = structuredClone(this._originalDTOs);
                 this._selectedLoadoutName = '';
+                this._selectedBuildName = '';
                 this.renderEditor();
             });
         }
@@ -1388,6 +1498,7 @@ export class SimEditor {
             loadoutSelect.addEventListener('change', () => {
                 const selectedName = loadoutSelect.value;
                 this._selectedLoadoutName = selectedName;
+                this._selectedBuildName = '';
                 if (!selectedName) {
                     const activePlayer = this._activeEditPlayer;
                     if (this._originalDTOs?.[activePlayer]) {
@@ -1399,6 +1510,120 @@ export class SimEditor {
                 this.renderEditor();
             });
         }
+
+        this._wireBuildRowEvents(editorArea);
+    }
+
+    /**
+     * Wire up the Build row: select, Save, Save As, Rename, Delete, and the
+     * inline name-entry row used by Save As / Rename.
+     * @private
+     */
+    _wireBuildRowEvents(editorArea) {
+        const buildSelect = editorArea.querySelector('#mwi-csim-build-select');
+        if (buildSelect) {
+            buildSelect.addEventListener('change', () => {
+                const selectedName = buildSelect.value;
+                this._buildSaveAsOpen = false;
+                this._buildRenameOpen = false;
+                if (!selectedName) {
+                    this._selectedBuildName = '';
+                    const activePlayer = this._activeEditPlayer;
+                    if (this._originalDTOs?.[activePlayer]) {
+                        this._editedDTOs[activePlayer] = structuredClone(this._originalDTOs[activePlayer]);
+                    }
+                    this.renderEditor();
+                } else {
+                    this.applyBuildByName(selectedName);
+                }
+            });
+        }
+
+        const activePlayer = this._activeEditPlayer;
+        const currentDTO = activePlayer ? this._editedDTOs?.[activePlayer] : null;
+
+        const saveBtn = editorArea.querySelector('#mwi-csim-build-save');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                if (!this._selectedBuildName || !currentDTO) return;
+                simBuilds.save(this._selectedBuildName, currentDTO);
+                this.renderEditor();
+            });
+        }
+
+        const saveAsBtn = editorArea.querySelector('#mwi-csim-build-save-as');
+        if (saveAsBtn) {
+            saveAsBtn.addEventListener('click', () => {
+                this._buildSaveAsOpen = true;
+                this._buildRenameOpen = false;
+                this.renderEditor();
+            });
+        }
+
+        const renameBtn = editorArea.querySelector('#mwi-csim-build-rename');
+        if (renameBtn) {
+            renameBtn.addEventListener('click', () => {
+                if (!this._selectedBuildName) return;
+                this._buildRenameOpen = true;
+                this._buildSaveAsOpen = false;
+                this.renderEditor();
+            });
+        }
+
+        const deleteBtn = editorArea.querySelector('#mwi-csim-build-delete');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => {
+                if (!this._selectedBuildName) return;
+                simBuilds.remove(this._selectedBuildName);
+                this._selectedBuildName = '';
+                this.renderEditor();
+            });
+        }
+
+        const nameConfirm = editorArea.querySelector('#mwi-csim-build-name-confirm');
+        if (nameConfirm) {
+            nameConfirm.addEventListener('click', () => {
+                const input = editorArea.querySelector('#mwi-csim-build-name-input');
+                const errorEl = editorArea.querySelector('#mwi-csim-build-name-error');
+                const name = input?.value?.trim();
+                if (!name) {
+                    if (errorEl) errorEl.textContent = 'Enter a name.';
+                    return;
+                }
+
+                if (this._buildRenameOpen) {
+                    if (name !== this._selectedBuildName && simBuilds.has(name)) {
+                        if (errorEl) errorEl.textContent = 'A build with that name already exists.';
+                        return;
+                    }
+                    if (name !== this._selectedBuildName) {
+                        simBuilds.rename(this._selectedBuildName, name);
+                        this._selectedBuildName = name;
+                    }
+                } else {
+                    if (simBuilds.has(name) && !window.confirm(`Overwrite existing build "${name}"?`)) {
+                        return;
+                    }
+                    if (!currentDTO) return;
+                    simBuilds.save(name, currentDTO);
+                    this._selectedBuildName = name;
+                    this._selectedLoadoutName = '';
+                }
+
+                this._buildSaveAsOpen = false;
+                this._buildRenameOpen = false;
+                this.renderEditor();
+            });
+        }
+
+        const nameCancel = editorArea.querySelector('#mwi-csim-build-name-cancel');
+        if (nameCancel) {
+            nameCancel.addEventListener('click', () => {
+                this._buildSaveAsOpen = false;
+                this._buildRenameOpen = false;
+                this.renderEditor();
+            });
+        }
     }
 
     /**
@@ -1407,9 +1632,12 @@ export class SimEditor {
      */
     generateSimLabel() {
         const selfHrid = this._selfHrid || this._activeEditPlayer;
-        const original = this._originalDTOs?.[selfHrid];
+        // When a saved build is active, diff against the build itself rather than live gear —
+        // diffing an endgame build against current gear would produce a wall of unhelpful changes.
+        const buildDTO = this._selectedBuildName ? simBuilds.get(this._selectedBuildName) : null;
+        const original = buildDTO || this._originalDTOs?.[selfHrid];
         const edited = this._editedDTOs?.[selfHrid];
-        if (!original || !edited) return this._selectedLoadoutName || 'Current Gear';
+        if (!original || !edited) return this._selectedLoadoutName || this._selectedBuildName || 'Current Gear';
 
         const gameData = buildGameDataPayload();
         const itemDetailMap = gameData?.itemDetailMap || {};
@@ -1525,7 +1753,7 @@ export class SimEditor {
             }
         }
 
-        const loadoutPrefix = this._selectedLoadoutName || '';
+        const loadoutPrefix = this._selectedLoadoutName || this._selectedBuildName || '';
         if (changes.length === 0) return loadoutPrefix || 'Current Gear';
         const changesStr = changes.join(', ');
         return loadoutPrefix ? loadoutPrefix + ': ' + changesStr : changesStr;
