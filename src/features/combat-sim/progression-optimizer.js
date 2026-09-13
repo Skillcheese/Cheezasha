@@ -80,18 +80,99 @@ export function isStageEligible(stage, skillXp) {
 }
 
 /**
- * Simulate climbing through an ordered list of gear stages via combat alone, over a fixed time
- * horizon (rather than until a target is reached — see brew-vs-combat-planner.js's simulateClimb
- * for the target-XP version). At each stage you fight until you can both afford AND qualify
- * (per-skill level requirements) for the next one — whichever takes longer, since gold and every
- * skill's XP accrue simultaneously while fighting. Stops at `targetHours` regardless of where
- * that lands in the stage list.
+ * Blended gold/XP quality score per stage, min-max normalized across the WHOLE stage list — used
+ * to decide which stage is actually worth aiming for next (see `simulateMultiSkillClimb`), not
+ * just which one happens to be cheapest to reach.
+ * @param {Array<ProgressionStage>} stages
+ * @param {number} objectiveWeight - 0 = rank by gold/hr, 1 = rank by total xp/hr
+ * @returns {Array<number>} one score per stage, same order as `stages`
+ */
+function computeStageQualityScores(stages, objectiveWeight) {
+    const golds = stages.map((s) => s.goldPerHr || 0);
+    const xps = stages.map((s) => Object.values(s.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0));
+    const minGold = Math.min(...golds);
+    const maxGold = Math.max(...golds);
+    const minXp = Math.min(...xps);
+    const maxXp = Math.max(...xps);
+    const normalize = (value, min, max) => (max > min ? (value - min) / (max - min) : 1);
+    return stages.map(
+        (_, i) =>
+            (1 - objectiveWeight) * normalize(golds[i], minGold, maxGold) +
+            objectiveWeight * normalize(xps[i], minXp, maxXp)
+    );
+}
+
+/**
+ * The direct gold cost to go from `fromStage`'s owned equipment straight to `toStage`'s, bypassing
+ * whatever sits between them in the stage list. Prefers `fromStage.directCosts[toStage.name]`
+ * (see `buildStagesFromResults` in progression-planner.js, which prices every stage pair against
+ * real game data); falls back to `toStage.cost` — the cost from the PREVIOUS stage in list order —
+ * for simple hand-built stage lists (e.g. in tests) that never intend to skip a stage anyway.
+ * @param {ProgressionStage} fromStage
+ * @param {ProgressionStage} toStage
+ * @returns {number}
+ */
+function directCostBetween(fromStage, toStage) {
+    const fromDirect = fromStage.directCosts?.[toStage.name];
+    return fromDirect !== undefined ? fromDirect : toStage.cost || 0;
+}
+
+/**
+ * How long it takes, fighting at `fromStage`'s rates, to reach `toStage`: the slowest of every
+ * required skill level (xpTimeHours) and however long it then takes to bank the direct gold cost —
+ * either by continuing to fight at `fromStage`'s own gold/hr, or by fighting only until the XP
+ * gate clears and then switching to a faster alternative skilling activity (`brewGoldPerHr`) for
+ * the rest, whichever is faster.
+ * @param {ProgressionStage} fromStage
+ * @param {ProgressionStage} toStage
+ * @param {number} gold - Gold currently banked
+ * @param {Object<string, number>} skillXp - Current cumulative XP per skill
+ * @param {number} brewGoldPerHr
+ * @returns {{timeToReach: number, directCost: number, xpTimeHours: number, useSwitch: boolean}}
+ */
+function timeToReachStage(fromStage, toStage, gold, skillXp, brewGoldPerHr) {
+    const directCost = directCostBetween(fromStage, toStage);
+    const neededGold = Math.max(0, directCost - gold);
+    const goldTimeHours = neededGold > 0 ? (fromStage.goldPerHr > 0 ? neededGold / fromStage.goldPerHr : Infinity) : 0;
+
+    let xpTimeHours = 0;
+    for (const req of toStage.requiredLevels || []) {
+        const neededXp = Math.max(0, getXpForLevel(req.level) - (skillXp[req.skillHrid] || 0));
+        if (neededXp <= 0) continue;
+        const rate = fromStage.xpPerHrBySkill?.[req.skillHrid] || 0;
+        const t = rate > 0 ? neededXp / rate : Infinity;
+        if (t > xpTimeHours) xpTimeHours = t;
+    }
+
+    const fightOnlyHours = Math.max(goldTimeHours, xpTimeHours);
+
+    let switchHours = Infinity;
+    if (brewGoldPerHr > 0) {
+        const goldAfterXpGate = gold + fromStage.goldPerHr * xpTimeHours;
+        const remainingGold = Math.max(0, directCost - goldAfterXpGate);
+        switchHours = xpTimeHours + remainingGold / brewGoldPerHr;
+    }
+
+    const useSwitch = switchHours < fightOnlyHours;
+    return { timeToReach: useSwitch ? switchHours : fightOnlyHours, directCost, xpTimeHours, useSwitch };
+}
+
+/**
+ * Simulate climbing through a set of gear stages via combat alone, over a fixed time horizon
+ * (rather than until a target is reached — see brew-vs-combat-planner.js's simulateClimb for the
+ * target-XP version). At every decision point, EVERY not-yet-worn stage is considered as the next
+ * target — not just the next-cheapest one in the list — and whichever reachable stage has the best
+ * blended gold/XP quality is pursued directly, so a stage that isn't worth detouring through (e.g.
+ * a minor incremental upgrade on the way to something much better) gets skipped entirely rather
+ * than bought out of forced sequential order. If nothing reachable beats the current stage, the
+ * climb just rides out the current stage to the end of the horizon.
  *
- * Once a stage's XP requirements for the next tier are already satisfied but its gold cost isn't,
- * fighting further only helps at the stage's own (possibly poor) gold/hr. If an alternative
- * skilling activity (`brewGoldPerHr`) earns gold faster, switching to it for the remainder of the
- * gold requirement reaches the next stage sooner — fighting only long enough to clear the XP gate,
- * then brewing to bank the rest. Both options are evaluated and the faster one is taken.
+ * Reaching a stage means both affording its direct gear cost from the current stage AND meeting
+ * its per-skill level requirements — whichever takes longer, since gold and every skill's XP
+ * accrue simultaneously while fighting. Once the XP gate is already cleared but the gold cost
+ * isn't, fighting further only banks gold at the current stage's own (possibly weak) rate; if an
+ * alternative skilling activity (`brewGoldPerHr`) earns gold faster, switching to it for the rest
+ * of the gold requirement reaches the target sooner. See `timeToReachStage` for both options.
  *
  * @param {Array<ProgressionStage>} stages - stages[0] should be current gear, cost 0, no requiredLevels
  * @param {Object} options
@@ -99,7 +180,10 @@ export function isStageEligible(stage, skillXp) {
  * @param {number} [options.startingGold=0]
  * @param {Object<string, number>} [options.startingSkillXp={}] - Current cumulative XP per skill
  * @param {number} [options.brewGoldPerHr=0] - Gold/hr from the alternative skilling activity, used
- *   only to bank gold once the current stage's XP gate to the next stage is already cleared
+ *   only to bank gold once the current stage's XP gate to the target stage is already cleared
+ * @param {number} [options.objectiveWeight=1] - 0 = prefer the best gold/hr stage, 1 = prefer the
+ *   best total xp/hr stage, in between blends both — used to decide which reachable stage is
+ *   actually worth climbing toward
  * @returns {{
  *   timeline: Array<{stage: string, startHour: number, endHour: number, reason: string}>,
  *   totalHours: number,
@@ -110,13 +194,25 @@ export function isStageEligible(stage, skillXp) {
  */
 export function simulateMultiSkillClimb(
     stages,
-    { targetHours, startingGold = 0, startingSkillXp = {}, brewGoldPerHr = 0 }
+    { targetHours, startingGold = 0, startingSkillXp = {}, brewGoldPerHr = 0, objectiveWeight = 1 }
 ) {
+    if (!stages || stages.length === 0) {
+        return {
+            timeline: [],
+            totalHours: 0,
+            finalGold: startingGold,
+            finalSkillXp: { ...startingSkillXp },
+            reachedStageIndex: -1,
+        };
+    }
+
     let gold = startingGold;
     const skillXp = { ...startingSkillXp };
     let hour = 0;
-    let reachedStageIndex = stages.length > 0 ? 0 : -1;
+    let currentIndex = 0;
+    let reachedStageIndex = 0;
     const timeline = [];
+    const qualityScores = computeStageQualityScores(stages, objectiveWeight);
 
     const addXp = (xpPerHrBySkill, hours) => {
         for (const [skill, rate] of Object.entries(xpPerHrBySkill || {})) {
@@ -124,67 +220,69 @@ export function simulateMultiSkillClimb(
         }
     };
 
-    for (let i = 0; i < stages.length; i++) {
-        const stage = stages[i];
-        const next = stages[i + 1];
+    // Small epsilon guards against floating-point rounding making a just-reachable candidate
+    // (timeToReach === hoursLeft) look infinitesimally out of reach.
+    const EPS = 1e-9;
+
+    while (hour < targetHours) {
         const hoursLeft = targetHours - hour;
         if (hoursLeft <= 0) break;
+        const current = stages[currentIndex];
 
-        if (!next) {
-            timeline.push({ stage: stage.name, startHour: hour, endHour: hour + hoursLeft, reason: 'end of horizon' });
-            gold += stage.goldPerHr * hoursLeft;
-            addXp(stage.xpPerHrBySkill, hoursLeft);
+        let best = null;
+        for (let j = 0; j < stages.length; j++) {
+            if (j === currentIndex) continue;
+            const candidate = stages[j];
+            const { timeToReach, directCost, xpTimeHours, useSwitch } = timeToReachStage(
+                current,
+                candidate,
+                gold,
+                skillXp,
+                brewGoldPerHr
+            );
+            if (timeToReach > hoursLeft + EPS) continue; // not reachable within the remaining horizon
+            if (!best || qualityScores[j] > best.quality) {
+                best = {
+                    index: j,
+                    timeToReach: Math.min(timeToReach, hoursLeft),
+                    directCost,
+                    xpTimeHours,
+                    useSwitch,
+                    quality: qualityScores[j],
+                };
+            }
+        }
+
+        if (!best || best.quality <= qualityScores[currentIndex]) {
+            // Nothing reachable is actually worth moving to — ride out the current stage.
+            timeline.push({ stage: current.name, startHour: hour, endHour: targetHours, reason: 'end of horizon' });
+            gold += current.goldPerHr * hoursLeft;
+            addXp(current.xpPerHrBySkill, hoursLeft);
             hour = targetHours;
             break;
         }
 
-        const neededGold = Math.max(0, next.cost - gold);
-        const goldTimeHours = neededGold > 0 ? (stage.goldPerHr > 0 ? neededGold / stage.goldPerHr : Infinity) : 0;
-
-        let xpTimeHours = 0;
-        for (const req of next.requiredLevels || []) {
-            const neededXp = Math.max(0, getXpForLevel(req.level) - (skillXp[req.skillHrid] || 0));
-            if (neededXp <= 0) continue;
-            const rate = stage.xpPerHrBySkill?.[req.skillHrid] || 0;
-            const t = rate > 0 ? neededXp / rate : Infinity;
-            if (t > xpTimeHours) xpTimeHours = t;
-        }
-
-        // Option A: fight the whole way, using the current stage's own (possibly weak) gold/hr.
-        const fightOnlyHours = Math.max(goldTimeHours, xpTimeHours);
-
-        // Option B: fight only until the XP gate clears, then brew for the remaining gold —
-        // worthwhile whenever brewing outpaces this stage's own gold/hr.
-        let switchHours = Infinity;
-        if (brewGoldPerHr > 0) {
-            const goldAfterXpGate = gold + stage.goldPerHr * xpTimeHours;
-            const remainingGold = Math.max(0, next.cost - goldAfterXpGate);
-            switchHours = xpTimeHours + remainingGold / brewGoldPerHr;
-        }
-
-        const useSwitch = switchHours < fightOnlyHours;
-        const transitionHours = useSwitch ? switchHours : fightOnlyHours;
-        const cappedHours = Math.min(transitionHours, hoursLeft);
-        const ranOutOfTime = cappedHours < transitionHours;
-        const reason = ranOutOfTime ? 'end of horizon' : `unlocked ${next.name}`;
+        const { index: nextIndex, timeToReach: cappedHours, directCost, xpTimeHours, useSwitch } = best;
+        const target = stages[nextIndex];
+        const reason = `unlocked ${target.name}`;
 
         if (useSwitch) {
             const fightHours = Math.min(xpTimeHours, cappedHours);
             const brewHours = cappedHours - fightHours;
             if (fightHours > 0) {
                 timeline.push({
-                    stage: stage.name,
+                    stage: current.name,
                     startHour: hour,
                     endHour: hour + fightHours,
                     reason: 'xp gate cleared',
                 });
             }
-            gold += stage.goldPerHr * fightHours;
-            addXp(stage.xpPerHrBySkill, fightHours);
+            gold += current.goldPerHr * fightHours;
+            addXp(current.xpPerHrBySkill, fightHours);
             hour += fightHours;
             if (brewHours > 0) {
                 timeline.push({
-                    stage: `${stage.name} (brewing for gold)`,
+                    stage: `${current.name} (brewing for gold)`,
                     startHour: hour,
                     endHour: hour + brewHours,
                     reason,
@@ -193,16 +291,15 @@ export function simulateMultiSkillClimb(
                 hour += brewHours;
             }
         } else {
-            timeline.push({ stage: stage.name, startHour: hour, endHour: hour + cappedHours, reason });
-            gold += stage.goldPerHr * cappedHours;
-            addXp(stage.xpPerHrBySkill, cappedHours);
+            timeline.push({ stage: current.name, startHour: hour, endHour: hour + cappedHours, reason });
+            gold += current.goldPerHr * cappedHours;
+            addXp(current.xpPerHrBySkill, cappedHours);
             hour += cappedHours;
         }
 
-        if (ranOutOfTime) break;
-
-        gold -= next.cost;
-        reachedStageIndex = i + 1;
+        gold -= directCost;
+        currentIndex = nextIndex;
+        reachedStageIndex = nextIndex;
     }
 
     return { timeline, totalHours: hour, finalGold: gold, finalSkillXp: skillXp, reachedStageIndex };
@@ -234,13 +331,6 @@ export function optimizeProgression(
 ) {
     if (!stages || stages.length === 0) return { candidates: [], recommended: null };
 
-    const cumulativeCosts = [];
-    let running = 0;
-    for (const stage of stages) {
-        running += stage.cost || 0;
-        cumulativeCosts.push(running);
-    }
-
     const makeCandidate = (label, preBrewHours) => {
         const remainingHours = Math.max(0, targetHours - preBrewHours);
         const climb = simulateMultiSkillClimb(stages, {
@@ -248,6 +338,7 @@ export function optimizeProgression(
             startingGold: startingGold + brewGoldPerHr * preBrewHours,
             startingSkillXp,
             brewGoldPerHr,
+            objectiveWeight,
         });
         return {
             label,
@@ -269,7 +360,11 @@ export function optimizeProgression(
 
     for (let k = 1; k < stages.length; k++) {
         if (!isStageEligible(stages[k], startingSkillXp)) continue; // pre-brewing can't reach a level gate
-        const additionalNeeded = Math.max(0, cumulativeCosts[k] - startingGold);
+        // Direct cost from Current Gear to this stage — bypasses any cheaper stage in between,
+        // since pre-brewing to bank money for one specific target shouldn't force buying gear
+        // for stages you never intend to wear along the way.
+        const directCost = directCostBetween(stages[0], stages[k]);
+        const additionalNeeded = Math.max(0, directCost - startingGold);
         if (additionalNeeded <= 0) continue; // already affordable — identical to the H=0 candidate
         const preBrewHours = brewGoldPerHr > 0 ? Math.min(targetHours, additionalNeeded / brewGoldPerHr) : targetHours;
         candidates.push(makeCandidate(`Brew first to bank ${stages[k].name}'s gear cost, then climb`, preBrewHours));

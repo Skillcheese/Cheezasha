@@ -145,6 +145,43 @@ describe('buildStagesFromResults', () => {
         expect(stages).toHaveLength(1);
         expect(stages[0].name).toBe('Current Gear');
     });
+
+    it('computes a directCosts map so any stage can price a jump straight to any other', () => {
+        const currentStage = {
+            equipment: { '/equipment_types/main_hand': { hrid: '/items/starter_sword', enhancementLevel: 0 } },
+            goldPerHr: 285_000,
+            xpPerHr: 8_000,
+        };
+        const builds = [
+            {
+                name: 'Mid Tier',
+                equipment: { '/equipment_types/main_hand': { hrid: '/items/mid_sword', enhancementLevel: 0 } },
+                goldPerHr: 600_000,
+                xpPerHr: 20_000,
+            },
+            {
+                name: 'Endgame',
+                equipment: {
+                    '/equipment_types/main_hand': { hrid: '/items/end_sword', enhancementLevel: 10 },
+                    '/equipment_types/off_hand': { hrid: '/items/end_shield', enhancementLevel: 10 },
+                },
+                goldPerHr: 1_800_000,
+                xpPerHr: 40_000,
+            },
+        ];
+
+        const stages = buildStagesFromResults({ currentStage, builds });
+        const current = stages.find((s) => s.name === 'Current Gear');
+        const midTier = stages.find((s) => s.name === 'Mid Tier');
+        const endgame = stages.find((s) => s.name === 'Endgame');
+
+        // Straight from Current Gear to Endgame, bypassing Mid Tier entirely.
+        expect(current.directCosts.Endgame).toBe(500_000 + 300_000);
+        // From Mid Tier to Endgame directly (identical to the sequential price here, since Mid
+        // Tier's main_hand isn't reused by Endgame).
+        expect(midTier.directCosts.Endgame).toBe(500_000 + 300_000);
+        expect(endgame.directCosts['Current Gear']).toBeGreaterThan(0);
+    });
 });
 
 describe('getRequiredLevelsForEquipment', () => {

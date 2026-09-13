@@ -97,10 +97,13 @@ describe('simulateMultiSkillClimb', () => {
         const stages = [
             { name: 'Current Gear', cost: 0, goldPerHr: 1_000_000, xpPerHrBySkill: { [ATK]: 50_000, [DEF]: 1_000 } },
             {
+                // Total xp/hr (70,000) and gold/hr both beat Current Gear's, so it's worth
+                // climbing to at all — this test is about which required skill gates the climb,
+                // not whether the climb is worthwhile in the first place.
                 name: 'Tier 2',
                 cost: 100, // trivial gold cost
-                goldPerHr: 200_000,
-                xpPerHrBySkill: { [ATK]: 10_000, [DEF]: 10_000 },
+                goldPerHr: 2_000_000,
+                xpPerHrBySkill: { [ATK]: 60_000, [DEF]: 10_000 },
                 requiredLevels: [
                     { skillHrid: ATK, level: 10 }, // 791 xp / 50,000 per hr ≈ 0.0158h
                     { skillHrid: DEF, level: 10 }, // 791 xp / 1,000 per hr = 0.791h — the real bottleneck
@@ -157,6 +160,47 @@ describe('simulateMultiSkillClimb', () => {
 
         expect(result.timeline[0].endHour).toBe(0); // instant transition
         expect(result.reachedStageIndex).toBe(1);
+    });
+
+    it('skips a low-value intermediate stage and jumps straight to a better one when reachable', () => {
+        const MAGIC = '/skills/magic';
+        const stages = [
+            {
+                name: 'Current Gear',
+                cost: 0,
+                goldPerHr: 10_000,
+                xpPerHrBySkill: { [MAGIC]: 25_000 },
+            },
+            {
+                // Reachable soon and only slightly better — should be skipped in favor of Best.
+                name: 'MidTier',
+                cost: 5_000_000,
+                goldPerHr: 80_000,
+                xpPerHrBySkill: { [MAGIC]: 65_000 },
+                directCosts: { 'Current Gear': 5_000_000, Best: 12_000_000 },
+            },
+            {
+                // Direct from Current Gear this is cheaper than going through MidTier first.
+                name: 'Best',
+                cost: 500_000_000, // sequential cost through MidTier — should NOT be used
+                goldPerHr: 1_900_000,
+                xpPerHrBySkill: { [MAGIC]: 250_000 },
+                directCosts: { 'Current Gear': 8_000_000, MidTier: 12_000_000 },
+            },
+        ];
+        // Patch Current Gear's directCosts (needs the other two stage names available).
+        stages[0].directCosts = { MidTier: 5_000_000, Best: 8_000_000 };
+
+        // Current Gear earns 10,000/hr — 8,000,000 gold takes 800h, well within the 2,000h budget.
+        // Buying MidTier first would cost 5,000,000 (500h) then another 12,000,000 from MidTier's
+        // own 80,000/hr (150h) = 650h total — slower AND ends up on a worse stage than jumping
+        // straight to Best from Current Gear.
+        const result = simulateMultiSkillClimb(stages, { targetHours: 2000, objectiveWeight: 1 });
+
+        expect(result.reachedStageIndex).toBe(2); // Best, not MidTier
+        expect(result.timeline.some((leg) => leg.stage === 'MidTier')).toBe(false);
+        // 800h at 10,000/hr banks exactly the 8,000,000 direct cost; the rest is spent at Best's rate.
+        expect(result.finalGold).toBeCloseTo(1_900_000 * (2000 - 800), 0);
     });
 });
 

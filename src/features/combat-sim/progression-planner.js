@@ -35,13 +35,19 @@ const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key
  * onto its stage, so callers can carry along whatever metadata the pure cost/ordering logic
  * here doesn't need.
  *
+ * Every stage also gets a `directCosts` map: `directCosts[otherStageName]` is the cost to go
+ * straight from THIS stage's owned equipment to that other stage's equipment, bypassing whatever
+ * sits between them in the sorted order. `optimizeProgression`'s climb uses this to jump straight
+ * to whichever reachable stage is actually worth fighting toward, instead of being forced to buy
+ * every cheaper stage's gear along the way even when none of it helps reach the target.
+ *
  * @param {Object} params
  * @param {{equipment: Object, goldPerHr: number, xpPerHrBySkill: Object<string, number>}} params.currentStage
  *   Your current gear plus its own simulated rates (this stage's cost is always forced to 0 —
  *   you already own it, regardless of what it would cost to buy from scratch).
  * @param {Array<{name: string, equipment: Object, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>}>} params.builds
  *   One entry per saved Build already simulated at its best zone (see runProgressionZoneSearch).
- * @returns {Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>}>}
+ * @returns {Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>, directCosts: Object<string, number>}>}
  */
 export function buildStagesFromResults({ currentStage, builds }) {
     const priced = builds
@@ -58,6 +64,15 @@ export function buildStagesFromResults({ currentStage, builds }) {
         void _fullPrice;
         stages.push({ ...rest, cost });
         prevEquipment = build.equipment;
+    }
+
+    for (const stage of stages) {
+        const directCosts = {};
+        for (const other of stages) {
+            if (other === stage) continue;
+            directCosts[other.name] = calculateGearUpgradeCost(stage.equipment, other.equipment).total;
+        }
+        stage.directCosts = directCosts;
     }
 
     return stages;
