@@ -13,7 +13,7 @@ import {
 import loadoutSnapshot from '../combat/loadout-snapshot.js';
 import { applyLiveSelfOverrides } from '../../utils/loadout-scraper.js';
 import simBuilds from './sim-builds.js';
-import { resolveItemPrice } from '../../utils/profit-helpers.js';
+import { estimateEquipmentPrice } from './gear-price.js';
 import { formatKMB } from '../../utils/formatters.js';
 
 const ACCENT = '#4a9eff';
@@ -468,21 +468,7 @@ export class SimEditor {
         };
 
         const equippedCount = slotOrder.filter((s) => dto.equipment[s]).length;
-        const itemPrices = {};
-        let totalPrice = 0;
-        let hasMissingPrice = false;
-        for (const slotType of slotOrder) {
-            const equip = dto.equipment[slotType];
-            if (!equip) continue;
-            const { price, missing } = resolveItemPrice(equip.hrid, {
-                enhancementLevel: equip.enhancementLevel || 0,
-                side: 'buy',
-                context: 'profit',
-            });
-            itemPrices[slotType] = price;
-            totalPrice += price;
-            if (missing) hasMissingPrice = true;
-        }
+        const { total: totalPrice, hasMissingPrice, perSlot: itemPrices } = estimateEquipmentPrice(dto.equipment);
 
         let html = `<div style="margin-bottom:10px;">`;
         html += `<div style="color:${ACCENT}; font-weight:700; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none; display:flex; align-items:center; gap:6px;" data-toggle="equip-section">`;
