@@ -159,46 +159,52 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
 }
 
 /**
- * Full orchestration: for the current gear and every saved Build, find the best zone (per the
+ * Full orchestration: for every saved Build (never current gear), find the best zone (per the
  * shared objective slider), then assemble the incrementally-priced stage list ready for
  * optimizeProgression. Runs inside the userscript only.
  *
- * Current gear IS simulated as a real activity (not a zero-value placeholder) — it's the only
- * bridge between "today" and the first saved Build you don't yet qualify for, since leveling
- * toward that build's requirements can only happen by actually fighting in something. What it
- * shouldn't do is let XP in skills irrelevant to the style you're planning around (e.g. melee XP
- * from a melee weapon while planning a magic progression) make it look artificially better than
- * a purpose-built option — that's handled by optimizeProgression's `relevantSkillHrids`, which
- * scores only the skills that actually matter for the chosen style, not raw total XP.
+ * Current gear is never simulated as an activity — only saved Builds compete to be fought in.
+ * Its equipment is used purely as the cost-diffing baseline (so a build that reuses an
+ * already-owned item isn't charged for it again). This means progress is only possible starting
+ * from a build you already meet the level requirements for at your real current XP — there is no
+ * "fight in whatever you have on now to bridge the gap" option. If no saved build is currently
+ * eligible, optimizeProgression's candidates will all show zero progress; the caller should
+ * detect that (every candidate's reachedStageIndex stays 0) and tell the user plainly, rather
+ * than presenting a "recommended" strategy that quietly does nothing for the whole time budget.
  *
  * @param {Object} params
- * @param {Object} params.currentDTO - Your live/current player DTO
+ * @param {Object} params.currentDTO - Your live/current player DTO (used only for cost-diffing)
  * @param {Array<{name: string, dto: Object}>} params.builds - Saved builds to include, cheapest gear first isn't required — sorting happens internally
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} params.zones - Zones to scan
  * @param {Object} params.gameData - Game data from buildGameDataPayload()
  * @param {Object} [params.options] - Passed through to findBestZoneForDTO (hours, communityBuffs, objectiveWeight)
- * @param {Function} [onProgress] - Called with (percent: 0-100, label: string) as each stage's scan completes
+ * @param {Function} [onProgress] - Called with (percent: 0-100, label: string) as each build's scan completes
  * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object|null}>>}
  */
 export async function runProgressionZoneSearch({ currentDTO, builds, zones, gameData, options = {} }, onProgress) {
-    const allEntries = [{ name: 'Current Gear', dto: currentDTO }, ...builds];
-    const results = [];
+    const currentStage = {
+        name: 'Current Gear',
+        equipment: currentDTO.equipment,
+        goldPerHr: 0,
+        xpPerHrBySkill: {},
+        requiredLevels: [],
+        bestZone: null,
+    };
 
-    for (let i = 0; i < allEntries.length; i++) {
-        const entry = allEntries[i];
+    const buildResults = [];
+    for (let i = 0; i < builds.length; i++) {
+        const entry = builds[i];
         const bestZone = await findBestZoneForDTO(entry.dto, zones, gameData, options);
-        results.push({
+        buildResults.push({
             name: entry.name,
             equipment: entry.dto.equipment,
             goldPerHr: bestZone?.goldPerHr || 0,
             xpPerHrBySkill: bestZone?.xpPerHrBySkill || {},
-            requiredLevels:
-                entry.name === 'Current Gear' ? [] : getRequiredLevelsForEquipment(entry.dto.equipment, gameData),
+            requiredLevels: getRequiredLevelsForEquipment(entry.dto.equipment, gameData),
             bestZone,
         });
-        if (onProgress) onProgress(Math.round(((i + 1) / allEntries.length) * 100), entry.name);
+        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name);
     }
 
-    const [currentStage, ...buildResults] = results;
     return buildStagesFromResults({ currentStage, builds: buildResults });
 }

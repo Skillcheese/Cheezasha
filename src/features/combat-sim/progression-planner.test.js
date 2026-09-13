@@ -258,12 +258,12 @@ describe('findBestZoneForDTO', () => {
 });
 
 describe('runProgressionZoneSearch', () => {
-    it('simulates current gear as a real activity (a bridge to builds not yet eligible), with no level requirement of its own', async () => {
+    it('never simulates current gear — only saved builds are scanned and ranked', async () => {
         mockRunAllZonesSimulation.mockClear();
         mockRunAllZonesSimulation.mockResolvedValue([
-            { simulatedTime: 0.5 * 3600 * 1e9, experienceGained: { player1: { melee: 15_000 } } },
+            { simulatedTime: 0.5 * 3600 * 1e9, experienceGained: { player1: { magic: 20_000 } } },
         ]);
-        mockCalculateSimRevenue.mockReturnValue({ netPerHour: 200_000 });
+        mockCalculateSimRevenue.mockReturnValue({ netPerHour: 400_000 });
 
         const currentDTO = {
             hrid: 'player1',
@@ -287,15 +287,17 @@ describe('runProgressionZoneSearch', () => {
             options: {},
         });
 
-        // One call per stage (current gear + the one saved build) — current gear is scanned too.
-        expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(2);
+        // Only one call to the simulator — for the saved build, never for current gear.
+        expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(1);
 
         const currentStage = stages.find((s) => s.name === 'Current Gear');
-        expect(currentStage.goldPerHr).toBe(200_000);
-        expect(currentStage.xpPerHrBySkill).toEqual({ '/skills/melee': 30_000 }); // 15,000 xp / 0.5h
-        expect(currentStage.requiredLevels).toEqual([]); // always eligible — it's what you're wearing
+        expect(currentStage.goldPerHr).toBe(0);
+        expect(currentStage.xpPerHrBySkill).toEqual({});
+        expect(currentStage.bestZone).toBeNull();
+        expect(currentStage.requiredLevels).toEqual([]);
 
         const fireStage = stages.find((s) => s.name === 'Fire Build');
+        expect(fireStage.goldPerHr).toBe(400_000);
         expect(fireStage.bestZone).not.toBeNull();
     });
 

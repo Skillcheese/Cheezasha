@@ -4883,7 +4883,7 @@ class CombatSimUI {
 
         if (builds.length === 0) {
             this._setStatus(
-                'No builds checked (matching the current style filter) — simulating current gear only for the whole time budget.'
+                'No builds checked (matching the current style filter) — current gear is never simulated, so nothing will happen. Check a build to plan a gear climb.'
             );
         }
 
@@ -4957,21 +4957,31 @@ class CombatSimUI {
 
         if (!result.recommended) {
             container.innerHTML =
-                '<div style="color:#f66; font-size:12px; text-align:center; padding:20px 0;">No viable strategy found — check that your current gear and selected builds actually earn combat XP/gold.</div>';
+                '<div style="color:#f66; font-size:12px; text-align:center; padding:20px 0;">No viable strategy found — check that your selected builds actually earn combat XP/gold.</div>';
             return;
         }
 
         let warningHtml = '';
         if (noBuildsSelected) {
             warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
-                No builds were checked, so this only simulated your current gear for the entire time budget — check a build below and re-run to plan an actual gear climb.
+                No builds were checked, and current gear is never simulated here — check at least one build below and re-run.
+            </div>`;
+        } else if (result.candidates.every((c) => c.reachedStageIndex === 0)) {
+            // No candidate ever left the zero-activity placeholder — none of the checked builds
+            // are level-eligible at your real current levels, and pre-brewing can never fix
+            // that (money can't buy a combat level). Say so plainly instead of showing a
+            // "recommended" strategy that quietly makes zero progress for the whole budget.
+            warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
+                None of the checked builds are level-eligible at your current character's real levels, so no combat can happen at all in this plan (current gear is never simulated). Level up through your normal play first, or check a lower-requirement build, then re-run.
             </div>`;
         }
 
         const skillLabel = (hrid) => hrid.split('/').pop();
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
-            const zone = stageByName.get(stageName)?.bestZone;
+            const stage = stageByName.get(stageName);
+            if (stage?.name === 'Current Gear') return 'no combat — not simulated';
+            const zone = stage?.bestZone;
             return zone ? `${zone.name} (T${zone.difficultyTier})` : 'unknown zone';
         };
         const { recommended } = result;
