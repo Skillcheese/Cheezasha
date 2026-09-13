@@ -4995,6 +4995,7 @@ class CombatSimUI {
         }
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
+            if (stageName.endsWith(' (brewing for gold)')) return 'brewing (not fighting)';
             const stage = stageByName.get(stageName);
             if (stage?.name === 'Current Gear') return 'no combat — not simulated';
             const zone = stage?.bestZone;
@@ -5011,6 +5012,7 @@ class CombatSimUI {
             let stageHtml = `<div style="margin-bottom:10px; font-size:11px;">`;
             stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only) — starting gold: ${formatKMB(Math.round(startingGold))}</div>`;
             for (const stage of stages) {
+                if (stage.name === 'Current Gear') continue; // never simulated — nothing real to show
                 const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
                 const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
                 const costLabel = stage.cost > 0 ? `, cost from prior stage: ${formatKMB(Math.round(stage.cost))}` : '';
@@ -5049,6 +5051,7 @@ class CombatSimUI {
         if (recommended.timeline?.length) {
             html += `<div style="margin-top:8px; font-size:11px; color:#888;">`;
             html += recommended.timeline
+                .filter((leg) => leg.stage !== 'Current Gear' || leg.endHour > leg.startHour)
                 .map(
                     (leg) =>
                         `${leg.stage} @ ${zoneLabel(leg.stage)} (${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h): ${leg.reason}`

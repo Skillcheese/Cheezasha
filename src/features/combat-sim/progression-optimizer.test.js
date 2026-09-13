@@ -174,17 +174,19 @@ describe('optimizeProgression', () => {
         },
     ];
 
-    it('maximizes total XP by pre-brewing to skip the slow gold grind, when weight favors XP', () => {
+    it('maximizes total XP by switching to brewing mid-climb once fighting stops paying off', () => {
         const result = optimizeProgression(stages, {
             targetHours: 300,
             brewGoldPerHr: 2_300_000,
             objectiveWeight: 1,
         });
 
-        expect(result.recommended.label).toMatch(/Brew first/);
-        // Sanity: recommended candidate should out-XP the pure-climb candidate.
+        // Endgame has no level gate, so simulateMultiSkillClimb itself now switches from fighting
+        // Current Gear to brewing as soon as that beats grinding at Current Gear's own gold/hr —
+        // making the "Fight now" candidate reach Endgame just as fast as an explicit pre-brew plan.
         const pureClimb = result.candidates.find((c) => c.label.includes('Fight now'));
-        expect(result.recommended.totalXp).toBeGreaterThan(pureClimb.totalXp);
+        expect(pureClimb.reachedStageIndex).toBe(1);
+        expect(result.recommended.totalXp).toBe(pureClimb.totalXp);
     });
 
     it('recommends brewing the whole time when weight is pure gold and combat never out-earns brewing', () => {
