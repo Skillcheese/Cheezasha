@@ -16,7 +16,18 @@ vi.mock('../../utils/profit-helpers.js', () => ({
     }),
 }));
 
-const { buildStagesFromResults } = await import('./progression-planner.js');
+const mockRunAllZonesSimulation = vi.fn();
+vi.mock('./all-zones-runner.js', () => ({
+    runAllZonesSimulation: (...args) => mockRunAllZonesSimulation(...args),
+}));
+
+const mockCalculateSimRevenue = vi.fn();
+vi.mock('./combat-sim-adapter.js', () => ({
+    calculateSimRevenue: (...args) => mockCalculateSimRevenue(...args),
+}));
+
+const { buildStagesFromResults, findBestZoneForDTO, getRequiredLevelsForEquipment } =
+    await import('./progression-planner.js');
 
 describe('buildStagesFromResults', () => {
     it('always puts current gear first regardless of price, with zero cost', () => {
@@ -126,5 +137,118 @@ describe('buildStagesFromResults', () => {
         const stages = buildStagesFromResults({ currentStage, builds: [] });
         expect(stages).toHaveLength(1);
         expect(stages[0].name).toBe('Current Gear');
+    });
+});
+
+describe('getRequiredLevelsForEquipment', () => {
+    const gameData = {
+        itemDetailMap: {
+            '/items/sword': {
+                equipmentDetail: { levelRequirements: [{ skillHrid: '/skills/attack', level: 30 }] },
+            },
+            '/items/heavy_armor': {
+                equipmentDetail: {
+                    levelRequirements: [
+                        { skillHrid: '/skills/defense', level: 20 },
+                        { skillHrid: '/skills/stamina', level: 10 },
+                    ],
+                },
+            },
+            '/items/no_requirement_item': { equipmentDetail: { levelRequirements: [] } },
+        },
+    };
+
+    it('takes the max requirement per skill across all equipped items', () => {
+        const equipment = {
+            '/equipment_types/main_hand': { hrid: '/items/sword', enhancementLevel: 0 },
+            '/equipment_types/body': { hrid: '/items/heavy_armor', enhancementLevel: 0 },
+        };
+
+        const result = getRequiredLevelsForEquipment(equipment, gameData);
+
+        expect(result).toEqual(
+            expect.arrayContaining([
+                { skillHrid: '/skills/attack', level: 30 },
+                { skillHrid: '/skills/defense', level: 20 },
+                { skillHrid: '/skills/stamina', level: 10 },
+            ])
+        );
+        expect(result).toHaveLength(3);
+    });
+
+    it('returns an empty array for gear with no requirements', () => {
+        const equipment = { '/equipment_types/main_hand': { hrid: '/items/no_requirement_item', enhancementLevel: 0 } };
+        expect(getRequiredLevelsForEquipment(equipment, gameData)).toEqual([]);
+    });
+
+    it('handles empty equipment and missing item data gracefully', () => {
+        expect(getRequiredLevelsForEquipment({}, gameData)).toEqual([]);
+        expect(getRequiredLevelsForEquipment(undefined, gameData)).toEqual([]);
+        const equipment = { '/equipment_types/main_hand': { hrid: '/items/unknown_item', enhancementLevel: 0 } };
+        expect(getRequiredLevelsForEquipment(equipment, gameData)).toEqual([]);
+    });
+});
+
+describe('findBestZoneForDTO', () => {
+    function mockZoneResults(entries) {
+        // entries: [{ simulatedTime (ns), experienceGained: {atk, def}, netPerHour }]
+        mockRunAllZonesSimulation.mockResolvedValue(
+            entries.map((e, idx) => ({
+                _testIdx: idx, // disambiguates entries that share the same simulatedTime
+                simulatedTime: e.simulatedTime,
+                experienceGained: { player1: e.experienceGained },
+            }))
+        );
+        mockCalculateSimRevenue.mockImplementation((simResult) => ({
+            netPerHour: entries[simResult._testIdx].netPerHour,
+        }));
+    }
+
+    const zones = [
+        { zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' },
+        { zoneHrid: '/zone/b', difficultyTier: 0, name: 'Zone B' },
+    ];
+    const ONE_HOUR_NS = 3600 * 1e9;
+
+    it('picks the best gold/hr zone when objectiveWeight is 0', async () => {
+        mockZoneResults([
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 10_000 }, netPerHour: 500_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 5_000 }, netPerHour: 900_000 },
+        ]);
+
+        const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 0 });
+
+        expect(best.zoneHrid).toBe('/zone/b');
+    });
+
+    it('picks the best xp/hr zone when objectiveWeight is 1', async () => {
+        mockZoneResults([
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 10_000 }, netPerHour: 500_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 5_000 }, netPerHour: 900_000 },
+        ]);
+
+        const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 1 });
+
+        expect(best.zoneHrid).toBe('/zone/a');
+    });
+
+    it('sums xp across multiple skills for the xp/hr metric', async () => {
+        mockZoneResults([
+            {
+                simulatedTime: ONE_HOUR_NS,
+                experienceGained: { '/skills/attack': 5_000, '/skills/defense': 5_000 },
+                netPerHour: 100_000,
+            },
+        ]);
+
+        const best = await findBestZoneForDTO({ hrid: 'player1' }, [zones[0]], {}, { objectiveWeight: 1 });
+
+        expect(best.xpPerHr).toBe(10_000);
+        expect(best.xpPerHrBySkill).toEqual({ '/skills/attack': 5_000, '/skills/defense': 5_000 });
+    });
+
+    it('returns null when there are no zones', async () => {
+        const best = await findBestZoneForDTO({ hrid: 'player1' }, [], {}, {});
+        expect(best).toBeNull();
     });
 });
