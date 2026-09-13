@@ -167,18 +167,34 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
  * @param {Array<{name: string, dto: Object}>} params.builds - Saved builds to include, cheapest gear first isn't required — sorting happens internally
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} params.zones - Zones to scan
  * @param {Object} params.gameData - Game data from buildGameDataPayload()
+ * Current gear is deliberately never simulated as an activity here — only saved Builds compete
+ * to be fought in. Its equipment is used purely as the cost-diffing baseline (so a build that
+ * reuses an already-owned item isn't charged for it again); its stage otherwise contributes zero
+ * gold/hr and zero XP in any skill, since fighting in whatever you currently happen to have on
+ * (which may not even match the style you're planning around) shouldn't compete with, or dilute
+ * the ranking of, the builds you actually saved for this purpose. Climbing out of that zero-
+ * activity placeholder therefore requires either already meeting the first build's cost/level
+ * requirements, or pre-brewing (see optimizeProgression) — it can never happen by "fighting" in
+ * gear that was excluded from consideration.
  * @param {Object} [params.options] - Passed through to findBestZoneForDTO (hours, communityBuffs, objectiveWeight)
  * @param {Function} [onProgress] - Called with (percent: 0-100, label: string) as each build's scan completes
- * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object}>>}
+ * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object|null}>>}
  */
 export async function runProgressionZoneSearch({ currentDTO, builds, zones, gameData, options = {} }, onProgress) {
-    const allEntries = [{ name: 'Current Gear', dto: currentDTO }, ...builds];
-    const results = [];
+    const currentStage = {
+        name: 'Current Gear',
+        equipment: currentDTO.equipment,
+        goldPerHr: 0,
+        xpPerHrBySkill: {},
+        requiredLevels: [], // always eligible — it's what you're already wearing
+        bestZone: null,
+    };
 
-    for (let i = 0; i < allEntries.length; i++) {
-        const entry = allEntries[i];
+    const buildResults = [];
+    for (let i = 0; i < builds.length; i++) {
+        const entry = builds[i];
         const bestZone = await findBestZoneForDTO(entry.dto, zones, gameData, options);
-        results.push({
+        buildResults.push({
             name: entry.name,
             equipment: entry.dto.equipment,
             goldPerHr: bestZone?.goldPerHr || 0,
@@ -186,9 +202,8 @@ export async function runProgressionZoneSearch({ currentDTO, builds, zones, game
             requiredLevels: getRequiredLevelsForEquipment(entry.dto.equipment, gameData),
             bestZone,
         });
-        if (onProgress) onProgress(Math.round(((i + 1) / allEntries.length) * 100), entry.name);
+        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name);
     }
 
-    const [currentStage, ...buildResults] = results;
     return buildStagesFromResults({ currentStage, builds: buildResults });
 }

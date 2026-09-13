@@ -5,6 +5,8 @@ const prices = new Map([
     ['/items/mid_sword::0', 10_000],
     ['/items/end_sword::10', 500_000],
     ['/items/end_shield::10', 300_000],
+    ['/items/fire_staff::0', 10_000],
+    ['/items/shared_shield::0', 5_000],
 ]);
 
 vi.mock('../../utils/profit-helpers.js', () => ({
@@ -26,7 +28,7 @@ vi.mock('./combat-sim-adapter.js', () => ({
     calculateSimRevenue: (...args) => mockCalculateSimRevenue(...args),
 }));
 
-const { buildStagesFromResults, findBestZoneForDTO, getRequiredLevelsForEquipment } =
+const { buildStagesFromResults, findBestZoneForDTO, getRequiredLevelsForEquipment, runProgressionZoneSearch } =
     await import('./progression-planner.js');
 
 describe('buildStagesFromResults', () => {
@@ -252,5 +254,85 @@ describe('findBestZoneForDTO', () => {
     it('returns null when there are no zones', async () => {
         const best = await findBestZoneForDTO({ hrid: 'player1' }, [], {}, {});
         expect(best).toBeNull();
+    });
+});
+
+describe('runProgressionZoneSearch', () => {
+    it('never simulates current gear — only saved builds are scanned and ranked', async () => {
+        mockRunAllZonesSimulation.mockClear();
+        mockRunAllZonesSimulation.mockResolvedValue([
+            { simulatedTime: 0.5 * 3600 * 1e9, experienceGained: { player1: { magic: 20_000 } } },
+        ]);
+        mockCalculateSimRevenue.mockReturnValue({ netPerHour: 400_000 });
+
+        const currentDTO = {
+            hrid: 'player1',
+            equipment: { '/equipment_types/main_hand': { hrid: '/items/melee_sword', enhancementLevel: 0 } },
+        };
+        const builds = [
+            {
+                name: 'Fire Build',
+                dto: {
+                    hrid: 'player1',
+                    equipment: { '/equipment_types/main_hand': { hrid: '/items/fire_staff', enhancementLevel: 0 } },
+                },
+            },
+        ];
+
+        const stages = await runProgressionZoneSearch({
+            currentDTO,
+            builds,
+            zones: [{ zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' }],
+            gameData: {},
+            options: {},
+        });
+
+        // Only one call to the simulator — for the saved build, never for current gear.
+        expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(1);
+
+        const currentStage = stages.find((s) => s.name === 'Current Gear');
+        expect(currentStage.goldPerHr).toBe(0);
+        expect(currentStage.xpPerHrBySkill).toEqual({});
+        expect(currentStage.bestZone).toBeNull();
+
+        const fireStage = stages.find((s) => s.name === 'Fire Build');
+        expect(fireStage.goldPerHr).toBe(400_000);
+        expect(fireStage.bestZone).not.toBeNull();
+    });
+
+    it('still uses current gear as the cost-diffing baseline, so already-owned items are free', async () => {
+        mockRunAllZonesSimulation.mockResolvedValue([
+            { simulatedTime: 0.5 * 3600 * 1e9, experienceGained: { player1: { magic: 20_000 } } },
+        ]);
+        mockCalculateSimRevenue.mockReturnValue({ netPerHour: 400_000 });
+
+        const currentDTO = {
+            hrid: 'player1',
+            equipment: { '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 } },
+        };
+        const builds = [
+            {
+                name: 'Fire Build',
+                dto: {
+                    hrid: 'player1',
+                    equipment: {
+                        '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 }, // already owned
+                        '/equipment_types/main_hand': { hrid: '/items/fire_staff', enhancementLevel: 0 },
+                    },
+                },
+            },
+        ];
+
+        const stages = await runProgressionZoneSearch({
+            currentDTO,
+            builds,
+            zones: [{ zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' }],
+            gameData: {},
+            options: {},
+        });
+
+        const fireStage = stages.find((s) => s.name === 'Fire Build');
+        // Shield already owned (free): main_hand staff = 10,000, per the mocked price table.
+        expect(fireStage.cost).toBe(10_000);
     });
 });

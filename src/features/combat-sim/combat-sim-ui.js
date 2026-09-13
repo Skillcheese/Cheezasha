@@ -4970,7 +4970,9 @@ class CombatSimUI {
         const skillLabel = (hrid) => hrid.split('/').pop();
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
-            const zone = stageByName.get(stageName)?.bestZone;
+            const stage = stageByName.get(stageName);
+            if (stage?.name === 'Current Gear') return 'no combat — not simulated';
+            const zone = stage?.bestZone;
             return zone ? `${zone.name} (T${zone.difficultyTier})` : 'unknown zone';
         };
         const { recommended } = result;
