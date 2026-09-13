@@ -106,8 +106,20 @@ class SimResult {
         const skillExpMap = combatStyleDetailMap[unit.combatDetails.combatStats.combatStyleHrid].skillExpMap;
         const skillExpMapLength = Object.keys(skillExpMap).length;
 
+        // A charm's focus training redirects the full 70% share into its target skill — but only
+        // when that target is actually relevant to what you're fighting with: either the weapon's
+        // own primary skill (a "main-stat" charm — e.g. a magic charm while wielding a magic
+        // weapon, which trains 100% magic) or one of the combat style's own secondary skills (a
+        // support-stat charm, e.g. a defense charm). A charm for a skill you aren't training at
+        // all (e.g. a magic charm on a melee weapon) doesn't apply — same as wearing no charm.
+        // Gating the main-stat case on skillExpMap membership alone was the original bug: a
+        // weapon's own primary skill is normally covered separately by the fixed 30% share above
+        // and isn't listed in skillExpMap, so a magic charm on a magic weapon always failed that
+        // check and fell back to splitting the 70% across the OTHER secondary skills instead.
         const focusTraining = unit.combatDetails.combatStats.focusTraining;
-        if (focusTraining && skillExpMap[focusTraining]) {
+        const focusIsMainStat = focusTraining && focusTraining === primaryTraining;
+        const focusIsSecondaryStat = focusTraining && skillExpMap[focusTraining];
+        if (focusIsMainStat || focusIsSecondaryStat) {
             experienceGainedRate[focusTraining.split('/')[2]] += 0.7;
         } else {
             Object.keys(skillExpMap).forEach((skillHrid) => {
