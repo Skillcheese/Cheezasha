@@ -124,6 +124,7 @@ class CombatSimUI {
         this._progressionRunning = false;
         this._progressionAborted = false;
         this._progressionSelectedBuilds = new Set();
+        this._progressionSeenBuilds = new Set(); // builds ever shown — new ones default to checked
         this._progressionLastResult = null;
     }
 
@@ -4789,6 +4790,14 @@ class CombatSimUI {
             const dto = simBuilds.get(build.name);
             const style = dto ? this._classifyDtoStyle(dto, gameData) : 'all';
             if (styleFilter !== 'all' && style !== 'all' && style !== styleFilter) continue;
+
+            // A build defaults to checked the first time it's ever shown (e.g. right after
+            // saving it, or the first time a style filter reveals it) — otherwise switching the
+            // style filter would silently mean "use none of these" until manually re-checked.
+            if (!this._progressionSeenBuilds.has(build.name)) {
+                this._progressionSeenBuilds.add(build.name);
+                this._progressionSelectedBuilds.add(build.name);
+            }
             const checked = this._progressionSelectedBuilds.has(build.name) ? ' checked' : '';
             rows.push(`<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc; cursor:pointer;">
                 <input type="checkbox" class="mwi-csim-prog-build-cb" data-build="${build.name}"${checked}>
@@ -4832,6 +4841,11 @@ class CombatSimUI {
         }
 
         const selectedBuildNames = Array.from(this._progressionSelectedBuilds);
+        if (selectedBuildNames.length === 0) {
+            this._setStatus(
+                'No builds checked — simulating current gear only for the whole time budget. Check a build below to plan a gear climb.'
+            );
+        }
         const targetHours = Math.max(1, parseFloat(this.panel?.querySelector('#mwi-csim-prog-hours')?.value) || 1000);
         const brewGoldPerHr = Math.max(0, parseFloat(this.panel?.querySelector('#mwi-csim-prog-brewgph')?.value) || 0);
         const objectiveWeight = Math.min(
@@ -4895,7 +4909,7 @@ class CombatSimUI {
             });
 
             this._progressionLastResult = { stages, result, startingSkillXp };
-            this._displayProgressionResults(result, startingSkillXp);
+            this._displayProgressionResults(result, startingSkillXp, stages.length <= 1);
             this._setStatus('Progression analysis complete.');
         } catch (error) {
             console.error('[CombatSimUI] Progression analysis failed:', error);
@@ -4913,9 +4927,10 @@ class CombatSimUI {
      * comparison table of every candidate considered.
      * @param {{candidates: Array<Object>, recommended: Object|null}} result
      * @param {Object<string, number>} startingSkillXp
+     * @param {boolean} [noBuildsSelected] - True when only "Current Gear" was simulated
      * @private
      */
-    _displayProgressionResults(result, startingSkillXp) {
+    _displayProgressionResults(result, startingSkillXp, noBuildsSelected) {
         const container = this.panel?.querySelector('#mwi-csim-prog-results');
         if (!container) return;
 
@@ -4923,6 +4938,13 @@ class CombatSimUI {
             container.innerHTML =
                 '<div style="color:#f66; font-size:12px; text-align:center; padding:20px 0;">No viable strategy found — check that your current gear and selected builds actually earn combat XP/gold.</div>';
             return;
+        }
+
+        let warningHtml = '';
+        if (noBuildsSelected) {
+            warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
+                No builds were checked, so this only simulated your current gear for the entire time budget — check a build below and re-run to plan an actual gear climb.
+            </div>`;
         }
 
         const skillLabel = (hrid) => hrid.split('/').pop();
@@ -4981,7 +5003,7 @@ class CombatSimUI {
         }
         html += `</div>`;
 
-        container.innerHTML = html;
+        container.innerHTML = warningHtml + html;
     }
 
     /**
