@@ -4909,7 +4909,7 @@ class CombatSimUI {
             });
 
             this._progressionLastResult = { stages, result, startingSkillXp };
-            this._displayProgressionResults(result, startingSkillXp, stages.length <= 1);
+            this._displayProgressionResults(result, startingSkillXp, stages.length <= 1, stages);
             this._setStatus('Progression analysis complete.');
         } catch (error) {
             console.error('[CombatSimUI] Progression analysis failed:', error);
@@ -4928,9 +4928,10 @@ class CombatSimUI {
      * @param {{candidates: Array<Object>, recommended: Object|null}} result
      * @param {Object<string, number>} startingSkillXp
      * @param {boolean} [noBuildsSelected] - True when only "Current Gear" was simulated
+     * @param {Array<Object>} [stages] - The stages the run was built from (for zone lookups)
      * @private
      */
-    _displayProgressionResults(result, startingSkillXp, noBuildsSelected) {
+    _displayProgressionResults(result, startingSkillXp, noBuildsSelected, stages = []) {
         const container = this.panel?.querySelector('#mwi-csim-prog-results');
         if (!container) return;
 
@@ -4948,7 +4949,28 @@ class CombatSimUI {
         }
 
         const skillLabel = (hrid) => hrid.split('/').pop();
+        const stageByName = new Map(stages.map((s) => [s.name, s]));
+        const zoneLabel = (stageName) => {
+            const zone = stageByName.get(stageName)?.bestZone;
+            return zone ? `${zone.name} (T${zone.difficultyTier})` : 'unknown zone';
+        };
         const { recommended } = result;
+
+        // Per-stage scan summary — shows exactly which zone/tier each stage's rates came from,
+        // so an unexpectedly high number can be checked directly against that zone in Configure.
+        if (stages.length > 0) {
+            let stageHtml = `<div style="margin-bottom:10px; font-size:11px;">`;
+            stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only)</div>`;
+            for (const stage of stages) {
+                const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
+                stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
+                stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}</span>`;
+                stageHtml += `<span>${formatKMB(Math.round(stage.goldPerHr))}/hr gold, ${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp</span>`;
+                stageHtml += `</div>`;
+            }
+            stageHtml += `</div>`;
+            warningHtml += stageHtml;
+        }
 
         let html = `<div style="margin-bottom:12px; padding:10px; background:${ACCENT_BG}; border:1px solid ${ACCENT_BORDER}; border-radius:6px;">`;
         html += `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">${recommended.label}</div>`;
@@ -4978,7 +5000,7 @@ class CombatSimUI {
             html += recommended.timeline
                 .map(
                     (leg) =>
-                        `${leg.stage} (${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h): ${leg.reason}`
+                        `${leg.stage} @ ${zoneLabel(leg.stage)} (${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h): ${leg.reason}`
                 )
                 .join('<br>');
             html += `</div>`;
