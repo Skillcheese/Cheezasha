@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { getXpForLevel } from './combat-level-xp-table.js';
-import { isStageEligible, optimizeProgression, simulateMultiSkillClimb, sumSkillXp } from './progression-optimizer.js';
+import {
+    isStageEligible,
+    optimizeProgression,
+    simulateMultiSkillClimb,
+    sumGainedXp,
+    sumSkillXp,
+} from './progression-optimizer.js';
 
 const ATK = '/skills/attack';
 const DEF = '/skills/defense';
@@ -13,6 +19,31 @@ describe('sumSkillXp', () => {
     it('handles empty/undefined', () => {
         expect(sumSkillXp(undefined)).toBe(0);
         expect(sumSkillXp({})).toBe(0);
+    });
+});
+
+describe('sumGainedXp', () => {
+    it('returns final minus starting, not the raw total', () => {
+        const starting = { [ATK]: 1_000_000, [DEF]: 500_000 };
+        const final = { [ATK]: 1_050_000, [DEF]: 500_000 };
+        expect(sumGainedXp(final, starting)).toBe(50_000);
+    });
+
+    it('restricts to only the given skills when relevantSkillHrids is provided', () => {
+        const starting = { [ATK]: 0, [DEF]: 0, '/skills/melee': 0 };
+        const final = { [ATK]: 100, [DEF]: 50, '/skills/melee': 1_000_000 }; // huge off-target gain
+        expect(sumGainedXp(final, starting, [ATK, DEF])).toBe(150);
+    });
+
+    it('defaults to every skill present in finalSkillXp when no list is given', () => {
+        const starting = { [ATK]: 0, [DEF]: 0 };
+        const final = { [ATK]: 100, [DEF]: 50 };
+        expect(sumGainedXp(final, starting)).toBe(150);
+    });
+
+    it('handles missing/undefined inputs without throwing', () => {
+        expect(sumGainedXp(undefined, undefined)).toBe(0);
+        expect(sumGainedXp({ [ATK]: 100 }, undefined)).toBe(100);
     });
 });
 
@@ -220,5 +251,51 @@ describe('optimizeProgression', () => {
         const result = optimizeProgression([], { targetHours: 100, brewGoldPerHr: 1_000_000 });
         expect(result.candidates).toEqual([]);
         expect(result.recommended).toBeNull();
+    });
+
+    it("reports totalXp as XP gained during the plan, not the character's pre-existing total", () => {
+        // Current gear alone, at a fixed horizon, riding out the whole time (no other stages).
+        const soloStage = [{ name: 'Current Gear', cost: 0, goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } }];
+        const startingSkillXp = { [ATK]: 1_000_000 }; // character already has a lot of ATK xp banked
+
+        const result = optimizeProgression(soloStage, {
+            targetHours: 10,
+            brewGoldPerHr: 0,
+            startingSkillXp,
+            objectiveWeight: 1,
+        });
+
+        // 10h * 10,000/hr = 100,000 gained — NOT 1,000,000 (starting) + 100,000.
+        expect(result.recommended.totalXp).toBe(100_000);
+    });
+
+    it('does not let off-target skill XP (e.g. melee, while planning magic) count toward the objective', () => {
+        const MAGIC = '/skills/magic';
+        const MELEE = '/skills/melee';
+        // Current gear (melee weapon) trains melee; reaching the saved magic build takes real
+        // gold current gear alone can't quickly afford, so the climb genuinely lingers on
+        // current gear for the whole (short) horizon here — mirroring the reported case where
+        // current gear "gives more xp/hr, but in the wrong stat."
+        const mixedStages = [
+            { name: 'Current Gear', cost: 0, goldPerHr: 50_000, xpPerHrBySkill: { [MELEE]: 100_000 } },
+            { name: 'Magic Build', cost: 1_000_000, goldPerHr: 50_000, xpPerHrBySkill: { [MAGIC]: 30_000 } },
+        ];
+        // 1,000,000 / 50,000 = 20h to afford Magic Build — never reached within a 10h horizon.
+
+        const unfiltered = optimizeProgression(mixedStages, { targetHours: 10, brewGoldPerHr: 0, objectiveWeight: 1 });
+        const climbCandidateUnfiltered = unfiltered.candidates.find((c) => c.label.includes('Fight now'));
+        // Without a relevance filter, the melee XP earned while stuck on current gear counts in full.
+        expect(climbCandidateUnfiltered.totalXp).toBe(1_000_000); // 100,000/hr * 10h
+
+        const filtered = optimizeProgression(mixedStages, {
+            targetHours: 10,
+            brewGoldPerHr: 0,
+            objectiveWeight: 1,
+            relevantSkillHrids: [MAGIC, '/skills/intelligence', '/skills/defense', '/skills/stamina'],
+        });
+        const climbCandidateFiltered = filtered.candidates.find((c) => c.label.includes('Fight now'));
+        // With the magic-relevant filter, that same melee XP contributes nothing — correctly
+        // reflecting that no real magic progress was made, even though gross XP looks large.
+        expect(climbCandidateFiltered.totalXp).toBe(0);
     });
 });

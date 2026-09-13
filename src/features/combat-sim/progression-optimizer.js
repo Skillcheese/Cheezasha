@@ -27,12 +27,43 @@ import { getXpForLevel } from './combat-level-xp-table.js';
  */
 
 /**
+ * Which combat skills actually matter for each fighting style — used to keep XP gained in an
+ * off-target skill (e.g. melee XP from a melee weapon while planning a magic progression) from
+ * inflating the objective score just because it happened to be earned along the way (typically
+ * while bridging from current gear to the first eligible build of the intended style).
+ */
+export const STYLE_RELEVANT_SKILLS = {
+    melee: ['/skills/attack', '/skills/melee', '/skills/defense', '/skills/stamina'],
+    ranged: ['/skills/ranged', '/skills/defense', '/skills/stamina'],
+    magic: ['/skills/magic', '/skills/intelligence', '/skills/defense', '/skills/stamina'],
+};
+
+/**
  * Sum every skill's XP into a single scalar, for scoring/reporting.
  * @param {Object<string, number>} skillXp
  * @returns {number}
  */
 export function sumSkillXp(skillXp) {
     return Object.values(skillXp || {}).reduce((sum, xp) => sum + xp, 0);
+}
+
+/**
+ * XP actually GAINED (final minus starting) in the given skills, defaulting to every skill
+ * present in `finalSkillXp` when no specific list is given. Use this for "progress made" —
+ * `sumSkillXp` alone includes XP the character already had before the plan even started.
+ * @param {Object<string, number>} finalSkillXp
+ * @param {Object<string, number>} startingSkillXp
+ * @param {Array<string>} [relevantSkillHrids] - Restrict to these skills only, if given
+ * @returns {number}
+ */
+export function sumGainedXp(finalSkillXp, startingSkillXp, relevantSkillHrids) {
+    const keys =
+        relevantSkillHrids && relevantSkillHrids.length > 0 ? relevantSkillHrids : Object.keys(finalSkillXp || {});
+    let sum = 0;
+    for (const key of keys) {
+        sum += (finalSkillXp?.[key] || 0) - (startingSkillXp?.[key] || 0);
+    }
+    return sum;
 }
 
 /**
@@ -146,11 +177,14 @@ export function simulateMultiSkillClimb(stages, { targetHours, startingGold = 0,
  * @param {number} [options.startingGold=0]
  * @param {Object<string, number>} [options.startingSkillXp={}]
  * @param {number} [options.objectiveWeight=1] - 0 = maximize gold, 1 = maximize total combat XP, in between blends both (min-max normalized across the candidates considered)
+ * @param {Array<string>} [options.relevantSkillHrids] - Restrict the XP objective to these skills
+ *   only (see STYLE_RELEVANT_SKILLS) — e.g. don't let melee XP earned in a bridge phase count
+ *   toward a magic progression's score. Omit to count every skill that gained any XP.
  * @returns {{ candidates: Array<Object>, recommended: Object|null }}
  */
 export function optimizeProgression(
     stages,
-    { targetHours, brewGoldPerHr, startingGold = 0, startingSkillXp = {}, objectiveWeight = 1 }
+    { targetHours, brewGoldPerHr, startingGold = 0, startingSkillXp = {}, objectiveWeight = 1, relevantSkillHrids }
 ) {
     if (!stages || stages.length === 0) return { candidates: [], recommended: null };
 
@@ -174,7 +208,11 @@ export function optimizeProgression(
             totalHours: preBrewHours + climb.totalHours,
             finalGold: climb.finalGold,
             finalSkillXp: climb.finalSkillXp,
-            totalXp: sumSkillXp(climb.finalSkillXp),
+            // XP actually gained during the plan, in the skills relevant to the chosen style —
+            // never raw cumulative XP (which would include everything the character already had
+            // before this plan even started), and never off-target skills that happened to gain
+            // XP along the way but don't represent progress toward the intended build style.
+            totalXp: sumGainedXp(climb.finalSkillXp, startingSkillXp, relevantSkillHrids),
             timeline: climb.timeline,
             reachedStageIndex: climb.reachedStageIndex,
         };

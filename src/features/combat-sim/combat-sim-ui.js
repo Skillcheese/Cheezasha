@@ -36,7 +36,7 @@ import { runUltimateSim } from './ultimate-sim-runner.js';
 import { runLevelTargetAnalysis, COMBAT_SKILLS } from './level-target-core.js';
 import simBuilds from './sim-builds.js';
 import { runProgressionZoneSearch } from './progression-planner.js';
-import { optimizeProgression } from './progression-optimizer.js';
+import { optimizeProgression, STYLE_RELEVANT_SKILLS } from './progression-optimizer.js';
 import { getLevelForXp } from './combat-level-xp-table.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
@@ -4925,6 +4925,7 @@ class CombatSimUI {
                 startingGold,
                 startingSkillXp,
                 objectiveWeight,
+                relevantSkillHrids: STYLE_RELEVANT_SKILLS[styleFilter],
             });
 
             this._progressionLastResult = { stages, result, startingSkillXp };
@@ -4970,12 +4971,13 @@ class CombatSimUI {
         const skillLabel = (hrid) => hrid.split('/').pop();
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
-            const stage = stageByName.get(stageName);
-            if (stage?.name === 'Current Gear') return 'no combat — not simulated';
-            const zone = stage?.bestZone;
+            const zone = stageByName.get(stageName)?.bestZone;
             return zone ? `${zone.name} (T${zone.difficultyTier})` : 'unknown zone';
         };
         const { recommended } = result;
+        const relevantSkillsActive = Boolean(
+            STYLE_RELEVANT_SKILLS[this.panel?.querySelector('#mwi-csim-prog-style')?.value]
+        );
 
         // Per-stage scan summary — shows exactly which zone/tier each stage's rates came from,
         // so an unexpectedly high number can be checked directly against that zone in Configure.
@@ -4984,9 +4986,10 @@ class CombatSimUI {
             stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only)</div>`;
             for (const stage of stages) {
                 const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
+                const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
                 stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
                 stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}</span>`;
-                stageHtml += `<span>${formatKMB(Math.round(stage.goldPerHr))}/hr gold, ${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp</span>`;
+                stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp</span>`;
                 stageHtml += `</div>`;
             }
             stageHtml += `</div>`;
@@ -5001,7 +5004,7 @@ class CombatSimUI {
         }
         html += `Total: ${formatWithSeparator(Math.round(recommended.totalHours))}h &nbsp;|&nbsp; `;
         html += `Final gold: ${formatKMB(Math.round(recommended.finalGold))} &nbsp;|&nbsp; `;
-        html += `Total combat XP gained: ${formatKMB(Math.round(recommended.totalXp))}`;
+        html += `Total combat XP gained${relevantSkillsActive ? ' (relevant skills only)' : ''}: ${formatKMB(Math.round(recommended.totalXp))}`;
         html += `</div>`;
 
         const skillEntries = Object.entries(recommended.finalSkillXp || {}).filter(([, xp]) => xp > 0);
