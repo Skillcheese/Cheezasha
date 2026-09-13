@@ -34,6 +34,10 @@ import { runFoodOptimization, rankFoodResults, describeFoodTriggers } from './op
 import { runCoffeeOptimization } from './optimize-coffee-core.js';
 import { runUltimateSim } from './ultimate-sim-runner.js';
 import { runLevelTargetAnalysis, COMBAT_SKILLS } from './level-target-core.js';
+import simBuilds from './sim-builds.js';
+import { runProgressionZoneSearch } from './progression-planner.js';
+import { optimizeProgression } from './progression-optimizer.js';
+import { getLevelForXp } from './combat-level-xp-table.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
 // Sub-phases reported by runFoodOptimization while phase is 'food' (see optimize-food-core.js).
@@ -116,6 +120,11 @@ class CombatSimUI {
         this._usimLastTopFoods = [];
         this._usimFoodSortCol = 'deathsPerHour';
         this._usimFoodSortAsc = true;
+        // Progression tab state
+        this._progressionRunning = false;
+        this._progressionAborted = false;
+        this._progressionSelectedBuilds = new Set();
+        this._progressionLastResult = null;
     }
 
     /**
@@ -202,6 +211,7 @@ class CombatSimUI {
             <button id="mwi-csim-tab-optfood" style="${tabStyle(false)}">Optimize Food</button>
             <button id="mwi-csim-tab-optcoffee" style="${tabStyle(false)}">Optimize Coffee</button>
             <button id="mwi-csim-tab-optultimate" style="${tabStyle(false)}">Ultimate Sim</button>
+            <button id="mwi-csim-tab-progression" style="${tabStyle(false)}">Progression</button>
         `;
 
         // Configure tab content
@@ -873,6 +883,108 @@ class CombatSimUI {
         optUltimateContent.appendChild(usimProgress);
         optUltimateContent.appendChild(usimResults);
 
+        // Progression tab content: plan brew-vs-combat over a fixed time budget using saved Builds.
+        const progressionContent = document.createElement('div');
+        progressionContent.id = 'mwi-csim-progression-content';
+        progressionContent.style.cssText = 'display:none; flex-direction:column; flex:1; overflow:hidden;';
+
+        const progControls = document.createElement('div');
+        progControls.style.cssText = `
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        progControls.innerHTML = `
+            <label style="color:#888; font-size:12px;">Style</label>
+            <select id="mwi-csim-prog-style" style="${selectStyle} flex:0; width:90px; min-width:90px;">
+                <option value="all">All</option>
+                <option value="melee">Melee</option>
+                <option value="ranged">Ranged</option>
+                <option value="magic">Magic</option>
+            </select>
+            <label style="color:#888; font-size:12px;">Hours</label>
+            <input id="mwi-csim-prog-hours" type="number" min="1" max="1000000" value="1000" style="${inputStyle}">
+            <label style="color:#888; font-size:12px;">Alt. Gold/hr</label>
+            <input id="mwi-csim-prog-brewgph" type="number" min="0" step="1000" value="2300000" style="${inputStyle} width:90px;">
+            <button id="mwi-csim-prog-run" style="
+                margin-left: auto;
+                background: ${ACCENT_BTN_BG};
+                color: ${ACCENT};
+                border: 1px solid ${ACCENT_BTN_BORDER};
+                border-radius: 6px;
+                padding: 5px 14px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                font-family: inherit;">Run Analysis</button>
+            <button id="mwi-csim-prog-stop" style="
+                display:none;
+                background:rgba(244, 67, 54, 0.2);
+                border:1px solid rgba(244, 67, 54, 0.4);
+                color:#f44336;
+                border-radius:4px;
+                padding:5px 10px;
+                font-size:12px;
+                font-weight:600;
+                cursor:pointer;
+                font-family:inherit;">Stop</button>
+        `;
+
+        const progWeightRow = document.createElement('div');
+        progWeightRow.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+        `;
+        progWeightRow.innerHTML = `
+            <label style="color:#888; font-size:12px; flex-shrink:0;">Optimize for</label>
+            <span style="color:#e8a87c; font-size:11px; flex-shrink:0; width:34px;">Gold</span>
+            <input id="mwi-csim-prog-weight" type="range" min="0" max="100" value="100" style="flex:1; accent-color:${ACCENT};">
+            <span style="color:${ACCENT}; font-size:11px; flex-shrink:0; width:26px;">XP</span>
+            <span id="mwi-csim-prog-weight-label" style="color:#e0e0e0; font-size:11px; flex-shrink:0; width:80px; text-align:right;">100% XP</span>
+        `;
+
+        const progBuildsRow = document.createElement('div');
+        progBuildsRow.style.cssText = `
+            padding: 8px 14px;
+            border-bottom: 1px solid #222;
+            flex-shrink: 0;
+            max-height: 110px;
+            overflow-y: auto;
+        `;
+        progBuildsRow.innerHTML = `
+            <div style="color:#888; font-size:11px; margin-bottom:4px;">Saved Builds to include (plus your current gear)</div>
+            <div id="mwi-csim-prog-builds" style="display:flex; flex-direction:column; gap:2px;"></div>
+        `;
+
+        const progProgress = document.createElement('div');
+        progProgress.id = 'mwi-csim-prog-progress';
+        progProgress.style.cssText = 'display:none; padding:6px 14px; flex-shrink:0;';
+        progProgress.innerHTML = `
+            <div style="background:#1a1a2e; border-radius:4px; height:18px; overflow:hidden; position:relative; border:1px solid #333;">
+                <div id="mwi-csim-prog-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg, ${ACCENT_BTN_BG}, ${ACCENT}); border-radius:3px; transition:width 0.2s ease;"></div>
+                <span id="mwi-csim-prog-progress-text" style="position:absolute; top:0; left:0; right:0; text-align:center; font-size:11px; line-height:18px; color:#e0e0e0; font-weight:600;">Ready</span>
+            </div>
+        `;
+
+        const progResults = document.createElement('div');
+        progResults.id = 'mwi-csim-prog-results';
+        progResults.style.cssText = 'flex:1; overflow-y:auto; padding:10px 14px;';
+        progResults.innerHTML = `<div style="color:#555; font-size:12px; text-align:center; padding:20px 0;">Save a few gear Builds in Configure, pick your target hours and objective, then click Run Analysis.</div>`;
+
+        progressionContent.appendChild(progControls);
+        progressionContent.appendChild(progWeightRow);
+        progressionContent.appendChild(progBuildsRow);
+        progressionContent.appendChild(progProgress);
+        progressionContent.appendChild(progResults);
+
         // Status bar
         const status = document.createElement('div');
         status.id = 'mwi-csim-status';
@@ -890,6 +1002,7 @@ class CombatSimUI {
         this.panel.appendChild(optFoodContent);
         this.panel.appendChild(optCoffeeContent);
         this.panel.appendChild(optUltimateContent);
+        this.panel.appendChild(progressionContent);
         this.panel.appendChild(status);
 
         const resizeHandle = document.createElement('div');
@@ -935,6 +1048,9 @@ class CombatSimUI {
         this.panel
             .querySelector('#mwi-csim-tab-optultimate')
             .addEventListener('click', () => this._switchTab('optultimate'));
+        this.panel
+            .querySelector('#mwi-csim-tab-progression')
+            .addEventListener('click', () => this._switchTab('progression'));
 
         this.panel
             .querySelector('#mwi-csim-optfood-zone')
@@ -977,6 +1093,17 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-lt-stop').addEventListener('click', () => {
             this._levelTargetAborted = true;
             cancelSimulation();
+        });
+        this.panel.querySelector('#mwi-csim-prog-run').addEventListener('click', () => this._onProgressionRun());
+        this.panel.querySelector('#mwi-csim-prog-stop').addEventListener('click', () => {
+            this._progressionAborted = true;
+            cancelAllZonesSimulation();
+        });
+        this.panel.querySelector('#mwi-csim-prog-style').addEventListener('change', () => {
+            this._populateProgressionBuilds();
+        });
+        this.panel.querySelector('#mwi-csim-prog-weight').addEventListener('input', (e) => {
+            this._updateProgressionWeightLabel(e.target.value);
         });
         this.panel.querySelector('#mwi-csim-upgrade-mode').addEventListener('change', (e) => {
             const levelGroup = this.panel.querySelector('#mwi-csim-upgrade-level-group');
@@ -1972,6 +2099,7 @@ class CombatSimUI {
         const optFoodContent = this.panel.querySelector('#mwi-csim-optfood-content');
         const optCoffeeContent = this.panel.querySelector('#mwi-csim-optcoffee-content');
         const optUltimateContent = this.panel.querySelector('#mwi-csim-optultimate-content');
+        const progressionContent = this.panel.querySelector('#mwi-csim-progression-content');
         const tabConfigure = this.panel.querySelector('#mwi-csim-tab-configure');
         const tabResults = this.panel.querySelector('#mwi-csim-tab-results');
         const tabSeek = this.panel.querySelector('#mwi-csim-tab-seek');
@@ -1980,6 +2108,7 @@ class CombatSimUI {
         const tabOptFood = this.panel.querySelector('#mwi-csim-tab-optfood');
         const tabOptCoffee = this.panel.querySelector('#mwi-csim-tab-optcoffee');
         const tabOptUltimate = this.panel.querySelector('#mwi-csim-tab-optultimate');
+        const tabProgression = this.panel.querySelector('#mwi-csim-tab-progression');
 
         const activeStyle = `flex:1; padding:7px 0; text-align:center; font-size:12px; font-weight:600; cursor:pointer; border:none; font-family:inherit; transition:all 0.1s; background:${ACCENT_BG}; color:${ACCENT}; border-bottom:2px solid ${ACCENT};`;
         const inactiveStyle =
@@ -1993,6 +2122,7 @@ class CombatSimUI {
         if (optFoodContent) optFoodContent.style.display = 'none';
         if (optCoffeeContent) optCoffeeContent.style.display = 'none';
         if (optUltimateContent) optUltimateContent.style.display = 'none';
+        if (progressionContent) progressionContent.style.display = 'none';
         tabConfigure.style.cssText = inactiveStyle;
         tabResults.style.cssText = inactiveStyle;
         if (tabSeek) tabSeek.style.cssText = inactiveStyle;
@@ -2001,6 +2131,7 @@ class CombatSimUI {
         if (tabOptFood) tabOptFood.style.cssText = inactiveStyle;
         if (tabOptCoffee) tabOptCoffee.style.cssText = inactiveStyle;
         if (tabOptUltimate) tabOptUltimate.style.cssText = inactiveStyle;
+        if (tabProgression) tabProgression.style.cssText = inactiveStyle;
 
         if (tab === 'configure') {
             configureContent.style.display = 'flex';
@@ -2033,6 +2164,11 @@ class CombatSimUI {
             if (optUltimateContent) optUltimateContent.style.display = 'flex';
             if (tabOptUltimate) tabOptUltimate.style.cssText = activeStyle;
             this._setStatus('Select a start zone and click Start. Uses the loadout from Configure.');
+        } else if (tab === 'progression') {
+            if (progressionContent) progressionContent.style.display = 'flex';
+            if (tabProgression) tabProgression.style.cssText = activeStyle;
+            this._populateProgressionBuilds();
+            this._setStatus('Pick builds, hours, and an objective, then click Run Analysis.');
         } else {
             resultsContent.style.display = 'flex';
             tabResults.style.cssText = activeStyle;
@@ -4521,6 +4657,328 @@ class CombatSimUI {
             const currentLevel = playerDTO?.[key + 'Level'];
             input.placeholder = currentLevel ? `Lv${currentLevel}+` : '—';
         }
+    }
+
+    /**
+     * Classify a DTO's combat style from its equipped weapon's combat stats, for the
+     * Progression tab's style filter. Falls back to 'all' (always shown) for unarmed/unknown
+     * loadouts rather than guessing.
+     * @param {Object} dto - Player DTO
+     * @param {Object} gameData - Game data from buildGameDataPayload()
+     * @returns {'melee'|'ranged'|'magic'|'all'}
+     * @private
+     */
+    _classifyDtoStyle(dto, gameData) {
+        const itemDetailMap = gameData?.itemDetailMap || {};
+        const weaponSlots = ['/equipment_types/main_hand', '/equipment_types/two_hand'];
+
+        for (const slot of weaponSlots) {
+            const item = dto.equipment?.[slot];
+            const stats = item?.hrid ? itemDetailMap[item.hrid]?.equipmentDetail?.combatStats : null;
+            if (!stats) continue;
+
+            const melee =
+                (stats.stabDamage || 0) +
+                (stats.slashDamage || 0) +
+                (stats.smashDamage || 0) +
+                (stats.stabAccuracy || 0) +
+                (stats.slashAccuracy || 0) +
+                (stats.smashAccuracy || 0);
+            const ranged = (stats.rangedDamage || 0) + (stats.rangedAccuracy || 0);
+            const magic =
+                (stats.magicDamage || 0) +
+                (stats.magicAccuracy || 0) +
+                (stats.fireAmplify || 0) +
+                (stats.natureAmplify || 0) +
+                (stats.waterAmplify || 0);
+
+            if (ranged > 0 && ranged >= melee && ranged >= magic) return 'ranged';
+            if (magic > 0 && magic >= melee && magic >= ranged) return 'magic';
+            if (melee > 0) return 'melee';
+        }
+
+        return 'all';
+    }
+
+    /**
+     * Expand every combat zone into one entry per difficulty tier — the Progression tab always
+     * scans every zone (a zone's viability doesn't depend on combat style; only which saved
+     * Builds are offered does), unlike the checklist-driven All Zones tab.
+     * @returns {Array<{zoneHrid: string, difficultyTier: number, name: string}>}
+     * @private
+     */
+    _getAllZonesExpanded() {
+        const zones = getCombatZones();
+        const expanded = [];
+        for (const zone of zones) {
+            for (let t = 0; t <= zone.maxDifficulty; t++) {
+                expanded.push({ zoneHrid: zone.hrid, difficultyTier: t, name: zone.name });
+            }
+        }
+        return expanded;
+    }
+
+    /**
+     * Current cumulative XP per combat skill, keyed by full skill hrid (matches gear level
+     * requirements and progression-planner.js's xpPerHrBySkill output).
+     * @returns {Object<string, number>}
+     * @private
+     */
+    _getCurrentSkillXp() {
+        const skills = dataManager.getSkills() || [];
+        const result = {};
+        for (const skill of skills) {
+            if (skill?.skillHrid) result[skill.skillHrid] = skill.experience || 0;
+        }
+        return result;
+    }
+
+    /**
+     * Current coin balance from inventory.
+     * @returns {number}
+     * @private
+     */
+    _getCurrentGold() {
+        const inventory = dataManager.getInventory() || [];
+        let gold = 0;
+        for (const item of inventory) {
+            if (item.itemHrid === '/items/coin') gold += item.count || 0;
+        }
+        return gold;
+    }
+
+    /**
+     * Update the Progression tab's objective slider label.
+     * @param {number|string} sliderValue - 0-100 (0 = pure gold, 100 = pure XP)
+     * @private
+     */
+    _updateProgressionWeightLabel(sliderValue) {
+        const label = this.panel?.querySelector('#mwi-csim-prog-weight-label');
+        if (!label) return;
+        const xpPct = Math.round(Number(sliderValue));
+        label.textContent =
+            xpPct === 0 ? '100% Gold' : xpPct === 100 ? '100% XP' : `${xpPct}% XP / ${100 - xpPct}% Gold`;
+    }
+
+    /**
+     * Populate the Progression tab's build checklist from saved Builds, filtered by the
+     * selected combat style. Preserves prior checkbox state across re-populates (e.g. after
+     * switching the style filter) via this._progressionSelectedBuilds.
+     * @private
+     */
+    async _populateProgressionBuilds() {
+        await simBuilds.initialize();
+        const container = this.panel?.querySelector('#mwi-csim-prog-builds');
+        if (!container) return;
+
+        const styleFilter = this.panel?.querySelector('#mwi-csim-prog-style')?.value || 'all';
+        const gameData = buildGameDataPayload();
+        const builds = simBuilds.list();
+
+        if (builds.length === 0) {
+            container.innerHTML =
+                '<div style="color:#555; font-size:11px; font-style:italic;">No saved builds yet — save one from the Configure tab.</div>';
+            return;
+        }
+
+        const rows = [];
+        for (const build of builds) {
+            const dto = simBuilds.get(build.name);
+            const style = dto ? this._classifyDtoStyle(dto, gameData) : 'all';
+            if (styleFilter !== 'all' && style !== 'all' && style !== styleFilter) continue;
+            const checked = this._progressionSelectedBuilds.has(build.name) ? ' checked' : '';
+            rows.push(`<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#ccc; cursor:pointer;">
+                <input type="checkbox" class="mwi-csim-prog-build-cb" data-build="${build.name}"${checked}>
+                ${build.name}
+            </label>`);
+        }
+
+        container.innerHTML =
+            rows.join('') ||
+            '<div style="color:#555; font-size:11px; font-style:italic;">No saved builds match this style filter.</div>';
+
+        container.querySelectorAll('.mwi-csim-prog-build-cb').forEach((cb) => {
+            cb.addEventListener('change', () => {
+                if (cb.checked) this._progressionSelectedBuilds.add(cb.dataset.build);
+                else this._progressionSelectedBuilds.delete(cb.dataset.build);
+            });
+        });
+    }
+
+    /**
+     * Run the Progression analysis: scan every saved (checked) Build plus current gear across
+     * every zone — ranked by the same objective slider used for the final recommendation — then
+     * find the best pre-brew duration for the chosen gold/XP objective over the given hour budget.
+     * @private
+     */
+    async _onProgressionRun() {
+        if (this._progressionRunning) {
+            this._progressionAborted = true;
+            cancelAllZonesSimulation();
+            return;
+        }
+
+        const editedDTOs = this._editor?.getEditedDTOs();
+        const selfHrid = this._editor?.getSelfHrid();
+        const activePlayer = this._activePlayerTab || selfHrid;
+        const currentDTO = editedDTOs ? editedDTOs[activePlayer] || Object.values(editedDTOs)[0] : null;
+
+        if (!currentDTO) {
+            this._setStatus('No character loaded — open the Configure tab first.');
+            return;
+        }
+
+        const selectedBuildNames = Array.from(this._progressionSelectedBuilds);
+        const targetHours = Math.max(1, parseFloat(this.panel?.querySelector('#mwi-csim-prog-hours')?.value) || 1000);
+        const brewGoldPerHr = Math.max(0, parseFloat(this.panel?.querySelector('#mwi-csim-prog-brewgph')?.value) || 0);
+        const objectiveWeight = Math.min(
+            1,
+            Math.max(0, (parseFloat(this.panel?.querySelector('#mwi-csim-prog-weight')?.value) || 0) / 100)
+        );
+
+        const gameData = buildGameDataPayload();
+        if (!gameData) {
+            this._setStatus('No game data available.');
+            return;
+        }
+
+        const builds = selectedBuildNames
+            .map((name) => {
+                const dto = simBuilds.get(name);
+                if (!dto) return null;
+                dto.hrid = 'player1';
+                return { name, dto };
+            })
+            .filter(Boolean);
+
+        const runDto = structuredClone(currentDTO);
+        runDto.hrid = 'player1';
+        const zones = this._getAllZonesExpanded();
+
+        this._progressionRunning = true;
+        this._progressionAborted = false;
+        const runBtn = this.panel?.querySelector('#mwi-csim-prog-run');
+        const stopBtn = this.panel?.querySelector('#mwi-csim-prog-stop');
+        const progressEl = this.panel?.querySelector('#mwi-csim-prog-progress');
+        const progressFill = this.panel?.querySelector('#mwi-csim-prog-progress-fill');
+        const progressText = this.panel?.querySelector('#mwi-csim-prog-progress-text');
+        if (runBtn) runBtn.style.display = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-block';
+        if (progressEl) progressEl.style.display = 'block';
+
+        try {
+            const stages = await runProgressionZoneSearch(
+                { currentDTO: runDto, builds, zones, gameData, options: { hours: 0.5, objectiveWeight } },
+                (percent, label) => {
+                    if (progressFill) progressFill.style.width = `${percent}%`;
+                    if (progressText) progressText.textContent = `${percent}% (${label})`;
+                }
+            );
+
+            if (this._progressionAborted) {
+                this._setStatus('Progression analysis cancelled.');
+                return;
+            }
+
+            const startingGold = this._getCurrentGold();
+            const startingSkillXp = this._getCurrentSkillXp();
+
+            const result = optimizeProgression(stages, {
+                targetHours,
+                brewGoldPerHr,
+                startingGold,
+                startingSkillXp,
+                objectiveWeight,
+            });
+
+            this._progressionLastResult = { stages, result, startingSkillXp };
+            this._displayProgressionResults(result, startingSkillXp);
+            this._setStatus('Progression analysis complete.');
+        } catch (error) {
+            console.error('[CombatSimUI] Progression analysis failed:', error);
+            this._setStatus(`Progression analysis error: ${error.message || 'Unknown error'}`);
+        } finally {
+            this._progressionRunning = false;
+            if (runBtn) runBtn.style.display = 'inline-block';
+            if (stopBtn) stopBtn.style.display = 'none';
+            if (progressEl) progressEl.style.display = 'none';
+        }
+    }
+
+    /**
+     * Render the Progression tab's results: the recommended strategy's timeline plus a
+     * comparison table of every candidate considered.
+     * @param {{candidates: Array<Object>, recommended: Object|null}} result
+     * @param {Object<string, number>} startingSkillXp
+     * @private
+     */
+    _displayProgressionResults(result, startingSkillXp) {
+        const container = this.panel?.querySelector('#mwi-csim-prog-results');
+        if (!container) return;
+
+        if (!result.recommended) {
+            container.innerHTML =
+                '<div style="color:#f66; font-size:12px; text-align:center; padding:20px 0;">No viable strategy found — check that your current gear and selected builds actually earn combat XP/gold.</div>';
+            return;
+        }
+
+        const skillLabel = (hrid) => hrid.split('/').pop();
+        const { recommended } = result;
+
+        let html = `<div style="margin-bottom:12px; padding:10px; background:${ACCENT_BG}; border:1px solid ${ACCENT_BORDER}; border-radius:6px;">`;
+        html += `<div style="color:${ACCENT}; font-weight:700; font-size:13px; margin-bottom:6px;">${recommended.label}</div>`;
+        html += `<div style="font-size:12px; color:#ccc; line-height:1.6;">`;
+        if (recommended.preBrewHours > 0) {
+            html += `Brew for ${formatWithSeparator(Math.round(recommended.preBrewHours))}h, then fight for the rest.<br>`;
+        }
+        html += `Total: ${formatWithSeparator(Math.round(recommended.totalHours))}h &nbsp;|&nbsp; `;
+        html += `Final gold: ${formatKMB(Math.round(recommended.finalGold))} &nbsp;|&nbsp; `;
+        html += `Total combat XP gained: ${formatKMB(Math.round(recommended.totalXp))}`;
+        html += `</div>`;
+
+        const skillEntries = Object.entries(recommended.finalSkillXp || {}).filter(([, xp]) => xp > 0);
+        if (skillEntries.length > 0) {
+            html += `<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:#aaa;">`;
+            for (const [skill, xp] of skillEntries) {
+                const startingLevel = getLevelForXp(startingSkillXp[skill] || 0);
+                const endingLevel = getLevelForXp(xp);
+                const delta = endingLevel > startingLevel ? ` (was Lv${startingLevel})` : '';
+                html += `<span>${skillLabel(skill)}: Lv${endingLevel}${delta}</span>`;
+            }
+            html += `</div>`;
+        }
+
+        if (recommended.timeline?.length) {
+            html += `<div style="margin-top:8px; font-size:11px; color:#888;">`;
+            html += recommended.timeline
+                .map(
+                    (leg) =>
+                        `${leg.stage} (${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h): ${leg.reason}`
+                )
+                .join('<br>');
+            html += `</div>`;
+        }
+        html += `</div>`;
+
+        html += `<div style="color:#888; font-weight:700; font-size:11px; margin-bottom:6px;">All strategies considered</div>`;
+        html += `<div style="display:flex; flex-direction:column; gap:4px;">`;
+        const sorted = [...result.candidates].sort((a, b) => b.score - a.score);
+        for (const candidate of sorted) {
+            const isRecommended = candidate === recommended;
+            const rowStyle = isRecommended
+                ? `border:1px solid ${ACCENT_BORDER}; background:${ACCENT_BG};`
+                : 'border:1px solid #2a2a2a; background:rgba(255,255,255,0.02);';
+            html += `<div style="padding:6px 8px; border-radius:4px; font-size:11px; ${rowStyle}">`;
+            html += `<div style="color:${isRecommended ? ACCENT : '#ccc'}; font-weight:600;">${candidate.label}</div>`;
+            html += `<div style="color:#888; margin-top:2px;">`;
+            html += `Total ${formatWithSeparator(Math.round(candidate.totalHours))}h &nbsp;|&nbsp; `;
+            html += `Gold ${formatKMB(Math.round(candidate.finalGold))} &nbsp;|&nbsp; `;
+            html += `XP ${formatKMB(Math.round(candidate.totalXp))}`;
+            html += `</div></div>`;
+        }
+        html += `</div>`;
+
+        container.innerHTML = html;
     }
 
     /**

@@ -117,9 +117,13 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
 
         const simHours = (simResult.simulatedTime || 0) / (3600 * 1e9) || hours;
 
+        // simResult.experienceGained uses short skill keys ('attack', 'defense', ...) while
+        // gameData's item level requirements use full skill hrids ('/skills/attack', ...) — key
+        // everything to the hrid form so eligibility checks in progression-optimizer.js can
+        // compare them directly.
         const xpPerHrBySkill = {};
         for (const [skill, amount] of Object.entries(simResult.experienceGained?.[playerHrid] || {})) {
-            xpPerHrBySkill[skill] = amount / simHours;
+            xpPerHrBySkill[`/skills/${skill}`] = amount / simHours;
         }
         const xpPerHr = Object.values(xpPerHrBySkill).reduce((sum, v) => sum + v, 0);
 

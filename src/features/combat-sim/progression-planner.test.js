@@ -211,9 +211,10 @@ describe('findBestZoneForDTO', () => {
     const ONE_HOUR_NS = 3600 * 1e9;
 
     it('picks the best gold/hr zone when objectiveWeight is 0', async () => {
+        // simResult.experienceGained uses short skill keys ('attack'), not full hrids.
         mockZoneResults([
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 10_000 }, netPerHour: 500_000 },
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 5_000 }, netPerHour: 900_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 5_000 }, netPerHour: 900_000 },
         ]);
 
         const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 0 });
@@ -223,8 +224,8 @@ describe('findBestZoneForDTO', () => {
 
     it('picks the best xp/hr zone when objectiveWeight is 1', async () => {
         mockZoneResults([
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 10_000 }, netPerHour: 500_000 },
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { '/skills/attack': 5_000 }, netPerHour: 900_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 5_000 }, netPerHour: 900_000 },
         ]);
 
         const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 1 });
@@ -232,11 +233,11 @@ describe('findBestZoneForDTO', () => {
         expect(best.zoneHrid).toBe('/zone/a');
     });
 
-    it('sums xp across multiple skills for the xp/hr metric', async () => {
+    it('sums xp across multiple skills for the xp/hr metric, keyed to full skill hrids', async () => {
         mockZoneResults([
             {
                 simulatedTime: ONE_HOUR_NS,
-                experienceGained: { '/skills/attack': 5_000, '/skills/defense': 5_000 },
+                experienceGained: { attack: 5_000, defense: 5_000 },
                 netPerHour: 100_000,
             },
         ]);
@@ -244,6 +245,7 @@ describe('findBestZoneForDTO', () => {
         const best = await findBestZoneForDTO({ hrid: 'player1' }, [zones[0]], {}, { objectiveWeight: 1 });
 
         expect(best.xpPerHr).toBe(10_000);
+        // Converted to full hrids so they line up with gameData's levelRequirements[].skillHrid.
         expect(best.xpPerHrBySkill).toEqual({ '/skills/attack': 5_000, '/skills/defense': 5_000 });
     });
 
