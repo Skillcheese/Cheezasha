@@ -5076,10 +5076,13 @@ class CombatSimUI {
             html += `<div style="margin-top:8px; font-size:11px; color:#888;">`;
             html += recommended.timeline
                 .filter((leg) => leg.stage !== 'Current Gear' || leg.endHour > leg.startHour)
-                .map(
-                    (leg) =>
-                        `${leg.stage} @ ${zoneLabel(leg.stage)} (${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h): ${leg.reason}`
-                )
+                .map((leg) => {
+                    const timeRange = `(${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h)`;
+                    if (leg.stage.endsWith(' (brewing for gold)')) {
+                        return `Earning money (not fighting) ${timeRange}: ${leg.reason}`;
+                    }
+                    return `${leg.stage} @ ${zoneLabel(leg.stage)} ${timeRange}: ${leg.reason}`;
+                })
                 .join('<br>');
             html += `</div>`;
         }
