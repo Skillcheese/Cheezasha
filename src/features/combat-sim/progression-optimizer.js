@@ -316,7 +316,7 @@ export function simulateMultiSkillClimb(
                     stage: `${current.name} (brewing for gold)`,
                     startHour: hour,
                     endHour: hour + brewHours,
-                    reason,
+                    reason: 'earning money',
                 });
                 gold += brewGoldPerHr * brewHours;
                 hour += brewHours;
