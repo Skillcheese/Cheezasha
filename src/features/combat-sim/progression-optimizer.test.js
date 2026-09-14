@@ -202,6 +202,31 @@ describe('simulateMultiSkillClimb', () => {
         // 800h at 10,000/hr banks exactly the 8,000,000 direct cost; the rest is spent at Best's rate.
         expect(result.finalGold).toBeCloseTo(1_900_000 * (2000 - 800), 0);
     });
+
+    it('prefers staying put when a switch-to-brew detour sacrifices far more xp than the upgrade earns back', () => {
+        const stages = [
+            // Already trains xp very well — the thing worth protecting.
+            { name: 'Current Gear', cost: 0, goldPerHr: 10_000, xpPerHrBySkill: { [ATK]: 100_000 } },
+            {
+                // Only a marginal xp/hr improvement, but so expensive that (with no level gate to
+                // force any fighting first) the switch-to-brew logic would spend almost the WHOLE
+                // horizon brewing — earning zero combat xp — for one hour at a barely-better rate.
+                name: 'TooExpensive',
+                cost: 999_000_000,
+                goldPerHr: 1_000,
+                xpPerHrBySkill: { [ATK]: 105_000 },
+            },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 1000,
+            brewGoldPerHr: 1_000_000,
+            objectiveWeight: 1,
+        });
+
+        expect(result.reachedStageIndex).toBe(0);
+        expect(result.finalSkillXp[ATK]).toBeCloseTo(100_000_000, -3); // rode out Current Gear the whole time
+    });
 });
 
 describe('optimizeProgression', () => {
