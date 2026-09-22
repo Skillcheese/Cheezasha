@@ -804,7 +804,6 @@ class LabSimUI {
             const result = await buildAllPlayerDTOs();
             playerDTOs = result.players;
         }
-
         if (!playerDTOs.length) {
             this._setStatus('No character data available.');
             return;
@@ -1501,7 +1500,6 @@ class LabSimUI {
                         gameData,
                         monster.hrid
                     );
-
                     let best;
 
                     if (
@@ -1908,12 +1906,19 @@ class LabSimUI {
         const formatCell = await this._makeLoadoutCellFormatter(gameData);
         for (const r of sorted) {
             const recommendedSkip = r.maxLevel - effectiveCombatLevel + 1;
+            // A per-monster Automation-tab loadout silently swaps out whatever gear/abilities the
+            // player currently has equipped for the sim, which can make the reported win rate look
+            // wrong ("Find Max" vs manually simming with equipped gear disagree) if it's missed.
+            // Calling that out here (bold + accent) instead of the same dim gray as "Current Gear"
+            // keeps it from being mistaken for a search/caching bug.
+            const usesCustomLoadout = r.loadoutName && !r.loadoutName.startsWith('Current Gear');
+            const loadoutCellStyle = usesCustomLoadout ? `color:${ACCENT}; font-weight:600;` : 'color:#888;';
             html += `<tr style="border-bottom:1px solid #1a1a1a;">
                 <td style="padding:3px 4px; color:#e0e0e0;">${r.monsterName}</td>
                 <td style="${tdStyle} color:#4caf50; font-weight:700;">${r.maxLevel}</td>
                 <td style="${tdStyle} color:#ccc;">${(r.winRate * 100).toFixed(1)}%</td>
                 <td style="${tdStyle} color:#888;">${recommendedSkip}</td>
-                <td style="padding:3px 4px; color:#888; font-size:11px; max-width:360px; white-space:normal; word-break:break-word; line-height:1.5;">${formatCell(r.loadoutName)}</td>
+                <td style="padding:3px 4px; ${loadoutCellStyle} font-size:11px; max-width:360px; white-space:normal; word-break:break-word; line-height:1.5;" title="${usesCustomLoadout ? 'Simulated with this per-monster Automation-tab loadout, not your currently equipped gear.' : 'Simulated with your currently equipped gear.'}">${formatCell(r.loadoutName)}</td>
             </tr>`;
         }
 
