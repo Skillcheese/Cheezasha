@@ -47,9 +47,11 @@ const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key
  *   you already own it, regardless of what it would cost to buy from scratch).
  * @param {Array<{name: string, equipment: Object, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>}>} params.builds
  *   One entry per saved Build already simulated at its best zone (see runProgressionZoneSearch).
+ * @param {boolean} [params.sellOldGear=false] - Credit selling gear that isn't carried forward
+ *   into the next stage toward that stage's cost (see calculateGearUpgradeCost's `sellOldGear`).
  * @returns {Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>, directCosts: Object<string, number>}>}
  */
-export function buildStagesFromResults({ currentStage, builds }) {
+export function buildStagesFromResults({ currentStage, builds, sellOldGear = false }) {
     const priced = builds
         .map((build) => ({ ...build, _fullPrice: estimateEquipmentPrice(build.equipment).total }))
         .sort((a, b) => a._fullPrice - b._fullPrice);
@@ -59,7 +61,7 @@ export function buildStagesFromResults({ currentStage, builds }) {
 
     let prevEquipment = currentEquipment;
     for (const build of priced) {
-        const { total: cost } = calculateGearUpgradeCost(prevEquipment, build.equipment);
+        const { total: cost } = calculateGearUpgradeCost(prevEquipment, build.equipment, { sellOldGear });
         const { _fullPrice, ...rest } = build;
         void _fullPrice;
         stages.push({ ...rest, cost });
@@ -70,7 +72,9 @@ export function buildStagesFromResults({ currentStage, builds }) {
         const directCosts = {};
         for (const other of stages) {
             if (other === stage) continue;
-            directCosts[other.name] = calculateGearUpgradeCost(stage.equipment, other.equipment).total;
+            directCosts[other.name] = calculateGearUpgradeCost(stage.equipment, other.equipment, {
+                sellOldGear,
+            }).total;
         }
         stage.directCosts = directCosts;
     }
@@ -252,12 +256,17 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} params.zones - Zones to scan
  * @param {Object} params.gameData - Game data from buildGameDataPayload()
  * @param {Object} [params.options] - Passed through to findBestZoneForDTO (hours, communityBuffs, objectiveWeight)
+ * @param {boolean} [params.sellOldGear=false] - Credit selling gear not carried forward into the
+ *   next stage toward that stage's cost (see buildStagesFromResults/calculateGearUpgradeCost)
  * @param {Function} [onProgress] - Called with (percent: 0-100, label: string, cached: boolean|undefined)
  *   as each build's scan completes — `cached` is true when a matching `options.cache` entry was
  *   reused instead of running a fresh simulation
  * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object|null}>>}
  */
-export async function runProgressionZoneSearch({ currentDTO, builds, zones, gameData, options = {} }, onProgress) {
+export async function runProgressionZoneSearch(
+    { currentDTO, builds, zones, gameData, options = {}, sellOldGear = false },
+    onProgress
+) {
     const currentStage = {
         name: 'Current Gear',
         equipment: currentDTO.equipment,
@@ -282,5 +291,5 @@ export async function runProgressionZoneSearch({ currentDTO, builds, zones, game
         });
     }
 
-    return buildStagesFromResults({ currentStage, builds: buildResults });
+    return buildStagesFromResults({ currentStage, builds: buildResults, sellOldGear });
 }

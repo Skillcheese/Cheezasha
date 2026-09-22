@@ -117,4 +117,47 @@ describe('calculateGearUpgradeCost', () => {
         const result = calculateGearUpgradeCost(undefined, to);
         expect(result.total).toBe(1000);
     });
+
+    describe('with sellOldGear', () => {
+        it('credits selling a replaced item at 90% of its buy price minus 5% market tax', () => {
+            const from = { '/equipment_types/off_hand': { hrid: '/items/shield', enhancementLevel: 0 } };
+            const to = { '/equipment_types/off_hand': { hrid: '/items/helm', enhancementLevel: 10 } };
+
+            const result = calculateGearUpgradeCost(from, to, { sellOldGear: true });
+
+            const sellCredit = 800 * 0.9 * 0.95;
+            expect(result.sellCredit).toBeCloseTo(sellCredit);
+            expect(result.total).toBeCloseTo(20000 - sellCredit);
+        });
+
+        it('credits selling gear left behind entirely (an empty slot in the target)', () => {
+            const from = { '/equipment_types/off_hand': { hrid: '/items/shield', enhancementLevel: 0 } };
+            const to = {};
+
+            const result = calculateGearUpgradeCost(from, to, { sellOldGear: true });
+
+            expect(result.sellCredit).toBeCloseTo(800 * 0.9 * 0.95);
+            expect(result.total).toBeCloseTo(-800 * 0.9 * 0.95);
+        });
+
+        it('gives no credit for an item carried forward into the same slot', () => {
+            const from = { '/equipment_types/main_hand': { hrid: '/items/sword', enhancementLevel: 5 } };
+            const to = { '/equipment_types/main_hand': { hrid: '/items/sword', enhancementLevel: 5 } };
+
+            const result = calculateGearUpgradeCost(from, to, { sellOldGear: true });
+
+            expect(result.sellCredit).toBe(0);
+            expect(result.total).toBe(0);
+        });
+
+        it('defaults to no credit when sellOldGear is omitted', () => {
+            const from = { '/equipment_types/off_hand': { hrid: '/items/shield', enhancementLevel: 0 } };
+            const to = {};
+
+            const result = calculateGearUpgradeCost(from, to);
+
+            expect(result.sellCredit).toBe(0);
+            expect(result.total).toBe(0);
+        });
+    });
 });

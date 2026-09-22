@@ -158,11 +158,16 @@ describe('simulateMultiSkillClimb', () => {
             startingSkillXp: { [ATK]: getXpForLevel(10) }, // already qualified
         });
 
-        expect(result.timeline[0].endHour).toBe(0); // instant transition
+        // Switches to Tier 2 instantly and rides it out for the whole horizon — a single
+        // continuous leg, not a separate zero-length "switched" entry followed by a ride-out one.
+        expect(result.timeline).toHaveLength(1);
+        expect(result.timeline[0].stage).toBe('Tier 2');
+        expect(result.timeline[0].startHour).toBe(0);
+        expect(result.timeline[0].endHour).toBe(5);
         expect(result.reachedStageIndex).toBe(1);
     });
 
-    it('skips a low-value intermediate stage and jumps straight to a better one when reachable', () => {
+    it('discovers a faster multi-hop route through a cheap intermediate stage when it reaches the ultimate target sooner', () => {
         const MAGIC = '/skills/magic';
         const stages = [
             {
@@ -172,7 +177,9 @@ describe('simulateMultiSkillClimb', () => {
                 xpPerHrBySkill: { [MAGIC]: 25_000 },
             },
             {
-                // Reachable soon and only slightly better — should be skipped in favor of Best.
+                // Much weaker than Best on its own, but cheap and reachable early — banking gold
+                // at its higher rate reaches Best's direct cost sooner than grinding it out at
+                // Current Gear's rate the whole way, even counting the cost to stop here first.
                 name: 'MidTier',
                 cost: 5_000_000,
                 goldPerHr: 80_000,
@@ -180,7 +187,6 @@ describe('simulateMultiSkillClimb', () => {
                 directCosts: { 'Current Gear': 5_000_000, Best: 12_000_000 },
             },
             {
-                // Direct from Current Gear this is cheaper than going through MidTier first.
                 name: 'Best',
                 cost: 500_000_000, // sequential cost through MidTier — should NOT be used
                 goldPerHr: 1_900_000,
@@ -191,16 +197,125 @@ describe('simulateMultiSkillClimb', () => {
         // Patch Current Gear's directCosts (needs the other two stage names available).
         stages[0].directCosts = { MidTier: 5_000_000, Best: 8_000_000 };
 
-        // Current Gear earns 10,000/hr — 8,000,000 gold takes 800h, well within the 2,000h budget.
-        // Buying MidTier first would cost 5,000,000 (500h) then another 12,000,000 from MidTier's
-        // own 80,000/hr (150h) = 650h total — slower AND ends up on a worse stage than jumping
-        // straight to Best from Current Gear.
+        // Direct: 8,000,000 / 10,000/hr = 800h to reach Best.
+        // Via MidTier: 5,000,000 / 10,000/hr = 500h to reach MidTier, then 12,000,000 / 80,000/hr
+        // = 150h more to reach Best from there — 650h total, 150h sooner than going direct, which
+        // more than makes up for however weak MidTier's own rates are along the way.
         const result = simulateMultiSkillClimb(stages, { targetHours: 2000, objectiveWeight: 1 });
 
-        expect(result.reachedStageIndex).toBe(2); // Best, not MidTier
-        expect(result.timeline.some((leg) => leg.stage === 'MidTier')).toBe(false);
-        // 800h at 10,000/hr banks exactly the 8,000,000 direct cost; the rest is spent at Best's rate.
-        expect(result.finalGold).toBeCloseTo(1_900_000 * (2000 - 800), 0);
+        expect(result.reachedStageIndex).toBe(2); // still ends up at Best
+        expect(result.timeline.some((leg) => leg.stage === 'MidTier')).toBe(true); // stops there first now
+        // Reaches Best 150h sooner than the direct route, so more time is spent at Best's high rate.
+        expect(result.finalGold).toBeCloseTo(1_900_000 * (2000 - 650), 0);
+    });
+
+    it('hops to a strictly better already-affordable/eligible stage instead of grinding a far-off target in weaker gear', () => {
+        const MAGIC = '/skills/magic';
+        const stages = [
+            { name: 'Weaker', cost: 0, goldPerHr: 135_400, xpPerHrBySkill: { [MAGIC]: 23_255 } },
+            {
+                // Cheap and already eligible/affordable — dominates Weaker on both gold and xp.
+                name: 'Better',
+                cost: 3_000_000,
+                goldPerHr: 135_700,
+                xpPerHrBySkill: { [MAGIC]: 25_511 },
+                directCosts: { Weaker: 3_000_000, BigTarget: 8_500_000_000 },
+            },
+            {
+                // Far bigger payoff, but gated behind a level requirement that takes a while to clear.
+                name: 'BigTarget',
+                cost: 8_500_000_000,
+                goldPerHr: 1_600_000,
+                xpPerHrBySkill: { [MAGIC]: 241_314 },
+                requiredLevels: [{ skillHrid: MAGIC, level: 125 }],
+                directCosts: { Weaker: 8_500_000_000, Better: 8_500_000_000 },
+            },
+        ];
+        stages[0].directCosts = { Better: 3_000_000, BigTarget: 8_500_000_000 };
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 2000,
+            startingGold: 183_200_000,
+            objectiveWeight: 0.5,
+        });
+
+        // Better was affordable and eligible from hour 0 — the climb should hop to it immediately
+        // instead of grinding the whole way to BigTarget's level gate in Weaker. The zero-length
+        // "switched" entry merges straight into the fight that follows, since it's the same gear.
+        expect(result.timeline[0].stage).toBe('Better');
+        expect(result.timeline[0].startHour).toBe(0);
+        expect(result.timeline.some((leg) => leg.stage === 'Weaker' && leg.endHour > leg.startHour)).toBe(false);
+    });
+
+    it('never buys gear it will only brew in, and merges consecutive brew legs into one', () => {
+        const MAGIC = '/skills/magic';
+        const stages = [
+            { name: 'Weaker', cost: 0, goldPerHr: 135_400, xpPerHrBySkill: { [MAGIC]: 23_255 } },
+            {
+                // Fought in briefly to clear BigTarget's level gate, then never touched again.
+                name: 'Better',
+                cost: 3_000_000,
+                goldPerHr: 135_700,
+                xpPerHrBySkill: { [MAGIC]: 25_511 },
+                directCosts: { Weaker: 3_000_000, BigTarget: 8_500_000_000 },
+            },
+            {
+                name: 'BigTarget',
+                cost: 8_500_000_000,
+                goldPerHr: 1_600_000,
+                xpPerHrBySkill: { [MAGIC]: 241_314 },
+                requiredLevels: [{ skillHrid: MAGIC, level: 125 }],
+                directCosts: { Weaker: 8_500_000_000, Better: 8_500_000_000 },
+            },
+        ];
+        stages[0].directCosts = { Better: 3_000_000, BigTarget: 8_500_000_000 };
+
+        // Reaches BigTarget's level gate while fighting in Better, then spends a very long time
+        // just brewing for the rest of BigTarget's 8.5B gold cost — during which "Weaker" being
+        // cheaper than "Better" should never look like a reason to switch back, since neither is
+        // actually being fought in anymore (this is the exact "FireSoon"/"FireSoon2" thrash
+        // reported against a live sim, reproduced with synthetic rates).
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 10_000,
+            startingGold: 183_200_000,
+            brewGoldPerHr: 2_300_000,
+            objectiveWeight: 0.5,
+        });
+
+        // No leg should ever show buying/wearing "Weaker" once "Better" has been reached — the
+        // old bug bounced back to a worse, cheaper stage mid-brew for zero actual combat benefit.
+        const betterReachedAt = result.timeline.find((leg) => leg.stage === 'Better')?.startHour ?? 0;
+        expect(result.timeline.some((leg) => leg.stage === 'Weaker' && leg.startHour >= betterReachedAt)).toBe(false);
+
+        // Every brewing leg shares one generic label and merges into a single continuous entry —
+        // no fragmenting into a dozen near-zero-length "Earning money" entries in a row.
+        const brewLegs = result.timeline.filter((leg) => leg.stage === 'Earning money (not fighting)');
+        expect(brewLegs.length).toBeLessThanOrEqual(1);
+    });
+
+    it('treats a required level as already cleared when only floating-point dust remains, without inserting a near-zero fight leg', () => {
+        const stages = [
+            { name: 'Weaker', cost: 0, goldPerHr: 10_000, xpPerHrBySkill: { [ATK]: 5_000 } },
+            {
+                name: 'Target',
+                cost: 999_000_000,
+                goldPerHr: 1_000,
+                xpPerHrBySkill: { [ATK]: 5_100 },
+                requiredLevels: [{ skillHrid: ATK, level: 50 }],
+            },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 1000,
+            startingGold: 0,
+            startingSkillXp: { [ATK]: getXpForLevel(50) - 1e-9 }, // effectively already met
+            brewGoldPerHr: 2_000_000,
+            objectiveWeight: 1,
+        });
+
+        // Should go straight to brewing rather than inserting a near-zero "xp gate cleared" fight
+        // leg first just because of floating-point dust in the requirement check.
+        expect(result.timeline.filter((leg) => leg.reason === 'xp gate cleared')).toHaveLength(0);
     });
 
     it('prefers staying put when a switch-to-brew detour sacrifices far more xp than the upgrade earns back', () => {

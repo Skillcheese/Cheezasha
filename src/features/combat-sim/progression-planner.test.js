@@ -97,6 +97,30 @@ describe('buildStagesFromResults', () => {
         expect(stages[2].cost).toBe(500_000 + 300_000);
     });
 
+    it('credits selling the previous stage gear toward the next stage cost when sellOldGear is set', () => {
+        const currentStage = {
+            equipment: { '/equipment_types/main_hand': { hrid: '/items/starter_sword', enhancementLevel: 0 } },
+            goldPerHr: 285_000,
+            xpPerHr: 8_000,
+        };
+        const builds = [
+            {
+                name: 'Mid Tier',
+                equipment: { '/equipment_types/main_hand': { hrid: '/items/mid_sword', enhancementLevel: 0 } },
+                goldPerHr: 600_000,
+                xpPerHr: 20_000,
+            },
+        ];
+
+        const withoutSell = buildStagesFromResults({ currentStage, builds });
+        const withSell = buildStagesFromResults({ currentStage, builds, sellOldGear: true });
+
+        // Selling the 100-gold starter sword nets 100 * 0.9 * 0.95 = 85.5, credited off the 10,000 cost.
+        expect(withoutSell[1].cost).toBe(10_000);
+        expect(withSell[1].cost).toBeCloseTo(10_000 - 100 * 0.9 * 0.95);
+        expect(withSell[0].directCosts['Mid Tier']).toBeCloseTo(10_000 - 100 * 0.9 * 0.95);
+    });
+
     it('does not re-charge for an item already owned from the previous stage', () => {
         const currentStage = {
             equipment: {

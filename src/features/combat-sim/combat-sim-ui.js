@@ -36,7 +36,7 @@ import { runUltimateSim } from './ultimate-sim-runner.js';
 import { runLevelTargetAnalysis, COMBAT_SKILLS } from './level-target-core.js';
 import simBuilds from './sim-builds.js';
 import { runProgressionZoneSearch } from './progression-planner.js';
-import { optimizeProgression, STYLE_RELEVANT_SKILLS } from './progression-optimizer.js';
+import { BREWING_STAGE_LABEL, optimizeProgression, STYLE_RELEVANT_SKILLS } from './progression-optimizer.js';
 import { getLevelForXp } from './combat-level-xp-table.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
@@ -915,6 +915,10 @@ class CombatSimUI {
             <input id="mwi-csim-prog-hours" type="number" min="1" max="1000000" value="1000" style="${inputStyle}">
             <label style="color:#888; font-size:12px;">Alt. Gold/hr</label>
             <input id="mwi-csim-prog-brewgph" type="number" min="0" step="1000" value="2300000" style="${inputStyle} width:90px;">
+            <label title="When moving to a new gear stage, credit selling off any old gear that isn't reused (at 90% of its buy price, minus 5% market tax) toward the new stage's cost" style="color:#888; font-size:12px; display:flex; align-items:center; gap:4px; cursor:pointer;">
+                <input id="mwi-csim-prog-sell-old" type="checkbox" style="accent-color:${ACCENT};">
+                Sell old gear
+            </label>
             <button id="mwi-csim-prog-run" style="
                 margin-left: auto;
                 background: ${ACCENT_BTN_BG};
@@ -4879,6 +4883,7 @@ class CombatSimUI {
             Math.max(0, (parseFloat(this.panel?.querySelector('#mwi-csim-prog-weight')?.value) || 0) / 100)
         );
         const styleFilter = this.panel?.querySelector('#mwi-csim-prog-style')?.value || 'all';
+        const sellOldGear = this.panel?.querySelector('#mwi-csim-prog-sell-old')?.checked || false;
 
         const gameData = buildGameDataPayload();
         if (!gameData) {
@@ -4927,6 +4932,7 @@ class CombatSimUI {
                     zones,
                     gameData,
                     options: { hours: 0.5, objectiveWeight, cache: this._progressionZoneCache },
+                    sellOldGear,
                 },
                 (percent, label, cached) => {
                     if (progressFill) progressFill.style.width = `${percent}%`;
@@ -5018,7 +5024,7 @@ class CombatSimUI {
         }
         const stageByName = new Map(stages.map((s) => [s.name, s]));
         const zoneLabel = (stageName) => {
-            if (stageName.endsWith(' (brewing for gold)')) return 'brewing (not fighting)';
+            if (stageName === BREWING_STAGE_LABEL) return 'brewing (not fighting)';
             const stage = stageByName.get(stageName);
             if (stage?.name === 'Current Gear') return 'no combat — not simulated';
             const zone = stage?.bestZone;
@@ -5078,8 +5084,8 @@ class CombatSimUI {
                 .filter((leg) => leg.stage !== 'Current Gear' || leg.endHour > leg.startHour)
                 .map((leg) => {
                     const timeRange = `(${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h)`;
-                    if (leg.stage.endsWith(' (brewing for gold)')) {
-                        return `Earning money (not fighting) ${timeRange}: ${leg.reason}`;
+                    if (leg.stage === BREWING_STAGE_LABEL) {
+                        return `${BREWING_STAGE_LABEL} ${timeRange}: ${leg.reason}`;
                     }
                     return `${leg.stage} @ ${zoneLabel(leg.stage)} ${timeRange}: ${leg.reason}`;
                 })

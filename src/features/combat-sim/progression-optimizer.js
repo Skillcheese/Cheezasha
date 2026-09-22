@@ -39,6 +39,13 @@ export const STYLE_RELEVANT_SKILLS = {
 };
 
 /**
+ * Timeline `stage` label used for every brewing leg (never a specific gear name — see
+ * `simulateMultiSkillClimb`'s `BREWING_LABEL`). Exported so callers rendering the timeline (e.g.
+ * combat-sim-ui.js) can recognize a brewing leg without re-deriving or hardcoding the string.
+ */
+export const BREWING_STAGE_LABEL = 'Earning money (not fighting)';
+
+/**
  * Sum every skill's XP into a single scalar, for scoring/reporting.
  * @param {Object<string, number>} skillXp
  * @returns {number}
@@ -145,6 +152,114 @@ function timeToReachStage(fromStage, toStage, gold, skillXp, brewGoldPerHr) {
 }
 
 /**
+ * Pick whichever stage — among those already affordable (its `directCostBetween` cost from
+ * `current` is covered by `gold` right now) and already level-eligible right now — best serves
+ * the blended gold/XP objective. Falls back to `currentIndex` unchanged when nothing reachable
+ * beats staying put.
+ *
+ * This exists so the climb never keeps grinding in strictly worse gear while it waits out some
+ * FAR-OFF target's cost/level gate, just because that weaker gear happened to be `current` when
+ * the far-off target was picked — if a better stage is already sitting there, affordable and
+ * eligible, for free, take it. It's a snapshot at a single decision point, not a continuous
+ * check by itself — but `simulateMultiSkillClimb` calls it again every time `nextNewUnlockTime`
+ * cuts a long wait short, so a stage that only becomes affordable/eligible partway through gets
+ * picked up at that point rather than only once the far-off target is finally reached.
+ * @param {Array<ProgressionStage>} stages
+ * @param {number} currentIndex
+ * @param {number} gold
+ * @param {Object<string, number>} skillXp
+ * @param {number} objectiveWeight
+ * @returns {number} Stage index to switch to (possibly === currentIndex)
+ */
+function pickBestReachableStage(stages, currentIndex, gold, skillXp, objectiveWeight) {
+    const current = stages[currentIndex];
+    const reachable = [{ index: currentIndex, stage: current }];
+
+    for (let j = 0; j < stages.length; j++) {
+        if (j === currentIndex) continue;
+        const candidate = stages[j];
+        if (!isStageEligible(candidate, skillXp)) continue;
+        if (directCostBetween(current, candidate) > gold) continue;
+        reachable.push({ index: j, stage: candidate });
+    }
+
+    if (reachable.length === 1) return currentIndex;
+
+    const golds = reachable.map((r) => r.stage.goldPerHr);
+    const xps = reachable.map((r) => totalXpRate(r.stage));
+    const minGold = Math.min(...golds);
+    const maxGold = Math.max(...golds);
+    const minXp = Math.min(...xps);
+    const maxXp = Math.max(...xps);
+    const normalize = (value, min, max) => (max > min ? (value - min) / (max - min) : 1);
+
+    let best = reachable[0];
+    let bestScore = -Infinity;
+    for (const r of reachable) {
+        const score =
+            (1 - objectiveWeight) * normalize(r.stage.goldPerHr, minGold, maxGold) +
+            objectiveWeight * normalize(totalXpRate(r.stage), minXp, maxXp);
+        if (score > bestScore) {
+            bestScore = score;
+            best = r;
+        }
+    }
+    return best.index;
+}
+
+/**
+ * The earliest time in `(0, maxHours]` at which some OTHER stage — any index not in
+ * `excludeIndices` — would newly become both affordable (its `directCostBetween` cost from
+ * `current` covered by `gold`, accruing at `goldRate`) and level-eligible (any remaining
+ * `requiredLevels` cleared by `skillXp`, accruing at `xpRateBySkill`), assuming those rates hold
+ * for the whole window. A stage already affordable+eligible at t=0 is NOT "new" and is ignored —
+ * callers are expected to have already offered that one a chance via `pickBestReachableStage`.
+ * Returns `maxHours` (i.e. "nothing new unlocks before this phase would end anyway") when no
+ * stage qualifies.
+ *
+ * Used to cut a long fight/brew phase short the instant a better option opens up, instead of
+ * blindly committing to a whole multi-hour transition and only reconsidering once it finishes —
+ * see the two call sites in `simulateMultiSkillClimb` for why that matters (a cheap, fast
+ * intermediate stage reached mid-wait can genuinely shorten the total time to the ultimate
+ * target, not just look tempting in isolation).
+ * @param {Array<ProgressionStage>} stages
+ * @param {ProgressionStage} current
+ * @param {Set<number>} excludeIndices
+ * @param {number} gold
+ * @param {Object<string, number>} skillXp
+ * @param {number} goldRate
+ * @param {Object<string, number>} xpRateBySkill
+ * @param {number} maxHours
+ * @returns {number}
+ */
+function nextNewUnlockTime(stages, current, excludeIndices, gold, skillXp, goldRate, xpRateBySkill, maxHours) {
+    const EPS = 1e-9;
+    let earliest = maxHours;
+
+    for (let k = 0; k < stages.length; k++) {
+        if (excludeIndices.has(k)) continue;
+        const candidate = stages[k];
+
+        const cost = directCostBetween(current, candidate);
+        const goldTime = cost <= gold ? 0 : goldRate > 0 ? (cost - gold) / goldRate : Infinity;
+
+        let xpTime = 0;
+        for (const req of candidate.requiredLevels || []) {
+            const neededXp = Math.max(0, getXpForLevel(req.level) - (skillXp[req.skillHrid] || 0));
+            if (neededXp <= 0) continue;
+            const rate = xpRateBySkill?.[req.skillHrid] || 0;
+            const t = rate > 0 ? neededXp / rate : Infinity;
+            if (t > xpTime) xpTime = t;
+        }
+
+        const unlockTime = Math.max(goldTime, xpTime);
+        if (unlockTime > EPS && unlockTime < earliest) earliest = unlockTime;
+    }
+
+    return earliest;
+}
+
+/**
  * Simulate climbing through a set of gear stages via combat alone, over a fixed time horizon
  * (rather than until a target is reached — see brew-vs-combat-planner.js's simulateClimb for the
  * target-XP version). At every decision point, EVERY not-yet-worn stage is considered as the next
@@ -160,6 +275,13 @@ function timeToReachStage(fromStage, toStage, gold, skillXp, brewGoldPerHr) {
  * isn't, fighting further only banks gold at the current stage's own (possibly weak) rate; if an
  * alternative skilling activity (`brewGoldPerHr`) earns gold faster, switching to it for the rest
  * of the gold requirement reaches the target sooner. See `timeToReachStage` for both options.
+ *
+ * The long grind/brew toward a picked target isn't simulated blindly start-to-finish, either: it's
+ * cut short the instant some OTHER stage newly becomes affordable+eligible mid-wait (see
+ * `nextNewUnlockTime`), and the whole decision — including a fresh `pickBestReachableStage` check
+ * — is replanned from there. This is what lets the climb discover a cheap, fast intermediate stage
+ * that reaches the ultimate target sooner than grinding it out directly would, not just whatever
+ * was reachable at the moment the target was first picked.
  *
  * @param {Array<ProgressionStage>} stages - stages[0] should be current gear, cost 0, no requiredLevels
  * @param {Object} options
@@ -206,6 +328,48 @@ export function simulateMultiSkillClimb(
         }
     };
 
+    // Gear is irrelevant while brewing — every brew leg shares this one label (never a specific
+    // stage name) so back-to-back brew legs (e.g. from repeated mid-wait re-checks below) merge
+    // into a single continuous entry via pushLeg instead of fragmenting into a dozen near-zero-
+    // length ones.
+    const BREWING_LABEL = BREWING_STAGE_LABEL;
+
+    // Appends a timeline entry, EXTENDING the previous one in place instead when it's the same
+    // activity and picks up exactly where the last one left off — avoids littering the timeline
+    // with a new near-zero-length entry every time a phase gets cut short (see nextNewUnlockTime)
+    // to re-check something that turns out not to change anything.
+    const pushLeg = (stage, startHour, endHour, reason) => {
+        const last = timeline[timeline.length - 1];
+        if (last && last.stage === stage && last.endHour === startHour) {
+            last.endHour = endHour;
+            last.reason = reason;
+            return;
+        }
+        timeline.push({ stage, startHour, endHour, reason });
+    };
+
+    // Switch to whatever already-affordable, already-eligible stage fights best right now (see
+    // pickBestReachableStage), paying its direct cost and logging the swap. Returns whether it
+    // actually switched — callers should `continue` when it does, so the whole decision gets
+    // replanned from the new stage. Deliberately called only right before actual fighting is
+    // about to happen (ride-out, or a fight sub-phase with real hours in it) — gear is never
+    // worth buying just to sit idle in while brewing, so this is never called there.
+    const tryBridge = () => {
+        const bridgeIndex = pickBestReachableStage(stages, currentIndex, gold, skillXp, objectiveWeight);
+        if (bridgeIndex === currentIndex) return false;
+        const bridgeCost = directCostBetween(stages[currentIndex], stages[bridgeIndex]);
+        pushLeg(
+            stages[bridgeIndex].name,
+            hour,
+            hour,
+            `switched from ${stages[currentIndex].name} (already affordable and eligible)`
+        );
+        gold -= bridgeCost;
+        currentIndex = bridgeIndex;
+        reachedStageIndex = bridgeIndex;
+        return true;
+    };
+
     // Small epsilon guards against floating-point rounding making a just-reachable candidate
     // (timeToReach === hoursLeft) look infinitesimally out of reach.
     const EPS = 1e-9;
@@ -213,6 +377,7 @@ export function simulateMultiSkillClimb(
     while (hour < targetHours) {
         const hoursLeft = targetHours - hour;
         if (hoursLeft <= 0) break;
+
         const current = stages[currentIndex];
         const startingXp = sumSkillXp(skillXp);
 
@@ -285,8 +450,12 @@ export function simulateMultiSkillClimb(
         }
 
         if (best.index === currentIndex) {
-            // Nothing reachable projects to a better outcome — ride out the current stage.
-            timeline.push({ stage: current.name, startHour: hour, endHour: targetHours, reason: 'end of horizon' });
+            // Nothing reachable projects to a better outcome by itself — but we're about to fight
+            // for the rest of the horizon regardless, so grab a free upgrade if one's already
+            // sitting there affordable and eligible (see pickBestReachableStage/tryBridge).
+            if (tryBridge()) continue;
+
+            pushLeg(current.name, hour, targetHours, 'end of horizon');
             gold += current.goldPerHr * hoursLeft;
             addXp(current.xpPerHrBySkill, hoursLeft);
             hour = targetHours;
@@ -297,32 +466,82 @@ export function simulateMultiSkillClimb(
         const target = stages[nextIndex];
         const reason = `unlocked ${target.name}`;
 
+        // Anything reachable is already either `current` or `target` — a fresh unlock partway
+        // through this phase means some OTHER stage just opened up that wasn't in the running
+        // when `best` was picked, and might change the plan (see nextNewUnlockTime).
+        const exclude = new Set([currentIndex, nextIndex]);
+        const midWaitReason = 'a better stage became reachable mid-wait';
+
         if (useSwitch) {
             const fightHours = Math.min(xpTimeHours, cappedHours);
             const brewHours = cappedHours - fightHours;
-            if (fightHours > 0) {
-                timeline.push({
-                    stage: current.name,
-                    startHour: hour,
-                    endHour: hour + fightHours,
-                    reason: 'xp gate cleared',
-                });
+
+            if (fightHours > EPS) {
+                // Real fighting time ahead — worth checking for a better already-reachable stage
+                // to spend it in (never done for the brewHours phase below: gear doesn't matter
+                // while brewing, so there's nothing worth paying to switch into).
+                if (tryBridge()) continue;
+
+                const unlock = nextNewUnlockTime(
+                    stages,
+                    current,
+                    exclude,
+                    gold,
+                    skillXp,
+                    current.goldPerHr,
+                    current.xpPerHrBySkill,
+                    fightHours
+                );
+                if (unlock < fightHours - EPS) {
+                    pushLeg(current.name, hour, hour + unlock, midWaitReason);
+                    gold += current.goldPerHr * unlock;
+                    addXp(current.xpPerHrBySkill, unlock);
+                    hour += unlock;
+                    continue;
+                }
+
+                pushLeg(current.name, hour, hour + fightHours, 'xp gate cleared');
+                gold += current.goldPerHr * fightHours;
+                addXp(current.xpPerHrBySkill, fightHours);
+                hour += fightHours;
             }
-            gold += current.goldPerHr * fightHours;
-            addXp(current.xpPerHrBySkill, fightHours);
-            hour += fightHours;
-            if (brewHours > 0) {
-                timeline.push({
-                    stage: `${current.name} (brewing for gold)`,
-                    startHour: hour,
-                    endHour: hour + brewHours,
-                    reason: 'earning money',
-                });
+
+            if (brewHours > EPS) {
+                const unlock = nextNewUnlockTime(stages, current, exclude, gold, skillXp, brewGoldPerHr, {}, brewHours);
+                if (unlock < brewHours - EPS) {
+                    pushLeg(BREWING_LABEL, hour, hour + unlock, midWaitReason);
+                    gold += brewGoldPerHr * unlock;
+                    hour += unlock;
+                    continue;
+                }
+
+                pushLeg(BREWING_LABEL, hour, hour + brewHours, 'earning money');
                 gold += brewGoldPerHr * brewHours;
                 hour += brewHours;
             }
         } else {
-            timeline.push({ stage: current.name, startHour: hour, endHour: hour + cappedHours, reason });
+            // Not switching to brewing at all — this whole capped duration is fight time.
+            if (tryBridge()) continue;
+
+            const unlock = nextNewUnlockTime(
+                stages,
+                current,
+                exclude,
+                gold,
+                skillXp,
+                current.goldPerHr,
+                current.xpPerHrBySkill,
+                cappedHours
+            );
+            if (unlock < cappedHours - EPS) {
+                pushLeg(current.name, hour, hour + unlock, midWaitReason);
+                gold += current.goldPerHr * unlock;
+                addXp(current.xpPerHrBySkill, unlock);
+                hour += unlock;
+                continue;
+            }
+
+            pushLeg(current.name, hour, hour + cappedHours, reason);
             gold += current.goldPerHr * cappedHours;
             addXp(current.xpPerHrBySkill, cappedHours);
             hour += cappedHours;
