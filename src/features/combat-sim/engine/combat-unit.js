@@ -424,7 +424,9 @@ class CombatUnit {
             this.permanentBuffs[buff.typeHrid].flatBoost += buff.flatBoost;
             this.permanentBuffs[buff.typeHrid].ratioBoost += buff.ratioBoost;
         } else {
-            this.permanentBuffs[buff.typeHrid] = buff;
+            // Copy: zone/crate buffs are the worker's cached gameData objects, so accumulating into
+            // the original would leak boosts into every later sim on the same pooled worker.
+            this.permanentBuffs[buff.typeHrid] = { ...buff };
         }
     }
 
