@@ -24,9 +24,10 @@ estimates. Never `git add -A`/`.` — stage files by name.
    the release PR becoming ready. Instead, poll with single one-shot checks spaced 30 seconds
    apart, issuing a fresh `Bash` or `ScheduleWakeup` call each time rather than looping inside one
    shell invocation:
-    - Check for the PR: run `gh pr list --search "chore(main): release" --json number -q
-'.[0].number'` once. If empty, wait 30 seconds (a single `sleep 30` call, no loop) and check
-      again. Repeat until a number comes back.
+    - Check for the PR: run
+      `gh pr list --search "chore(main): release" --json number -q '.[0].number'` once. If empty,
+      wait 30 seconds (a single `sleep 30` call, no loop) and check again. Repeat until a number
+      comes back.
     - Check its status: run `gh pr checks <n>` once. If any check shows `pending`, wait 30 seconds
       and check again. Repeat until none are pending.
     - A failed check means stop and fix the root cause — don't merge past it, don't skip it.
