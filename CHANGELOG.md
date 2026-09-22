@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.19.0](https://github.com/Skillcheese/Cheezasha/compare/v3.18.0...v3.19.0) (2026-09-22)
+
+### Features
+
+- **combat-sim:** add brew-vs-combat progression planner ([b51416e](https://github.com/Skillcheese/Cheezasha/commit/b51416e40b3bf3b6d8db4d5f6fd5669ca5fad69f))
+- **combat-sim:** add multi-skill progression optimizer ([b3ed208](https://github.com/Skillcheese/Cheezasha/commit/b3ed208cea967cdc254555b7b8c1485322e5f37e))
+- **combat-sim:** add Progression tab UI, fix skill-key mismatch ([b9e7d4f](https://github.com/Skillcheese/Cheezasha/commit/b9e7d4fc32813680324e3ae828899f6bd885b0a9))
+- **combat-sim:** add saved builds and gear price estimate ([3aba797](https://github.com/Skillcheese/Cheezasha/commit/3aba797d755a84b1129809efb6f5ff4e77db933b))
+- **combat-sim:** cache Progression zone-scan results by DTO content ([afcf857](https://github.com/Skillcheese/Cheezasha/commit/afcf857f65c1644688a51e33ddf70471e86b84b6))
+- **combat-sim:** highlight Find Max rows simmed with a per-monster loadout ([dd6baec](https://github.com/Skillcheese/Cheezasha/commit/dd6baec197cecd2bd240318a604f8a2c87aaea8e))
+- **combat-sim:** let progression climb skip stages that aren't worth detouring through ([36da4a2](https://github.com/Skillcheese/Cheezasha/commit/36da4a2933f4d21df69873bd050549660c1e84ad))
+- **combat-sim:** let progression credit selling old gear and switch stages mid-wait ([677dc35](https://github.com/Skillcheese/Cheezasha/commit/677dc35829ee1c387aac71f8e07a958292e0dd9d))
+- **combat-sim:** show per-skill level requirement breakdown when infeasible ([a95ed8b](https://github.com/Skillcheese/Cheezasha/commit/a95ed8b31bc24f59325ba0a3ebe2355e23edde59))
+- **combat-sim:** show per-stage cost and starting gold in Progression diagnostics ([0884e61](https://github.com/Skillcheese/Cheezasha/commit/0884e6147541ffa7118ff319c3e8f8c618311b46))
+- **combat-sim:** show zone/tier and rates per stage in Progression results ([f9bf7be](https://github.com/Skillcheese/Cheezasha/commit/f9bf7bec8993240992e90b31cbe74a4749f928f3))
+- **combat-sim:** zone selection follows the gold/xp objective slider ([61fa2c6](https://github.com/Skillcheese/Cheezasha/commit/61fa2c68e806c06d922c1d29f0ff963c53d56b50))
+
+### Bug Fixes
+
+- **combat-sim:** default new builds to checked, warn when none selected ([1a0820d](https://github.com/Skillcheese/Cheezasha/commit/1a0820dba95b7b5199896c16af9b652ba724b3ca))
+- **combat-sim:** don't show a build name for the brewing timeline leg ([d1766f8](https://github.com/Skillcheese/Cheezasha/commit/d1766f831cb7315da363b225459a82d5ce1d11d5))
+- **combat-sim:** estimate combat ETA with the loadout the action was queued with ([083cabf](https://github.com/Skillcheese/Cheezasha/commit/083cabfb190ec4151cc6bafc2d4d3dee961784a7))
+- **combat-sim:** exclude non-combat skills from Progression starting XP ([257dc12](https://github.com/Skillcheese/Cheezasha/commit/257dc12d80af5bac2b466602f920104bdbc89484))
+- **combat-sim:** ignore non-combat skill requirements in level gating ([7d986c6](https://github.com/Skillcheese/Cheezasha/commit/7d986c698c303cf8d6ed08736d67e785168702eb))
+- **combat-sim:** label the brewing-only timeline leg "earning money" not "unlocked X" ([03184f1](https://github.com/Skillcheese/Cheezasha/commit/03184f17bfd8a622edc11ee05daa4c3e12cd508f))
+- **combat-sim:** let progression climb switch to brewing once XP gate clears ([e91cf48](https://github.com/Skillcheese/Cheezasha/commit/e91cf48a441c9f50aab99e509b088b02bd72a3eb))
+- **combat-sim:** main-stat charm (magic/melee/ranged) failed to redirect XP ([aee2848](https://github.com/Skillcheese/Cheezasha/commit/aee28483b1d0d3ef9b83ccc3d946adb61e1b5ddf))
+- **combat-sim:** never simulate current gear; report infeasibility plainly ([25110d8](https://github.com/Skillcheese/Cheezasha/commit/25110d83dbbcf688a0c91533ad712588a3ff88e0))
+- **combat-sim:** rank progression stage transitions by projected total, not raw rate ([608c4ce](https://github.com/Skillcheese/Cheezasha/commit/608c4ce1f2c5b6403a0b173d5648d257c4a3db9a))
+- **combat-sim:** restore current gear as an activity, score only relevant skills ([f6da034](https://github.com/Skillcheese/Cheezasha/commit/f6da034af25ac6923adde25a6075baa2c5818cbe))
+- **combat-sim:** stop lab sim results inflating on reused workers ([8142bd7](https://github.com/Skillcheese/Cheezasha/commit/8142bd774bb0fb854e1c2b75062454d57ac48d9b))
+- **combat-sim:** stop simulating current gear as a Progression activity ([08fe39b](https://github.com/Skillcheese/Cheezasha/commit/08fe39b649f2d980e63c738165df882b801bf496))
+- **combat-sim:** style filter now actually constrains which builds run ([04eafcf](https://github.com/Skillcheese/Cheezasha/commit/04eafcf748505b6227374ee71efc6b0269128dd0))
+- read numeric settings via getSettingValue so their values are honored ([d9b7c1d](https://github.com/Skillcheese/Cheezasha/commit/d9b7c1d0c583309ddca1a0a4ff9350942fa4c7af))
+
+### Miscellaneous Chores
+
+- fix release skill markdown so Prettier check passes ([e3fa2e9](https://github.com/Skillcheese/Cheezasha/commit/e3fa2e9ffdab492e69816289b6f6be17dfef0e76))
+
 ## [3.18.0](https://github.com/Skillcheese/Cheezasha/compare/v3.17.3...v3.18.0) (2026-08-26)
 
 ### Features
