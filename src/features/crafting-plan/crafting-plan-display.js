@@ -284,7 +284,7 @@ function buildPlanUI(actionHrid, onToggle, defaultOpen = false, actionCount = 1)
     const noProcessing = config.getSetting('actionPanel_craftingPlanNoProcessing');
     const taskMode = config.getSetting('actionPanel_craftingPlanTaskMode');
     const timeCostEnabled = config.getSetting('actionPanel_craftingPlanTimeCost');
-    const goldPerHour = config.getSetting('actionPanel_craftingPlanGoldPerHour') || 0;
+    const goldPerHour = config.getSettingValue('actionPanel_craftingPlanGoldPerHour', 0) || 0;
     const totalQuantity = Math.max(1, actionCount) * (output.count || 1);
     let plan;
     try {

@@ -52,7 +52,7 @@ export async function runAllZonesSimulation(params, onProgress) {
     const simulationTimeLimit = hours * ONE_HOUR_NS;
 
     const availableCores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
-    const maxThreadsSetting = config.getSetting('combatSim_maxThreads') || 0;
+    const maxThreadsSetting = config.getSettingValue('combatSim_maxThreads', 0) || 0;
     const maxWorkers = maxThreadsSetting > 0 ? Math.min(maxThreadsSetting, availableCores) : availableCores;
 
     return new Promise((resolve, reject) => {

@@ -965,13 +965,15 @@ class LabyrinthClearRate {
         const rateInput = document.getElementById('mwi-recommend-target-rate');
         const targetPct = rateInput ? parseInt(rateInput.value, 10) : null;
         this._recommendTargetPct =
-            targetPct > 0 && targetPct <= 100 ? targetPct : config.getSetting('labyrinthRecommendTargetRate') || 70;
+            targetPct > 0 && targetPct <= 100
+                ? targetPct
+                : config.getSettingValue('labyrinthRecommendTargetRate', 70) || 70;
         const targetRate = this._recommendTargetPct / 100;
 
         const hoursInput = document.getElementById('mwi-recommend-sim-hours');
         const hoursVal = hoursInput ? parseInt(hoursInput.value, 10) : null;
         this._recommendSimHours =
-            hoursVal > 0 && hoursVal <= 100 ? hoursVal : config.getSetting('labyrinthRecommendSimHours') || 1;
+            hoursVal > 0 && hoursVal <= 100 ? hoursVal : config.getSettingValue('labyrinthRecommendSimHours', 1) || 1;
         const cells = document.querySelectorAll('[class*="LabyrinthPanel_skipThreshold"]');
         const rooms = [];
 

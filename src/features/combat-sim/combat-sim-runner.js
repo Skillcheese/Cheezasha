@@ -106,7 +106,7 @@ function finishSlot(slot) {
  * @returns {number} Max worker count from setting, or hardware concurrency if 0/unset
  */
 export function getMaxWorkers() {
-    const setting = config.getSetting('combatSim_maxThreads') || 0;
+    const setting = config.getSettingValue('combatSim_maxThreads', 0) || 0;
     const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
     return setting > 0 ? Math.min(setting, cores) : Math.min(MAX_WORKERS, cores);
 }
@@ -120,7 +120,7 @@ export function getMaxWorkers() {
  * @returns {number}
  */
 export function getMaxBatchWorkers() {
-    const setting = config.getSetting('combatSim_maxThreads') || 0;
+    const setting = config.getSettingValue('combatSim_maxThreads', 0) || 0;
     const cores = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
     return setting > 0 ? Math.min(setting, cores) : Math.min(WORKER_POOL_MAX, cores);
 }
