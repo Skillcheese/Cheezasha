@@ -18,6 +18,7 @@ import {
     applyLoadoutSnapshotToDTO,
 } from './combat-sim-adapter.js';
 import { runSimulation } from './combat-sim-runner.js';
+import loadoutSnapshot from '../combat/loadout-snapshot.js';
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const SIM_HOURS = 1;
@@ -39,10 +40,12 @@ class CombatEtaEstimator {
      * blocking the caller, so the UI never has to wait on a resim once an initial value exists.
      * @param {string} zoneHrid
      * @param {number} difficultyTier
+     * @param {number} [loadoutId] - characterLoadoutID the action was queued with (0/undefined = none)
      * @returns {Promise<number|null>} Encounters/hr, or null if unavailable (e.g. still computing)
      */
-    async getKillsPerHour(zoneHrid, difficultyTier) {
-        const key = this._buildKey(zoneHrid, difficultyTier);
+    async getKillsPerHour(zoneHrid, difficultyTier, loadoutId) {
+        const loadoutName = this._resolveLoadoutName(loadoutId);
+        const key = this._buildKey(zoneHrid, difficultyTier, loadoutName);
         const entry = this.cache.get(key);
         const isFresh = entry && Date.now() - entry.timestamp < REFRESH_INTERVAL_MS;
 
@@ -50,7 +53,7 @@ class CombatEtaEstimator {
             return entry.encountersPerHour;
         }
 
-        const pending = this._startRefresh(key, zoneHrid, difficultyTier);
+        const pending = this._startRefresh(key, zoneHrid, difficultyTier, loadoutName);
 
         if (entry) {
             // Stale value available — return it now, let the resim update the cache in the background.
@@ -68,29 +71,43 @@ class CombatEtaEstimator {
      * null if nothing has been computed yet.
      * @param {string} zoneHrid
      * @param {number} difficultyTier
+     * @param {number} [loadoutId] - characterLoadoutID the action was queued with (0/undefined = none)
      * @returns {number|null}
      */
-    peek(zoneHrid, difficultyTier) {
-        const key = this._buildKey(zoneHrid, difficultyTier);
+    peek(zoneHrid, difficultyTier, loadoutId) {
+        const loadoutName = this._resolveLoadoutName(loadoutId);
+        const key = this._buildKey(zoneHrid, difficultyTier, loadoutName);
         const entry = this.cache.get(key);
         const isFresh = entry && Date.now() - entry.timestamp < REFRESH_INTERVAL_MS;
 
         if (!isFresh) {
-            this._startRefresh(key, zoneHrid, difficultyTier).catch(() => {});
+            this._startRefresh(key, zoneHrid, difficultyTier, loadoutName).catch(() => {});
         }
 
         return entry ? entry.encountersPerHour : null;
     }
 
     /**
-     * Build a cache key that also accounts for the loadout the sim should run with, so switching
-     * the "default loadout for combat estimates" setting invalidates any cached rate.
+     * Resolve which saved loadout the sim should run with: the loadout the action was queued
+     * with, falling back to the "default loadout for combat estimates" setting, then '' (meaning
+     * currently-equipped gear).
+     * @param {number} [loadoutId] - characterLoadoutID from the queued action
+     * @returns {string} Loadout snapshot name, or '' for currently-equipped gear
+     */
+    _resolveLoadoutName(loadoutId) {
+        const queuedName = loadoutId ? loadoutSnapshot.snapshots[loadoutId]?.name : '';
+        return queuedName || config.getSettingValue('combatSim_defaultLoadout', '');
+    }
+
+    /**
+     * Build a cache key that also accounts for the loadout the sim runs with, so actions queued
+     * with different loadouts (or a changed default-loadout setting) don't share a cached rate.
      * @param {string} zoneHrid
      * @param {number} difficultyTier
+     * @param {string} loadoutName
      * @returns {string}
      */
-    _buildKey(zoneHrid, difficultyTier) {
-        const loadoutName = config.getSettingValue('combatSim_defaultLoadout', '');
+    _buildKey(zoneHrid, difficultyTier, loadoutName) {
         return `${zoneHrid}|${difficultyTier}|${loadoutName}`;
     }
 
@@ -98,13 +115,13 @@ class CombatEtaEstimator {
      * Start (or join) an in-flight recompute for the given key.
      * @returns {Promise<number|null>}
      */
-    _startRefresh(key, zoneHrid, difficultyTier) {
+    _startRefresh(key, zoneHrid, difficultyTier, loadoutName) {
         const existing = this.pending.get(key);
         if (existing) {
             return existing;
         }
 
-        const promise = this._runSim(key, zoneHrid, difficultyTier).finally(() => {
+        const promise = this._runSim(key, zoneHrid, difficultyTier, loadoutName).finally(() => {
             this.pending.delete(key);
         });
         this.pending.set(key, promise);
@@ -137,9 +154,10 @@ class CombatEtaEstimator {
      * @param {string} key
      * @param {string} zoneHrid
      * @param {number} difficultyTier
+     * @param {string} loadoutName - Loadout snapshot to apply, or '' for currently-equipped gear
      * @returns {Promise<number|null>}
      */
-    async _runSim(key, zoneHrid, difficultyTier) {
+    async _runSim(key, zoneHrid, difficultyTier, loadoutName) {
         try {
             const gameData = buildGameDataPayload();
             if (!gameData) return null;
@@ -147,7 +165,6 @@ class CombatEtaEstimator {
             const { players } = await buildAllPlayerDTOs();
             if (!players || players.length === 0) return null;
 
-            const loadoutName = config.getSettingValue('combatSim_defaultLoadout', '');
             if (loadoutName) {
                 applyLoadoutSnapshotToDTO(players[0], loadoutName, gameData);
             }

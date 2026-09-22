@@ -488,7 +488,11 @@ class ActionTimeDisplay {
                 totalTime = Infinity;
             } else {
                 count = actionObj.maxCount - actionObj.currentCount;
-                const killsPerHour = combatEtaEstimator.peek(actionObj.actionHrid, actionObj.difficultyTier || 0);
+                const killsPerHour = combatEtaEstimator.peek(
+                    actionObj.actionHrid,
+                    actionObj.difficultyTier || 0,
+                    actionObj.characterLoadoutID
+                );
                 if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
                     totalTime = (count / killsPerHour) * 3600;
                     actionTimeSeconds = totalTime;
@@ -2178,7 +2182,8 @@ class ActionTimeDisplay {
                             count = currentAction.maxCount - currentAction.currentCount;
                             const killsPerHour = combatEtaEstimator.peek(
                                 currentAction.actionHrid,
-                                currentAction.difficultyTier || 0
+                                currentAction.difficultyTier || 0,
+                                currentAction.characterLoadoutID
                             );
                             if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
                                 const totalTime = (count / killsPerHour) * 3600;
@@ -2338,7 +2343,8 @@ class ActionTimeDisplay {
                         count = actionObj.maxCount - actionObj.currentCount;
                         const killsPerHour = combatEtaEstimator.peek(
                             actionObj.actionHrid,
-                            actionObj.difficultyTier || 0
+                            actionObj.difficultyTier || 0,
+                            actionObj.characterLoadoutID
                         );
                         if (killsPerHour && isFinite(killsPerHour) && killsPerHour > 0) {
                             totalTime = (count / killsPerHour) * 3600;
@@ -2857,7 +2863,7 @@ class ActionTimeDisplay {
         // safety-net timer calls this every few seconds, and a fresh-zone simulation can take
         // longer than that interval. Reusing the same calcId lets the original await win instead
         // of being cancelled by every subsequent tick before it ever resolves.
-        const key = `${action.actionHrid}|${action.difficultyTier || 0}`;
+        const key = `${action.actionHrid}|${action.difficultyTier || 0}|${action.characterLoadoutID || 0}`;
         const calcId = this.combatEtaPendingKey === key ? this.activeCombatEtaId : Date.now() + Math.random();
         this.activeCombatEtaId = calcId;
         this.combatEtaPendingKey = key;
@@ -2865,7 +2871,8 @@ class ActionTimeDisplay {
         try {
             const encountersPerHour = await combatEtaEstimator.getKillsPerHour(
                 action.actionHrid,
-                action.difficultyTier || 0
+                action.difficultyTier || 0,
+                action.characterLoadoutID
             );
 
             if (this.activeCombatEtaId !== calcId || !this.displayElement) return;
