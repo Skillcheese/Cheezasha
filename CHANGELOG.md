@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.20.0](https://github.com/Skillcheese/Cheezasha/compare/v3.19.0...v3.20.0) (2026-10-09)
+
+
+### Features
+
+* **combat-sim:** run progression search in a worker and price only combat gear ([841672e](https://github.com/Skillcheese/Cheezasha/commit/841672e3869504b90992070b0970bb69a404679e))
+* **optimizers:** hide crate crafts and add an Exclude equipment toggle ([2ca0869](https://github.com/Skillcheese/Cheezasha/commit/2ca0869bcc5bd57bc8c67312e4bda76485d007bf))
+
 ## [3.19.0](https://github.com/Skillcheese/Cheezasha/compare/v3.18.0...v3.19.0) (2026-09-22)
 
 ### Features
