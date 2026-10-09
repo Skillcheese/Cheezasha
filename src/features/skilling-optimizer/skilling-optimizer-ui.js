@@ -9,7 +9,8 @@ import config from '../../core/config.js';
 import { createMutationWatcher } from '../../utils/dom-observer-helpers.js';
 import {
     calculateSkillPerformance,
-    getSkillActionsForDisplay,
+    getOptimizableActions,
+    resolveScoredActionHrids,
     getItemsForSlot,
     getSkillDrinkItems,
     getPlayerSkillLevel,
@@ -86,6 +87,7 @@ class SkillingSimulatorUI {
         this.equipment = new Map(); // locationHrid → { itemHrid, enhancementLevel }
         this.teas = [null, null, null];
         this.selectedActionHrids = null; // null = all available
+        this.excludeEquipment = false; // drop equipment-crafting actions from scoring
 
         // UI element refs (updated in place without rebuilding panel)
         this._slotBtns = new Map(); // locationHrid → { nameBtn, enhInput, clearBtn }
@@ -417,10 +419,11 @@ class SkillingSimulatorUI {
                     }
                 }
 
+                const scoredActionHrids = this._getScoredActionHrids();
                 const result = await optimizeSkill(
                     this.currentSkill,
                     this.currentLevel,
-                    this.selectedActionHrids,
+                    scoredActionHrids,
                     (completed, total) => {
                         const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
                         progressFill.style.width = `${pct}%`;
@@ -455,7 +458,7 @@ class SkillingSimulatorUI {
                           null,
                           null,
                           achievableEquipment,
-                          this.selectedActionHrids
+                          scoredActionHrids
                       )
                     : null;
                 const goldAchievable = result
@@ -467,7 +470,7 @@ class SkillingSimulatorUI {
                           null,
                           null,
                           achievableEquipment,
-                          this.selectedActionHrids
+                          scoredActionHrids
                       )
                     : null;
 
@@ -563,7 +566,7 @@ class SkillingSimulatorUI {
         actionBtn.style.cssText = inputCss + ' flex: 1; cursor: pointer; text-align: left;';
 
         const getActionLabel = () => {
-            const all = getSkillActionsForDisplay(this.currentSkill, this.currentLevel);
+            const all = getOptimizableActions(this.currentSkill, this.currentLevel, this.excludeEquipment);
             const avail = all.filter((a) => a.available);
             if (!this.selectedActionHrids) return `All (${avail.length})`;
             const n = [...this.selectedActionHrids].filter((h) => avail.some((a) => a.hrid === h)).length;
@@ -583,6 +586,30 @@ class SkillingSimulatorUI {
         });
         actionsRow.appendChild(actionBtn);
         wrap.appendChild(actionsRow);
+
+        // Exclude equipment (only shown for skills that craft gear)
+        const craftsEquipment =
+            getOptimizableActions(this.currentSkill, this.currentLevel).length !==
+            getOptimizableActions(this.currentSkill, this.currentLevel, true).length;
+        if (craftsEquipment) {
+            const equipRow = makeRow('');
+            const equipLabel = document.createElement('label');
+            equipLabel.style.cssText =
+                'display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: rgba(255,255,255,0.85);';
+            const equipCb = document.createElement('input');
+            equipCb.type = 'checkbox';
+            equipCb.checked = this.excludeEquipment;
+            equipCb.addEventListener('change', () => {
+                this.excludeEquipment = equipCb.checked;
+                actionBtn.textContent = getActionLabel();
+                this._closePicker();
+                if (this.currentMode === 'simulator') this._runSimulation();
+            });
+            equipLabel.appendChild(equipCb);
+            equipLabel.appendChild(document.createTextNode('Exclude equipment'));
+            equipRow.appendChild(equipLabel);
+            wrap.appendChild(equipRow);
+        }
 
         // Wire up skill/level changes
         const resetActions = () => {
@@ -1001,7 +1028,7 @@ class SkillingSimulatorUI {
     _openActionPicker(anchorBtn, getBtnLabel) {
         this._closePicker();
 
-        const actions = getSkillActionsForDisplay(this.currentSkill, this.currentLevel);
+        const actions = getOptimizableActions(this.currentSkill, this.currentLevel, this.excludeEquipment);
         const available = actions.filter((a) => a.available);
 
         const popup = document.createElement('div');
@@ -1096,6 +1123,19 @@ class SkillingSimulatorUI {
     // Simulation
     // -------------------------------------------------------------------------
 
+    /**
+     * Action HRIDs to score: picker selection minus crates and (optionally) equipment crafts.
+     * @returns {Set<string>}
+     */
+    _getScoredActionHrids() {
+        return resolveScoredActionHrids(
+            this.currentSkill,
+            this.currentLevel,
+            this.selectedActionHrids,
+            this.excludeEquipment
+        );
+    }
+
     _runSimulation() {
         if (!this._resultsArea) return;
 
@@ -1104,7 +1144,7 @@ class SkillingSimulatorUI {
             this.equipment,
             this.teas,
             this.currentLevel,
-            this.selectedActionHrids
+            this._getScoredActionHrids()
         );
 
         this._resultsArea.innerHTML = '';

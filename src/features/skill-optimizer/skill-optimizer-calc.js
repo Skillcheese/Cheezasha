@@ -188,20 +188,46 @@ function isCharmAction(actionHrid) {
 }
 
 /**
+ * Check whether an action crafts a crate — crates are always a loss, so they're never shown.
+ * @param {string} actionHrid
+ * @returns {boolean}
+ */
+function isCrateAction(actionHrid) {
+    const action = dataManager.getInitClientData()?.actionDetailMap?.[actionHrid];
+    return action?.outputItems?.[0]?.itemHrid?.endsWith('_crate') ?? false;
+}
+
+/**
+ * Check whether an action crafts equipment (weapons, armor, tools, charms, etc.), which is
+ * usually a big loss and excludable via the "Exclude equipment" checkbox.
+ * @param {string} actionHrid
+ * @returns {boolean}
+ */
+function isEquipmentAction(actionHrid) {
+    const gameData = dataManager.getInitClientData();
+    const outputItemHrid = gameData?.actionDetailMap?.[actionHrid]?.outputItems?.[0]?.itemHrid;
+    if (!outputItemHrid) return false;
+    return !!gameData.itemDetailMap?.[outputItemHrid]?.equipmentDetail;
+}
+
+/**
  * Compute the top-N profit/hr actions for every skill under a given loadout override.
  * @param {{equipment: Map, skillLevels: Object, houseRooms: Map, communityBuffLevels: Object}} overrides
  * @param {number} topN
  * @param {boolean} excludeCharms - When true, drops charm-crafting actions before ranking
+ * @param {boolean} excludeEquipment - When true, drops all equipment-crafting actions before ranking
  * @returns {Object<string, Array<{name: string, hrid: string, profitPerHour: number, xpPerHour: number, teaHrids: Array<string>}>>}
  */
-export function computeTopResults(overrides, topN = 3, excludeCharms = false) {
+export function computeTopResults(overrides, topN = 3, excludeCharms = false, excludeEquipment = false) {
     const results = {};
     for (const skill of SKILLS) {
         const playerLevel = overrides.skillLevels?.[skill] ?? 1;
         const rates = getSkillActionRates(skill, playerLevel, 'gold', null, overrides);
         const filtered = rates
             .filter((r) => r.profitPerHour > 0)
-            .filter((r) => !excludeCharms || !isCharmAction(r.hrid));
+            .filter((r) => !isCrateAction(r.hrid))
+            .filter((r) => !excludeCharms || !isCharmAction(r.hrid))
+            .filter((r) => !excludeEquipment || !isEquipmentAction(r.hrid));
 
         if (skill === 'alchemy') {
             // Alchemy's "actions" are per-item (any alchemizable item x coinify/decompose/transmute),

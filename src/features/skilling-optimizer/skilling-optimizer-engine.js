@@ -145,6 +145,41 @@ export const SKILL_NAMES = [
  * @param {string} skillName
  * @returns {number}
  */
+/**
+ * List a skill's actions for the optimizer, minus crate crafts (always a loss) and, optionally,
+ * equipment crafts (usually a big loss).
+ * @param {string} skillName
+ * @param {number} playerLevel
+ * @param {boolean} excludeEquipment - When true, also drops actions whose output is equipment
+ * @returns {Array<{hrid, name, requiredLevel, available}>}
+ */
+export function getOptimizableActions(skillName, playerLevel, excludeEquipment = false) {
+    const gameData = dataManager.getInitClientData();
+    return getSkillActionsForDisplay(skillName, playerLevel).filter(({ hrid }) => {
+        const outputHrid = gameData?.actionDetailMap?.[hrid]?.outputItems?.[0]?.itemHrid;
+        if (!outputHrid) return true;
+        if (outputHrid.endsWith('_crate')) return false;
+        return !excludeEquipment || !gameData.itemDetailMap?.[outputHrid]?.equipmentDetail;
+    });
+}
+
+/**
+ * Resolve the set of action HRIDs to score: the picker selection (null = all) restricted to
+ * available, optimizable actions.
+ * @param {string} skillName
+ * @param {number} playerLevel
+ * @param {Set<string>|null} selectedActionHrids
+ * @param {boolean} excludeEquipment
+ * @returns {Set<string>}
+ */
+export function resolveScoredActionHrids(skillName, playerLevel, selectedActionHrids, excludeEquipment = false) {
+    return new Set(
+        getOptimizableActions(skillName, playerLevel, excludeEquipment)
+            .filter((a) => a.available && (!selectedActionHrids || selectedActionHrids.has(a.hrid)))
+            .map((a) => a.hrid)
+    );
+}
+
 export function getPlayerSkillLevel(skillName) {
     const skills = dataManager.getSkills();
     const skillHrid = `/skills/${skillName.toLowerCase()}`;

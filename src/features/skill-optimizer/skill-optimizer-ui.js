@@ -76,6 +76,7 @@ class SkillOptimizerPopup {
         this.loadout = null;
         this.results = null;
         this.disableCharms = false;
+        this.excludeEquipment = false;
     }
 
     initialize() {
@@ -441,7 +442,7 @@ class SkillOptimizerPopup {
             font-size: 13px;
         `;
         calcBtn.addEventListener('click', () => {
-            this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
+            this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms, this.excludeEquipment);
             this.renderContent();
         });
         body.appendChild(calcBtn);
@@ -462,13 +463,29 @@ class SkillOptimizerPopup {
         charmToggle.addEventListener('change', () => {
             this.disableCharms = charmToggle.checked;
             if (this.results) {
-                this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms);
+                this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms, this.excludeEquipment);
             }
             this.renderContent();
         });
         charmToggleLabel.appendChild(charmToggle);
         charmToggleLabel.appendChild(document.createTextNode('Disable charms'));
         body.appendChild(charmToggleLabel);
+
+        const equipmentToggleLabel = document.createElement('label');
+        equipmentToggleLabel.style.cssText = charmToggleLabel.style.cssText;
+        const equipmentToggle = document.createElement('input');
+        equipmentToggle.type = 'checkbox';
+        equipmentToggle.checked = this.excludeEquipment;
+        equipmentToggle.addEventListener('change', () => {
+            this.excludeEquipment = equipmentToggle.checked;
+            if (this.results) {
+                this.results = computeTopResults(this.loadout, TOP_N, this.disableCharms, this.excludeEquipment);
+            }
+            this.renderContent();
+        });
+        equipmentToggleLabel.appendChild(equipmentToggle);
+        equipmentToggleLabel.appendChild(document.createTextNode('Exclude equipment'));
+        body.appendChild(equipmentToggleLabel);
 
         if (!this.results) {
             const hint = document.createElement('div');
