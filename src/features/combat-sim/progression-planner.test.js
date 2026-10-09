@@ -30,7 +30,8 @@ vi.mock('./combat-sim-adapter.js', () => ({
 
 const {
     buildStagesFromResults,
-    findBestZoneForDTO,
+    findZoneOptionsForDTO,
+    pruneDominatedZones,
     getRequiredLevelsForEquipment,
     runProgressionZoneSearch,
     simulateDtoAcrossZones,
@@ -110,15 +111,53 @@ describe('buildStagesFromResults', () => {
                 goldPerHr: 600_000,
                 xpPerHr: 20_000,
             },
+            {
+                name: 'Endgame',
+                equipment: { '/equipment_types/main_hand': { hrid: '/items/end_sword', enhancementLevel: 10 } },
+                goldPerHr: 1_800_000,
+                xpPerHr: 40_000,
+            },
         ];
 
         const withoutSell = buildStagesFromResults({ currentStage, builds });
         const withSell = buildStagesFromResults({ currentStage, builds, sellOldGear: true });
 
-        // Selling the 100-gold starter sword nets 100 * 0.9 * 0.95 = 85.5, credited off the 10,000 cost.
-        expect(withoutSell[1].cost).toBe(10_000);
-        expect(withSell[1].cost).toBeCloseTo(10_000 - 100 * 0.9 * 0.95);
-        expect(withSell[0].directCosts['Mid Tier']).toBeCloseTo(10_000 - 100 * 0.9 * 0.95);
+        // Selling Mid Tier's 10,000-gold sword nets 10,000 * 0.9 * 0.95 = 8,550 off Endgame's 500,000.
+        expect(withoutSell[2].cost).toBe(500_000);
+        expect(withSell[2].cost).toBeCloseTo(500_000 - 10_000 * 0.9 * 0.95);
+        // Current gear (the starter sword) is never sold, so buying Mid Tier gets no credit.
+        expect(withSell[1].cost).toBe(10_000);
+        expect(withSell[0].directCosts['Mid Tier']).toBe(10_000);
+    });
+
+    it('sells a current-gear item once the build that used it is upgraded', () => {
+        const currentStage = {
+            equipment: { '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 } },
+        };
+        const builds = [
+            {
+                name: 'Mid Tier',
+                equipment: {
+                    '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 }, // from the bank
+                    '/equipment_types/main_hand': { hrid: '/items/mid_sword', enhancementLevel: 0 },
+                },
+            },
+            {
+                name: 'Endgame',
+                equipment: {
+                    '/equipment_types/off_hand': { hrid: '/items/end_shield', enhancementLevel: 10 },
+                    '/equipment_types/main_hand': { hrid: '/items/end_sword', enhancementLevel: 10 },
+                },
+            },
+        ];
+
+        const stages = buildStagesFromResults({ currentStage, builds, sellOldGear: true });
+        const midTier = stages.find((s) => s.name === 'Mid Tier');
+
+        // Mid Tier only buys the sword; the shield comes from the bank.
+        expect(midTier.cost).toBe(10_000);
+        // Upgrading sells both of Mid Tier's items, the bank shield included.
+        expect(midTier.directCosts.Endgame).toBeCloseTo(800_000 - (10_000 + 5_000) * 0.9 * 0.95);
     });
 
     it('does not re-charge for an item already owned from the previous stage', () => {
@@ -204,7 +243,8 @@ describe('buildStagesFromResults', () => {
         // From Mid Tier to Endgame directly (identical to the sequential price here, since Mid
         // Tier's main_hand isn't reused by Endgame).
         expect(midTier.directCosts.Endgame).toBe(500_000 + 300_000);
-        expect(endgame.directCosts['Current Gear']).toBeGreaterThan(0);
+        // Current gear is already yours (kept, never sold), so going back to it costs nothing.
+        expect(endgame.directCosts['Current Gear']).toBe(0);
     });
 });
 
@@ -275,7 +315,40 @@ describe('getRequiredLevelsForEquipment', () => {
     });
 });
 
-describe('findBestZoneForDTO', () => {
+describe('pruneDominatedZones', () => {
+    const ATK = '/skills/attack';
+    const MAG = '/skills/magic';
+
+    it('keeps every zone that is best at something — gold, or XP in any one skill', () => {
+        const zones = [
+            { name: 'Gold', goldPerHr: 300_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'Xp', goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 30_000 } },
+            { name: 'Magic', goldPerHr: 50_000, xpPerHrBySkill: { [ATK]: 5_000, [MAG]: 1_000 } },
+        ];
+
+        expect(pruneDominatedZones(zones).map((z) => z.name)).toEqual(['Gold', 'Xp', 'Magic']);
+    });
+
+    it('drops a zone another zone beats on gold and on every skill', () => {
+        const zones = [
+            { name: 'Worse', goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'Better', goldPerHr: 200_000, xpPerHrBySkill: { [ATK]: 10_000, [MAG]: 500 } },
+        ];
+
+        expect(pruneDominatedZones(zones).map((z) => z.name)).toEqual(['Better']);
+    });
+
+    it('keeps only the first of identical zones', () => {
+        const zones = [
+            { name: 'A', goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'B', goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+        ];
+
+        expect(pruneDominatedZones(zones).map((z) => z.name)).toEqual(['A']);
+    });
+});
+
+describe('findZoneOptionsForDTO', () => {
     function mockZoneResults(entries) {
         // entries: [{ simulatedTime (ns), experienceGained: {atk, def}, netPerHour }]
         mockRunAllZonesSimulation.mockResolvedValue(
@@ -293,30 +366,21 @@ describe('findBestZoneForDTO', () => {
     const zones = [
         { zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' },
         { zoneHrid: '/zone/b', difficultyTier: 0, name: 'Zone B' },
+        { zoneHrid: '/zone/c', difficultyTier: 0, name: 'Zone C' },
     ];
     const ONE_HOUR_NS = 3600 * 1e9;
 
-    it('picks the best gold/hr zone when objectiveWeight is 0', async () => {
+    it('keeps both the best-gold and the best-xp zone, dropping one beaten on both', async () => {
         // simResult.experienceGained uses short skill keys ('attack'), not full hrids.
         mockZoneResults([
             { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
             { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 5_000 }, netPerHour: 900_000 },
+            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 4_000 }, netPerHour: 400_000 },
         ]);
 
-        const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 0 });
+        const { zoneOptions } = await findZoneOptionsForDTO({ hrid: 'player1' }, zones, {}, {});
 
-        expect(best.zoneHrid).toBe('/zone/b');
-    });
-
-    it('picks the best xp/hr zone when objectiveWeight is 1', async () => {
-        mockZoneResults([
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 10_000 }, netPerHour: 500_000 },
-            { simulatedTime: ONE_HOUR_NS, experienceGained: { attack: 5_000 }, netPerHour: 900_000 },
-        ]);
-
-        const best = await findBestZoneForDTO({ hrid: 'player1' }, zones, {}, { objectiveWeight: 1 });
-
-        expect(best.zoneHrid).toBe('/zone/a');
+        expect(zoneOptions.map((z) => z.zoneHrid)).toEqual(['/zone/a', '/zone/b']);
     });
 
     it('sums xp across multiple skills for the xp/hr metric, keyed to full skill hrids', async () => {
@@ -328,16 +392,18 @@ describe('findBestZoneForDTO', () => {
             },
         ]);
 
-        const best = await findBestZoneForDTO({ hrid: 'player1' }, [zones[0]], {}, { objectiveWeight: 1 });
+        const { zoneOptions } = await findZoneOptionsForDTO({ hrid: 'player1' }, [zones[0]], {}, {});
 
-        expect(best.xpPerHr).toBe(10_000);
+        expect(zoneOptions[0].xpPerHr).toBe(10_000);
         // Converted to full hrids so they line up with gameData's levelRequirements[].skillHrid.
-        expect(best.xpPerHrBySkill).toEqual({ '/skills/attack': 5_000, '/skills/defense': 5_000 });
+        expect(zoneOptions[0].xpPerHrBySkill).toEqual({ '/skills/attack': 5_000, '/skills/defense': 5_000 });
     });
 
-    it('returns null when there are no zones', async () => {
-        const best = await findBestZoneForDTO({ hrid: 'player1' }, [], {}, {});
-        expect(best).toBeNull();
+    it('returns no options when there are no zones', async () => {
+        expect(await findZoneOptionsForDTO({ hrid: 'player1' }, [], {}, {})).toEqual({
+            zoneOptions: [],
+            cached: false,
+        });
     });
 
     describe('caching', () => {
@@ -349,13 +415,13 @@ describe('findBestZoneForDTO', () => {
             const cache = new Map();
             const dto = { hrid: 'player1' };
 
-            const first = await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1, cache, hours: 1 });
-            const second = await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1, cache, hours: 1 });
+            const first = await findZoneOptionsForDTO(dto, [zones[0]], {}, { cache, hours: 1 });
+            const second = await findZoneOptionsForDTO(dto, [zones[0]], {}, { cache, hours: 1 });
 
             expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(1);
-            expect(first.cached).toBeFalsy();
+            expect(first.cached).toBe(false);
             expect(second.cached).toBe(true);
-            expect(second.xpPerHr).toBe(first.xpPerHr);
+            expect(second.zoneOptions).toEqual(first.zoneOptions);
         });
 
         it('re-simulates when the DTO content changes (e.g. different gear)', async () => {
@@ -365,8 +431,8 @@ describe('findBestZoneForDTO', () => {
             ]);
             const cache = new Map();
 
-            await findBestZoneForDTO({ hrid: 'player1', gear: 'A' }, [zones[0]], {}, { objectiveWeight: 1, cache });
-            await findBestZoneForDTO({ hrid: 'player1', gear: 'B' }, [zones[0]], {}, { objectiveWeight: 1, cache });
+            await findZoneOptionsForDTO({ hrid: 'player1', gear: 'A' }, [zones[0]], {}, { cache });
+            await findZoneOptionsForDTO({ hrid: 'player1', gear: 'B' }, [zones[0]], {}, { cache });
 
             expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(2);
         });
@@ -378,8 +444,8 @@ describe('findBestZoneForDTO', () => {
             ]);
             const dto = { hrid: 'player1' };
 
-            await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1 });
-            await findBestZoneForDTO(dto, [zones[0]], {}, { objectiveWeight: 1 });
+            await findZoneOptionsForDTO(dto, [zones[0]], {}, {});
+            await findZoneOptionsForDTO(dto, [zones[0]], {}, {});
 
             expect(mockRunAllZonesSimulation).toHaveBeenCalledTimes(2);
         });
@@ -449,15 +515,17 @@ describe('runProgressionZoneSearch', () => {
         const currentStage = stages.find((s) => s.name === 'Current Gear');
         expect(currentStage.goldPerHr).toBe(0);
         expect(currentStage.xpPerHrBySkill).toEqual({});
-        expect(currentStage.bestZone).toBeNull();
+        expect(currentStage.zone).toBeUndefined();
         expect(currentStage.requiredLevels).toEqual([]);
 
-        const fireStage = stages.find((s) => s.name === 'Fire Build');
+        // One stage per kept zone, named after build and zone.
+        const fireStage = stages.find((s) => s.buildName === 'Fire Build');
+        expect(fireStage.name).toBe('Fire Build @ Zone A (T0)');
         expect(fireStage.goldPerHr).toBe(400_000);
-        expect(fireStage.bestZone).not.toBeNull();
+        expect(fireStage.zone.zoneHrid).toBe('/zone/a');
     });
 
-    it('still uses current gear as the cost-diffing baseline, so already-owned items are free', async () => {
+    it('counts current gear as bank items: free to use, never sold just to leave it', async () => {
         mockRunAllZonesSimulation.mockResolvedValue([
             { simulatedTime: 0.5 * 3600 * 1e9, experienceGained: { player1: { magic: 20_000 } } },
         ]);
@@ -465,7 +533,10 @@ describe('runProgressionZoneSearch', () => {
 
         const currentDTO = {
             hrid: 'player1',
-            equipment: { '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 } },
+            equipment: {
+                '/equipment_types/off_hand': { hrid: '/items/shared_shield', enhancementLevel: 0 },
+                '/equipment_types/main_hand': { hrid: '/items/starter_sword', enhancementLevel: 0 },
+            },
         };
         const builds = [
             {
@@ -486,10 +557,15 @@ describe('runProgressionZoneSearch', () => {
             zones: [{ zoneHrid: '/zone/a', difficultyTier: 0, name: 'Zone A' }],
             gameData: {},
             options: {},
+            sellOldGear: true,
         });
 
-        const fireStage = stages.find((s) => s.name === 'Fire Build');
-        // Shield already owned (free): main_hand staff = 10,000, per the mocked price table.
+        const currentStage = stages.find((s) => s.name === 'Current Gear');
+        expect(currentStage.gearValue).toBe(0); // never sold as such, so worth nothing to the plan
+        const fireStage = stages.find((s) => s.buildName === 'Fire Build');
+        // Shield already owned (free), staff 10,000 — and no credit for selling the starter sword.
         expect(fireStage.cost).toBe(10_000);
+        // Once in the build, the shield is part of its gear like the staff, sellable on an upgrade.
+        expect(fireStage.gearValue).toBeCloseTo(15_000 * 0.9 * 0.95);
     });
 });

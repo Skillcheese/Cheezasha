@@ -55,6 +55,18 @@ describe('estimateEquipmentPrice', () => {
         expect(estimateEquipmentPrice(undefined).total).toBe(0);
         expect(estimateEquipmentPrice({}).total).toBe(0);
     });
+
+    it('ignores non-combat slots such as skilling tools', () => {
+        const equipment = {
+            '/equipment_types/main_hand': { hrid: '/items/sword', enhancementLevel: 5 },
+            '/equipment_types/milking_tool': { hrid: '/items/helm', enhancementLevel: 10 },
+        };
+
+        const result = estimateEquipmentPrice(equipment);
+
+        expect(result.total).toBe(5000);
+        expect(result.perSlot['/equipment_types/milking_tool']).toBeUndefined();
+    });
 });
 
 describe('calculateGearUpgradeCost', () => {
@@ -159,5 +171,35 @@ describe('calculateGearUpgradeCost', () => {
             expect(result.sellCredit).toBe(0);
             expect(result.total).toBe(0);
         });
+    });
+});
+
+describe('ownedEquipment', () => {
+    const MAIN = '/equipment_types/main_hand';
+    const OFF = '/equipment_types/off_hand';
+    const owned = { [OFF]: { hrid: '/items/shield', enhancementLevel: 0 } };
+
+    it('charges nothing for a target item already owned', () => {
+        const result = calculateGearUpgradeCost(
+            {},
+            { [OFF]: { hrid: '/items/shield', enhancementLevel: 0 } },
+            {
+                ownedEquipment: owned,
+            }
+        );
+
+        expect(result.total).toBe(0);
+    });
+
+    it('still sells an owned item once a set that used it moves on', () => {
+        const from = {
+            [MAIN]: { hrid: '/items/sword', enhancementLevel: 0 },
+            [OFF]: { hrid: '/items/shield', enhancementLevel: 0 },
+        };
+
+        const result = calculateGearUpgradeCost(from, {}, { sellOldGear: true, ownedEquipment: owned });
+
+        // Sword and shield both sold: (1000 + 800) * 0.9 * 0.95
+        expect(result.sellCredit).toBeCloseTo(1800 * 0.9 * 0.95);
     });
 });

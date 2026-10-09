@@ -18,6 +18,7 @@ import {
 import {
     buildGameDataPayload,
     buildAllPlayerDTOs,
+    buildPlayerDTO,
     getCombatZones,
     getCurrentCombatZone,
     getCommunityBuffs,
@@ -36,7 +37,8 @@ import { runUltimateSim } from './ultimate-sim-runner.js';
 import { runLevelTargetAnalysis, COMBAT_SKILLS } from './level-target-core.js';
 import simBuilds from './sim-builds.js';
 import { runProgressionZoneSearch } from './progression-planner.js';
-import { BREWING_STAGE_LABEL, optimizeProgression, STYLE_RELEVANT_SKILLS } from './progression-optimizer.js';
+import { runProgressionOptimization, cancelProgressionOptimization } from './progression-optimizer-runner.js';
+import { BREWING_STAGE_LABEL, isStageEligible, STYLE_RELEVANT_SKILLS } from './progression-optimizer.js';
 import { getLevelForXp } from './combat-level-xp-table.js';
 
 const PHASE_LABELS = { food: 'Optimizing food', coffee: 'Optimizing coffee', zones: 'Simulating all zones' };
@@ -978,7 +980,7 @@ class CombatSimUI {
             overflow-y: auto;
         `;
         progBuildsRow.innerHTML = `
-            <div style="color:#888; font-size:11px; margin-bottom:4px;">Saved Builds to include (plus your current gear)</div>
+            <div style="color:#888; font-size:11px; margin-bottom:4px;">Saved Builds to include (your current gear counts as items in your bank)</div>
             <div id="mwi-csim-prog-builds" style="display:flex; flex-direction:column; gap:2px;"></div>
         `;
 
@@ -1116,6 +1118,7 @@ class CombatSimUI {
         this.panel.querySelector('#mwi-csim-prog-stop').addEventListener('click', () => {
             this._progressionAborted = true;
             cancelAllZonesSimulation();
+            cancelProgressionOptimization();
         });
         this.panel.querySelector('#mwi-csim-prog-clear-cache').addEventListener('click', () => {
             this._progressionZoneCache.clear();
@@ -4854,25 +4857,26 @@ class CombatSimUI {
     }
 
     /**
-     * Run the Progression analysis: scan every saved (checked) Build plus current gear across
-     * every zone — ranked by the same objective slider used for the final recommendation — then
-     * find the best pre-brew duration for the chosen gold/XP objective over the given hour budget.
+     * Run the Progression analysis: scan every saved (checked) Build across every zone (current
+     * gear counts as items already in your bank — see runProgressionZoneSearch), then plan the climb for the chosen gold/XP
+     * objective over the given hour budget.
      * @private
      */
     async _onProgressionRun() {
         if (this._progressionRunning) {
             this._progressionAborted = true;
             cancelAllZonesSimulation();
+            cancelProgressionOptimization();
             return;
         }
 
-        const editedDTOs = this._editor?.getEditedDTOs();
-        const selfHrid = this._editor?.getSelfHrid();
-        const activePlayer = this._activePlayerTab || selfHrid;
-        const currentDTO = editedDTOs ? editedDTOs[activePlayer] || Object.values(editedDTOs)[0] : null;
+        // The gear your character actually has on in the game — never whatever's loaded into the
+        // Configure tab's editor, which may well be a saved build being tweaked. Its items count
+        // as already in your bank; see runProgressionZoneSearch.
+        const currentDTO = buildPlayerDTO();
 
         if (!currentDTO) {
-            this._setStatus('No character loaded — open the Configure tab first.');
+            this._setStatus('No character data yet — wait for the game to finish loading, then try again.');
             return;
         }
 
@@ -4931,7 +4935,7 @@ class CombatSimUI {
                     builds,
                     zones,
                     gameData,
-                    options: { hours: 0.5, objectiveWeight, cache: this._progressionZoneCache },
+                    options: { hours: 0.5, cache: this._progressionZoneCache },
                     sellOldGear,
                 },
                 (percent, label, cached) => {
@@ -4948,14 +4952,41 @@ class CombatSimUI {
             const startingGold = this._getCurrentGold();
             const startingSkillXp = this._getCurrentSkillXp();
 
-            const result = optimizeProgression(stages, {
-                targetHours,
-                brewGoldPerHr,
-                startingGold,
-                startingSkillXp,
-                objectiveWeight,
-                relevantSkillHrids: STYLE_RELEVANT_SKILLS[styleFilter],
-            });
+            // The exhaustive plan search runs in a worker with no time limit — show how far along
+            // it is, how many plans it has checked and the best one found so far.
+            const planStart = Date.now();
+            const showPlanProgress = (progress) => {
+                const percent = Math.min(100, Math.floor(progress.fraction * 100));
+                const best =
+                    progress.bestNetWorth === null
+                        ? ''
+                        : ` · best so far ${formatKMB(Math.round(progress.bestNetWorth))} (not counting brewing)` +
+                          (objectiveWeight > 0 ? ` / ${formatKMB(Math.round(progress.bestXp))} xp` : '');
+                const text =
+                    `Planning ${percent}% · start ${progress.start}/${progress.starts} · ` +
+                    `${formatKMB(progress.nodes)} plans checked${best}`;
+                if (progressFill) progressFill.style.width = `${percent}%`;
+                if (progressText) progressText.textContent = text;
+                this._setStatus(`Searching for the best plan... ${formatElapsed((Date.now() - planStart) / 1000)}`);
+            };
+            showPlanProgress({ fraction: 0, start: 1, starts: 1, nodes: 0, bestNetWorth: null });
+
+            const result = await runProgressionOptimization(
+                stages,
+                {
+                    targetHours,
+                    brewGoldPerHr,
+                    startingGold,
+                    startingSkillXp,
+                    objectiveWeight,
+                    relevantSkillHrids: STYLE_RELEVANT_SKILLS[styleFilter],
+                },
+                showPlanProgress
+            );
+            if (!result || this._progressionAborted) {
+                this._setStatus('Progression analysis cancelled.');
+                return;
+            }
 
             this._progressionLastResult = { stages, result, startingSkillXp };
             this._displayProgressionResults(result, startingSkillXp, stages.length <= 1, stages, startingGold);
@@ -4998,16 +5029,21 @@ class CombatSimUI {
             warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
                 No builds were checked, and current gear is never simulated here — check at least one build below and re-run.
             </div>`;
-        } else if (result.candidates.every((c) => c.reachedStageIndex === 0)) {
-            // No candidate ever left the zero-activity placeholder — none of the checked builds
-            // are level-eligible at your real current levels, and pre-brewing can never fix
-            // that (money can't buy a combat level). Say so plainly instead of showing a
+        } else if (!stages.some((s) => s.name !== 'Current Gear' && isStageEligible(s, startingSkillXp))) {
+            // None of the checked builds are level-eligible at your real current levels, and
+            // pre-brewing can never fix that (money can't buy a combat level). Checked directly
+            // rather than inferred from every plan staying in Current Gear — a plan can also
+            // stay there by choosing to brew out the whole horizon. Say so plainly instead of showing a
             // "recommended" strategy that quietly makes zero progress for the whole budget, and
             // show exactly which skill/level check is failing for each build so it's checkable
             // against what the character actually has equipped/leveled.
             let reqDetails = '';
+            const listedBuilds = new Set();
             for (const stage of stages) {
                 if (stage.name === 'Current Gear' || !stage.requiredLevels?.length) continue;
+                // One line per build, not per zone it was simulated in
+                if (listedBuilds.has(stage.buildName)) continue;
+                listedBuilds.add(stage.buildName);
                 const reqLines = stage.requiredLevels
                     .map((req) => {
                         const currentLevel = getLevelForXp(startingSkillXp[req.skillHrid] || 0);
@@ -5015,7 +5051,7 @@ class CombatSimUI {
                         return `<span style="color:${met ? '#8c8' : '#f66'};">${skillLabel(req.skillHrid)} ${currentLevel}/${req.level}${met ? ' ✓' : ''}</span>`;
                     })
                     .join(', ');
-                reqDetails += `<div style="margin-top:4px;">${stage.name}: ${reqLines}</div>`;
+                reqDetails += `<div style="margin-top:4px;">${stage.buildName}: ${reqLines}</div>`;
             }
             warningHtml = `<div style="margin-bottom:10px; padding:8px 10px; background:rgba(244,67,54,0.1); border:1px solid rgba(244,67,54,0.3); border-radius:6px; color:#f66; font-size:12px;">
                 None of the checked builds are level-eligible at your current character's real levels, so no combat can happen at all in this plan (current gear is never simulated). Level up through your normal play first, or check a lower-requirement build, then re-run.
@@ -5027,29 +5063,60 @@ class CombatSimUI {
             if (stageName === BREWING_STAGE_LABEL) return 'brewing (not fighting)';
             const stage = stageByName.get(stageName);
             if (stage?.name === 'Current Gear') return 'no combat — not simulated';
-            const zone = stage?.bestZone;
+            const zone = stage?.zone;
             return zone ? `${zone.name} (T${zone.difficultyTier})` : 'unknown zone';
         };
         const { recommended } = result;
+        // Net worth with its gold/gear split, or plain gold when gear isn't being valued
+        // (sell-old-gear off → gear value is always 0). The slider scores it WITHOUT brewing
+        // income (brewing only pays for gear), so that part is called out separately.
+        const netWorthLabel = (candidate, goldLabel, netWorthTitle) => {
+            const label =
+                candidate.finalGearValue > 0
+                    ? `${netWorthTitle}: ${formatKMB(Math.round(candidate.finalNetWorth))} (${formatKMB(Math.round(candidate.finalGold))} gold + ${formatKMB(Math.round(candidate.finalGearValue))} gear)`
+                    : `${goldLabel}: ${formatKMB(Math.round(candidate.finalGold))}`;
+            if (!(candidate.brewGold > 0)) return label;
+            const withoutBrew = candidate.finalNetWorth - candidate.brewGold;
+            return `${label} — ${formatKMB(Math.round(withoutBrew))} not counting ${formatKMB(Math.round(candidate.brewGold))} from brewing`;
+        };
         const relevantSkillsActive = Boolean(
             STYLE_RELEVANT_SKILLS[this.panel?.querySelector('#mwi-csim-prog-style')?.value]
         );
 
-        // Per-stage scan summary — shows exactly which zone/tier each stage's rates came from,
-        // so an unexpectedly high number can be checked directly against that zone in Configure.
+        // Per-build scan summary. Every build was simulated in every zone and the plan picks the
+        // zone as it goes, so each build lists only the zone(s) the recommended plan fights it in
+        // (with that zone's rates, so an unexpectedly high number can be checked directly against
+        // the zone in Configure) — or says it isn't used.
         if (stages.length > 0) {
-            let stageHtml = `<div style="margin-bottom:10px; font-size:11px;">`;
-            stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Stage scan results (0.5h test sims — short, for ranking only) — starting gold: ${formatKMB(Math.round(startingGold))}</div>`;
+            const usedStageNames = new Set((recommended.timeline || []).map((leg) => leg.stage));
+            const builds = new Map();
             for (const stage of stages) {
                 if (stage.name === 'Current Gear') continue; // never simulated — nothing real to show
-                const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
-                const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
-                const costLabel = stage.cost > 0 ? `, cost from prior stage: ${formatKMB(Math.round(stage.cost))}` : '';
-                const cacheLabel = stage.bestZone?.cached ? ' (cached)' : '';
-                stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
-                stageHtml += `<span>${stage.name} — ${zoneLabel(stage.name)}${cacheLabel}</span>`;
-                stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp${costLabel}</span>`;
-                stageHtml += `</div>`;
+                if (!builds.has(stage.buildName)) builds.set(stage.buildName, []);
+                builds.get(stage.buildName).push(stage);
+            }
+
+            let stageHtml = `<div style="margin-bottom:10px; font-size:11px;">`;
+            stageHtml += `<div style="color:#888; font-weight:700; margin-bottom:4px;">Build scan results (0.5h test sims in every zone — short, for ranking only) — starting gold: ${formatKMB(Math.round(startingGold))}</div>`;
+            for (const [buildName, buildStages] of builds) {
+                const { cost, cached } = buildStages[0];
+                const costLabel = cost > 0 ? `, cost from prior build: ${formatKMB(Math.round(cost))}` : '';
+                const cacheLabel = cached ? ' (cached)' : '';
+                const used = buildStages.filter((stage) => usedStageNames.has(stage.name));
+                if (used.length === 0) {
+                    stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#666;">`;
+                    stageHtml += `<span>${buildName} — not used in this plan${cacheLabel}</span><span>${costLabel.replace(/^, /, '')}</span>`;
+                    stageHtml += `</div>`;
+                    continue;
+                }
+                for (const stage of used) {
+                    const totalXpPerHr = Object.values(stage.xpPerHrBySkill || {}).reduce((sum, v) => sum + v, 0);
+                    const goldColor = stage.goldPerHr < 0 ? '#f66' : '#aaa';
+                    stageHtml += `<div style="display:flex; justify-content:space-between; padding:2px 0; color:#aaa;">`;
+                    stageHtml += `<span>${buildName} — ${zoneLabel(stage.name)}${cacheLabel}</span>`;
+                    stageHtml += `<span style="color:${goldColor};">${formatKMB(Math.round(stage.goldPerHr))}/hr gold</span>&nbsp;<span>${formatWithSeparator(Math.round(totalXpPerHr))}/hr xp${costLabel}</span>`;
+                    stageHtml += `</div>`;
+                }
             }
             stageHtml += `</div>`;
             warningHtml += stageHtml;
@@ -5062,7 +5129,7 @@ class CombatSimUI {
             html += `Brew for ${formatWithSeparator(Math.round(recommended.preBrewHours))}h, then fight for the rest.<br>`;
         }
         html += `Total: ${formatWithSeparator(Math.round(recommended.totalHours))}h &nbsp;|&nbsp; `;
-        html += `Final gold: ${formatKMB(Math.round(recommended.finalGold))} &nbsp;|&nbsp; `;
+        html += `${netWorthLabel(recommended, 'Final gold', 'Final net worth')} &nbsp;|&nbsp; `;
         html += `Total combat XP gained${relevantSkillsActive ? ' (relevant skills only)' : ''}: ${formatKMB(Math.round(recommended.totalXp))}`;
         html += `</div>`;
 
@@ -5081,13 +5148,15 @@ class CombatSimUI {
         if (recommended.timeline?.length) {
             html += `<div style="margin-top:8px; font-size:11px; color:#888;">`;
             html += recommended.timeline
-                .filter((leg) => leg.stage !== 'Current Gear' || leg.endHour > leg.startHour)
+                // Skip anything that would display as a "0h" phase (e.g. 5,219h–5,219h after rounding)
+                .filter((leg) => Math.round(leg.endHour) > Math.round(leg.startHour))
                 .map((leg) => {
                     const timeRange = `(${formatWithSeparator(Math.round(leg.startHour))}h–${formatWithSeparator(Math.round(leg.endHour))}h)`;
                     if (leg.stage === BREWING_STAGE_LABEL) {
                         return `${BREWING_STAGE_LABEL} ${timeRange}: ${leg.reason}`;
                     }
-                    return `${leg.stage} @ ${zoneLabel(leg.stage)} ${timeRange}: ${leg.reason}`;
+                    const buildName = stageByName.get(leg.stage)?.buildName ?? leg.stage;
+                    return `${buildName} @ ${zoneLabel(leg.stage)} ${timeRange}: ${leg.reason}`;
                 })
                 .join('<br>');
             html += `</div>`;
@@ -5106,7 +5175,7 @@ class CombatSimUI {
             html += `<div style="color:${isRecommended ? ACCENT : '#ccc'}; font-weight:600;">${candidate.label}</div>`;
             html += `<div style="color:#888; margin-top:2px;">`;
             html += `Total ${formatWithSeparator(Math.round(candidate.totalHours))}h &nbsp;|&nbsp; `;
-            html += `Gold ${formatKMB(Math.round(candidate.finalGold))} &nbsp;|&nbsp; `;
+            html += `${netWorthLabel(candidate, 'Gold', 'Net worth')} &nbsp;|&nbsp; `;
             html += `XP ${formatKMB(Math.round(candidate.totalXp))}`;
             html += `</div></div>`;
         }

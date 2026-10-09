@@ -2,21 +2,21 @@
  * Progression Planner
  *
  * Ties saved fictional gear Builds (sim-builds.js) to the multi-skill progression optimizer
- * (progression-optimizer.js): for a set of gear stages (your current gear plus a run of saved
- * Builds), find each stage's best zone — ranked by the SAME gold/XP objective slider the
- * optimizer itself uses, so a gold-leaning slider scans for the best gold/hr zone and an
- * XP-leaning one scans for the best XP/hr zone for that gear — then assemble the resulting
- * {cost, goldPerHr, xpPerHrBySkill, requiredLevels} stages ready for optimizeProgression.
+ * (progression-optimizer.js): simulate each saved Build in every zone, keep every zone that isn't
+ * beaten outright by another (see pruneDominatedZones), and turn each (build, zone) pair into its
+ * own {cost, goldPerHr, xpPerHrBySkill, requiredLevels} stage. No zone is picked up front — the
+ * optimizer chooses which zone to fight in at each point of the plan, since the best zone depends
+ * on what it's for (e.g. a high-XP zone to clear the next set's level gate sooner can beat the
+ * highest-gold zone even when optimizing purely for gold).
  *
- * `buildStagesFromResults` is pure and covers the tricky part (ordering stages cheapest to
- * priciest and pricing only the items you don't already own at each step) — fully unit-testable
- * without a live sim. `findBestZoneForDTO` / `runProgressionZoneSearch` drive the actual Web
- * Worker combat simulation and can only run inside the userscript.
+ * `buildStagesFromResults` and `pruneDominatedZones` are pure and fully unit-testable without a
+ * live sim. `findZoneOptionsForDTO` / `runProgressionZoneSearch` drive the actual Web Worker
+ * combat simulation and can only run inside the userscript.
  */
 
 import { runAllZonesSimulation } from './all-zones-runner.js';
 import { calculateSimRevenue } from './combat-sim-adapter.js';
-import { calculateGearUpgradeCost, estimateEquipmentPrice } from './gear-price.js';
+import { calculateGearUpgradeCost, estimateEquipmentPrice, estimateGearResaleValue } from './gear-price.js';
 import { COMBAT_SKILLS } from './level-target-core.js';
 
 const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key}`));
@@ -29,11 +29,17 @@ const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key
  * regardless of price since it's already owned) and each stage's `cost` is computed against
  * the *previous stage in that order* — so an item worn in both stays free, and only the actual
  * upgrade delta is charged. Gear price order is used as a proxy for "power order" here — it's
- * independent of the gold/XP objective, unlike the per-stage zone choice (see findBestZoneForDTO).
+ * independent of the gold/XP objective.
  *
- * Any extra fields on a build entry (e.g. `bestZone`, `requiredLevels`) pass through unchanged
- * onto its stage, so callers can carry along whatever metadata the pure cost/ordering logic
- * here doesn't need.
+ * Any extra fields on a build entry (e.g. `requiredLevels`) pass through unchanged onto its
+ * stage(s), so callers can carry along whatever metadata the pure cost/ordering logic here
+ * doesn't need.
+ *
+ * A build with a `zoneOptions` array is expanded into one stage per zone, named
+ * `"<build> @ <zone> (T<tier>)"`, each with that zone's rates plus `buildName` and `zone`. Zone
+ * variants of the same build share its gear, so switching between them is free (directCosts 0)
+ * and they share its `cost`, `requiredLevels` and `gearValue`. A build without `zoneOptions`
+ * stays a single stage under its own name (`buildName` still set).
  *
  * Every stage also gets a `directCosts` map: `directCosts[otherStageName]` is the cost to go
  * straight from THIS stage's owned equipment to that other stage's equipment, bypassing whatever
@@ -41,15 +47,24 @@ const COMBAT_SKILL_HRIDS = new Set(COMBAT_SKILLS.map(({ key }) => `/skills/${key
  * to whichever reachable stage is actually worth fighting toward, instead of being forced to buy
  * every cheaper stage's gear along the way even when none of it helps reach the target.
  *
+ * With `sellOldGear`, every stage also gets a `gearValue` (its equipment's resale value — see
+ * estimateGearResaleValue), so the optimizer can score by net worth rather than cash alone.
+ *
+ * Current gear is treated as items already in your bank (typically it's your brewing setup): any
+ * build item it covers is free (see calculateGearUpgradeCost's `ownedEquipment`). Leaving Current
+ * Gear never sells anything — your current setup stays as it is — but once a bank item is part
+ * of a build, it's that build's gear like any other: counted in its `gearValue`, and sold (with
+ * `sellOldGear`) when a later build replaces it.
+ *
  * @param {Object} params
  * @param {{equipment: Object, goldPerHr: number, xpPerHrBySkill: Object<string, number>}} params.currentStage
  *   Your current gear plus its own simulated rates (this stage's cost is always forced to 0 —
  *   you already own it, regardless of what it would cost to buy from scratch).
- * @param {Array<{name: string, equipment: Object, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>}>} params.builds
- *   One entry per saved Build already simulated at its best zone (see runProgressionZoneSearch).
+ * @param {Array<{name: string, equipment: Object, goldPerHr?: number, xpPerHrBySkill?: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>, zoneOptions?: Array<{name: string, difficultyTier: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>}>}>} params.builds
+ *   One entry per saved Build, with its simulated zones (see runProgressionZoneSearch).
  * @param {boolean} [params.sellOldGear=false] - Credit selling gear that isn't carried forward
  *   into the next stage toward that stage's cost (see calculateGearUpgradeCost's `sellOldGear`).
- * @returns {Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>, directCosts: Object<string, number>}>}
+ * @returns {Array<{name: string, buildName: string, zone?: Object, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels?: Array<{skillHrid: string, level: number}>, directCosts: Object<string, number>}>}
  */
 export function buildStagesFromResults({ currentStage, builds, sellOldGear = false }) {
     const priced = builds
@@ -57,29 +72,93 @@ export function buildStagesFromResults({ currentStage, builds, sellOldGear = fal
         .sort((a, b) => a._fullPrice - b._fullPrice);
 
     const { equipment: currentEquipment, ...currentRest } = currentStage;
-    const stages = [{ name: 'Current Gear', ...currentRest, cost: 0, equipment: currentEquipment }];
+    const gears = [{ name: 'Current Gear', ...currentRest, cost: 0, equipment: currentEquipment }];
 
     let prevEquipment = currentEquipment;
     for (const build of priced) {
-        const { total: cost } = calculateGearUpgradeCost(prevEquipment, build.equipment, { sellOldGear });
+        const { total: cost } = calculateGearUpgradeCost(prevEquipment, build.equipment, {
+            // Nothing from your current setup is ever sold just to leave it
+            sellOldGear: sellOldGear && prevEquipment !== currentEquipment,
+            ownedEquipment: currentEquipment,
+        });
         const { _fullPrice, ...rest } = build;
         void _fullPrice;
-        stages.push({ ...rest, cost });
+        gears.push({ ...rest, cost });
         prevEquipment = build.equipment;
     }
 
+    // Price every gear pair once (not every zone-variant pair — the gear is what's bought).
+    const gearCosts = new Map();
+    for (const gear of gears) {
+        const costs = {};
+        for (const other of gears) {
+            if (other === gear) continue;
+            costs[other.name] = calculateGearUpgradeCost(gear.equipment, other.equipment, {
+                sellOldGear: sellOldGear && gear.equipment !== currentEquipment,
+                ownedEquipment: currentEquipment,
+            }).total;
+        }
+        gearCosts.set(gear.name, costs);
+    }
+
+    const stages = [];
+    for (const gear of gears) {
+        const { zoneOptions, ...gearRest } = gear;
+        // Only meaningful when selling is modeled: otherwise gear is a sunk cost that's never
+        // turned back into gold, so it shouldn't count toward the optimizer's net worth either.
+        // Current gear is never sold as such (see above), so it's worth nothing to the plan.
+        const gearValue =
+            sellOldGear && gear.equipment !== currentEquipment ? estimateGearResaleValue(gear.equipment) : 0;
+        if (!zoneOptions?.length) {
+            stages.push({ ...gearRest, buildName: gear.name, gearValue });
+            continue;
+        }
+        for (const zone of zoneOptions) {
+            stages.push({
+                ...gearRest,
+                name: `${gear.name} @ ${zone.name} (T${zone.difficultyTier})`,
+                buildName: gear.name,
+                zone,
+                goldPerHr: zone.goldPerHr,
+                xpPerHrBySkill: zone.xpPerHrBySkill,
+                gearValue,
+            });
+        }
+    }
+
     for (const stage of stages) {
+        const costs = gearCosts.get(stage.buildName);
         const directCosts = {};
         for (const other of stages) {
             if (other === stage) continue;
-            directCosts[other.name] = calculateGearUpgradeCost(stage.equipment, other.equipment, {
-                sellOldGear,
-            }).total;
+            directCosts[other.name] = other.buildName === stage.buildName ? 0 : costs[other.buildName];
         }
         stage.directCosts = directCosts;
     }
 
     return stages;
+}
+
+/**
+ * Drop every zone that another zone beats outright — at least as much gold/hr AND at least as much
+ * XP/hr in every single skill (strictly more in at least one). Such a zone can never be the better
+ * choice for any gold/XP blend or any level gate, so dropping it loses nothing and keeps the
+ * optimizer's option count down. Of exact duplicates, only the first is kept.
+ * @param {Array<{goldPerHr: number, xpPerHrBySkill: Object<string, number>}>} zones
+ * @returns {Array<Object>} The surviving zones, in their original order
+ */
+export function pruneDominatedZones(zones) {
+    const skills = [...new Set(zones.flatMap((z) => Object.keys(z.xpPerHrBySkill || {})))];
+    const atLeast = (a, b) =>
+        a.goldPerHr >= b.goldPerHr && skills.every((k) => (a.xpPerHrBySkill?.[k] || 0) >= (b.xpPerHrBySkill?.[k] || 0));
+
+    return zones.filter((zone, i) =>
+        zones.every((other, j) => {
+            if (i === j || !atLeast(other, zone)) return true;
+            // `other` is at least as good everywhere — `zone` survives only as the first of identical twins.
+            return atLeast(zone, other) && i < j;
+        })
+    );
 }
 
 /**
@@ -183,26 +262,23 @@ export async function simulateDtoAcrossZones(dto, zones, gameData, options = {},
 
 /**
  * Simulate a single DTO across every given zone (or reuse a cached result — see `options.cache`)
- * and return its best zone, ranked by the same gold/XP objective slider optimizeProgression uses:
- * at each zone, gold/hr and total XP/hr are min-max normalized against every OTHER zone tried for
- * this same DTO, then blended by `objectiveWeight` (0 = pick the best gold/hr zone, 1 = pick the
- * best XP/hr zone). Runs inside the userscript only (spins up real combat-sim Web Workers).
+ * and return every zone worth considering for it (see pruneDominatedZones). Which of them to
+ * actually fight in is left to the optimizer. Runs inside the userscript only (spins up real
+ * combat-sim Web Workers).
  * @param {Object} dto - Player DTO to test (equipment/abilities/consumables/skills)
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} zones
  * @param {Object} gameData - Game data from buildGameDataPayload()
  * @param {Object} [options]
  * @param {number} [options.hours=1] - Simulated hours per zone (short — this is a scan, not a final result)
  * @param {Object} [options.communityBuffs] - { mooPass, comExp, comDrop }
- * @param {number} [options.objectiveWeight=1] - 0 = rank zones by gold/hr, 1 = rank by total XP/hr, in between blends both
  * @param {Map<string, Array>} [options.cache] - Optional cache of raw per-zone sim results, keyed
- *   by DTO content + zones + hours + communityBuffs. Reused as long as none of those change —
- *   independent of `objectiveWeight`, which only affects ranking below, not what gets cached.
+ *   by DTO content + zones + hours + communityBuffs. Reused as long as none of those change.
  * @param {Function} [onProgress] - Called with (percent: 0-100)
- * @returns {Promise<{zoneHrid: string, difficultyTier: number, name: string, goldPerHr: number, xpPerHr: number, xpPerHrBySkill: Object<string, number>, cached: boolean}|null>}
+ * @returns {Promise<{zoneOptions: Array<{zoneHrid: string, difficultyTier: number, name: string, goldPerHr: number, xpPerHr: number, xpPerHrBySkill: Object<string, number>}>, cached: boolean}>}
  */
-export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onProgress) {
-    const { hours = 1, communityBuffs = {}, objectiveWeight = 1, cache } = options;
-    if (!zones?.length) return null;
+export async function findZoneOptionsForDTO(dto, zones, gameData, options = {}, onProgress) {
+    const { hours = 1, communityBuffs = {}, cache } = options;
+    if (!zones?.length) return { zoneOptions: [], cached: false };
 
     const cacheKey = cache ? buildZoneCacheKey(dto, zones, hours, communityBuffs) : null;
     let candidates;
@@ -215,35 +291,18 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
         if (cache) cache.set(cacheKey, candidates);
     }
 
-    if (candidates.length === 0) return null;
-
-    const golds = candidates.map((c) => c.goldPerHr);
-    const xps = candidates.map((c) => c.xpPerHr);
-    const minGold = Math.min(...golds);
-    const maxGold = Math.max(...golds);
-    const minXp = Math.min(...xps);
-    const maxXp = Math.max(...xps);
-    const normalize = (value, min, max) => (max > min ? (value - min) / (max - min) : 1);
-
-    let best = null;
-    for (const candidate of candidates) {
-        const normGold = normalize(candidate.goldPerHr, minGold, maxGold);
-        const normXp = normalize(candidate.xpPerHr, minXp, maxXp);
-        const score = (1 - objectiveWeight) * normGold + objectiveWeight * normXp;
-        if (!best || score > best.score) best = { ...candidate, score };
-    }
-
-    return best ? { ...best, cached } : null;
+    return { zoneOptions: pruneDominatedZones(candidates), cached };
 }
 
 /**
- * Full orchestration: for every saved Build (never current gear), find the best zone (per the
- * shared objective slider), then assemble the incrementally-priced stage list ready for
- * optimizeProgression. Runs inside the userscript only.
+ * Full orchestration: for every saved Build (never current gear), simulate every zone and keep
+ * the ones worth considering, then assemble the incrementally-priced stage list (one stage per
+ * build and zone) ready for optimizeProgression. Runs inside the userscript only.
  *
  * Current gear is never simulated as an activity — only saved Builds compete to be fought in.
- * Its equipment is used purely as the cost-diffing baseline (so a build that reuses an
- * already-owned item isn't charged for it again). This means progress is only possible starting
+ * Its items count as already in your bank: free for any build that uses them, and only ever sold
+ * once a build that used them is upgraded (see buildStagesFromResults). This means
+ * progress is only possible starting
  * from a build you already meet the level requirements for at your real current XP — there is no
  * "fight in whatever you have on now to bridge the gap" option. If no saved build is currently
  * eligible, optimizeProgression's candidates will all show zero progress; the caller should
@@ -251,17 +310,18 @@ export async function findBestZoneForDTO(dto, zones, gameData, options = {}, onP
  * than presenting a "recommended" strategy that quietly does nothing for the whole time budget.
  *
  * @param {Object} params
- * @param {Object} params.currentDTO - Your live/current player DTO (used only for cost-diffing)
+ * @param {Object} params.currentDTO - Your live/current player DTO (its gear counts as owned, never sold)
  * @param {Array<{name: string, dto: Object}>} params.builds - Saved builds to include, cheapest gear first isn't required — sorting happens internally
  * @param {Array<{zoneHrid: string, difficultyTier: number, name: string}>} params.zones - Zones to scan
  * @param {Object} params.gameData - Game data from buildGameDataPayload()
- * @param {Object} [params.options] - Passed through to findBestZoneForDTO (hours, communityBuffs, objectiveWeight)
+ * @param {Object} [params.options] - Passed through to findZoneOptionsForDTO (hours, communityBuffs, cache)
  * @param {boolean} [params.sellOldGear=false] - Credit selling gear not carried forward into the
  *   next stage toward that stage's cost (see buildStagesFromResults/calculateGearUpgradeCost)
  * @param {Function} [onProgress] - Called with (percent: 0-100, label: string, cached: boolean|undefined)
  *   as each build's scan completes — `cached` is true when a matching `options.cache` entry was
  *   reused instead of running a fresh simulation
- * @returns {Promise<Array<{name: string, cost: number, goldPerHr: number, xpPerHrBySkill: Object<string, number>, requiredLevels: Array<{skillHrid: string, level: number}>, bestZone: Object|null}>>}
+ * @returns {Promise<Array<Object>>} See buildStagesFromResults — each build's stages also carry
+ *   `cached` (whether its zone scan came from `options.cache`)
  */
 export async function runProgressionZoneSearch(
     { currentDTO, builds, zones, gameData, options = {}, sellOldGear = false },
@@ -273,21 +333,20 @@ export async function runProgressionZoneSearch(
         goldPerHr: 0,
         xpPerHrBySkill: {},
         requiredLevels: [],
-        bestZone: null,
     };
 
     const buildResults = [];
     for (let i = 0; i < builds.length; i++) {
         const entry = builds[i];
-        const bestZone = await findBestZoneForDTO(entry.dto, zones, gameData, options);
-        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name, bestZone?.cached);
+        const { zoneOptions, cached } = await findZoneOptionsForDTO(entry.dto, zones, gameData, options);
+        if (onProgress) onProgress(Math.round(((i + 1) / builds.length) * 100), entry.name, cached);
+        if (zoneOptions.length === 0) continue; // nothing simulated — no way to fight in it
         buildResults.push({
             name: entry.name,
             equipment: entry.dto.equipment,
-            goldPerHr: bestZone?.goldPerHr || 0,
-            xpPerHrBySkill: bestZone?.xpPerHrBySkill || {},
             requiredLevels: getRequiredLevelsForEquipment(entry.dto.equipment, gameData),
-            bestZone,
+            zoneOptions,
+            cached,
         });
     }
 

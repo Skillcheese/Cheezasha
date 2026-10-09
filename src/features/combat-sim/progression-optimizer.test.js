@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { getXpForLevel } from './combat-level-xp-table.js';
 import {
+    BREWING_STAGE_LABEL,
     isStageEligible,
     optimizeProgression,
+    searchBestClimb,
     simulateMultiSkillClimb,
     sumGainedXp,
     sumSkillXp,
@@ -128,6 +130,120 @@ describe('simulateMultiSkillClimb', () => {
         expect(result.reachedStageIndex).toBe(0);
         expect(result.timeline[0].reason).toBe('end of horizon');
         expect(result.finalGold).toBeCloseTo(500_000);
+    });
+
+    it('never downgrades just to cash out a sell credit when gear value counts toward net worth', () => {
+        // Starting in Big: dropping to Small refunds 3B of gear (negative direct cost) — more
+        // than Big's extra 500K/hr earns over 1,000h (500M). Cash-only scoring would take the
+        // refund; net worth sees it as swapping 3.5B of gear for 0.5B of gear + 3B gold, i.e. a
+        // wash that then earns less per hour.
+        const stages = [
+            {
+                name: 'Big',
+                cost: 0,
+                goldPerHr: 1_500_000,
+                xpPerHrBySkill: { [ATK]: 200_000 },
+                gearValue: 3_500_000_000,
+                directCosts: { Small: -3_000_000_000 },
+            },
+            {
+                name: 'Small',
+                cost: 0,
+                goldPerHr: 1_000_000,
+                xpPerHrBySkill: { [ATK]: 150_000 },
+                gearValue: 500_000_000,
+                directCosts: { Big: 3_300_000_000 },
+            },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, { targetHours: 1_000, objectiveWeight: 0 });
+
+        expect(result.reachedStageIndex).toBe(0);
+        expect(result.finalGold).toBeCloseTo(1_500_000_000);
+        expect(result.finalGearValue).toBe(3_500_000_000);
+    });
+
+    it('never buys a set only to abandon it at the same moment for one it just ranked lower', () => {
+        // Under per-decision min-max scoring, A beat B when ranked alongside the zero-rate
+        // Current Gear, but B beat A once ranked on its own from A — so the climb bought A and
+        // then instantly paid for B too. A fixed yardstick ranks them the same way every time.
+        const stages = [
+            { name: 'Current Gear', cost: 0, goldPerHr: 0, xpPerHrBySkill: {} },
+            {
+                name: 'A',
+                cost: 1_000_000,
+                goldPerHr: 200_000,
+                xpPerHrBySkill: { [ATK]: 20_000 },
+                directCosts: { B: 1_000_000 },
+            },
+            {
+                name: 'B',
+                cost: 1_000_000,
+                goldPerHr: 100_000,
+                xpPerHrBySkill: { [ATK]: 26_000 },
+                directCosts: { A: 1_000_000 },
+            },
+        ];
+        stages[0].directCosts = { A: 1_000_000, B: 1_000_000 };
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 100,
+            startingGold: 5_000_000,
+            objectiveWeight: 0.6,
+        });
+
+        expect(result.timeline.map((leg) => leg.stage)).toEqual(['A']);
+        expect(result.finalGold).toBeCloseTo(5_000_000 - 1_000_000 + 200_000 * 100);
+    });
+
+    it('never brews out the horizon, even when brewing out-earns every fighting option', () => {
+        const stages = [
+            { name: 'A', cost: 0, goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'B', cost: 1_000_000_000, goldPerHr: 150_000, xpPerHrBySkill: { [ATK]: 20_000 } },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 2_000,
+            brewGoldPerHr: 1_000_000,
+            objectiveWeight: 0,
+        });
+
+        // Brewing 1,000h to buy B only to earn 50K/hr more for the other 1,000h isn't worth it
+        // once brew income itself isn't scored — so just fight in A.
+        expect(result.timeline).toEqual([{ stage: 'A', startHour: 0, endHour: 2_000, reason: 'end of horizon' }]);
+        expect(result.brewGold).toBe(0);
+    });
+
+    it('brews only to fund gear, then keeps fighting in it instead of abandoning it mid-brew', () => {
+        const stages = [
+            { name: 'Weak', cost: 0, goldPerHr: 10_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'Strong', cost: 1_000_000_000, goldPerHr: 1_000_000, xpPerHrBySkill: { [ATK]: 100_000 } },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 2_000,
+            brewGoldPerHr: 2_000_000,
+            objectiveWeight: 0,
+        });
+
+        expect(result.timeline).toEqual([
+            { stage: BREWING_STAGE_LABEL, startHour: 0, endHour: 500, reason: 'earning money for Strong' },
+            { stage: 'Strong', startHour: 500, endHour: 2_000, reason: 'end of horizon' },
+        ]);
+        expect(result.brewGold).toBeCloseTo(1_000_000_000);
+    });
+
+    it('keeps fighting rather than brewing out the horizon when XP is the objective', () => {
+        const stages = [{ name: 'A', cost: 0, goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 10_000 } }];
+
+        const result = simulateMultiSkillClimb(stages, {
+            targetHours: 100,
+            brewGoldPerHr: 1_000_000,
+            objectiveWeight: 1,
+        });
+
+        expect(result.timeline.map((leg) => leg.stage)).toEqual(['A']);
+        expect(result.finalSkillXp[ATK]).toBeCloseTo(1_000_000);
     });
 
     it('rides out the final stage in the list to the full horizon', () => {
@@ -318,6 +434,28 @@ describe('simulateMultiSkillClimb', () => {
         expect(result.timeline.filter((leg) => leg.reason === 'xp gate cleared')).toHaveLength(0);
     });
 
+    it("trains in a high-XP zone to clear the next set's level gate sooner, even when optimizing for gold", () => {
+        // Two zones for the same gear (free to move between): Gold earns more per hour, but Xp
+        // clears Target's level-80 gate (1,693,774 xp) in ~42h instead of ~169h — and Target's
+        // 2M/hr for those extra ~127h is worth far more than Gold's extra 200K/hr.
+        const stages = [
+            { name: 'Now @ Gold', buildName: 'Now', cost: 0, goldPerHr: 300_000, xpPerHrBySkill: { [ATK]: 10_000 } },
+            { name: 'Now @ Xp', buildName: 'Now', cost: 0, goldPerHr: 100_000, xpPerHrBySkill: { [ATK]: 40_000 } },
+            {
+                name: 'Target',
+                cost: 0,
+                goldPerHr: 2_000_000,
+                xpPerHrBySkill: { [ATK]: 50_000 },
+                requiredLevels: [{ skillHrid: ATK, level: 80 }],
+            },
+        ];
+
+        const result = simulateMultiSkillClimb(stages, { targetHours: 1_000, objectiveWeight: 0 });
+
+        expect(result.timeline.map((leg) => leg.stage)).toEqual(['Now @ Xp', 'Target']);
+        expect(result.timeline[0].endHour).toBeCloseTo(1_693_774 / 40_000);
+    });
+
     it('prefers staying put when a switch-to-brew detour sacrifices far more xp than the upgrade earns back', () => {
         const stages = [
             // Already trains xp very well — the thing worth protecting.
@@ -373,14 +511,15 @@ describe('optimizeProgression', () => {
         expect(result.recommended.totalXp).toBe(pureClimb.totalXp);
     });
 
-    it('recommends brewing the whole time when weight is pure gold and combat never out-earns brewing', () => {
+    it('never recommends a plan without combat, even at pure gold when brewing out-earns fighting', () => {
         const result = optimizeProgression(stages, {
             targetHours: 300,
             brewGoldPerHr: 2_300_000, // beats Endgame's 1,800,000 gold/hr too
             objectiveWeight: 0,
         });
 
-        expect(result.recommended.label).toMatch(/never fight/);
+        expect(result.candidates.some((c) => /never fight/.test(c.label))).toBe(false);
+        expect(result.recommended.totalXp).toBeGreaterThan(0);
     });
 
     it('does not offer pre-brewing toward a stage that is not yet level-eligible at the start', () => {
@@ -402,6 +541,26 @@ describe('optimizeProgression', () => {
         });
 
         expect(result.candidates.some((c) => c.label.includes('bank'))).toBe(false);
+    });
+
+    it('shows up-front brewing as the first timeline leg and shifts the climb after it', () => {
+        const result = optimizeProgression(stages, {
+            targetHours: 300,
+            brewGoldPerHr: 2_300_000,
+            objectiveWeight: 1,
+        });
+        const preBrew = result.candidates.find((c) => c.label.includes('bank Endgame'));
+        const brewHours = 500_000_000 / 2_300_000;
+
+        expect(preBrew.timeline[0]).toEqual({
+            stage: BREWING_STAGE_LABEL,
+            startHour: 0,
+            endHour: brewHours,
+            reason: 'earning money for Endgame',
+        });
+        expect(preBrew.timeline[1].stage).toBe('Endgame');
+        expect(preBrew.timeline[1].startHour).toBeCloseTo(brewHours);
+        expect(preBrew.timeline.at(-1).endHour).toBeCloseTo(300);
     });
 
     it('skips a pre-brew candidate when starting gold already covers that stage', () => {
@@ -431,6 +590,38 @@ describe('optimizeProgression', () => {
 
         expect(blended.recommended.totalXp).toBeLessThanOrEqual(pureXp.recommended.totalXp);
         expect(blended.recommended.finalGold).toBeLessThanOrEqual(pureGold.recommended.finalGold);
+    });
+
+    it('skips a set the greedy climb grabs when the whole plan ends better without it', () => {
+        // Cheap is affordable first and out-earns Mid, so a greedy climb buys it and rides it out —
+        // but only Mid shares enough gear with Endgame to ever reach it.
+        const trapStages = [
+            { name: 'Current Gear', goldPerHr: 10, xpPerHrBySkill: {}, cost: 0 },
+            {
+                name: 'Cheap',
+                goldPerHr: 20,
+                xpPerHrBySkill: {},
+                cost: 100,
+                directCosts: { Mid: 1000, Endgame: Infinity },
+            },
+            {
+                name: 'Mid',
+                goldPerHr: 15,
+                xpPerHrBySkill: {},
+                cost: 1000,
+                gearValue: 1000,
+                directCosts: { Cheap: 100, Endgame: 100 },
+            },
+            { name: 'Endgame', goldPerHr: 100, xpPerHrBySkill: {}, cost: Infinity, gearValue: 1100 },
+        ];
+        trapStages[0].directCosts = { Cheap: 100, Mid: 1000, Endgame: Infinity };
+
+        const greedy = simulateMultiSkillClimb(trapStages, { targetHours: 1000, objectiveWeight: 0 });
+        expect(greedy.reachedStageIndex).toBe(1); // the trap: stuck in Cheap
+
+        const result = optimizeProgression(trapStages, { targetHours: 1000, brewGoldPerHr: 0, objectiveWeight: 0 });
+        expect(result.recommended.reachedStageIndex).toBe(3);
+        expect(result.recommended.finalNetWorth).toBeGreaterThan(greedy.finalGold);
     });
 
     it('returns no candidates for an empty stage list', () => {
@@ -483,5 +674,142 @@ describe('optimizeProgression', () => {
         // With the magic-relevant filter, that same melee XP contributes nothing — correctly
         // reflecting that no real magic progress was made, even though gross XP looks large.
         expect(climbCandidateFiltered.totalXp).toBe(0);
+    });
+});
+
+describe('searchBestClimb', () => {
+    // Cheap is affordable first and out-earns Mid, so a greedy climb buys it and rides it out —
+    // but only Mid shares enough gear with Endgame to ever reach it.
+    const trapStages = [
+        { name: 'Current Gear', goldPerHr: 10, xpPerHrBySkill: {}, cost: 0 },
+        { name: 'Cheap', goldPerHr: 20, xpPerHrBySkill: {}, cost: 100, directCosts: { Mid: 1000, Endgame: Infinity } },
+        {
+            name: 'Mid',
+            goldPerHr: 15,
+            xpPerHrBySkill: {},
+            cost: 1000,
+            gearValue: 1000,
+            directCosts: { Cheap: 100, Endgame: 100 },
+        },
+        { name: 'Endgame', goldPerHr: 100, xpPerHrBySkill: {}, cost: Infinity, gearValue: 1100 },
+    ];
+    trapStages[0].directCosts = { Cheap: 100, Mid: 1000, Endgame: Infinity };
+
+    it('finds the plan through a set the greedy climb would skip', () => {
+        const { climb, timedOut } = searchBestClimb(trapStages, { targetHours: 1000, objectiveWeight: 0 });
+        expect(timedOut).toBe(false);
+        expect(climb.reachedStageIndex).toBe(3);
+        // Cheap still helps as a stepping stone — it banks Mid's cost twice as fast — so long as
+        // the plan moves on to Mid instead of riding Cheap out.
+        expect(climb.timeline.map((leg) => leg.stage)).toEqual(['Current Gear', 'Cheap', 'Mid', 'Endgame']);
+        const greedy = simulateMultiSkillClimb(trapStages, { targetHours: 1000, objectiveWeight: 0 });
+        expect(climb.finalGold + climb.finalGearValue).toBeGreaterThan(greedy.finalGold + greedy.finalGearValue);
+    });
+
+    it('reports progress that only moves forward and finishes at 100% with the best plan', () => {
+        const reports = [];
+        const result = optimizeProgression(trapStages, {
+            targetHours: 1000,
+            brewGoldPerHr: 0,
+            objectiveWeight: 0,
+            onProgress: (p) => reports.push(p),
+        });
+        expect(reports.length).toBeGreaterThan(0);
+        for (let i = 1; i < reports.length; i++) {
+            expect(reports[i].fraction).toBeGreaterThanOrEqual(reports[i - 1].fraction);
+        }
+        const last = reports[reports.length - 1];
+        expect(last.fraction).toBe(1);
+        expect(last.bestNetWorth).toBeCloseTo(result.recommended.finalNetWorth);
+    });
+
+    it('never brews for a set it only buys to resell for a cheaper one, even when brewing out-earns fighting', () => {
+        // Buying Big and instantly downgrading to Mid refunds almost all of Big's price, so
+        // "brew for Big" could stretch brewing (2,000/hr, twice Mid's gold) over most of the
+        // horizon. Brew income isn't scored and a set can't be left the hour it's bought.
+        const stages = [
+            {
+                name: 'Current Gear',
+                goldPerHr: 0,
+                xpPerHrBySkill: {},
+                cost: 0,
+                directCosts: { Mid: 1000, Big: 900_000 },
+            },
+            {
+                name: 'Mid',
+                goldPerHr: 1_000,
+                xpPerHrBySkill: {},
+                cost: 1000,
+                gearValue: 1000,
+                directCosts: { Big: 899_000 },
+            },
+            {
+                name: 'Big',
+                goldPerHr: 1_200,
+                xpPerHrBySkill: {},
+                cost: 900_000,
+                gearValue: 900_000,
+                directCosts: { Mid: -898_000 },
+            },
+        ];
+        const result = optimizeProgression(stages, { targetHours: 1000, brewGoldPerHr: 2_000, objectiveWeight: 0 });
+        const plan = result.recommended;
+        expect(plan.reachedStageIndex).toBe(1);
+        expect(plan.brewGold).toBeCloseTo(1000); // just Mid's cost
+        expect(plan.timeline.some((leg) => leg.reason.includes('Big'))).toBe(false);
+    });
+
+    it('returns null when nothing beats the incumbent score', () => {
+        const { climb } = searchBestClimb(trapStages, {
+            targetHours: 1000,
+            objectiveWeight: 0,
+            incumbentScore: Infinity,
+        });
+        expect(climb).toBeNull();
+    });
+
+    it('never does worse than the greedy climb', () => {
+        const stages = [
+            { name: 'Current Gear', goldPerHr: 1_000, xpPerHrBySkill: { '/skills/magic': 500 }, cost: 0 },
+            {
+                name: 'A@Z1',
+                buildName: 'A',
+                goldPerHr: 5_000,
+                xpPerHrBySkill: { '/skills/magic': 2_000 },
+                cost: 20_000,
+                gearValue: 15_000,
+            },
+            {
+                name: 'A@Z2',
+                buildName: 'A',
+                goldPerHr: 3_000,
+                xpPerHrBySkill: { '/skills/magic': 6_000 },
+                cost: 20_000,
+                gearValue: 15_000,
+            },
+            {
+                name: 'B',
+                goldPerHr: 12_000,
+                xpPerHrBySkill: { '/skills/magic': 4_000 },
+                cost: 200_000,
+                gearValue: 150_000,
+                requiredLevels: [{ skillHrid: '/skills/magic', level: 40 }],
+            },
+        ];
+        for (const objectiveWeight of [0, 0.5, 1]) {
+            const opts = { targetHours: 500, brewGoldPerHr: 8_000, objectiveWeight };
+            const greedy = simulateMultiSkillClimb(stages, opts);
+            const result = optimizeProgression(stages, { ...opts, relevantSkillHrids: ['/skills/magic'] });
+            const fight = result.candidates[0];
+            expect(fight.searchTimedOut).toBe(false);
+            const score = (netWorth, xp) =>
+                ((1 - objectiveWeight) * netWorth) / 12_000 + (objectiveWeight * xp) / 6_000;
+            expect(score(fight.finalNetWorth - fight.brewGold, fight.totalXp)).toBeGreaterThanOrEqual(
+                score(
+                    greedy.finalGold + greedy.finalGearValue - greedy.brewGold,
+                    sumGainedXp(greedy.finalSkillXp, {}, ['/skills/magic'])
+                ) - 1e-6
+            );
+        }
     });
 });
