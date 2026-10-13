@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.20.2](https://github.com/Skillcheese/Cheezasha/compare/v3.20.1...v3.20.2) (2026-10-13)
+
+### Miscellaneous Chores
+
+- **skills:** find release PR by branch and poll with ScheduleWakeup ([f56d694](https://github.com/Skillcheese/Cheezasha/commit/f56d694e1be7e5fe85376c2635d67d5e8c3662f4))
+
 ## [3.20.1](https://github.com/Skillcheese/Cheezasha/compare/v3.20.0...v3.20.1) (2026-10-13)
 
 ### Bug Fixes
