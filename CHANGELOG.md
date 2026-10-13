@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.20.1](https://github.com/Skillcheese/Cheezasha/compare/v3.20.0...v3.20.1) (2026-10-13)
+
+### Bug Fixes
+
+- **combat-sim:** assume community XP/drop buffs are active in sims ([d48490b](https://github.com/Skillcheese/Cheezasha/commit/d48490b25f53e9c9e452da77d6cc6a27c89a2113))
+
 ## [3.20.0](https://github.com/Skillcheese/Cheezasha/compare/v3.19.0...v3.20.0) (2026-10-09)
 
 ### Features
