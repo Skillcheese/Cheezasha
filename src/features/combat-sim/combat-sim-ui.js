@@ -4935,7 +4935,7 @@ class CombatSimUI {
                     builds,
                     zones,
                     gameData,
-                    options: { hours: 0.5, cache: this._progressionZoneCache },
+                    options: { hours: 1, communityBuffs: getCommunityBuffs(), cache: this._progressionZoneCache },
                     sellOldGear,
                 },
                 (percent, label, cached) => {

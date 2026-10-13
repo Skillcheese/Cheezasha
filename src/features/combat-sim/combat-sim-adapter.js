@@ -754,16 +754,25 @@ export function getCurrentCombatZone() {
     return null;
 }
 
+// Last community buff levels seen active this session. The combat XP and drop buffs are almost
+// always running, so sims assume they're on even during a lapse, at the last level seen (or 1).
+const lastSeenCommunityBuffLevels = { comExp: 1, comDrop: 1 };
+
 /**
- * Extract community buff levels from characterData for the simulation.
- * @returns {{comExp: number, comDrop: number}} Community buff levels (0 if not active)
+ * Community buff levels for the simulation. The XP and combat drop buffs are always assumed
+ * active: the live level when the buff is up, otherwise the last level seen (default 1).
+ * @returns {{mooPass: boolean, comExp: number, comDrop: number}} Community buff levels
  */
 export function getCommunityBuffs() {
     const mooPassBuffs = dataManager.getMooPassBuffs();
+    const liveExp = dataManager.getCommunityBuffLevel('/community_buff_types/experience') || 0;
+    const liveDrop = dataManager.getCommunityBuffLevel('/community_buff_types/combat_drop_quantity') || 0;
+    if (liveExp > 0) lastSeenCommunityBuffLevels.comExp = liveExp;
+    if (liveDrop > 0) lastSeenCommunityBuffLevels.comDrop = liveDrop;
     return {
         mooPass: mooPassBuffs && mooPassBuffs.length > 0,
-        comExp: dataManager.getCommunityBuffLevel('/community_buff_types/experience') || 0,
-        comDrop: dataManager.getCommunityBuffLevel('/community_buff_types/combat_drop_quantity') || 0,
+        comExp: lastSeenCommunityBuffLevels.comExp,
+        comDrop: lastSeenCommunityBuffLevels.comDrop,
     };
 }
 
