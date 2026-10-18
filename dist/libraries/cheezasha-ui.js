@@ -1,7 +1,7 @@
 /**
  * Cheezasha UI Library
  * UI enhancements, tasks, skills, and misc features
- * Version: 3.20.1
+ * Version: 3.20.2
  * License: CC-BY-NC-SA-4.0
  */
 
