@@ -9,3 +9,5 @@ dist/
 .idea/
 .tmp/
 docs/
+
+.claude/settings.local.json
