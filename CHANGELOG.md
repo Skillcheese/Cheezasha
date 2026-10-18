@@ -2,11 +2,10 @@
 
 ## [3.20.2](https://github.com/Skillcheese/Cheezasha/compare/v3.20.1...v3.20.2) (2026-10-18)
 
-
 ### Miscellaneous Chores
 
-* ignore local Claude settings so per-machine permissions aren't committed ([322b0c0](https://github.com/Skillcheese/Cheezasha/commit/322b0c024b197c25d3d3a450d0d02f4e8e49ca13))
-* **skills:** find release PR by branch and poll with ScheduleWakeup ([f56d694](https://github.com/Skillcheese/Cheezasha/commit/f56d694e1be7e5fe85376c2635d67d5e8c3662f4))
+- ignore local Claude settings so per-machine permissions aren't committed ([322b0c0](https://github.com/Skillcheese/Cheezasha/commit/322b0c024b197c25d3d3a450d0d02f4e8e49ca13))
+- **skills:** find release PR by branch and poll with ScheduleWakeup ([f56d694](https://github.com/Skillcheese/Cheezasha/commit/f56d694e1be7e5fe85376c2635d67d5e8c3662f4))
 
 ## [3.20.1](https://github.com/Skillcheese/Cheezasha/compare/v3.20.0...v3.20.1) (2026-10-13)
 
