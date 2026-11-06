@@ -1,7 +1,7 @@
 /**
  * Cheezasha Core Library
  * Core infrastructure and API clients
- * Version: 3.20.2
+ * Version: 3.21.0
  * License: CC-BY-NC-SA-4.0
  */
 
@@ -1701,6 +1701,13 @@
                     type: 'checkbox',
                     default: true,
                     help: 'Shift+RightClick an inventory item to open the marketplace and create a tab for it. Tabs close automatically when the item sells out.',
+                },
+                market_quickSellListing: {
+                    id: 'market_quickSellListing',
+                    label: 'Quick Sell Listing (Ctrl+Shift+LeftClick inventory items)',
+                    type: 'checkbox',
+                    default: true,
+                    help: 'Ctrl+Shift+LeftClick an inventory item to open a new sell listing with the Min price and Max quantity filled in. The listing is not posted until you confirm it.',
                 },
                 networkAlert: {
                     id: 'networkAlert',
