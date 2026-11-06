@@ -982,8 +982,8 @@ export const settingsGroups = {
                 id: 'market_quickSellListing',
                 label: 'Quick Sell Listing (Ctrl+Shift+LeftClick inventory items)',
                 type: 'checkbox',
-                default: false,
-                help: 'Ctrl+Shift+LeftClick an inventory item to immediately post a sell listing at the Min price for the Max quantity, with no confirmation. This can sell the whole stack far below market value.',
+                default: true,
+                help: 'Ctrl+Shift+LeftClick an inventory item to open a new sell listing with the Min price and Max quantity filled in. The listing is not posted until you confirm it.',
             },
             networkAlert: {
                 id: 'networkAlert',

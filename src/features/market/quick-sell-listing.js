@@ -1,8 +1,7 @@
 /**
  * Quick Sell Listing
  * Ctrl+Shift+LeftClick an inventory item to open its marketplace page, open a new sell listing,
- * click Min price and Max quantity, and post the listing.
- * Any unexpected modal state stops the flow before posting and leaves the modal open.
+ * and click Min price and Max quantity. The listing is left open for the user to post.
  */
 
 import config from '../../core/config.js';
@@ -78,21 +77,7 @@ function findButton(container, text) {
 }
 
 /**
- * Find the button that submits the listing.
- * @param {HTMLElement} modal
- * @returns {HTMLButtonElement|null}
- */
-function findPostButton(modal) {
-    return (
-        Array.from(modal.querySelectorAll('button')).find((btn) => {
-            const text = btn.textContent.trim();
-            return /^post\b/i.test(text) || (btn.className.includes('Button_sell') && /sell/i.test(text));
-        }) || null
-    );
-}
-
-/**
- * Run the full flow: open the listing, set Min price and Max quantity, then post.
+ * Open the sell listing and set Min price and Max quantity, leaving it open for the user to post.
  * @param {string} itemHrid
  * @param {number} enhancementLevel
  * @returns {Promise<void>}
@@ -120,16 +105,8 @@ async function listItem(itemHrid, enhancementLevel) {
         minButton.click();
         await wait(INPUT_UPDATE_MS);
         maxButton.click();
-        await wait(INPUT_UPDATE_MS);
-
-        const quantity = parseInt(marketplaceShortcuts.findQuantityInput(modal)?.value.replace(/,/g, ''), 10);
-        if (!(quantity > 0)) throw new Error('Quantity is not set');
-
-        const postButton = findPostButton(modal);
-        if (!postButton || postButton.disabled) throw new Error('Post button unavailable');
-        postButton.click();
     } catch (error) {
-        console.error('[QuickSellListing] Stopped before posting:', error);
+        console.error('[QuickSellListing] Could not prepare listing:', error);
     } finally {
         isRunning = false;
     }
