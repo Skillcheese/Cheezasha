@@ -28,6 +28,7 @@ import profitCalculator from '../features/market/profit-calculator.js';
 import alchemyProfitCalculator from '../features/market/alchemy-profit-calculator.js';
 import marketplaceShortcuts from '../features/market/marketplace-shortcuts.js';
 import sellQueue from '../features/market/sell-queue.js';
+import quickSellListing from '../features/market/quick-sell-listing.js';
 import milkywayMarketLink from '../features/market/milkyway-market-link.js';
 import marketChurnEstimator from '../features/market/market-churn-estimator.js';
 import flipSampler from '../features/market/flipping/flip-sampler.js';
@@ -85,6 +86,7 @@ cheezashaRoot.Market = {
     customTabsFeature,
     marketplaceShortcuts,
     sellQueue,
+    quickSellListing,
     milkywayMarketLink,
     marketChurnEstimator,
     flipSampler,

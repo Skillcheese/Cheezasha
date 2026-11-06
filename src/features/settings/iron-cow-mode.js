@@ -23,6 +23,7 @@ export const IRON_COW_SETTINGS = new Set([
     'market_autoClickMax',
     'market_quickInputButtons',
     'market_marketplaceShortcuts',
+    'market_quickSellListing',
     'market_visibleItemCount',
     'market_visibleItemCountOpacity',
     'market_visibleItemCountIncludeEquipped',

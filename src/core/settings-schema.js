@@ -978,6 +978,13 @@ export const settingsGroups = {
                 default: true,
                 help: 'Shift+RightClick an inventory item to open the marketplace and create a tab for it. Tabs close automatically when the item sells out.',
             },
+            market_quickSellListing: {
+                id: 'market_quickSellListing',
+                label: 'Quick Sell Listing (Ctrl+Shift+LeftClick inventory items)',
+                type: 'checkbox',
+                default: false,
+                help: 'Ctrl+Shift+LeftClick an inventory item to immediately post a sell listing at the Min price for the Max quantity, with no confirmation. This can sell the whole stack far below market value.',
+            },
             networkAlert: {
                 id: 'networkAlert',
                 label: 'Show alert when market price data cannot be fetched',

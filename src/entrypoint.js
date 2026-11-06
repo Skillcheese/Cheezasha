@@ -171,6 +171,13 @@ function registerFeatures() {
             async: false,
         },
         {
+            key: 'market_quickSellListing',
+            name: 'Quick Sell Listing',
+            category: 'Market',
+            module: Market.quickSellListing,
+            async: false,
+        },
+        {
             key: 'flipSampler',
             name: 'Flipping Tool Sampler',
             category: 'Market',
