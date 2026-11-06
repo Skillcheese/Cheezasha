@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.21.0](https://github.com/Skillcheese/Cheezasha/compare/v3.20.2...v3.21.0) (2026-11-06)
+
+### Features
+
+- **market:** add Ctrl+Shift+Click quick sell listing ([a9b9221](https://github.com/Skillcheese/Cheezasha/commit/a9b92216aff5f99b451406dc620a0eeccceb7f15))
+
+### Bug Fixes
+
+- **market:** require confirmation for quick sell listings ([c7c1ac7](https://github.com/Skillcheese/Cheezasha/commit/c7c1ac72c5b557168b5e3471431d06c078d7b4aa))
+
 ## [3.20.2](https://github.com/Skillcheese/Cheezasha/compare/v3.20.1...v3.20.2) (2026-10-18)
 
 ### Miscellaneous Chores
