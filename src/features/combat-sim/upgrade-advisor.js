@@ -148,6 +148,9 @@ function getPlayerCombatStyle(playerDTO, gameData) {
     const weapon =
         playerDTO.equipment['/equipment_types/main_hand'] || playerDTO.equipment['/equipment_types/two_hand'];
     if (!weapon) return 'unknown';
+    // Bulwarks have no smashDamage stat — the engine adds defensive damage to smash max damage
+    // when one is equipped — so stat-based detection would misclassify them.
+    if (playerDTO.equipment['/equipment_types/two_hand']?.hrid?.includes('bulwark')) return 'smash';
     const weaponDetails = gameData.itemDetailMap[weapon.hrid];
     const stats = weaponDetails?.equipmentDetail?.combatStats;
     if (!stats) return 'unknown';
@@ -492,10 +495,11 @@ function isAbilityCompatible(abilityStyle, weaponStyle) {
     // Ranged abilities only for ranged weapons
     if (abilityStyle === 'ranged') return weaponStyle === 'ranged';
 
-    // Physical (non-elemental amplify) works for all melee and ranged
+    // Physical (non-elemental amplify) works for all melee and ranged, and for magic too — some
+    // (e.g. Retaliation) are still worth testing on mage builds
     const meleeStyles = ['stab', 'slash', 'smash'];
     if (abilityStyle === 'physical') {
-        return meleeStyles.includes(weaponStyle) || weaponStyle === 'ranged';
+        return meleeStyles.includes(weaponStyle) || weaponStyle === 'ranged' || weaponStyle === 'magic';
     }
 
     // Melee-specific (e.g., fierce aura with /skills/melee multiplier)
@@ -549,10 +553,13 @@ function matchesAbilitySpecialization(abilityStyle, abilityDetail, specializatio
 
     if (SPECIALIZATION_OPTIONS.melee.includes(specialization)) {
         if (SPECIALIZATION_OPTIONS.melee.includes(abilityStyle)) return abilityStyle === specialization;
+        if (abilityStyle === 'magic' || abilityStyle === 'ranged') return false;
         return true;
     }
 
     if (SPECIALIZATION_OPTIONS.magic.includes(specialization)) {
+        if (abilityStyle === 'ranged' || abilityStyle === 'melee') return false;
+        if (SPECIALIZATION_OPTIONS.melee.includes(abilityStyle)) return false;
         if (abilityStyle !== 'magic') return true;
         const element = getAbilityElement(abilityDetail);
         return !element || element === specialization;
