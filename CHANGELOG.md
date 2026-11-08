@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.21.1](https://github.com/Skillcheese/Cheezasha/compare/v3.21.0...v3.21.1) (2026-11-08)
+
+### Bug Fixes
+
+- **combat-sim:** detect bulwark smash style and filter cross-style abilities ([f0c5eec](https://github.com/Skillcheese/Cheezasha/commit/f0c5eecdbd162e242d9f384be03fa335c50d628d))
+
 ## [3.21.0](https://github.com/Skillcheese/Cheezasha/compare/v3.20.2...v3.21.0) (2026-11-06)
 
 ### Features
